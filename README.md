@@ -90,7 +90,7 @@ WORKBENCH_ACCESS_PASSWORD=replace-with-your-own-long-random-password
 
 ### 4. Allow the app through the host firewall
 
-Allow inbound TCP port **4173** on the **Private** network profile only. On Windows, create an inbound rule in Windows Defender Firewall → Advanced settings → Inbound Rules. Do not enable the rule for Public networks.
+Allow inbound TCP port **4173** on the **Private** network profile only. On Windows, create an inbound rule in Windows Defender Firewall → Advanced settings → Inbound Rules. Do not enable the rule for Public networks. If this is your trusted home Wi-Fi but Windows classifies it as Public, change that Wi-Fi connection to the Private profile in Settings first; never do this on public Wi-Fi.
 
 ### 5. Start OpenSybau and open it on the phone
 

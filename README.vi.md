@@ -90,7 +90,7 @@ WORKBENCH_ACCESS_PASSWORD=thay-bang-mat-khau-ngau-nhien-dai-cua-ban
 
 ### 4. Cho phép qua tường lửa máy chủ
 
-Chỉ cho phép kết nối TCP cổng **4173** ở cấu hình mạng **Private**. Trên Windows, vào Windows Defender Firewall → Advanced settings → Inbound Rules để tạo luật mới. Không bật luật này cho mạng Public.
+Chỉ cho phép kết nối TCP cổng **4173** ở cấu hình mạng **Private**. Trên Windows, vào Windows Defender Firewall → Advanced settings → Inbound Rules để tạo luật mới. Không bật luật này cho mạng Public. Nếu đây là Wi-Fi nhà bạn đáng tin cậy nhưng Windows đang phân loại là Public, đổi profile của mạng Wi-Fi sang Private trong Settings trước; tuyệt đối không làm vậy khi dùng Wi-Fi công cộng.
 
 ### 5. Chạy OpenSybau và mở trên điện thoại
 
