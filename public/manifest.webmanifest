@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "OpenSybau",
+  "short_name": "OpenSybau",
+  "description": "Điều khiển workspace và các task AI từ trình duyệt.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#1b1c1d",
+  "theme_color": "#1b1c1d",
+  "orientation": "any",
+  "icons": [
+    { "src": "/opensybau.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

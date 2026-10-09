@@ -1,0 +1,801 @@
+:root {
+  color-scheme: dark;
+  --ink: var(--wb-ink);
+  --muted: var(--wb-muted);
+  --line: var(--wb-line);
+  --panel: var(--wb-panel);
+  --blue: var(--wb-accent);
+  --blue-bg: color-mix(in srgb, var(--wb-accent) 14%, var(--wb-panel));
+  --green: var(--wb-green);
+  --amber: var(--wb-amber);
+  --red: var(--wb-red);
+  background: var(--wb-main);
+}
+
+body,
+.shell,
+.main {
+  background: var(--wb-main);
+  color: var(--ink);
+}
+
+body {
+  overflow-x: hidden;
+  scrollbar-color: #545454 #1a1a1a;
+}
+
+body.launch-home,
+body.launch-home .shell,
+body.launch-home .sidebar,
+body.launch-home .main {
+  background: var(--wb-main);
+}
+
+.sidebar {
+  background: #1b1b1b;
+  border-color: #2d2d2d;
+}
+
+.brand,
+.brand strong,
+.machine-foot strong,
+.connector-name strong,
+.workspace-link strong {
+  color: #e8e8e8;
+}
+
+.brand-symbol {
+  background: #e8e8e8;
+  color: #171717;
+}
+
+.brand small,
+.machine-label,
+.side-heading,
+.workspace-link small,
+.side-empty,
+.connector-name small,
+.parallel-setting,
+.machine-foot small,
+.breadcrumb,
+.topbar-right,
+.page-head p,
+.quick-stats small,
+.list-toolbar > span,
+.task-agent,
+.task-primary small,
+.task-date,
+.empty-state p,
+.reality-note,
+.workspace-card-main small,
+.form-note,
+.muted,
+.detail-id,
+.task-meta,
+.settings-card > header p,
+.skill-library-row p,
+.skill-library-row small {
+  color: #a1a1a1;
+}
+
+.live-dot {
+  background: #62b590;
+  box-shadow: 0 0 0 3px #62b59020;
+}
+
+.nav-button,
+.workspace-link,
+.chat-nav-task,
+.chat-nav-more {
+  color: #c7c7c7;
+}
+
+.nav-button:hover,
+.workspace-link:hover,
+.chat-nav-task:hover,
+.chat-home-card:hover {
+  background: #282828;
+}
+
+.nav-button.active,
+.chat-nav-task.selected {
+  color: #f0f0f0;
+  background: #2b2b2b;
+}
+
+.nav-button.active .nav-icon,
+.nav-button.active > span:first-child,
+.repo-mark {
+  color: #d7d7d7;
+}
+
+.nav-button small,
+.workspace-link small,
+.chat-nav-task small,
+.chat-home-card small,
+.topbar-right,
+.breadcrumb {
+  color: #929292;
+}
+
+.topbar {
+  color: #dedede;
+  background: #1b1b1b;
+  border-color: #303030;
+}
+
+.breadcrumb strong {
+  color: #e5e5e5;
+}
+
+.icon-button,
+.button,
+.button.quiet,
+.filter,
+.side-heading button,
+.parallel-setting button {
+  color: #d8d8d8;
+  background: #232323;
+  border-color: #3a3a3a;
+}
+
+.icon-button:hover,
+.button:hover,
+.filter:hover,
+.side-heading button:hover,
+.parallel-setting button:hover {
+  background: #2b2b2b;
+  border-color: #4b4b4b;
+}
+
+.button.primary {
+  color: #161616;
+  background: #e6e6e6;
+  border-color: #e6e6e6;
+}
+
+.button.primary:hover {
+  background: #fff;
+  border-color: #fff;
+}
+
+.button.danger {
+  color: #f09a9a;
+  background: #302020;
+  border-color: #593737;
+}
+
+.content,
+.page-head h1,
+.settings-card h2,
+.task-primary strong,
+.empty-state strong,
+.workspace-card-main strong,
+.memory-card strong,
+.task-orchestration-page,
+.chat-home h1 {
+  color: #e7e7e7;
+}
+
+.quick-stats,
+.task-list,
+.workspace-list,
+.memory-list,
+.settings-card,
+.task-skill-picker,
+.skill-library-row,
+.task-row,
+.workspace-card,
+.memory-card,
+.workflow-card,
+.empty-state,
+.workspace-card-icon,
+.info-panel,
+.file-browser,
+.file-preview,
+.file-row,
+.chat-home-card,
+.chat-home-empty,
+.home-composer,
+.home-search-results,
+.home-agent-card,
+.home-recent,
+.home-recent-card,
+.detail-panel,
+.modal,
+.toast,
+.output-box,
+.artifact-box,
+.stage-results details,
+.diff-content,
+.settings-empty,
+.check-row,
+.model-provider,
+.task-skill-option {
+  color: #dedede;
+  background-color: #202020;
+  border-color: #333;
+}
+
+.quick-stats > div,
+.task-row,
+.workspace-card,
+.memory-card,
+.skill-library-row,
+.orchestration-event,
+.workflow-card footer,
+.events-box,
+.detail-path,
+.conversation-top,
+.topbar,
+.machine-foot,
+.connection-list,
+.parallel-setting {
+  border-color: #303030;
+}
+
+.task-row:hover,
+.task-row.selected,
+.workflow-task-title:hover {
+  background: #282828;
+}
+
+.task-primary small b,
+.task-chevron,
+.workflow-edge,
+.conversation-separator {
+  color: #777;
+}
+
+.task-state.state-running {
+  border-color: #62b590;
+  box-shadow: 0 0 0 3px #62b59020;
+}
+
+.task-state.state-running i,
+.provider-state.on {
+  background: #62b590;
+}
+
+.task-state.state-done {
+  border-color: #8ab4f8;
+  background: #8ab4f8;
+}
+
+.task-state.state-queued {
+  border-color: #d0a45f;
+}
+
+.task-state.state-failed {
+  border-color: #e07878;
+  background: #e07878;
+}
+
+.task-agent,
+.task-date,
+.conversation-task-id,
+.conversation-context {
+  color: #9d9d9d;
+}
+
+.task-orchestration-page {
+  max-width: 1600px;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 0 clamp(16px, 2.5vw, 38px) 36px;
+  color: #e7e7e7;
+  background: transparent;
+}
+
+.task-detail-content {
+  width: 100%;
+  max-width: none;
+  height: auto;
+  min-height: calc(100dvh - 58px);
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+  background: #171717;
+}
+
+.task-orchestration-page > .conversation-top {
+  position: static;
+  z-index: auto;
+  min-height: 48px;
+  padding: 7px 0;
+  background: transparent;
+  border-color: #303030;
+}
+
+.conversation-repo {
+  color: #dedede;
+}
+
+.conversation-repo .ui-icon {
+  color: #aaa;
+}
+
+.task-orchestration-page > .detail-title-row {
+  margin: 18px 0 14px;
+}
+
+.task-orchestration-page > .detail-title-row h2 {
+  max-width: 1050px;
+  margin: 0 0 9px;
+  color: #f0f0f0;
+  font-size: clamp(19px, 2vw, 25px);
+  line-height: 1.32;
+  letter-spacing: -.35px;
+}
+
+.detail-meta {
+  color: #9a9a9a;
+}
+
+.pill {
+  color: #c5c5c5;
+  background: #292929;
+}
+
+.pill.status-running {
+  color: #8bd1ad;
+  background: #203329;
+}
+
+.pill.status-queued {
+  color: #e0bf83;
+  background: #332d20;
+}
+
+.pill.status-done {
+  color: #a9caff;
+  background: #222e40;
+}
+
+.pill.status-failed {
+  color: #f09a9a;
+  background: #382222;
+}
+
+.pill.status-cancelled {
+  color: #b5b5b5;
+  background: #292929;
+}
+
+.task-orchestration-page > .skill-used {
+  margin: 0 0 14px;
+  padding: 9px 11px;
+  color: #b6b6b6;
+  border: 1px solid #333;
+  border-radius: 7px;
+  background: #1d1d1d;
+}
+
+.skill-search {
+  color: #c8c8c8 !important;
+  background: #242424 !important;
+  border-color: #3a3a3a !important;
+}
+
+.skill-search > span,
+.skill-search small {
+  color: #a3a3a3 !important;
+}
+
+.skill-search input {
+  color: #ededed !important;
+}
+
+.skill-manager-row {
+  border-color: #333;
+}
+
+.skill-manager-main > strong {
+  color: #e7e7e7;
+}
+
+.skill-manager-main > p,
+.skill-manager-main > small {
+  color: #a5a5a5;
+}
+
+.orchestration-layout {
+  grid-template-columns: minmax(0, 1.35fr) minmax(310px, .85fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.orchestration-canvas,
+.orchestration-activity {
+  color: #dedede;
+  border-color: #343434;
+  border-radius: 8px;
+  background: #1e1e1e;
+}
+
+.orchestration-canvas-head,
+.orchestration-activity-head {
+  background: #202020;
+  border-color: #333;
+}
+
+.orchestration-canvas-head small,
+.orchestration-activity-head small,
+.orchestration-node-card > header small {
+  color: #a3a3a3;
+  font-size: 10px;
+}
+
+.orchestration-canvas-head h3,
+.orchestration-activity-head h3,
+.orchestration-node-main h3 {
+  color: #e7e7e7;
+}
+
+.orchestration-canvas-head h3,
+.orchestration-activity-head h3 {
+  font-size: 14px;
+}
+
+.orchestration-flow {
+  background-color: #1a1a1a;
+  background-image: radial-gradient(#343434 .7px, transparent .7px);
+}
+
+.orchestration-rail > span {
+  color: #c0c0c0;
+  border-color: #484848;
+  background: #242424;
+}
+
+.orchestration-rail > i {
+  background: #484848;
+}
+
+.orchestration-node-card {
+  color: #ddd;
+  border-color: #3a3a3a;
+  border-radius: 7px;
+  background: #222;
+  box-shadow: none;
+}
+
+.orchestration-node-card > header > span,
+.orchestration-node-main p,
+.orchestration-activity-head > span,
+.orchestration-event time,
+.orchestration-event > div > header strong,
+.orchestration-event p,
+.orchestration-stage-results > strong,
+.orchestration-artifacts > strong,
+.orchestration-artifacts > div {
+  color: #a7a7a7;
+}
+
+.orchestration-node-card > header > span,
+.orchestration-event > div > header strong {
+  font-size: 10px;
+}
+
+.orchestration-node-main h3 {
+  font-size: 13px;
+}
+
+.orchestration-node-main p,
+.orchestration-event p,
+.orchestration-activity-note {
+  font-size: 11px;
+}
+
+.orchestration-node-icon,
+.orchestration-event-mark {
+  color: #c4c4c4;
+  background: #2d2d2d;
+}
+
+.orchestration-node.state-complete .orchestration-rail > span {
+  color: #86c8a7;
+  border-color: #47725d;
+  background: #22362b;
+}
+
+.orchestration-node.state-complete .orchestration-node-card {
+  border-color: #3e5d4b;
+}
+
+.orchestration-node.state-complete .orchestration-node-card > header > span {
+  color: #86c8a7;
+}
+
+.orchestration-node.state-active .orchestration-rail > span {
+  color: #a8c6ff;
+  border-color: #4e6690;
+  background: #27334a;
+  box-shadow: 0 0 0 3px #8ab4f81a;
+}
+
+.orchestration-node.state-active .orchestration-node-card {
+  border-color: #4e6690;
+  box-shadow: 0 0 0 1px #8ab4f81a;
+}
+
+.orchestration-node.state-active .orchestration-node-card > header > span {
+  color: #a8c6ff;
+}
+
+.orchestration-node.state-failed .orchestration-rail > span,
+.orchestration-node.state-cancelled .orchestration-rail > span {
+  color: #f09a9a;
+  border-color: #704444;
+  background: #382222;
+}
+
+.orchestration-node.state-failed .orchestration-node-card {
+  border-color: #704444;
+}
+
+.orchestration-node-details,
+.orchestration-stage-results,
+.orchestration-artifacts {
+  border-color: #333;
+}
+
+.orchestration-node-details summary,
+.orchestration-stage-results summary,
+.orchestration-event-details summary {
+  color: #abc4f6;
+  font-size: 10px;
+}
+
+.orchestration-node-details pre,
+.orchestration-event-details pre,
+.orchestration-stage-results pre {
+  color: #d0d0d0;
+  background: #181818;
+  border: 1px solid #303030;
+}
+
+.orchestration-node-details > div p,
+.orchestration-node-details time,
+.orchestration-node-details code,
+.orchestration-artifacts code {
+  color: #b0b0b0;
+}
+
+.orchestration-activity-note {
+  color: #b1b1b1;
+  background: #292929;
+}
+
+.orchestration-event {
+  border-color: #303030;
+}
+
+.orchestration-event.kind-handoff .orchestration-event-mark {
+  color: #a8c6ff;
+  background: #27334a;
+}
+
+.orchestration-event.kind-tool .orchestration-event-mark {
+  color: #e0bf83;
+  background: #332d20;
+}
+
+.orchestration-event.kind-error .orchestration-event-mark {
+  color: #f09a9a;
+  background: #382222;
+}
+
+.orchestration-event.kind-success .orchestration-event-mark {
+  color: #86c8a7;
+  background: #22362b;
+}
+
+.orchestration-event-list {
+  max-height: none;
+  overflow: visible;
+}
+
+.task-orchestration-page > .detail-actions {
+  position: static;
+  margin: 14px 0 0;
+  padding: 12px 0 20px;
+  border-color: #303030;
+  background: transparent;
+}
+
+.task-conversation-page,
+.chat-home {
+  color: #e7e7e7;
+  background: #171717;
+}
+
+.chat-home h1,
+.agent-message-content h1,
+.agent-message-content h2,
+.agent-message-content h3,
+.agent-message-content h4 {
+  color: #e7e7e7;
+}
+
+.chat-home-copy,
+.chat-home-section > header,
+.chat-home-card,
+.agent-message-content {
+  color: #c5c5c5;
+}
+
+.agent-message-content code,
+.agent-message-content pre {
+  color: #ddd;
+  background: #252525;
+  border-color: #3a3a3a;
+}
+
+.agent-message-content a,
+.chat-nav-more {
+  color: #a8c6ff;
+}
+
+.home-mode-tab,
+.home-composer-settings,
+.chat-config-trigger,
+.home-search-results button {
+  color: #ddd;
+  background: #242424;
+  border-color: #393939;
+}
+
+.home-mode-tab.active {
+  color: #f0f0f0;
+  background: #303030;
+  border-color: #4a4a4a;
+}
+
+.home-composer > textarea,
+.chat-composer textarea,
+.modal input:not([type="checkbox"]),
+.modal select,
+.modal textarea,
+.model-provider select,
+.skill-search input {
+  color: #ededed;
+  background: #181818;
+  border-color: #3b3b3b;
+}
+
+.home-composer > textarea::placeholder,
+.chat-composer textarea::placeholder,
+.modal input::placeholder,
+.modal textarea::placeholder,
+.skill-search input::placeholder {
+  color: #858585;
+}
+
+.model-provider,
+.settings-card,
+.settings-empty,
+.check-row,
+.task-skill-option,
+.home-agent-card {
+  color: #ddd;
+  background: #222;
+  border-color: #383838;
+}
+
+.model-provider > header strong,
+.model-provider label,
+.check-row strong,
+.skill-library-row strong,
+.task-skill-option strong {
+  color: #e2e2e2;
+}
+
+.model-provider > header span,
+.model-provider label span,
+.check-row small,
+.skill-library-row p,
+.skill-library-row small,
+.settings-card header p,
+.form-note {
+  color: #a5a5a5;
+}
+
+.model-provider select option {
+  color: #e7e7e7;
+  background: #222;
+}
+
+.settings-status {
+  color: #8bd1ad;
+  background: #203329;
+}
+
+.settings-actions,
+.modal-actions {
+  border-color: #353535;
+}
+
+.feature-warning {
+  color: #e0bf83;
+  background: #332d20;
+  border-color: #5d4d30;
+}
+
+.workflow-lane,
+.workflow-node {
+  color: #ddd;
+}
+
+.workflow-node {
+  background: #242424;
+  border-color: #3a3a3a;
+}
+
+.workflow-node strong,
+.workflow-task-title strong,
+.memory-card p,
+.info-panel strong {
+  color: #e0e0e0;
+}
+
+.info-panel,
+.orchestration-activity-note,
+.workflow-empty {
+  background: #222;
+  border-color: #343434;
+}
+
+.detail-backdrop,
+.modal-backdrop {
+  background: #0009;
+}
+
+.detail-panel,
+.modal {
+  color: #e7e7e7;
+  background: #202020;
+  border: 1px solid #363636;
+  box-shadow: 0 18px 60px #0008;
+}
+
+.detail-actions {
+  background: #202020;
+  border-color: #353535;
+}
+
+.toast {
+  color: #eee;
+  background: #252525;
+  border-color: #444;
+  box-shadow: 0 5px 20px #0007;
+}
+
+@media (max-width: 1100px) {
+  .task-detail-content {
+    min-height: calc(100dvh - 58px);
+  }
+
+  .orchestration-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .sidebar {
+    background: #1b1b1b;
+    border-color: #303030;
+  }
+
+  .task-detail-content {
+    min-height: calc(100dvh - 46px);
+  }
+
+  .task-orchestration-page {
+    padding: 0 14px 28px;
+  }
+
+  .task-orchestration-page > .conversation-top {
+    align-items: flex-start;
+  }
+}

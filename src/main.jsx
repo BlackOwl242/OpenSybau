@@ -1,0 +1,11 @@
+import { mountWorkbench } from "./shell/mount.jsx";
+import "./styles/feature-views.css";
+import "./styles/legacy-dark-theme.css";
+import "./styles/tokens.css";
+import "./styles/shell.css";
+
+mountWorkbench();
+import("./features/workbench/controller.js").catch((error) => {
+  const root = document.querySelector("#root");
+  if (root) root.innerHTML = `<main class="boot-screen boot-error">Không thể tải OpenSybau: ${String(error?.message || error)}</main>`;
+});

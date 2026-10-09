@@ -1,0 +1,21 @@
+{
+  "name": "opensybau",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "node scripts/run.mjs dev",
+    "build": "vite build",
+    "start": "node scripts/run.mjs production"
+  },
+  "dependencies": {
+    "preact": "^11.0.0"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.6",
+    "vite": "^8.3.3"
+  }
+}
