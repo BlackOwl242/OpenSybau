@@ -34,6 +34,9 @@ export const view = {
   homeMode: "chat",
   homeWorkflow: "chat-only",
   homeChatProvider: "codex",
+  homeChatModel: "",
+  homeChatEffort: "",
+  homeRoles: {},
   homeWorkspaceId: "",
   homeConfigOpen: false,
   searchQuery: "",
@@ -73,5 +76,5 @@ export const fmtDate = (value) => value
 
 export function tokenCount(usage) {
   if (!usage || typeof usage !== "object") return 0;
-  return Number(usage.total_tokens ?? ((usage.input_tokens || 0) + (usage.output_tokens || 0))) || 0;
+  return Number(usage.total_tokens ?? ((usage.input_tokens || usage.prompt_tokens || 0) + (usage.output_tokens || usage.completion_tokens || 0))) || 0;
 }

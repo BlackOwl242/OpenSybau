@@ -712,3 +712,35 @@ body.launch-home #content.home-launch-content{background:#fff}
   .task-conversation-page .chat-composer{width:calc(100% - 18px);margin-bottom:8px}
   .task-conversation-page .chat-config-trigger{max-width:50vw}
 }
+
+/* Provider-neutral workflow roles */
+.agent-role-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+.agent-role-card{display:grid;align-content:start;gap:9px;min-width:0;padding:12px;border:1px solid var(--wb-line);border-radius:8px;background:var(--wb-surface-soft)}
+.agent-role-card[hidden],.agent-role-grid[hidden],.chat-agent-role[hidden]{display:none!important}
+.agent-role-card>header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-bottom:3px}
+.agent-role-card>header strong{font-size:12px;font-weight:650;color:var(--wb-ink-strong)}
+.agent-role-card>header small{font-size:10px;color:var(--wb-muted);text-align:right}
+.agent-role-card>label{display:grid;gap:5px;min-width:0;margin:0;color:var(--wb-muted);font-size:11px;font-weight:550}
+.agent-role-card select{width:100%;min-width:0;height:35px;padding:0 9px;border:1px solid var(--wb-line);border-radius:6px;background:var(--wb-field);color:var(--wb-ink);font-size:11px}
+.agent-role-card select:focus-visible{outline:2px solid color-mix(in srgb,var(--wb-accent) 65%,transparent);outline-offset:1px}
+.agent-role-card select:disabled{opacity:.55}
+.chat-agent-role{margin:10px 0}
+.settings-role-grid{margin:15px 0}
+.provider-setup-card{margin-top:14px}
+.provider-setup-list{display:grid;gap:1px}
+.provider-setup-row{display:grid;grid-template-columns:9px minmax(0,1fr);align-items:start;gap:10px;padding:10px 0;border-top:1px solid var(--wb-line)}
+.provider-status-dot{width:8px;height:8px;margin-top:5px;border-radius:50%;background:var(--wb-amber)}
+.provider-status-dot.ready{background:var(--wb-green)}
+.provider-setup-row>div{display:grid;gap:3px;min-width:0}
+.provider-setup-row strong{font-size:12px;font-weight:600}
+.provider-setup-row small,.provider-env-help>p,.provider-env-help>small{font-size:11px;line-height:1.55;color:var(--wb-muted);overflow-wrap:anywhere}
+.provider-config-error{margin:8px 0;color:var(--wb-red);font-size:11px}
+.provider-env-help{margin-top:12px;padding-top:10px;border-top:1px solid var(--wb-line)}
+.provider-env-help summary{cursor:pointer;color:var(--wb-ink);font-size:11px;font-weight:600}
+.provider-env-help>p{margin:8px 0 0}
+.task-role-grid{margin:12px 0}
+.task-role-grid .agent-role-card{padding:10px}
+.task-role-grid .agent-role-card>header strong{font-size:11px}
+.home-role-grid{margin:12px 0}
+.composer-config-dialog .agent-role-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:850px){.agent-role-grid{grid-template-columns:1fr}.composer-config-dialog .agent-role-grid{grid-template-columns:1fr}.agent-role-card{grid-template-columns:1fr 1fr}.agent-role-card>header{grid-column:1/-1}.chat-agent-card{grid-template-columns:1fr 1fr}}

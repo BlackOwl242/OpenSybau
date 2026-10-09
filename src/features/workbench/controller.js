@@ -1,5 +1,6 @@
 import { $, efforts, esc, fmtDate, icon, statuses, tokenCount, view } from "../../shared/state.js";
 import { orchestrationNodes } from "../../domain/task-flow.js";
+import { connectorSupports, providerTitle, providersForRole, roleConfig, workflowRoles } from "../../domain/agent-roles.js";
 import { updateWorkbenchShell } from "../../shell/mount.jsx";
 import { readBrowserRoute, syncBrowserRoute } from "../../shell/router.js";
 
@@ -76,16 +77,62 @@ function taskProgress(task) {
   if (task.status === "failed") return task.error || "Tiến trình CLI thất bại";
   if (task.status === "cancelled") return "Tiến trình đã dừng";
   if (task.status === "done") return task.config?.workflow === "chat-only" ? "Hội thoại sẵn sàng" : task.phase === "done" ? "Luồng đã hoàn tất" : "Kế hoạch sẵn sàng";
-  if (task.phase === "chat") return "Agent đang trả lời chat";
-  return ({ plan: "Codex đang lập kế hoạch", build: "Antigravity đang triển khai", review: "Codex đang review" })[task.phase] || "Đang chạy";
+  if (task.phase === "chat") return `${providerTitle(view.connectors, task.config?.chatProvider || "codex")} đang trả lời`;
+  const roleId = task.phase === "implementation" ? "build" : task.phase;
+  const configured = task.config?.roles?.[roleId] || roleConfig(task.config, roleId);
+  const labels = { plan: "đang lập kế hoạch", build: "đang triển khai", review: "đang review" };
+  return configured ? `${providerTitle(view.connectors, configured.provider)} ${labels[roleId] || "đang chạy"}` : "Đang chạy";
+}
+function normalizedRoleSelection(roleId, overrides = {}) {
+  const candidates = providersForRole(view.connectors, roleId);
+  const saved = roleConfig(view.state?.settings?.defaults, roleId) || {};
+  const provider = candidates.some(([id]) => id === overrides.provider) ? overrides.provider
+    : candidates.some(([id]) => id === saved.provider) ? saved.provider : candidates[0]?.[0] || "";
+  const connector = view.connectors?.[provider];
+  const models = connector?.models || [];
+  const model = models.find((item) => item.id === overrides.model) || models.find((item) => item.id === saved.model) || models[0];
+  const choices = model?.efforts || [];
+  const effort = choices.includes(overrides.effort) ? overrides.effort : choices.includes(saved.effort) ? saved.effort : choices.includes("medium") ? "medium" : choices[0] || "";
+  return { provider, model: model?.id || "", effort, candidates };
+}
+function roleEditor(roleId, overrides = {}) {
+  const role = workflowRoles.find((item) => item.id === roleId);
+  if (!role) return "";
+  const selection = normalizedRoleSelection(roleId, overrides);
+  const connector = view.connectors?.[selection.provider];
+  const model = connector?.models?.find((item) => item.id === selection.model);
+  const providerOptions = selection.candidates.map(([id, item]) => `<option value="${esc(id)}" ${id === selection.provider ? "selected" : ""}>${esc(item.name || id)}${item.kind === "api" ? " · API" : " · CLI"}</option>`).join("");
+  const modelOptions = (connector?.models || []).map((item) => `<option value="${esc(item.id)}" ${item.id === selection.model ? "selected" : ""}>${esc(item.name)}</option>`).join("");
+  const effortOptions = (model?.efforts || []).map((item) => `<option value="${esc(item)}" ${item === selection.effort ? "selected" : ""}>${esc(item)}</option>`).join("");
+  const providerHint = connector?.kind === "api" ? roleId === "build" ? "API ngoài · trả nội dung tệp" : "API ngoài · gửi ngữ cảnh" : connector ? "Agent cục bộ" : "Chưa có provider sẵn sàng";
+  return `<section class="agent-role-card" data-role-card="${roleId}"><header><strong>${role.label}</strong><small>${selection.candidates.length ? esc(providerHint) : "Chưa có provider sẵn sàng"}</small></header><label>Agent<select name="${roleId}Provider" data-role-provider="${roleId}" ${providerOptions ? "required" : "disabled"}>${providerOptions || `<option value="">Chưa có agent khả dụng</option>`}</select></label><label>Model<select name="${roleId}Model" data-role-model="${roleId}" ${modelOptions ? "required" : "disabled"}>${modelOptions || `<option value="">Chưa có model</option>`}</select></label><label>Mức suy nghĩ<select name="${roleId}Effort" data-role-effort="${roleId}" ${effortOptions ? "required" : "disabled"}>${effortOptions || `<option value="">Không áp dụng</option>`}</select></label></section>`;
+}
+function chatAgentEditor(overrides = {}) {
+  const { candidates, provider, connector, models, model, effort } = normalizedChatSelection(overrides);
+  return `<section class="agent-role-card chat-agent-card"><header><strong>Agent hội thoại</strong><small>${connector?.kind === "api" ? "API bên ngoài · không có quyền workspace" : connector ? "Agent cục bộ" : "Chưa có provider sẵn sàng"}</small></header><label>Agent<select name="chatProvider" data-chat-agent-provider ${candidates.length ? "required" : "disabled"}>${candidates.map(([id, item]) => `<option value="${esc(id)}" ${id === provider ? "selected" : ""}>${esc(item.name || id)}${item.kind === "api" ? " · API" : " · CLI"}</option>`).join("") || `<option value="">Chưa có agent khả dụng</option>`}</select></label><label>Model<select name="chatModel" data-chat-agent-model ${model ? "required" : "disabled"}>${models.map((item) => `<option value="${esc(item.id)}" ${item.id === model?.id ? "selected" : ""}>${esc(item.name)}</option>`).join("") || `<option value="">Chưa có model</option>`}</select></label><label>Mức suy nghĩ<select name="chatEffort" data-chat-agent-effort ${model ? "required" : "disabled"}>${(model?.efforts || []).map((item) => `<option value="${esc(item)}" ${item === effort ? "selected" : ""}>${esc(item)}</option>`).join("") || `<option value="">Không áp dụng</option>`}</select></label></section>`;
+}
+function normalizedChatSelection(overrides = {}) {
+  const candidates = Object.entries(view.connectors || {}).filter(([, connector]) => connectorSupports(connector, "chat"));
+  const saved = view.state?.settings?.defaults || {};
+  const provider = candidates.some(([id]) => id === overrides.provider) ? overrides.provider
+    : candidates.some(([id]) => id === saved.chatProvider) ? saved.chatProvider : candidates[0]?.[0] || "";
+  const connector = view.connectors?.[provider];
+  const models = connector?.models || [];
+  const model = models.find((item) => item.id === overrides.model) || models.find((item) => item.id === saved.chatModel) || models[0];
+  const effort = model?.efforts?.includes(overrides.effort) ? overrides.effort : model?.efforts?.includes(saved.chatEffort) ? saved.chatEffort : model?.efforts?.includes("medium") ? "medium" : model?.efforts?.[0] || "";
+  return { candidates, provider, connector, models, model, effort };
+}
+function workflowSummary(task) {
+  return workflowRoles.map((role) => providerTitle(view.connectors, task.config?.roles?.[role.id]?.provider || roleConfig(task.config, role.id)?.provider)).join(" → ");
 }
 function taskRow(task) {
   const workspace = view.state.workspaces.find((w) => w.id === task.workspaceId);
-  const provider = task.phase === "build" ? "Antigravity" : task.phase === "chat" ? (task.chatQueue?.[0]?.provider === "antigravity" ? "Antigravity chat" : "Codex chat") : "Codex";
+  const roleId = task.phase === "implementation" ? "build" : task.phase;
+  const provider = task.phase === "chat" ? providerTitle(view.connectors, task.chatQueue?.[0]?.provider || task.config.chatProvider || "codex") : providerTitle(view.connectors, task.config?.roles?.[roleId]?.provider || roleConfig(task.config, roleId)?.provider || "codex");
   return `<button class="task-row ${view.selected === task.id ? "selected" : ""}" data-task="${task.id}">
     <span class="task-state state-${task.status}"><i></i></span>
     <span class="task-primary"><strong>${esc(task.title)}</strong><small>${esc(workspace?.name || task.workspacePath)} <b>·</b> ${esc(taskProgress(task))}</small></span>
-    <span class="task-agent">${task.status === "running" ? `<i class="spin"></i>${provider}` : task.status === "queued" ? "Queue" : esc(task.config.workflow === "chat-only" ? `Chat · ${task.config.chatProvider === "antigravity" ? "Antigravity" : "Codex"}` : task.config.workflow === "plan-only" ? "Codex" : "Codex → Antigravity → Codex")}</span>
+    <span class="task-agent">${task.status === "running" ? `<i class="spin"></i>${esc(provider)}` : task.status === "queued" ? "Queue" : esc(task.config.workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, task.config.chatProvider)}` : task.config.workflow === "plan-only" ? providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider) : workflowSummary(task))}</span>
     <span class="task-date">${fmtDate(task.updatedAt)}</span>
     <span class="task-chevron">${icon("chevron-right", 16)}</span>
   </button>`;
@@ -140,7 +187,7 @@ function taskPage() {
   ${activityChart()}
   <div class="list-toolbar"><div class="filters">${[["all", "Tất cả"], ["running", "Đang chạy"], ["queued", "Chờ"], ["done", "Xong"], ["failed", "Lỗi"], ["cancelled", "Đã dừng"]].map(([key, label]) => `<button class="filter ${view.filter === key ? "active" : ""}" data-filter="${key}">${label}</button>`).join("")}</div><span>${all.length} task đã ghi trên máy này</span></div>
   <section class="task-list">${visible.length ? visible.map(taskRow).join("") : `<div class="empty-state"><div class="empty-symbol">${icon("folder-code", 18)}</div><strong>${all.length ? "Không có task trong bộ lọc này" : view.state.workspaces.length ? "Chưa có task nào được chạy" : "Thêm repository của bạn để bắt đầu"}</strong><p>${all.length ? "Chọn bộ lọc khác để xem task." : view.state.workspaces.length ? "Task tiếp theo sẽ chạy trong đúng workspace đã đăng ký và lịch sử sẽ được lưu cục bộ." : "OpenSybau chỉ chạy trong thư mục bạn chỉ định. Hãy thêm đường dẫn repository hoặc thư mục ứng dụng trước; thư mục cài đặt ứng dụng không được tự coi là dự án của bạn."}</p>${all.length ? "" : view.state.workspaces.length ? `<button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button>` : `<button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm đường dẫn dự án</button>`}</div>`}</section>
-  <div class="reality-note"><span class="live-dot"></span>Codex lập kế hoạch và review · Antigravity triển khai · Log và lịch sử nằm cục bộ.</div>`;
+  <div class="reality-note"><span class="live-dot"></span>Task chạy bằng provider bạn chọn; lịch sử và bản ghi được lưu cục bộ.</div>`;
 }
 function workspacePage() {
   const workspaces = view.state.workspaces;
@@ -276,7 +323,7 @@ function workflowPage() {
   if (view.selected && view.state.tasks.some((task) => task.id === view.selected)) return taskDetails();
   const tasks = view.state.tasks;
   const active = tasks.filter((task) => ["queued", "running"].includes(task.status));
-  return `<div class="page-head"><div><div class="eyebrow">TASK ORCHESTRATION</div><h1>Luồng</h1><p>Xem sơ đồ từng bước, log hoạt động và đầu ra được ghi nhận cho mỗi cuộc trò chuyện.</p></div><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task</button></div><div class="flow-summary"><div><small>Đang hoạt động</small><strong>${active.length}</strong></div><div><small>Có bản ghi</small><strong>${tasks.length}</strong></div><p>Chọn một luồng để xem chi tiết điều phối và đầu ra từng agent.</p></div>${tasks.length ? `<section class="workflow-board">${tasks.map((task) => `<article class="workflow-card"><header><button data-action="open-task-flow" data-id="${task.id}" class="workflow-task-title"><strong>${esc(task.title)}</strong><small>${esc(view.state.workspaces.find((workspace) => workspace.id === task.workspaceId)?.name || task.workspacePath)} · ${esc(taskProgress(task))}</small></button><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span></header><div class="workflow-lane">${workflowNodes(task)}</div><footer><span>${task.config.workflow === "chat-only" ? `Chat · ${task.config.chatProvider === "antigravity" ? "Antigravity" : "Codex"}` : task.config.workflow === "plan-only" ? "Codex · chỉ lập kế hoạch" : "Codex → Antigravity → Codex"}</span><button class="workflow-record-link" data-action="open-task-flow" data-id="${task.id}">${icon("workflow", 14)} Mở bản ghi</button><time>${fmtDate(task.updatedAt)}</time></footer></article>`).join("")}</section>` : `<section class="empty-state workflow-empty"><strong>Chưa có bản ghi luồng</strong><p>Bản ghi điều phối sẽ xuất hiện tại đây khi một cuộc trò chuyện hoặc task được tạo trong workspace.</p><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button></section>`}`;
+  return `<div class="page-head"><div><div class="eyebrow">TASK ORCHESTRATION</div><h1>Luồng</h1><p>Xem sơ đồ từng bước, log hoạt động và đầu ra được ghi nhận cho mỗi cuộc trò chuyện.</p></div><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task</button></div><div class="flow-summary"><div><small>Đang hoạt động</small><strong>${active.length}</strong></div><div><small>Có bản ghi</small><strong>${tasks.length}</strong></div><p>Chọn một luồng để xem chi tiết điều phối và đầu ra từng agent.</p></div>${tasks.length ? `<section class="workflow-board">${tasks.map((task) => `<article class="workflow-card"><header><button data-action="open-task-flow" data-id="${task.id}" class="workflow-task-title"><strong>${esc(task.title)}</strong><small>${esc(view.state.workspaces.find((workspace) => workspace.id === task.workspaceId)?.name || task.workspacePath)} · ${esc(taskProgress(task))}</small></button><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span></header><div class="workflow-lane">${workflowNodes(task)}</div><footer><span>${task.config.workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, task.config.chatProvider)}` : task.config.workflow === "plan-only" ? `${providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider)} · chỉ lập kế hoạch` : workflowSummary(task)}</span><button class="workflow-record-link" data-action="open-task-flow" data-id="${task.id}">${icon("workflow", 14)} Mở bản ghi</button><time>${fmtDate(task.updatedAt)}</time></footer></article>`).join("")}</section>` : `<section class="empty-state workflow-empty"><strong>Chưa có bản ghi luồng</strong><p>Bản ghi điều phối sẽ xuất hiện tại đây khi một cuộc trò chuyện hoặc task được tạo trong workspace.</p><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button></section>`}`;
 }
 function memoryPage() {
   const notes = view.state.memories;
@@ -285,14 +332,18 @@ function memoryPage() {
 }
 function settingsPage() {
   const defaults = view.state.settings.defaults || {};
+  const canSaveRoles = workflowRoles.every((role) => providersForRole(view.connectors, role.id).length > 0);
+  const apiProviders = Object.entries(view.connectors || {}).filter(([, connector]) => connector.kind === "api");
+  const apiSetup = apiProviders.map(([id, connector]) => `<div class="provider-setup-row"><span class="provider-status-dot ${connector.available ? "ready" : "missing"}"></span><div><strong>${esc(connector.name || id)}</strong><small>${connector.available ? `${connector.models.length} model · đã sẵn sàng` : esc(connector.error || "Chưa cấu hình")}</small></div></div>`).join("");
   return `<div class="page-head"><div><div class="eyebrow">PREFERENCES & SKILLS</div><h1>Cài đặt</h1><p>Chọn model mặc định, mức suy nghĩ và xem các skill OpenSybau có thể gắn vào task.</p></div></div>
   <form class="settings-form" data-modal data-form="settings">
-    <section class="settings-card"><header><div><h2>Model mặc định</h2><p>Được lấy trực tiếp từ CLI đã cài. Mỗi task vẫn có thể chọn cấu hình riêng.</p></div></header>
-      <div class="model-grid">${modelSelect("codex", "codexModel", selectedModel("codex"), defaults.codexEffort)}${modelSelect("antigravity", "agyModel", selectedModel("antigravity"), defaults.agyEffort)}</div>
-      <div class="form-note">Thay đổi ở đây được lưu trên máy và dùng làm mặc định khi tạo task mới.</div>
+    <section class="settings-card"><header><div><h2>Định tuyến agent mặc định</h2><p>Chọn provider riêng cho kế hoạch, triển khai và review. Mỗi task có thể ghi đè các vai trò này.</p></div></header>
+      <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
+      <div class="form-note">API key chỉ được đọc từ `.env`; giao diện không trả hoặc lưu giá trị bí mật. Provider API nhận nội dung yêu cầu và ngữ cảnh dự án khi được chọn.</div>
       ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Model vẫn chọn theo từng task; hãy khởi động lại server để bật lưu model mặc định và gắn skill.</div>`}
-      <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported ? "" : "disabled"}>Lưu cấu hình model</button></footer>
+      <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu định tuyến mặc định</button></footer>
     </section>
+    <section class="settings-card provider-setup-card"><header><div><h2>Provider và API</h2><p>Claude Code chạy cục bộ; Claude API và endpoint tương thích OpenAI được cấu hình ở <code>.env</code>.</p></div></header><div class="provider-setup-list">${apiSetup || `<p class="empty-inline">Chưa khai báo API provider.</p>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div><details class="provider-env-help"><summary>Cách thêm Claude hoặc API khác</summary><p>Thêm <code>ANTHROPIC_API_KEY</code> và <code>WORKBENCH_CLAUDE_MODEL</code>, hoặc định nghĩa <code>WORKBENCH_API_PROVIDERS</code> dạng JSON cùng biến API key vào <code>.env</code>. Có mẫu cấu hình trong <code>.env.example</code>; khởi động lại OpenSybau sau khi sửa.</p><p>Nếu chọn API cho triển khai, OpenSybau chỉ ghi tệp văn bản có trong ngữ cảnh hoặc tạo tệp mới, tối đa 40 tệp và 1 MB mỗi task. API không chạy lệnh; prompt và ngữ cảnh đã chọn sẽ được gửi tới dịch vụ đó.</p></details></section>
     <section class="settings-card concurrency-card"><header><div><h2>Tác vụ chạy đồng thời</h2><p>Giới hạn số task có thể chạy cùng lúc trên các workspace.</p></div></header>
       <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${view.state.settings.maxConcurrent || 2}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
     </section>
@@ -331,33 +382,35 @@ function render() {
   if (!overlay.querySelector(".modal")) {
     overlay.innerHTML = "";
   }
+  syncWorkflow();
 }
 function chatPage() {
   if (view.selected && view.state.tasks.some((task) => task.id === view.selected)) return taskConversationPage();
-  const codex = view.connectors?.codex || {};
-  const antigravity = view.connectors?.antigravity || {};
-  const agyModels = antigravity.models || [];
-  const workflow = view.homeWorkflow === "codex-antigravity" && !agyModels.length ? "plan-only" : view.homeWorkflow;
   const workspaces = view.state.workspaces;
-  const codexReady = codex.available && codex.authenticated;
-  const agyReady = antigravity.available && agyModels.length;
-  const chatConnectorReady = view.homeChatProvider === "antigravity" ? Boolean(agyReady) : Boolean(codexReady);
-  const canRun = workflow === "chat-only" ? chatConnectorReady : workflow === "plan-only" ? Boolean(codexReady) : Boolean(codexReady && agyReady);
-  const workflowOptions = `<option value="chat-only" ${workflow === "chat-only" ? "selected" : ""}>Chat · một agent</option><option value="codex-antigravity" ${workflow === "codex-antigravity" ? "selected" : ""} ${agyModels.length ? "" : "disabled"}>Code · Codex → Antigravity → Codex</option><option value="plan-only" ${workflow === "plan-only" ? "selected" : ""}>Lập kế hoạch · Codex</option>`;
-  const workflowLabel = workflow === "chat-only" ? `Chat · ${view.homeChatProvider === "antigravity" ? "Antigravity" : "Codex"}` : workflow === "plan-only" ? "Codex · lập kế hoạch" : "Codex → Antigravity → Codex";
+  const roleSelections = Object.fromEntries(workflowRoles.map((role) => [role.id, normalizedRoleSelection(role.id, view.homeRoles?.[role.id])]));
+  const pipelineReady = workflowRoles.every((role) => roleSelections[role.id].candidates.length > 0);
+  const planReady = roleSelections.plan.candidates.length > 0;
+  let workflow = view.homeWorkflow;
+  if (workflow === "codex-antigravity" && !pipelineReady) workflow = planReady ? "plan-only" : "chat-only";
+  const chatSelection = normalizedChatSelection({ provider: view.homeChatProvider, model: view.homeChatModel, effort: view.homeChatEffort });
+  view.homeChatProvider = chatSelection.provider;
+  view.homeChatModel = chatSelection.model?.id || "";
+  view.homeChatEffort = chatSelection.effort;
+  const canRun = workflow === "chat-only" ? Boolean(chatSelection.connector?.available) : workflow === "plan-only" ? planReady : pipelineReady;
+  const workflowOptions = `<option value="chat-only" ${workflow === "chat-only" ? "selected" : ""}>Chat · một agent</option><option value="codex-antigravity" ${workflow === "codex-antigravity" ? "selected" : ""} ${pipelineReady ? "" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${workflow === "plan-only" ? "selected" : ""} ${planReady ? "" : "disabled"}>Chỉ lập kế hoạch</option>`;
+  const pipelineLabel = workflowRoles.map((role) => providerTitle(view.connectors, roleSelections[role.id].provider)).join(" → ");
+  const workflowLabel = workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, chatSelection.provider)}` : workflow === "plan-only" ? `${providerTitle(view.connectors, roleSelections.plan.provider)} · lập kế hoạch` : pipelineLabel;
   const activeWorkspaceId = workspaces.some((workspace) => workspace.id === view.homeWorkspaceId) ? view.homeWorkspaceId : workspaces[0]?.id || "";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
-  const homeCodex = selectedModel("codex");
-  const homeAntigravity = selectedModel("antigravity");
-  const homeModelSummary = workflow === "chat-only" ? (view.homeChatProvider === "antigravity" ? homeAntigravity?.name : homeCodex?.name) || "CLI chưa sẵn sàng" : workflow === "plan-only" ? homeCodex?.name || "CLI chưa sẵn sàng" : `${homeCodex?.name || "Codex"} + ${homeAntigravity?.name || "Antigravity"}`;
+  const homeModelSummary = workflow === "chat-only" ? chatSelection.model?.name || "Chưa có model" : workflow === "plan-only" ? roleSelections.plan.model || "Chưa có model" : workflowRoles.map((role) => roleSelections[role.id].model || "Chưa có model").join(" · ");
   const homeConfigSummary = `${activeWorkspace?.name || "Chọn workspace"} · ${workflowLabel} · ${homeModelSummary}`;
   return `<section class="command-home">
     <div class="command-stage"><div class="home-welcome"><p class="home-kicker">OPENSYBAU · ${esc(activeWorkspace?.name || "CHỌN WORKSPACE")}</p><h1>${activeWorkspace ? `Bạn muốn làm gì trong ${esc(activeWorkspace.name)}?` : "Bạn muốn làm gì?"}</h1><p class="home-subtitle">Bắt đầu một cuộc trò chuyện hoặc giao việc cho các agent đang chạy trên máy.</p></div>
-      <div class="home-mode-switch" role="tablist" aria-label="Chế độ làm việc"><button type="button" class="home-mode-tab ${view.homeMode === "chat" ? "active" : ""}" data-home-mode="chat">Chat</button><button type="button" class="home-mode-tab ${view.homeMode === "code" ? "active" : ""}" data-home-mode="code" ${agyReady ? "" : "disabled title=\"Antigravity chưa sẵn sàng\""}>Code</button><button type="button" class="home-mode-tab ${view.homeMode === "plan" ? "active" : ""}" data-home-mode="plan">Lập kế hoạch</button><button type="button" class="home-mode-link" data-page="tasks">${view.state.tasks.length} task</button></div>
+      <div class="home-mode-switch" role="tablist" aria-label="Chế độ làm việc"><button type="button" class="home-mode-tab ${view.homeMode === "chat" ? "active" : ""}" data-home-mode="chat">Chat</button><button type="button" class="home-mode-tab ${view.homeMode === "code" ? "active" : ""}" data-home-mode="code" ${pipelineReady ? "" : "disabled title=\"Cần agent có quyền làm việc trên workspace\""}>Code</button><button type="button" class="home-mode-tab ${view.homeMode === "plan" ? "active" : ""}" data-home-mode="plan" ${planReady ? "" : "disabled"}>Lập kế hoạch</button><button type="button" class="home-mode-link" data-page="tasks">${view.state.tasks.length} task</button></div>
       <form class="home-composer" data-modal data-form="home-task">
-        <textarea name="prompt" data-home-prompt required minlength="6" maxlength="12000" rows="3" placeholder="${workflow === "chat-only" ? `Nhắn ${view.homeChatProvider === "antigravity" ? "Antigravity" : "Codex"}…` : workflow === "plan-only" ? "Mô tả vấn đề cần phân tích và lập kế hoạch…" : "Mô tả thay đổi cần triển khai trong workspace…"}">${esc(view.chatDraft)}</textarea>
+        <textarea name="prompt" data-home-prompt required minlength="6" maxlength="12000" rows="3" placeholder="${workflow === "chat-only" ? `Nhắn ${providerTitle(view.connectors, chatSelection.provider)}…` : workflow === "plan-only" ? "Mô tả vấn đề cần phân tích và lập kế hoạch…" : "Mô tả thay đổi cần triển khai trong workspace…"}">${esc(view.chatDraft)}</textarea>
         <footer class="home-composer-controls"><span class="auto-skill-chip">${icon("notebook-tabs", 14)} Tự chọn skill · ${view.skills.length}</span><div class="home-composer-actions"><button type="button" class="home-composer-settings" data-action="toggle-home-config" aria-label="Cấu hình workspace, agent và model" aria-expanded="${view.homeConfigOpen}" title="Workspace, agent, model và mức suy nghĩ">${icon("settings-2", 15)}<span>${esc(homeConfigSummary)}</span>${icon("chevron-down", 14)}</button><button class="home-submit" type="submit" aria-label="${workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${workspaces.length && canRun ? "" : "disabled"}>${icon("arrow-up-right", 17)}</button></div></footer>
-        <div class="composer-config-backdrop home-config-backdrop" ${view.homeConfigOpen ? "" : "hidden"}><section class="composer-config-dialog" role="dialog" aria-modal="true" aria-label="Cấu hình tác vụ"><header><div><small>OPENSYBAU</small><h2>Cấu hình tác vụ</h2></div><button type="button" class="icon-button" data-action="close-composer-config" aria-label="Đóng">${icon("x", 16)}</button></header><div class="composer-config-grid"><label>Workspace<select name="workspaceId" data-home-workspace required ${workspaces.length ? "" : "disabled"}>${workspaces.length ? workspaces.map((workspace) => `<option value="${workspace.id}" ${workspace.id === activeWorkspaceId ? "selected" : ""}>${esc(workspace.name)}</option>`).join("") : `<option value="">Thêm workspace để bắt đầu</option>`}</select></label><label>Luồng<select name="workflow" data-home-workflow>${workflowOptions}</select></label><label class="home-chat-agent" ${workflow === "chat-only" ? "" : "hidden"}>Agent<select name="chatProvider" data-home-chat-provider><option value="codex" ${view.homeChatProvider === "codex" ? "selected" : ""}>Codex</option><option value="antigravity" ${view.homeChatProvider === "antigravity" ? "selected" : ""} ${agyReady ? "" : "disabled"}>Antigravity</option></select></label></div><div class="composer-model-grid ${workflow === "codex-antigravity" ? "" : "single"}"><div class="composer-model-card codex-models" ${workflow === "chat-only" && view.homeChatProvider === "antigravity" ? "hidden" : ""}>${modelSelect("codex", "codexModel", homeCodex, view.state.settings.defaults?.codexEffort)}</div><div class="composer-model-card agy-models" ${workflow === "plan-only" || workflow === "chat-only" && view.homeChatProvider !== "antigravity" ? "hidden" : ""}>${modelSelect("antigravity", "agyModel", homeAntigravity, view.state.settings.defaults?.agyEffort)}</div></div><footer><span>${icon("notebook-tabs", 14)} Skill tự chọn · ${view.skills.length} · Tối đa ${view.state.settings.maxConcurrent} task song song</span><button type="button" class="button primary" data-action="close-composer-config">Xong</button></footer></section></div>
+        <div class="composer-config-backdrop home-config-backdrop" ${view.homeConfigOpen ? "" : "hidden"}><section class="composer-config-dialog" role="dialog" aria-modal="true" aria-label="Cấu hình tác vụ"><header><div><small>OPENSYBAU</small><h2>Cấu hình tác vụ</h2></div><button type="button" class="icon-button" data-action="close-composer-config" aria-label="Đóng">${icon("x", 16)}</button></header><div class="composer-config-grid"><label>Workspace<select name="workspaceId" data-home-workspace required ${workspaces.length ? "" : "disabled"}>${workspaces.length ? workspaces.map((workspace) => `<option value="${workspace.id}" ${workspace.id === activeWorkspaceId ? "selected" : ""}>${esc(workspace.name)}</option>`).join("") : `<option value="">Thêm workspace để bắt đầu</option>`}</select></label><label>Luồng<select name="workflow" data-home-workflow>${workflowOptions}</select></label></div><div class="chat-agent-role" ${workflow === "chat-only" ? "" : "hidden"}>${chatAgentEditor({ provider: chatSelection.provider, model: chatSelection.model?.id, effort: chatSelection.effort })}</div><div class="agent-role-grid home-role-grid" ${workflow === "chat-only" ? "hidden" : ""}>${workflowRoles.map((role) => roleEditor(role.id, roleSelections[role.id])).join("")}</div><footer><span>${icon("notebook-tabs", 14)} Skill tự chọn · ${view.skills.length} · Tối đa ${view.state.settings.maxConcurrent} task song song</span><button type="button" class="button primary" data-action="close-composer-config">Xong</button></footer></section></div>
       </form>
       ${!workspaces.length ? `<button class="home-add-workspace" data-action="add-workspace">${icon("plus", 15)} Thêm workspace để bắt đầu</button>` : ""}
     </div>
@@ -367,33 +420,36 @@ function taskConversationPage() {
   const task = view.state.tasks.find((item) => item.id === view.selected);
   if (!task) return "";
   const workflow = task.config?.workflow || "codex-antigravity";
+  const planRole = roleConfig(task.config, "plan");
+  const buildRole = roleConfig(task.config, "build");
+  const reviewRole = roleConfig(task.config, "review");
   const messages = task.chatMessages || [];
   const hasInitialMessage = messages.some((message) => message.role === "user" && message.initialChat);
   const transcript = [];
   if (!hasInitialMessage && task.prompt) transcript.push({ role: "user", provider: "user", content: task.prompt, createdAt: task.createdAt });
   if (workflow !== "chat-only") {
-    if (task.plan) transcript.push({ role: "assistant", provider: "codex", label: "Kế hoạch · Codex", content: task.plan, createdAt: task.createdAt });
-    if (task.implementation) transcript.push({ role: "assistant", provider: "antigravity", label: "Triển khai · Antigravity", content: task.implementation, createdAt: task.updatedAt });
-    if (task.review) transcript.push({ role: "assistant", provider: "codex", label: "Review · Codex", content: task.review, createdAt: task.updatedAt });
+    if (task.plan) transcript.push({ role: "assistant", provider: planRole.provider, label: `Kế hoạch · ${providerTitle(view.connectors, planRole.provider)}`, model: planRole.model, effort: planRole.effort, content: task.plan, createdAt: task.createdAt });
+    if (task.implementation) transcript.push({ role: "assistant", provider: buildRole.provider, label: `Triển khai · ${providerTitle(view.connectors, buildRole.provider)}`, model: buildRole.model, effort: buildRole.effort, content: task.implementation, createdAt: task.updatedAt });
+    if (task.review) transcript.push({ role: "assistant", provider: reviewRole.provider, label: `Review · ${providerTitle(view.connectors, reviewRole.provider)}`, model: reviewRole.model, effort: reviewRole.effort, content: task.review, createdAt: task.updatedAt });
   }
   transcript.push(...messages);
   const busy = ["queued", "running"].includes(task.status);
-  const provider = view.chatProvider || (workflow === "chat-only" ? task.config.chatProvider : "codex") || "codex";
+  const provider = view.chatProvider || (workflow === "chat-only" ? task.config.chatProvider : planRole.provider) || "codex";
   const models = view.connectors?.[provider]?.models || [];
-  const modelId = view.chatModel || (workflow === "chat-only" ? task.config.chatModel : task.config.codexModel) || models[0]?.id || "";
+  const modelId = view.chatModel || (workflow === "chat-only" ? task.config.chatModel : planRole.model) || models[0]?.id || "";
   const model = models.find((item) => item.id === modelId) || models[0];
-  const effort = view.chatEffort || (workflow === "chat-only" ? task.config.chatEffort : task.config.codexEffort) || model?.efforts?.find((item) => item === "medium") || model?.efforts?.[0] || "";
-  const canSend = Boolean(model && view.connectors?.[provider]?.available && (provider !== "codex" || view.connectors?.codex?.authenticated));
+  const effort = view.chatEffort || (workflow === "chat-only" ? task.config.chatEffort : planRole.effort) || model?.efforts?.find((item) => item === "medium") || model?.efforts?.[0] || "";
+  const canSend = Boolean(model && view.connectors?.[provider]?.available && view.connectors?.[provider]?.capabilities?.chat && (provider !== "codex" || view.connectors?.codex?.authenticated));
   const totalUsage = Object.values(task.usage || {}).reduce((sum, item) => sum + tokenCount(item), 0);
   const transcriptHtml = transcript.length ? transcript.map((message) => {
     const isUser = message.role === "user";
-    const sender = isUser ? "Bạn" : message.label || (message.provider === "antigravity" ? "Antigravity" : "Codex");
+    const sender = isUser ? "Bạn" : message.label || providerTitle(view.connectors, message.provider);
     const modelLabel = [message.model, message.effort].filter(Boolean).join(" · ");
     const pending = message.status === "queued" ? "Đang chờ" : message.status === "running" ? "Đang xử lý" : message.status === "failed" ? "Lỗi" : "";
     const content = message.content ? renderMarkdown(message.content) : "";
     return `<article class="chat-message ${isUser ? "from-user" : "from-agent"}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small></header><div class="chat-message-content ${isUser ? "user-message-content" : "agent-message-content"}">${content}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}</div></article>`;
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
-  const composerConfig = `${provider === "antigravity" ? "Antigravity" : "Codex"}${model?.name ? ` · ${model.name}` : ""}${effort ? ` · ${effort}` : ""}`;
+  const composerConfig = `${providerTitle(view.connectors, provider)}${model?.name ? ` · ${model.name}` : ""}${effort ? ` · ${effort}` : ""}`;
   return `<section class="task-conversation-page" aria-label="Cuộc trò chuyện">
     <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${new Intl.NumberFormat("vi-VN").format(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`}</small></div><span>${icon("book-open-text", 14)} ${transcript.length} tin nhắn</span></header>
       <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
@@ -435,17 +491,18 @@ function orchestrationNodeHtml(node, index, count) {
   return `<article class="orchestration-node state-${node.state}" data-node="${node.id}"><div class="orchestration-rail"><span>${icon(stateIcon, 16)}</span>${index < count - 1 ? "<i></i>" : ""}</div><div class="orchestration-node-card"><header><small>${esc(node.group)}</small><span>${stateLabel}</span></header><div class="orchestration-node-main"><span class="orchestration-node-icon">${icon(node.icon, 17)}</span><div><h3>${esc(node.title)}</h3><p>${esc(node.detail)}</p></div></div>${extra}</div></article>`;
 }
 function openTaskInstructionModal(task) {
-  const provider = view.chatProvider || (task.config.workflow === "chat-only" ? task.config.chatProvider : "codex") || "codex";
+  const defaultRole = roleConfig(task.config, "plan");
+  const provider = view.chatProvider || (task.config.workflow === "chat-only" ? task.config.chatProvider : defaultRole.provider) || "codex";
   view.chatProvider = provider;
   const models = view.connectors?.[provider]?.models || [];
-  const selected = view.chatModel || (task.config.workflow === "chat-only" ? task.config.chatModel : task.config.codexModel) || models[0]?.id || "";
+  const selected = view.chatModel || (task.config.workflow === "chat-only" ? task.config.chatModel : defaultRole.model) || models[0]?.id || "";
   const model = models.find((item) => item.id === selected) || models[0];
   view.chatModel = model?.id || "";
-  view.chatEffort = view.chatEffort || (task.config.workflow === "chat-only" ? task.config.chatEffort : task.config.codexEffort) || model?.efforts?.find((effort) => effort === "medium") || model?.efforts?.[0] || "";
-  const available = (id) => Boolean(view.connectors?.[id]?.models?.length);
+  view.chatEffort = view.chatEffort || (task.config.workflow === "chat-only" ? task.config.chatEffort : defaultRole.effort) || model?.efforts?.find((effort) => effort === "medium") || model?.efforts?.[0] || "";
+  const providers = Object.entries(view.connectors || {}).filter(([, connector]) => connectorSupports(connector, "chat"));
   const options = models.map((item) => `<option value="${esc(item.id)}" ${item.id === model?.id ? "selected" : ""}>${esc(item.name)}</option>`).join("");
   const effortOptions = (model?.efforts || efforts).map((effort) => `<option value="${esc(effort)}" ${effort === view.chatEffort ? "selected" : ""}>${esc(effort)}</option>`).join("");
-  const body = `<label>Chỉ dẫn bổ sung<textarea name="message" class="chat-input" maxlength="8000" rows="5" required placeholder="Yêu cầu thay đổi tiếp theo cho task này…">${esc(view.chatDraft)}</textarea><small>Nội dung được đưa vào hàng đợi CLI và xuất hiện trong timeline.</small></label><div class="task-instruction-models"><label>Agent<select name="provider" data-chat-provider><option value="codex" ${provider === "codex" ? "selected" : ""}>Codex</option><option value="antigravity" ${provider === "antigravity" ? "selected" : ""} ${available("antigravity") ? "" : "disabled"}>Antigravity${available("antigravity") ? "" : " · chưa sẵn sàng"}</option></select></label><label>Model<select name="model" data-chat-model ${model ? "" : "disabled"}>${options || `<option value="">Chưa có model khả dụng</option>`}</select></label><label>Mức suy nghĩ<select name="effort" data-chat-effort>${effortOptions}</select></label></div>`;
+  const body = `<label>Chỉ dẫn bổ sung<textarea name="message" class="chat-input" maxlength="8000" rows="5" required placeholder="Yêu cầu thay đổi tiếp theo cho task này…">${esc(view.chatDraft)}</textarea><small>API agent chỉ nhận nội dung và ngữ cảnh trong chat; agent CLI mới có thể đọc hoặc sửa workspace.</small></label><div class="task-instruction-models"><label>Agent<select name="provider" data-chat-provider>${providers.map(([id, connector]) => `<option value="${esc(id)}" ${provider === id ? "selected" : ""}>${esc(connector.name || id)}${connector.kind === "api" ? " · API" : " · CLI"}</option>`).join("") || `<option value="">Chưa có agent khả dụng</option>`}</select></label><label>Model<select name="model" data-chat-model ${model ? "" : "disabled"}>${options || `<option value="">Chưa có model khả dụng</option>`}</select></label><label>Mức suy nghĩ<select name="effort" data-chat-effort>${effortOptions}</select></label></div>`;
   showModal("Gửi chỉ dẫn cho task", body, "Gửi chỉ dẫn", "task-chat");
   $(".modal").dataset.id = task.id;
   $(".modal").classList.add("task-instruction-modal");
@@ -460,34 +517,19 @@ function taskDetails() {
   const nodes = orchestrationNodes(task);
   const eventLabels = { stage: "AGENT", handoff: "HANDOFF", tool: "TOOL", output: "OUTPUT", chat: "MESSAGE", memory: "MEMORY", error: "ERROR", success: "DONE", warning: "NOTE" };
   const sortedEvents = [...events].slice(-150).reverse();
-  const stages = [["Kế hoạch · Codex", task.plan], ["Triển khai · Antigravity", task.implementation], ["Review · Codex", task.review]].filter(([, output]) => output);
+  const stages = [
+    [`Kế hoạch · ${providerTitle(view.connectors, roleConfig(task.config, "plan").provider)}`, task.plan],
+    [`Triển khai · ${providerTitle(view.connectors, roleConfig(task.config, "build").provider)}`, task.implementation],
+    [`Review · ${providerTitle(view.connectors, roleConfig(task.config, "review").provider)}`, task.review],
+  ].filter(([, output]) => output);
   return `<section class="task-orchestration-page" aria-label="Điều phối task">
     <header class="conversation-top"><div class="conversation-context"><span class="conversation-repo">${icon("folder-code", 15)} ${esc(workspace?.name || task.workspacePath)}</span><span class="conversation-separator">/</span><span class="conversation-task-id">${esc(task.id)}</span></div><div class="detail-head-actions"><button class="button quiet small" data-action="back-chat" data-id="${task.id}">${icon("arrow-left", 14)} Cuộc trò chuyện</button><button class="button quiet small" data-action="open-folder" data-id="${task.id}">${icon("folder-code", 14)} Mở workspace</button><button class="button quiet small" data-action="task-instruction" data-id="${task.id}">${icon("arrow-up-right", 14)} Gửi chỉ dẫn</button><button class="button quiet small" data-action="new-task">${icon("plus", 14)} Task mới</button></div></header>
-    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span><span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${new Intl.NumberFormat("vi-VN").format(usage)} tokens · CLI</span>` : ""}<span>${events.length} sự kiện · ${nodes.length} node</span></div></div></div>
+    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span><span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${new Intl.NumberFormat("vi-VN").format(usage)} tokens</span>` : ""}<span>${events.length} sự kiện · ${nodes.length} node</span></div></div></div>
     ${task.skills?.length ? `<div class="skill-used">${icon("notebook-tabs", 14)} Skill đã chọn: ${task.skills.map((skill) => esc(skill.name)).join(" · ")}</div>` : ""}
     <div class="orchestration-layout"><section class="orchestration-canvas"><header class="orchestration-canvas-head"><div><small>LUỒNG THỰC THI · ${esc(task.config.workflow === "chat-only" ? "CHAT" : task.config.workflow === "plan-only" ? "PLAN ONLY" : "CODE PIPELINE")}</small><h3>${busy ? "Điều phối đang hoạt động" : "Bản ghi điều phối"}</h3></div><span class="activity-live ${busy ? "is-live" : ""}"><i></i>${busy ? "Đang chạy" : "Đã lưu"}</span></header><div class="orchestration-flow">${nodes.map((node, index) => orchestrationNodeHtml(node, index, nodes.length)).join("")}</div></section>
       <aside class="orchestration-activity"><header class="orchestration-activity-head"><div><small>EVENT LOG</small><h3>Điều phối & hoạt động</h3></div><span>${events.length} sự kiện</span></header><div class="orchestration-activity-note">${icon("workflow", 14)} Chỉ hiện hoạt động, handoff, đầu ra và công cụ được CLI ghi nhận. Suy luận nội bộ của model không được cung cấp.</div><div class="orchestration-event-list" id="agent-activity-feed">${sortedEvents.length ? sortedEvents.map((item) => { const text = String(item.text || ""); const longOutput = item.kind === "output" && text.length > 320; return `<article class="orchestration-event kind-${esc(item.kind)}"><span class="orchestration-event-mark">${icon(({ stage: "square-terminal", handoff: "workflow", tool: "settings-2", output: "file", chat: "book-open-text", memory: "brain", error: "circle-question-mark", success: "check", warning: "circle-question-mark" })[item.kind] || "workflow", 14)}</span><div><header><strong>${esc(eventLabels[item.kind] || "EVENT")}</strong><time>${fmtDate(item.at)}</time></header>${longOutput ? `<p>${esc(text.slice(0, 280))}…</p><details class="orchestration-event-details"><summary>Xem đầu ra đầy đủ</summary><pre>${esc(text)}</pre></details>` : `<p>${esc(text)}</p>`}</div></article>`; }).join("") : `<p class="orchestration-activity-empty">Các sự kiện sẽ xuất hiện khi task được chạy.</p>`}</div>${stages.length ? `<section class="orchestration-stage-results"><strong>Đầu ra agent</strong>${stages.map(([label, output]) => `<details><summary>${esc(label)}</summary><pre>${esc(output)}</pre></details>`).join("")}</section>` : ""}${(task.artifacts || []).length ? `<section class="orchestration-artifacts"><strong>${icon("file", 14)} Tệp thay đổi · ${task.artifacts.length}</strong>${task.artifacts.slice(0, 20).map((file) => `<div>${icon("file", 13)}<code>${esc(file)}</code></div>`).join("")}</section>` : ""}</aside></div>
     <footer class="detail-actions">${task.status === "running" || task.status === "queued" ? `<button class="button danger" data-action="stop-task" data-id="${task.id}">${icon("square", 13)} Dừng task</button>` : ["failed", "cancelled"].includes(task.status) ? `<button class="button primary" data-action="rerun-task" data-id="${task.id}">Chạy lại</button>` : ""}${task.status !== "queued" ? `<button class="button quiet" data-action="show-diff" data-id="${task.id}">Xem diff</button>` : ""}</footer>
   </section>`;
-}
-function modelOptions(provider, selected = "") {
-  const models = view.connectors?.[provider]?.models || [];
-  return models.map((m) => `<option value="${esc(m.id)}" ${m.id === selected ? "selected" : ""}>${esc(m.name)}</option>`).join("");
-}
-function selectedModel(provider) {
-  const models = view.connectors?.[provider]?.models || [];
-  const defaults = view.state?.settings?.defaults || {};
-  const id = defaults[provider === "codex" ? "codexModel" : "agyModel"];
-  return models.find((model) => model.id === id) || models[0];
-}
-function modelSelect(provider, name, selected, effortDefault = "") {
-  const label = provider === "codex" ? "Codex · OpenAI" : "Antigravity · Google";
-  const effortName = provider === "codex" ? "codexEffort" : "agyEffort";
-  const allowedEfforts = selected?.efforts?.length ? selected.efforts : efforts;
-  const selectedEffort = allowedEfforts.includes(effortDefault) ? effortDefault : allowedEfforts.includes("medium") ? "medium" : allowedEfforts[0];
-  const providerState = view.connectors?.[provider];
-  const unavailable = !selected?.id;
-  return `<section class="model-provider"><header><strong>${label}</strong><span>${unavailable ? "Chưa sẵn sàng" : "Đang dùng CLI trên máy"}</span></header><label><span>Model</span><select name="${name}" ${unavailable ? "disabled" : "required"}>${unavailable ? `<option value="">Chưa lấy được model</option>` : modelOptions(provider, selected.id)}</select></label>${unavailable ? `<small class="connector-unavailable">${esc(providerState?.error || "CLI chưa đăng nhập hoặc chưa trả danh sách model.")}</small>` : ""}<label><span>Mức suy nghĩ</span><select name="${effortName}" ${unavailable ? "disabled" : "required"}>${unavailable ? `<option value="">Không khả dụng</option>` : allowedEfforts.map((effort) => `<option value="${effort}" ${effort === selectedEffort ? "selected" : ""}>${effort}</option>`).join("")}</select></label></section>`;
 }
 function showModal(title, body, submitLabel, formType = "") {
   const inferred = title === "Task mới" ? "task" : title === "Thêm workspace" ? "workspace" : title === "Ghi nhớ mới" ? "memory" : "dismiss";
@@ -497,18 +539,62 @@ function showModal(title, body, submitLabel, formType = "") {
 }
 async function openTaskModal() {
   const { workspaces } = view.state;
-  const codex = selectedModel("codex"); const agy = selectedModel("antigravity");
-  if (!view.connectors.codex.available || !view.connectors.codex.authenticated) return showToast("Codex CLI chưa sẵn sàng hoặc chưa đăng nhập.");
+  if (!providersForRole(view.connectors, "plan").length) return showToast("Chưa có provider nào sẵn sàng để lập kế hoạch.");
   if (!workspaces.length) return showWorkspaceModal();
   const options = workspaces.map((w) => `<option value="${w.id}">${esc(w.name)} · ${esc(w.path)}</option>`).join("");
-  const hasAgy = Boolean(agy?.id);
-  const body = `<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="5" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea><small>Nội dung này sẽ được gửi tới Codex CLI. Không gửi dữ liệu nhạy cảm không cần thiết.</small></label><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasAgy ? "selected" : "disabled"}>Codex lập kế hoạch → Antigravity triển khai → Codex review${hasAgy ? "" : " · Antigravity chưa sẵn sàng"}</option><option value="plan-only" ${hasAgy ? "" : "selected"}>Chỉ lập kế hoạch bằng Codex</option></select></label>${hasAgy ? "" : `<div class="connector-unavailable workflow-unavailable">${icon("circle-question-mark", 14)} Antigravity CLI chưa trả danh sách model. Bạn vẫn có thể chạy plan bằng Codex; khi CLI sẵn sàng, luồng triển khai sẽ được mở lại.</div>`}<div class="model-grid">${modelSelect("codex", "codexModel", codex, view.state.settings.defaults?.codexEffort)}<div class="agy-models">${modelSelect("antigravity", "agyModel", agy, view.state.settings.defaults?.agyEffort)}</div></div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 17)}</span><div><strong>Tự chọn skill phù hợp</strong><small>Hệ thống tìm ứng viên trong toàn thư viện; Codex tự chọn skill liên quan rồi nạp vào đúng stage. Tệp tham chiếu và script đi kèm cũng được cấp cho Antigravity khi cần.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
+  const hasBuild = providersForRole(view.connectors, "build").length > 0;
+  const canPlanOnly = providersForRole(view.connectors, "plan").length > 0;
+  const body = `<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="5" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea><small>Nếu chọn provider API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới endpoint đã cấu hình.</small></label><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 17)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò. Skill có thể được gửi tới API provider nếu bạn chọn agent API.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
   showModal("Task mới", body, "Tạo và chạy");
   syncWorkflow(); syncIsolation();
 }
 function syncWorkflow() {
-  const select = $(".modal select[name=workflow], .home-composer select[name=workflow]"); const build = select?.closest("form")?.querySelector(".agy-models");
-  if (select && build) { build.hidden = select.value === "plan-only"; build.querySelectorAll("select").forEach((input) => { input.disabled = select.value === "plan-only" || !view.connectors?.antigravity?.models?.length; }); }
+  const select = $(".modal select[name=workflow], .home-composer select[name=workflow]");
+  if (!select) return;
+  const form = select.closest("form");
+  const roles = form?.querySelector(".agent-role-grid");
+  const chat = form?.querySelector(".chat-agent-role");
+  if (roles) roles.hidden = select.value === "chat-only";
+  if (chat) chat.hidden = select.value !== "chat-only";
+  for (const role of workflowRoles) {
+    const card = form?.querySelector(`[data-role-card="${role.id}"]`);
+    if (card) {
+      const visible = select.value !== "chat-only" && (select.value !== "plan-only" || role.id === "plan");
+      card.hidden = !visible;
+      card.querySelectorAll("select").forEach((input) => { input.disabled = !visible || !card.querySelector(`[data-role-model="${role.id}"]`)?.options.length; });
+    }
+  }
+  if (select.value === "chat-only") syncChatAgentFields(form);
+}
+function syncProviderModelControls(form, provider, modelSelector, effortSelector) {
+  const connector = view.connectors?.[provider];
+  const modelSelect = form?.querySelector(modelSelector);
+  const effortSelect = form?.querySelector(effortSelector);
+  if (!modelSelect || !effortSelect) return;
+  const models = connector?.models || [];
+  modelSelect.innerHTML = models.map((model) => `<option value="${esc(model.id)}">${esc(model.name)}</option>`).join("") || `<option value="">Chưa có model</option>`;
+  modelSelect.disabled = !models.length;
+  const effortsForModel = models[0]?.efforts || [];
+  effortSelect.innerHTML = effortsForModel.map((effort) => `<option value="${esc(effort)}">${esc(effort)}</option>`).join("") || `<option value="">Không áp dụng</option>`;
+  effortSelect.disabled = !effortsForModel.length;
+}
+function syncEffortForModel(form, modelSelector, effortSelector, providerSelector) {
+  const modelId = form?.querySelector(modelSelector)?.value;
+  const provider = form?.querySelector(providerSelector)?.value;
+  const model = view.connectors?.[provider]?.models?.find((item) => item.id === modelId);
+  const effortSelect = form?.querySelector(effortSelector);
+  if (!effortSelect || !model) return;
+  const options = model.efforts || [];
+  effortSelect.innerHTML = options.map((effort) => `<option value="${esc(effort)}">${esc(effort)}</option>`).join("") || `<option value="">Không áp dụng</option>`;
+  effortSelect.disabled = !options.length;
+}
+function syncRoleProvider(form, roleId) {
+  const provider = form?.querySelector(`[data-role-provider="${roleId}"]`)?.value || "";
+  syncProviderModelControls(form, provider, `[data-role-model="${roleId}"]`, `[data-role-effort="${roleId}"]`);
+}
+function syncChatAgentFields(form) {
+  const provider = form?.querySelector("[data-chat-agent-provider]")?.value || "";
+  syncProviderModelControls(form, provider, "[data-chat-agent-model]", "[data-chat-agent-effort]");
 }
 function syncIsolation() {
   const workspaceId = $(".modal select[name=workspaceId]")?.value;
@@ -578,21 +664,16 @@ async function handleSubmit(event) {
       showToast("Đã chuyển dự án sang section.");
     } else if (form.dataset.form === "task") {
       const task = await api("/api/tasks", { method: "POST", body: JSON.stringify({ ...object, isolated: data.has("isolated") }) });
-      view.selected = task.task.id; view.page = "chat"; view.chatProvider = "codex"; view.chatModel = ""; view.chatEffort = ""; view.chatDraft = ""; showToast("Task thật đã vào hàng đợi.");
+      view.selected = task.task.id; view.page = "chat"; view.chatProvider = task.task.config.chatProvider || task.task.config.roles?.plan?.provider || "codex"; view.chatModel = task.task.config.workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = task.task.config.workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; showToast("Task thật đã vào hàng đợi.");
     } else if (form.dataset.form === "home-task") {
-      const workflow = object.workflow === "codex-antigravity" && !view.connectors?.antigravity?.models?.length ? "plan-only" : object.workflow;
+      const workflow = object.workflow || "chat-only";
       const payload = { ...object, workflow, isolated: false };
-      if (workflow === "chat-only") {
-        const provider = object.chatProvider === "antigravity" ? "antigravity" : "codex";
-        payload.chatProvider = provider;
-        payload.chatModel = provider === "codex" ? object.codexModel : object.agyModel;
-        payload.chatEffort = provider === "codex" ? object.codexEffort : object.agyEffort;
-      }
       const task = await api("/api/tasks", { method: "POST", body: JSON.stringify(payload) });
-      view.selected = task.task.id; view.page = "chat"; view.chatProvider = workflow === "chat-only" ? task.task.config.chatProvider : "codex"; view.chatModel = workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; showToast(workflow === "chat-only" ? "Đã gửi tin nhắn cho agent." : "Task thật đã vào hàng đợi.");
+      view.selected = task.task.id; view.page = "chat"; view.chatProvider = workflow === "chat-only" ? task.task.config.chatProvider : task.task.config.roles?.plan?.provider || "codex"; view.chatModel = workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; showToast(workflow === "chat-only" ? "Đã gửi tin nhắn cho agent." : "Task thật đã vào hàng đợi.");
     } else if (form.dataset.form === "settings") {
-      await api("/api/settings", { method: "POST", body: JSON.stringify({ defaults: { codexModel: object.codexModel, codexEffort: object.codexEffort, agyModel: object.agyModel, agyEffort: object.agyEffort } }) });
-      showToast("Đã lưu model mặc định trên máy.");
+      const roles = Object.fromEntries(workflowRoles.map((role) => [role.id, { provider: object[`${role.id}Provider`], model: object[`${role.id}Model`], effort: object[`${role.id}Effort`] }]));
+      await api("/api/settings", { method: "POST", body: JSON.stringify({ defaults: { roles } }) });
+      showToast("Đã lưu định tuyến agent mặc định trên máy.");
     } else if (form.dataset.form === "task-chat") {
       view.forceChatScroll = true;
       await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, provider: object.provider, model: object.model, effort: object.effort }) });
@@ -826,7 +907,49 @@ document.addEventListener("change", (event) => {
     view.homeMode = event.target.value === "chat-only" ? "chat" : event.target.value === "plan-only" ? "plan" : "code";
     render();
   }
-  if (event.target.matches("[data-home-chat-provider]")) { view.homeChatProvider = event.target.value; render(); }
+  if (event.target.matches("[data-role-provider]")) {
+    const roleId = event.target.dataset.roleProvider;
+    const form = event.target.closest("form");
+    syncRoleProvider(form, roleId);
+    if (form?.classList.contains("home-composer")) {
+      view.homeRoles[roleId] = { provider: event.target.value, model: form.querySelector(`[data-role-model="${roleId}"]`)?.value || "", effort: form.querySelector(`[data-role-effort="${roleId}"]`)?.value || "" };
+      render();
+    }
+  }
+  if (event.target.matches("[data-role-model]")) {
+    const roleId = event.target.dataset.roleModel;
+    const form = event.target.closest("form");
+    syncEffortForModel(form, `[data-role-model="${roleId}"]`, `[data-role-effort="${roleId}"]`, `[data-role-provider="${roleId}"]`);
+    if (form?.classList.contains("home-composer")) {
+      view.homeRoles[roleId] = { provider: form.querySelector(`[data-role-provider="${roleId}"]`)?.value || "", model: event.target.value, effort: form.querySelector(`[data-role-effort="${roleId}"]`)?.value || "" };
+      render();
+    }
+  }
+  if (event.target.matches("[data-role-effort]")) {
+    const roleId = event.target.dataset.roleEffort;
+    const form = event.target.closest("form");
+    if (form?.classList.contains("home-composer")) view.homeRoles[roleId] = { provider: form.querySelector(`[data-role-provider="${roleId}"]`)?.value || "", model: form.querySelector(`[data-role-model="${roleId}"]`)?.value || "", effort: event.target.value };
+  }
+  if (event.target.matches("[data-chat-agent-provider]")) {
+    const form = event.target.closest("form");
+    syncChatAgentFields(form);
+    if (form?.classList.contains("home-composer")) {
+      view.homeChatProvider = event.target.value;
+      view.homeChatModel = form.querySelector("[data-chat-agent-model]")?.value || "";
+      view.homeChatEffort = form.querySelector("[data-chat-agent-effort]")?.value || "";
+      render();
+    }
+  }
+  if (event.target.matches("[data-chat-agent-model]")) {
+    const form = event.target.closest("form");
+    syncEffortForModel(form, "[data-chat-agent-model]", "[data-chat-agent-effort]", "[data-chat-agent-provider]");
+    if (form?.classList.contains("home-composer")) {
+      view.homeChatModel = event.target.value;
+      view.homeChatEffort = form.querySelector("[data-chat-agent-effort]")?.value || "";
+      render();
+    }
+  }
+  if (event.target.matches("[data-chat-agent-effort]")) view.homeChatEffort = event.target.value;
   if (event.target.matches("[data-home-workspace]")) { view.homeWorkspaceId = event.target.value; render(); }
   if (event.target.matches("[data-chat-provider]")) {
     view.chatProvider = event.target.value;
@@ -844,13 +967,6 @@ document.addEventListener("change", (event) => {
     if (task) openTaskInstructionModal(task); else render();
   }
   if (event.target.matches("[data-chat-effort]")) { view.chatEffort = event.target.value; }
-  if (event.target.matches("select[name=codexModel], select[name=agyModel]")) {
-    const provider = event.target.name === "codexModel" ? "codex" : "antigravity";
-    const effortName = provider === "codex" ? "codexEffort" : "agyEffort";
-    const model = view.connectors?.[provider]?.models.find((item) => item.id === event.target.value);
-    const select = $(`select[name="${effortName}"]`);
-    if (select && model) { const defaultEffort = model.efforts.includes("medium") ? "medium" : model.efforts[0]; select.innerHTML = model.efforts.map((effort) => `<option value="${effort}" ${effort === defaultEffort ? "selected" : ""}>${effort}</option>`).join(""); }
-  }
 });
 document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
