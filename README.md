@@ -4,13 +4,15 @@
 
 **Documentation:** [Tiếng Việt](README.vi.md)
 
+**Windows desktop app:** OpenSybau can also be packaged as a per-user Windows installer. The desktop app bundles its runtime, keeps its local server bound to `127.0.0.1`, and stores configuration and task data under your Windows user profile.
+
 > OpenSybau is designed for one trusted operator or a small private network. It is not a multi-tenant service. Do not expose it to the public internet without HTTPS and access controls.
 
 ## Highlights
 
 - Manage multiple local workspaces and conversations from one interface.
 - Route planning, implementation, and review independently between the installed Codex, Antigravity, and Claude Code CLIs.
-- Add Claude API or up to 12 custom Anthropic/OpenAI-compatible API providers for chat, planning, implementation, or review.
+- Add Anthropic/OpenAI-compatible API providers in Settings, including local Ollama, LM Studio, and LocalAI endpoints.
 - Follow task stages, agent events, outputs, and workspace changes as they happen.
 - Pin and archive conversations; optionally isolate task work in Git worktrees.
 - Browse local skills and knowledge, and keep notes for later tasks.
@@ -19,13 +21,29 @@
 
 ## Requirements
 
-- Node.js **20.19 or newer** and npm.
+- End users of the Windows desktop installer do not need to install Node.js or npm.
+- To run from source or build the installer: Node.js **20.19 or newer** and npm.
 - Git for workspace inspection and optional isolated worktrees.
 - At least one supported provider installed and configured on the host. Codex CLI, Antigravity CLI, and Claude Code are optional local coding agents; install only the agents you plan to use.
-- API providers are optional and configured with environment variables. They can chat, plan, review, or implement bounded text-file changes from the project context supplied by OpenSybau; they cannot run workspace tools.
+- API providers are optional and can be configured in Settings or with environment variables. They can chat, plan, review, or implement bounded text-file changes from the project context supplied by OpenSybau; they cannot run workspace tools.
 - Workspace folders must be available on the host computer.
 
 Windows, macOS, and Linux can host OpenSybau. Install and authenticate each CLI under the operating-system account that will run the server.
+
+## Build the Windows desktop installer
+
+On Windows, install dependencies and create the NSIS installer:
+
+```powershell
+npm ci
+npm run desktop:dist
+```
+
+The installer is written to `release/`. It installs for the current Windows user and creates Start menu and desktop shortcuts. On first launch, OpenSybau checks Codex CLI, Claude Code, and Antigravity CLI; install only the agents you want to use, then select **Quét lại**. You can also configure API providers from the setup guide. OpenSybau does not silently install third-party agents.
+
+The desktop app keeps its server on `127.0.0.1`. Use the browser-host setup below when you want a phone or another computer to connect over a local network.
+
+User settings, API configuration, conversations, and task data are stored in `%APPDATA%\OpenSybau` and remain separate from the app installation directory.
 
 ## Quick start
 
@@ -145,11 +163,11 @@ Copy `.env.example` to `.env`. The `.env` file is ignored by Git and must never 
 | `WORKBENCH_CLAUDE_MODEL` | Unset | Model ID to expose in the Claude API connector. |
 | `WORKBENCH_CLAUDE_MODELS` | Unset | Optional comma-separated list or JSON array of Claude API model IDs. |
 | `WORKBENCH_CLAUDE_BASE_URL` | `https://api.anthropic.com/v1` | Optional Anthropic-compatible API base URL. Must use HTTPS except localhost. |
-| `WORKBENCH_API_PROVIDERS` | Unset | Optional JSON array defining up to 12 additional API connectors. |
+| `WORKBENCH_API_PROVIDERS` | Unset | Optional JSON array defining up to 12 additional API connectors. Settings can also manage up to 20 local API providers. |
 
 ### Provider routing and API setup
 
-Each task can choose a separate provider, model, and reasoning setting for **Plan**, **Build**, and **Review**. This supports arrangements such as Claude planning → Codex implementation → Antigravity review, provided those local CLIs are installed and available. The defaults are editable in **Settings**, and each new task can override them. Chat also has its own provider selection.
+Each task can choose a separate provider, model, and reasoning setting for **Plan**, **Build**, and **Review**. This supports arrangements such as Claude planning → Codex implementation → Antigravity review, provided those local CLIs are installed and available. The defaults are editable in **Settings**, and each new task can override them. Chat also has its own provider selection. Add API endpoints directly in **Settings → Sources and models**; enter one model ID per line. Local Ollama, LM Studio, and LocalAI endpoints can use HTTP on `localhost` without an API key. Cloud endpoints must use HTTPS.
 
 Local CLIs can inspect the registered workspace and use their own tools. Claude Code is optional; install and sign it in on the host, or set `CLAUDE_CLI_PATH` if automatic discovery does not find it.
 
@@ -167,7 +185,7 @@ EXAMPLE_API_KEY=your-key
 WORKBENCH_API_PROVIDERS='[{"id":"example-api","name":"Example API","protocol":"openai-compatible","baseUrl":"https://api.example.com/v1","apiKeyEnv":"EXAMPLE_API_KEY","models":["your-model-id"]}]'
 ```
 
-Use `protocol: "anthropic"` for an Anthropic Messages-compatible endpoint or `protocol: "openai-compatible"` for a Chat Completions-compatible endpoint. Each provider needs a unique lowercase ID, an HTTPS `baseUrl` (HTTP is allowed only for localhost), and one or more model IDs. API keys are read from the environment and never returned to the browser or saved in task settings. Restart OpenSybau after changing `.env`.
+Use `protocol: "anthropic"` for an Anthropic Messages-compatible endpoint or `protocol: "openai-compatible"` for a Chat Completions-compatible endpoint. Each provider needs a unique lowercase ID, an HTTPS `baseUrl` (HTTP is allowed only for localhost), and one or more model IDs. Environment-managed API keys are read from the environment. Keys entered in Settings are stored in a separate local file under `WORKBENCH_DATA_DIR`; they are never returned to the browser or saved in task settings. Enter a key from localhost or over HTTPS. Restart OpenSybau after changing `.env`.
 
 API providers can run chat, planning, review, and implementation. They receive the task prompt and the context OpenSybau supplies; planning and review may include workspace paths, project manifests, diffs, or selected source snapshots. For implementation, the model returns a structured list of complete text-file contents, which OpenSybau validates and writes inside the selected workspace. API implementation is limited to 40 files and 1 MB of text per task; it cannot run commands or inspect files beyond the context sent with the request. **That context leaves the host and goes to the configured API provider.** Choose a local CLI when a task needs direct workspace inspection, tool execution, broader repository context, or iterative changes.
 
@@ -178,7 +196,7 @@ All app routes, static assets, APIs, and live event streams are protected when a
 ## Data and execution model
 
 - The Node.js server owns task scheduling, persistence, CLI processes, and live updates. The Preact/Vite frontend is served by that same server.
-- Task records, settings, notes, event history, and task output are stored in `WORKBENCH_DATA_DIR` (or `.runtime` by default). Back up this directory to preserve them.
+- Task records, settings, notes, event history, provider configuration and keys, and task output are stored in `WORKBENCH_DATA_DIR` (or `.runtime` by default). Back up this directory to preserve them, and protect it as you would other local credentials.
 - Standard tasks modify their selected workspace directly and are serialized per shared workspace. Git worktree mode uses a separate worktree when the repository has at least one commit; it does not merge changes automatically.
 - Every task stores its selected provider/model per role. CLI providers perform workspace work according to their own permission mode; API providers implement bounded text-file edits from the supplied context and do not run workspace tools.
 - A task can modify files in its selected workspace. Review the task output and Git diff before using the changes.

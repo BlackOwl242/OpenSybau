@@ -1,13 +1,22 @@
-import { $, efforts, esc, fmtDate, icon, statuses, tokenCount, view } from "../../shared/state.js";
+import { $, efforts, esc, fmtDate, formatNumber, icon, statuses, tokenCount, view } from "../../shared/state.js";
 import { orchestrationNodes } from "../../domain/task-flow.js";
 import { connectorSupports, providerTitle, providersForRole, roleConfig, workflowRoles } from "../../domain/agent-roles.js";
+import { cliConnectionStatus, cliProviderGuides } from "../../domain/provider-guides.js";
+import { localizeDom, setLanguage, translateText } from "../../shared/i18n.js";
 import { updateWorkbenchShell } from "../../shell/mount.jsx";
 import { readBrowserRoute, syncBrowserRoute } from "../../shell/router.js";
 
 Object.assign(view, readBrowserRoute());
+document.documentElement.lang = view.language;
 let browserRouteInitialized = false;
 let replaceBrowserRoute = false;
 let routeNeedsHydration = view.page === "knowledge" || view.page === "workspaces" && Boolean(view.selected);
+let refreshPromise = null;
+let refreshAgain = false;
+let refreshConfiguration = false;
+let refreshTimer = null;
+let lastConfigurationRefresh = 0;
+let activityChartCache = { key: "", buckets: null, total: 0 };
 
 function syncLocation() {
   syncBrowserRoute(view, { replace: !browserRouteInitialized || replaceBrowserRoute });
@@ -39,23 +48,53 @@ async function api(path, options = {}) {
   if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
   return data;
 }
-async function refresh() {
-  try {
-    const [state, connectors] = await Promise.all([api("/api/state"), api("/api/connectors")]);
-    const skills = view.skillsLoaded ? { skills: view.skills } : await api("/api/skills").catch(() => ({ skills: [] }));
-    view.state = state;
-    view.connectors = connectors;
-    view.skills = skills.skills || [];
-    view.skillsLoaded = true;
-    view.settingsSupported = Object.hasOwn(state.settings, "defaults");
-    normalizeRouteSelection();
-    render();
-    if (routeNeedsHydration) {
-      routeNeedsHydration = false;
-      hydrateRouteData().catch((error) => showToast(error.message));
-    }
-  } catch (error) { showToast(error.message); }
+async function refreshSnapshot(includeConfiguration) {
+  const statePromise = api("/api/state");
+  const configurationPromise = includeConfiguration
+    ? Promise.all([api("/api/connectors"), api("/api/providers").catch(() => ({ providers: [] }))])
+    : Promise.resolve(null);
+  const [state, configuration] = await Promise.all([statePromise, configurationPromise]);
+  const skills = view.skillsLoaded ? { skills: view.skills } : await api("/api/skills").catch(() => ({ skills: [] }));
+  view.state = state;
+  if (configuration) {
+    view.connectors = configuration[0];
+    view.providers = configuration[1].providers || [];
+    lastConfigurationRefresh = Date.now();
+  }
+  view.skills = skills.skills || [];
+  view.skillsLoaded = true;
+  view.settingsSupported = Object.hasOwn(state.settings, "defaults");
+  normalizeRouteSelection();
+  render();
+  if (routeNeedsHydration) {
+    routeNeedsHydration = false;
+    hydrateRouteData().catch((error) => showToast(error.message));
+  }
 }
+function refresh({ configuration = false } = {}) {
+  refreshAgain = true;
+  refreshConfiguration ||= configuration || !view.connectors;
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      while (refreshAgain) {
+        refreshAgain = false;
+        const includeConfiguration = refreshConfiguration;
+        refreshConfiguration = false;
+        await refreshSnapshot(includeConfiguration);
+      }
+    } catch (error) {
+      refreshAgain = false;
+      showToast(error.message);
+    }
+  })().finally(() => { refreshPromise = null; });
+  return refreshPromise;
+}
+function scheduleRefresh(delay = 160) {
+  if (refreshTimer) return;
+  refreshTimer = setTimeout(() => { refreshTimer = null; void refresh(); }, delay);
+}
+// SSE reloads only task state. CLI discovery can start several processes, so it runs on demand.
 function applySkillFilter(input) {
   const catalog = input?.closest(".settings-card, .task-skill-picker, .skill-manager");
   if (!catalog) return;
@@ -140,18 +179,24 @@ function taskRow(task) {
 function activityChart() {
   const now = Date.now();
   const hour = 60 * 60 * 1000;
-  const start = now - 24 * hour;
-  const buckets = Array.from({ length: 24 }, (_, index) => ({ start: start + index * hour, events: [0, 0, 0] }));
-  let total = 0;
-  for (const task of view.state.tasks) for (const event of task.events || []) {
-    const at = Date.parse(event.at);
-    const index = Math.floor((at - start) / hour);
-    if (!Number.isFinite(at) || index < 0 || index >= buckets.length) continue;
-    const kind = String(event.kind || "info").toLowerCase();
-    const series = ["error", "warning"].includes(kind) ? 2 : kind === "success" ? 1 : 0;
-    buckets[index].events[series]++;
-    total++;
+  const start = Math.floor(now / hour) * hour - 23 * hour;
+  const tasks = view.state.tasks;
+  const key = `${start}:${tasks.map((task) => `${task.id}:${task.events?.length || 0}:${task.events?.at(-1)?.at || ""}`).join("|")}`;
+  if (activityChartCache.key !== key) {
+    const buckets = Array.from({ length: 24 }, (_, index) => ({ start: start + index * hour, events: [0, 0, 0] }));
+    let total = 0;
+    for (const task of tasks) for (const event of task.events || []) {
+      const at = Date.parse(event.at);
+      const index = Math.floor((at - start) / hour);
+      if (!Number.isFinite(at) || index < 0 || index >= buckets.length) continue;
+      const kind = String(event.kind || "info").toLowerCase();
+      const series = ["error", "warning"].includes(kind) ? 2 : kind === "success" ? 1 : 0;
+      buckets[index].events[series]++;
+      total++;
+    }
+    activityChartCache = { key, buckets, total };
   }
+  const { buckets, total } = activityChartCache;
   const max = Math.max(1, ...buckets.map((bucket) => bucket.events.reduce((sum, value) => sum + value, 0)));
   const width = 960, height = 150, left = 15, right = 15, top = 12, baseline = 112;
   const slot = (width - left - right) / buckets.length;
@@ -166,7 +211,7 @@ function activityChart() {
       y -= barHeight;
       return `<rect class="activity-bar activity-bar-${series}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" rx="2"/>`;
     }).join("");
-    const label = new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(bucket.start));
+    const label = new Intl.DateTimeFormat(view.language === "en" ? "en-US" : "vi-VN", { hour: "2-digit", minute: "2-digit" }).format(new Date(bucket.start));
     const title = `${label}: ${sum} sự kiện · ${bucket.events[0]} cập nhật, ${bucket.events[1]} hoàn tất, ${bucket.events[2]} cảnh báo/lỗi`;
     const tick = index % 6 === 0 || index === 23 ? `<text class="activity-axis-label" x="${(x + barWidth / 2).toFixed(1)}" y="136" text-anchor="middle">${label}</text>` : "";
     return `<g role="img" aria-label="${esc(title)}"><title>${esc(title)}</title>${pieces}${tick}</g>`;
@@ -211,7 +256,7 @@ function localFileRows(entries, action, filter = "") {
   const query = filter.toLocaleLowerCase();
   const visible = (entries || []).filter((entry) => !query || entry.name.toLocaleLowerCase().includes(query));
   if (!visible.length) return `<li class="file-empty">${query ? "Không có tệp khớp bộ lọc." : "Thư mục trống."}</li>`;
-  return visible.map((entry) => `<li data-file-entry><button class="file-row ${entry.type === "directory" ? "directory" : "file"}" data-action="${action}" data-path="${esc(entry.path)}" ${entry.type === "file" ? `aria-label="Mở ${esc(entry.name)}"` : "aria-expanded=false"}><span>${entry.type === "directory" ? icon("folder-code", 16) : icon("file", 16)}</span><strong title="${esc(entry.name)}">${esc(entry.name)}</strong>${entry.type === "file" ? `<small>${new Intl.NumberFormat("vi-VN").format(entry.size || 0)} B</small>` : icon("chevron-right", 14)}</button></li>`).join("");
+  return visible.map((entry) => `<li data-file-entry><button class="file-row ${entry.type === "directory" ? "directory" : "file"}" data-action="${action}" data-path="${esc(entry.path)}" ${entry.type === "file" ? `aria-label="Mở ${esc(entry.name)}"` : "aria-expanded=false"}><span>${entry.type === "directory" ? icon("folder-code", 16) : icon("file", 16)}</span><strong title="${esc(entry.name)}">${esc(entry.name)}</strong>${entry.type === "file" ? `<small>${formatNumber(entry.size || 0)} B</small>` : icon("chevron-right", 14)}</button></li>`).join("");
 }
 function renderMarkdown(source) {
   const lines = String(source || "").split(/\r?\n/);
@@ -240,7 +285,7 @@ function filePreviewMarkup(file, title = "Chọn một tệp để xem") {
   if (!file) return `<div class="file-preview-empty">${icon("file", 19)}<p>${title}</p></div>`;
   const markdown = [".md", ".mdx", ".markdown"].includes(file.extension);
   const body = markdown ? `<article class="markdown-preview">${renderMarkdown(file.content)}</article>` : `<pre class="code-preview"><code>${esc(file.content)}</code></pre>`;
-  return `<header class="file-preview-head"><div><strong>${esc(file.name)}</strong><small>${markdown ? "Markdown" : file.extension || "Tệp văn bản"} · ${new Intl.NumberFormat("vi-VN").format(file.size)} B · ${fmtDate(file.modifiedAt)}</small></div>${view.page === "knowledge" ? `<button class="button quiet small" data-action="open-obsidian" data-path="${esc(file.path)}">Mở trong Obsidian ${icon("arrow-up-right", 14)}</button>` : ""}</header>${body}`;
+  return `<header class="file-preview-head"><div><strong>${esc(file.name)}</strong><small>${markdown ? "Markdown" : file.extension || "Tệp văn bản"} · ${formatNumber(file.size)} B · ${fmtDate(file.modifiedAt)}</small></div>${view.page === "knowledge" ? `<button class="button quiet small" data-action="open-obsidian" data-path="${esc(file.path)}">Mở trong Obsidian ${icon("arrow-up-right", 14)}</button>` : ""}</header>${body}`;
 }
 async function loadWorkspaceDir(workspaceId, path = "") {
   const workspace = view.state.workspaces.find((item) => item.id === workspaceId);
@@ -333,21 +378,71 @@ function memoryPage() {
 function settingsPage() {
   const defaults = view.state.settings.defaults || {};
   const canSaveRoles = workflowRoles.every((role) => providersForRole(view.connectors, role.id).length > 0);
-  const apiProviders = Object.entries(view.connectors || {}).filter(([, connector]) => connector.kind === "api");
-  const apiSetup = apiProviders.map(([id, connector]) => `<div class="provider-setup-row"><span class="provider-status-dot ${connector.available ? "ready" : "missing"}"></span><div><strong>${esc(connector.name || id)}</strong><small>${connector.available ? `${connector.models.length} model · đã sẵn sàng` : esc(connector.error || "Chưa cấu hình")}</small></div></div>`).join("");
-  return `<div class="page-head"><div><div class="eyebrow">PREFERENCES & SKILLS</div><h1>Cài đặt</h1><p>Chọn model mặc định, mức suy nghĩ và xem các skill OpenSybau có thể gắn vào task.</p></div></div>
+  const apiSetup = (view.providers || []).map((provider) => `<div class="provider-setup-row"><span class="provider-status-dot ${provider.available ? "ready" : "missing"}"></span><div><strong>${esc(provider.name)} <span class="provider-protocol">${provider.managedBy === "local" ? "OpenSybau" : "Từ biến môi trường"}</span></strong><small>${provider.available ? `${provider.models.length} model · đã cấu hình${provider.apiKeyConfigured ? " · API key đã lưu" : ""}` : esc(provider.error || "Chưa đủ cấu hình")} · ${esc(provider.baseUrl)}</small></div><div class="provider-row-actions">${provider.managedBy === "local" ? `<button class="button quiet small" type="button" data-action="provider-edit" data-id="${esc(provider.id)}">Sửa</button><button class="button quiet small" type="button" data-action="provider-delete" data-id="${esc(provider.id)}">Xóa</button>` : `<button class="button quiet small" type="button" data-action="provider-import-env" data-id="${esc(provider.id)}">Quản lý trong app</button>`}</div></div>`).join("");
+  const cliSetup = cliProviderGuides.map((agent) => {
+    const connector = view.connectors?.[agent.id];
+    const status = cliConnectionStatus(connector);
+    const action = status.tone === "missing"
+      ? `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
+      : status.tone === "ready"
+        ? `<button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} Quét lại</button>`
+        : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${agent.id}">Mở terminal đăng nhập</button>`;
+    const detail = status.tone === "ready"
+      ? `${connector.models.length} model${connector.models.length === 1 ? "" : "s"}${connector.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
+      : status.tone === "missing" ? agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
+    return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${status.tone}">${status.label}</span></strong><small>${esc(detail)}</small></div>${action}</article>`;
+  }).join("");
+  const noReadyConnector = !Object.values(view.connectors || {}).some((connector) => connector.available && connector.capabilities?.plan);
+  return `<div class="page-head"><div><div class="eyebrow">PREFERENCES & MODELS</div><h1>Cài đặt</h1><p>Chọn model mặc định cho từng vai trò và kết nối nguồn AI dùng chung cho các task.</p></div></div>
   <form class="settings-form" data-modal data-form="settings">
-    <section class="settings-card"><header><div><h2>Định tuyến agent mặc định</h2><p>Chọn provider riêng cho kế hoạch, triển khai và review. Mỗi task có thể ghi đè các vai trò này.</p></div></header>
+    <section class="settings-card"><header><div><h2>Ai ra lệnh, ai thực hiện</h2><p>Chọn model lập kế hoạch (ra lệnh), model triển khai (thực hiện) và model review. Mỗi task vẫn có thể dùng bộ model khác.</p></div></header>
+        ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và review.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API / model local</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI agent</button></div></div>` : ""}
       <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
-      <div class="form-note">API key chỉ được đọc từ `.env`; giao diện không trả hoặc lưu giá trị bí mật. Provider API nhận nội dung yêu cầu và ngữ cảnh dự án khi được chọn.</div>
+      <div class="form-note">Khi chọn model API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới dịch vụ đó. Model CLI chạy cục bộ theo quyền của CLI.</div>
       ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Model vẫn chọn theo từng task; hãy khởi động lại server để bật lưu model mặc định và gắn skill.</div>`}
       <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu định tuyến mặc định</button></footer>
     </section>
-    <section class="settings-card provider-setup-card"><header><div><h2>Provider và API</h2><p>Claude Code chạy cục bộ; Claude API và endpoint tương thích OpenAI được cấu hình ở <code>.env</code>.</p></div></header><div class="provider-setup-list">${apiSetup || `<p class="empty-inline">Chưa khai báo API provider.</p>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div><details class="provider-env-help"><summary>Cách thêm Claude hoặc API khác</summary><p>Thêm <code>ANTHROPIC_API_KEY</code> và <code>WORKBENCH_CLAUDE_MODEL</code>, hoặc định nghĩa <code>WORKBENCH_API_PROVIDERS</code> dạng JSON cùng biến API key vào <code>.env</code>. Có mẫu cấu hình trong <code>.env.example</code>; khởi động lại OpenSybau sau khi sửa.</p><p>Nếu chọn API cho triển khai, OpenSybau chỉ ghi tệp văn bản có trong ngữ cảnh hoặc tạo tệp mới, tối đa 40 tệp và 1 MB mỗi task. API không chạy lệnh; prompt và ngữ cảnh đã chọn sẽ được gửi tới dịch vụ đó.</p></details></section>
+    <section class="settings-card cli-setup-card" id="cli-setup"><header><div><h2>Agent CLI</h2><p>OpenSybau tự dò Codex, Antigravity và Claude Code trên máy. Nếu CLI đã cài nhưng chưa đăng nhập, mở terminal đăng nhập ngay tại đây.</p></div><button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} Quét lại</button></header><div class="cli-guide-list">${cliSetup}</div><p class="form-note">Terminal được mở trên máy đang chạy OpenSybau. Hoàn tất OAuth hoặc đăng nhập ở đó rồi chọn Quét lại; CLI không cần khai báo API key riêng.</p></section>
+    <section class="settings-card provider-setup-card"><header><div><h2>Nguồn API và model local</h2><p>Kết nối OpenAI/ChatGPT API, Google Gemini API, Claude API, Ollama, LM Studio hoặc endpoint tương thích.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa có API hoặc model local</strong><p>Chọn cấu hình nhanh để nhập API key và model, hoặc kết nối Ollama/LM Studio. Bạn không cần API nếu dùng CLI.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm API hoặc model local</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div><details class="provider-env-help"><summary>Hướng dẫn kết nối cloud và model local</summary><p><strong>OpenAI / ChatGPT API:</strong> chọn cấu hình sẵn, nhập API key OpenAI rồi tải model. <strong>Google Gemini API:</strong> chọn Google Gemini, nhập key Google AI Studio rồi tải model. <strong>Claude API:</strong> chọn Claude API, nhập Anthropic key và model.</p><p><strong>Ollama:</strong> dùng endpoint <code>http://localhost:11434/v1</code> và ID từ <code>ollama list</code>. <strong>LM Studio:</strong> dùng endpoint <code>http://localhost:1234/v1</code>. Thường không cần API key.</p><p>API key được lưu trong thư mục dữ liệu riêng của OpenSybau, không hiển thị lại trong giao diện. Chỉ nhập key qua localhost hoặc HTTPS; provider API không có quyền chạy lệnh trong workspace.</p></details></section>
     <section class="settings-card concurrency-card"><header><div><h2>Tác vụ chạy đồng thời</h2><p>Giới hạn số task có thể chạy cùng lúc trên các workspace.</p></div></header>
       <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${view.state.settings.maxConcurrent || 2}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
     </section>
   </form>`;
+}
+
+function showApiProviderModal(provider = null) {
+  const editing = Boolean(provider);
+  const models = (provider?.models || []).map((model) => model.id).join("\n");
+  const sourceChoice = editing ? "" : `<section class="provider-cli-entry"><span class="provider-connect-icon">${icon("square-terminal", 17)}</span><div><strong>Thêm Codex, Antigravity hoặc Claude CLI</strong><p>OpenSybau tự dò công cụ đã cài. Nếu chưa đăng nhập, ứng dụng mở terminal giúp bạn; không cần API key hay endpoint.</p></div><button class="button quiet small" type="button" data-action="provider-connect-cli">Thêm / kết nối CLI</button></section>`;
+  const body = `${sourceChoice}<div class="provider-presets" aria-label="Cấu hình nhanh"><span>Chọn dịch vụ API hoặc model local</span><div><button type="button" class="button quiet small" data-action="provider-preset" data-preset="openai">OpenAI / ChatGPT</button><button type="button" class="button quiet small" data-action="provider-preset" data-preset="gemini">Google Gemini</button><button type="button" class="button quiet small" data-action="provider-preset" data-preset="anthropic">Claude API</button><button type="button" class="button quiet small" data-action="provider-preset" data-preset="local">Model local / khác</button></div><nav class="provider-key-links" aria-label="Tạo API key"><a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">Tạo OpenAI key</a><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">Tạo Gemini key</a><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Tạo Claude key</a></nav></div><label>Tên hiển thị<input name="name" required maxlength="80" value="${esc(provider?.name || "")}" placeholder="Ví dụ: Ollama · Qwen local"></label><label>Giao thức<select name="protocol"><option value="openai" ${provider?.protocol === "openai" ? "selected" : ""}>OpenAI Responses API</option><option value="gemini" ${provider?.protocol === "gemini" ? "selected" : ""}>Google Gemini API</option><option value="anthropic" ${provider?.protocol === "anthropic" ? "selected" : ""}>Anthropic Messages API</option><option value="openai-compatible" ${!provider || provider?.protocol === "openai-compatible" ? "selected" : ""}>OpenAI-compatible · Ollama, LM Studio…</option></select></label><label>API endpoint<input name="baseUrl" required maxlength="500" value="${esc(provider?.baseUrl || "")}" placeholder="http://localhost:11434/v1" autocomplete="url"><small>OpenAI-compatible: URL /v1 · Gemini: v1beta · HTTP chỉ dùng với localhost.</small></label><div class="provider-model-field"><label>Model ID<textarea name="models" required rows="4" spellcheck="false" placeholder="Chọn dịch vụ rồi bấm tải danh sách, hoặc nhập model ID">${esc(models)}</textarea><small>Mỗi dòng một ID chính xác. Danh sách chỉ gồm model được dịch vụ trả về cho key của bạn.</small></label><button class="button small" type="button" data-action="provider-discover-models">${icon("refresh-cw", 13)} Tải danh sách model</button></div>${editing ? `<input type="hidden" name="apiKeyRequired" value="${provider.apiKeyRequired ? "true" : "false"}">` : ""}<label>API key<input name="apiKey" type="password" maxlength="2048" autocomplete="new-password" placeholder="${editing && provider.apiKeyConfigured ? "Để trống để giữ key hiện tại" : "Nhập key của dịch vụ; model local có thể không cần"}"></label>${editing && provider.apiKeyConfigured ? `<label class="check-row"><input type="checkbox" name="clearApiKey" value="true"><span><strong>Xóa API key đã lưu</strong><small>Chỉ bật nếu muốn gỡ key khỏi cấu hình cục bộ.</small></span></label>` : ""}<p class="form-note">Đây là luồng API. CLI là kết nối riêng: OpenSybau tự dò và dùng phiên đăng nhập cục bộ của Codex, Antigravity hoặc Claude Code. API key được lưu trong thư mục dữ liệu OpenSybau; API OpenAI tính phí riêng với gói ChatGPT.</p>`;
+  showModal(editing ? "Sửa nguồn AI" : "Thêm nguồn AI", body, editing ? "Lưu nguồn" : "Thêm nguồn", "api-provider");
+  if (provider) $(".modal").dataset.id = provider.id;
+}
+function showCliProviderModal() {
+  const rows = cliProviderGuides.map((agent) => {
+    const connector = view.connectors?.[agent.id];
+    const status = cliConnectionStatus(connector);
+    const modelCount = connector?.models?.length || 0;
+    const detail = status.tone === "ready"
+      ? `${modelCount} model khả dụng${connector?.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
+      : status.tone === "missing" ? agent.installHelp : connector?.error || agent.summary;
+    const primary = status.tone === "missing"
+      ? `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
+      : status.tone === "ready"
+        ? `<button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} Đã kết nối · quét lại</button>`
+        : `<button class="button primary small" type="button" data-action="provider-cli-login" data-id="${agent.id}">${icon("square-terminal", 13)} ${status.tone === "needs-action" && connector?.authenticated ? "Mở CLI để kiểm tra" : "Bắt đầu đăng nhập"}</button>`;
+    const docsUrl = status.tone === "missing" ? agent.url : agent.authUrl || agent.url;
+    const instructions = status.tone === "missing"
+      ? `<div class="cli-connect-login"><span>Cài đặt CLI</span><small>${esc(agent.installHelp)}</small></div>`
+      : `<div class="cli-connect-login"><span>Cách đăng nhập</span><code>${esc(agent.loginCommand)}</code><small>${esc(agent.loginHelp)}</small></div>`;
+    return `<article class="cli-connect-card ${status.tone}"><header><span class="cli-connect-mark">${icon("square-terminal", 17)}</span><div><h3>${esc(agent.name)}</h3><span class="cli-guide-status ${status.tone}">${esc(status.label)}</span></div></header><p>${esc(detail)}</p>${instructions}<footer>${primary}<a href="${docsUrl}" target="_blank" rel="noreferrer">Tài liệu chính thức</a></footer></article>`;
+  }).join("");
+  const body = `<div class="cli-connect-intro"><span class="provider-connect-icon">${icon("workflow", 17)}</span><div><strong>OpenSybau tự dò CLI trên máy chủ</strong><p>CLI đã cài và đăng nhập sẽ tự xuất hiện trong danh sách nguồn AI, không cần thêm endpoint. Nếu chưa cài, mở hướng dẫn của hãng rồi quét lại; nếu chưa đăng nhập, bấm Bắt đầu đăng nhập để mở terminal.</p></div><button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} Quét lại</button></div><div class="cli-connect-list">${rows}</div><p class="cli-connect-feedback" role="status" aria-live="polite" hidden></p><p class="form-note">CLI dùng tài khoản riêng, không cần API key. Nếu bạn dùng OpenSybau từ điện thoại, terminal sẽ mở trên máy chủ; hoàn tất đăng nhập tại máy đó rồi bấm Quét lại.</p>`;
+  showModal("Thêm / kết nối CLI agent", body, "Xong", "dismiss");
+  $(".modal-actions .button.quiet")?.remove();
+}
+function apiProviderId(name) {
+  return String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 }
 function render() {
   if (!view.state) return;
@@ -366,7 +461,9 @@ function render() {
   const previousSelection = activeComposer === "message" ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
   const selectedTask = view.selected && view.state.tasks.some((task) => task.id === view.selected);
   const pageMarkup = (pages[view.page] || taskPage)();
-  updateWorkbenchShell({ page: view.page, state: view.state, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, projectMenuId: view.projectMenuId }, pageMarkup);
+  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, projectMenuId: view.projectMenuId }, pageMarkup);
+  localizeDom(document.querySelector("#root"), view.language);
+  localizeDom(document.querySelector("#overlay"), view.language);
   const nextContent = $("#content");
   nextContent.scrollTop = contentScroll;
   view.renderedPage = renderKey;
@@ -402,10 +499,12 @@ function chatPage() {
   const workflowLabel = workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, chatSelection.provider)}` : workflow === "plan-only" ? `${providerTitle(view.connectors, roleSelections.plan.provider)} · lập kế hoạch` : pipelineLabel;
   const activeWorkspaceId = workspaces.some((workspace) => workspace.id === view.homeWorkspaceId) ? view.homeWorkspaceId : workspaces[0]?.id || "";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
+  const chatProviders = Object.entries(view.connectors || {}).filter(([, connector]) => connectorSupports(connector, "chat"));
   const homeModelSummary = workflow === "chat-only" ? chatSelection.model?.name || "Chưa có model" : workflow === "plan-only" ? roleSelections.plan.model || "Chưa có model" : workflowRoles.map((role) => roleSelections[role.id].model || "Chưa có model").join(" · ");
   const homeConfigSummary = `${activeWorkspace?.name || "Chọn workspace"} · ${workflowLabel} · ${homeModelSummary}`;
   return `<section class="command-home">
     <div class="command-stage"><div class="home-welcome"><p class="home-kicker">OPENSYBAU · ${esc(activeWorkspace?.name || "CHỌN WORKSPACE")}</p><h1>${activeWorkspace ? `Bạn muốn làm gì trong ${esc(activeWorkspace.name)}?` : "Bạn muốn làm gì?"}</h1><p class="home-subtitle">Bắt đầu một cuộc trò chuyện hoặc giao việc cho các agent đang chạy trên máy.</p></div>
+      ${chatProviders.length ? "" : `<div class="provider-connect-callout home-provider-empty"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa có agent sẵn sàng</strong><p>Kết nối API/model local hoặc cài và đăng nhập Codex, Claude Code hay Antigravity để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="desktop-open-settings">Mở cài đặt</button><button class="button quiet small" type="button" data-action="open-setup-assistant">Hướng dẫn</button></div></div>`}
       <div class="home-mode-switch" role="tablist" aria-label="Chế độ làm việc"><button type="button" class="home-mode-tab ${view.homeMode === "chat" ? "active" : ""}" data-home-mode="chat">Chat</button><button type="button" class="home-mode-tab ${view.homeMode === "code" ? "active" : ""}" data-home-mode="code" ${pipelineReady ? "" : "disabled title=\"Cần agent có quyền làm việc trên workspace\""}>Code</button><button type="button" class="home-mode-tab ${view.homeMode === "plan" ? "active" : ""}" data-home-mode="plan" ${planReady ? "" : "disabled"}>Lập kế hoạch</button><button type="button" class="home-mode-link" data-page="tasks">${view.state.tasks.length} task</button></div>
       <form class="home-composer" data-modal data-form="home-task">
         <textarea name="prompt" data-home-prompt required minlength="6" maxlength="12000" rows="3" placeholder="${workflow === "chat-only" ? `Nhắn ${providerTitle(view.connectors, chatSelection.provider)}…` : workflow === "plan-only" ? "Mô tả vấn đề cần phân tích và lập kế hoạch…" : "Mô tả thay đổi cần triển khai trong workspace…"}">${esc(view.chatDraft)}</textarea>
@@ -451,7 +550,7 @@ function taskConversationPage() {
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
   const composerConfig = `${providerTitle(view.connectors, provider)}${model?.name ? ` · ${model.name}` : ""}${effort ? ` · ${effort}` : ""}`;
   return `<section class="task-conversation-page" aria-label="Cuộc trò chuyện">
-    <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${new Intl.NumberFormat("vi-VN").format(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`}</small></div><span>${icon("book-open-text", 14)} ${transcript.length} tin nhắn</span></header>
+    <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`}</small></div><span>${icon("book-open-text", 14)} ${formatNumber(transcript.length)} tin nhắn</span></header>
       <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
       <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}"><textarea name="message" class="chat-input" maxlength="8000" rows="3" required placeholder="Nhắn tiếp trong cuộc trò chuyện này…">${esc(view.chatDraft)}</textarea><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><button type="button" class="chat-config-trigger" data-action="task-instruction" data-id="${task.id}" title="Đổi agent, model hoặc mức suy nghĩ">${icon("settings-2", 14)}<span>${esc(composerConfig)}</span></button><button class="button primary chat-send-button" type="submit" aria-label="Gửi tin nhắn" title="Gửi tin nhắn" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></footer></form>
     </section>
@@ -524,7 +623,7 @@ function taskDetails() {
   ].filter(([, output]) => output);
   return `<section class="task-orchestration-page" aria-label="Điều phối task">
     <header class="conversation-top"><div class="conversation-context"><span class="conversation-repo">${icon("folder-code", 15)} ${esc(workspace?.name || task.workspacePath)}</span><span class="conversation-separator">/</span><span class="conversation-task-id">${esc(task.id)}</span></div><div class="detail-head-actions"><button class="button quiet small" data-action="back-chat" data-id="${task.id}">${icon("arrow-left", 14)} Cuộc trò chuyện</button><button class="button quiet small" data-action="open-folder" data-id="${task.id}">${icon("folder-code", 14)} Mở workspace</button><button class="button quiet small" data-action="task-instruction" data-id="${task.id}">${icon("arrow-up-right", 14)} Gửi chỉ dẫn</button><button class="button quiet small" data-action="new-task">${icon("plus", 14)} Task mới</button></div></header>
-    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span><span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${new Intl.NumberFormat("vi-VN").format(usage)} tokens</span>` : ""}<span>${events.length} sự kiện · ${nodes.length} node</span></div></div></div>
+    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span><span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${formatNumber(usage)} tokens</span>` : ""}<span>${formatNumber(events.length)} sự kiện · ${formatNumber(nodes.length)} node</span></div></div></div>
     ${task.skills?.length ? `<div class="skill-used">${icon("notebook-tabs", 14)} Skill đã chọn: ${task.skills.map((skill) => esc(skill.name)).join(" · ")}</div>` : ""}
     <div class="orchestration-layout"><section class="orchestration-canvas"><header class="orchestration-canvas-head"><div><small>LUỒNG THỰC THI · ${esc(task.config.workflow === "chat-only" ? "CHAT" : task.config.workflow === "plan-only" ? "PLAN ONLY" : "CODE PIPELINE")}</small><h3>${busy ? "Điều phối đang hoạt động" : "Bản ghi điều phối"}</h3></div><span class="activity-live ${busy ? "is-live" : ""}"><i></i>${busy ? "Đang chạy" : "Đã lưu"}</span></header><div class="orchestration-flow">${nodes.map((node, index) => orchestrationNodeHtml(node, index, nodes.length)).join("")}</div></section>
       <aside class="orchestration-activity"><header class="orchestration-activity-head"><div><small>EVENT LOG</small><h3>Điều phối & hoạt động</h3></div><span>${events.length} sự kiện</span></header><div class="orchestration-activity-note">${icon("workflow", 14)} Chỉ hiện hoạt động, handoff, đầu ra và công cụ được CLI ghi nhận. Suy luận nội bộ của model không được cung cấp.</div><div class="orchestration-event-list" id="agent-activity-feed">${sortedEvents.length ? sortedEvents.map((item) => { const text = String(item.text || ""); const longOutput = item.kind === "output" && text.length > 320; return `<article class="orchestration-event kind-${esc(item.kind)}"><span class="orchestration-event-mark">${icon(({ stage: "square-terminal", handoff: "workflow", tool: "settings-2", output: "file", chat: "book-open-text", memory: "brain", error: "circle-question-mark", success: "check", warning: "circle-question-mark" })[item.kind] || "workflow", 14)}</span><div><header><strong>${esc(eventLabels[item.kind] || "EVENT")}</strong><time>${fmtDate(item.at)}</time></header>${longOutput ? `<p>${esc(text.slice(0, 280))}…</p><details class="orchestration-event-details"><summary>Xem đầu ra đầy đủ</summary><pre>${esc(text)}</pre></details>` : `<p>${esc(text)}</p>`}</div></article>`; }).join("") : `<p class="orchestration-activity-empty">Các sự kiện sẽ xuất hiện khi task được chạy.</p>`}</div>${stages.length ? `<section class="orchestration-stage-results"><strong>Đầu ra agent</strong>${stages.map(([label, output]) => `<details><summary>${esc(label)}</summary><pre>${esc(output)}</pre></details>`).join("")}</section>` : ""}${(task.artifacts || []).length ? `<section class="orchestration-artifacts"><strong>${icon("file", 14)} Tệp thay đổi · ${task.artifacts.length}</strong>${task.artifacts.slice(0, 20).map((file) => `<div>${icon("file", 13)}<code>${esc(file)}</code></div>`).join("")}</section>` : ""}</aside></div>
@@ -535,11 +634,12 @@ function showModal(title, body, submitLabel, formType = "") {
   const inferred = title === "Task mới" ? "task" : title === "Thêm workspace" ? "workspace" : title === "Ghi nhớ mới" ? "memory" : "dismiss";
   const type = formType || inferred;
   $("#overlay").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal" data-form="${type}" data-modal><header class="modal-head"><div><small>OPENSYBAU · LOCAL</small><h2>${title}</h2></div><button type="button" class="icon-button" data-action="close-modal" aria-label="Đóng">${icon("x", 16)}</button></header>${body}<footer class="modal-actions"><button type="button" class="button quiet" data-action="close-modal">Hủy</button><button class="button primary" type="submit">${submitLabel}</button></footer></form></div>`;
+  localizeDom($("#overlay"), view.language);
   $(".modal input, .modal textarea, .modal select")?.focus();
 }
 async function openTaskModal() {
   const { workspaces } = view.state;
-  if (!providersForRole(view.connectors, "plan").length) return showToast("Chưa có provider nào sẵn sàng để lập kế hoạch.");
+  if (!providersForRole(view.connectors, "plan").length) { view.page = "settings"; view.selected = null; render(); showToast("Kết nối ít nhất một agent hoặc API rồi bạn có thể tạo task."); return; }
   if (!workspaces.length) return showWorkspaceModal();
   const options = workspaces.map((w) => `<option value="${w.id}">${esc(w.name)} · ${esc(w.path)}</option>`).join("");
   const hasBuild = providersForRole(view.connectors, "build").length > 0;
@@ -640,7 +740,7 @@ function showDiffModal(data) {
 }
 function closeOverlay() { $("#overlay").innerHTML = ""; }
 function showToast(message) {
-  const toast = $("#toast"); toast.textContent = message; toast.classList.add("visible");
+  const toast = $("#toast"); toast.textContent = translateText(message, view.language); toast.classList.add("visible");
   clearTimeout(view.toastTimer); view.toastTimer = setTimeout(() => toast.classList.remove("visible"), 3500);
 }
 async function handleSubmit(event) {
@@ -674,6 +774,14 @@ async function handleSubmit(event) {
       const roles = Object.fromEntries(workflowRoles.map((role) => [role.id, { provider: object[`${role.id}Provider`], model: object[`${role.id}Model`], effort: object[`${role.id}Effort`] }]));
       await api("/api/settings", { method: "POST", body: JSON.stringify({ defaults: { roles } }) });
       showToast("Đã lưu định tuyến agent mặc định trên máy.");
+    } else if (form.dataset.form === "api-provider") {
+      const id = form.dataset.id || apiProviderId(object.name);
+      if (!id) throw new Error("Tên nguồn cần tạo được ID gồm chữ hoặc số.");
+      await api(form.dataset.id ? `/api/providers/${encodeURIComponent(id)}` : "/api/providers", {
+        method: form.dataset.id ? "PUT" : "POST",
+        body: JSON.stringify({ ...object, ...(object.apiKeyRequired === undefined ? {} : { apiKeyRequired: object.apiKeyRequired === "true" }), id, clearApiKey: data.has("clearApiKey") }),
+      });
+      showToast("Đã lưu nguồn AI. API key chỉ được giữ trên máy này.");
     } else if (form.dataset.form === "task-chat") {
       view.forceChatScroll = true;
       await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, provider: object.provider, model: object.model, effort: object.effort }) });
@@ -696,7 +804,7 @@ async function handleSubmit(event) {
       return;
     }
     $("#overlay").innerHTML = "";
-    await refresh();
+    await refresh({ configuration: form.dataset.form === "api-provider" });
     if (view.page === "knowledge" && view.state.settings.vaultPath) await loadVaultDir("");
     if (view.page === "skills" && !view.skillsLoaded) {
       const result = await api("/api/skills"); view.skills = result.skills || []; view.skillsLoaded = true; render();
@@ -710,6 +818,7 @@ document.addEventListener("click", async (event) => {
   const page = event.target.closest("[data-page]");
   if (page) {
     event.preventDefault(); closeOverlay(); view.projectMenuId = ""; view.page = page.dataset.page; if (view.page !== "chat" && view.page !== "workspaces") view.selected = null; view.filePreview = null; render();
+    if (view.page === "settings") void refresh({ configuration: true });
     try {
       if (view.page === "knowledge" && view.state.settings.vaultPath) await loadVaultDir("");
       if (view.page === "skills") { const result = await api("/api/skills"); view.skills = result.skills || []; view.skillsLoaded = true; render(); }
@@ -749,8 +858,17 @@ document.addEventListener("click", async (event) => {
   const action = button.dataset.action; const id = button.dataset.id;
   if (!button.closest(".wb-project-group") && view.projectMenuId) { view.projectMenuId = ""; render(); }
   try {
+    if (action === "toggle-language") {
+      view.language = setLanguage(view.language === "en" ? "vi" : "en");
+      render();
+      showToast(view.language === "en" ? "Đã chuyển giao diện sang tiếng Anh." : "Đã chuyển giao diện sang tiếng Việt.");
+      return;
+    }
+    if (action === "dismiss-desktop-setup") { view.desktopSetupOpen = false; try { localStorage.setItem("opensybau.setup-v3", "done"); localStorage.setItem("opensybau.desktop-setup-v2", "done"); } catch {} render(); return; }
+    if (action === "desktop-open-settings") { view.desktopSetupOpen = false; view.page = "settings"; view.selected = null; try { localStorage.setItem("opensybau.setup-v3", "done"); localStorage.setItem("opensybau.desktop-setup-v2", "done"); } catch {} render(); return; }
+    if (action === "open-setup-assistant") { view.desktopSetupOpen = true; render(); return; }
     if (action === "new-chat") { view.page = "chat"; view.selected = null; view.chatDraft = ""; view.homeWorkspaceId = button.dataset.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id || ""; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; clearSidebarSearch(); view.homeConfigOpen = false; closeOverlay(); render(); }
-    if (action === "refresh") { view.connectors = await api("/api/connectors?refresh=1"); await refresh(); showToast("Đã đọc lại trạng thái CLI."); }
+    if (action === "refresh") { await api("/api/connectors?refresh=1"); await refresh({ configuration: true }); showToast("Đã đọc lại trạng thái CLI."); }
     if (action === "scan-skills") {
       button.disabled = true;
       const result = await api("/api/skills?refresh=1");
@@ -792,6 +910,78 @@ document.addEventListener("click", async (event) => {
     if (action === "add-workspace") showWorkspaceModal();
     if (action === "new-memory") showMemoryModal();
     if (action === "new-skill") showSkillCreateModal();
+    if (action === "provider-add") showApiProviderModal();
+    if (action === "provider-connect-cli") { showCliProviderModal(); return; }
+    if (action === "provider-cli-refresh") {
+      view.connectors = await api("/api/connectors?refresh=1");
+      await refresh({ configuration: true });
+      showCliProviderModal();
+      showToast("Đã quét lại Codex, Antigravity và Claude Code trên máy chạy OpenSybau.");
+      return;
+    }
+    if (action === "provider-cli-login") {
+      const label = button.innerHTML;
+      button.disabled = true;
+      button.textContent = "Đang mở terminal…";
+      try {
+        const result = await api(`/api/connectors/${encodeURIComponent(id)}/login`, { method: "POST" });
+        const feedback = $(".cli-connect-feedback", button.closest(".modal"));
+        if (feedback) { feedback.textContent = result.message; feedback.hidden = false; }
+        showToast(result.message);
+      } finally { button.disabled = false; button.innerHTML = label; }
+      return;
+    }
+    if (action === "provider-preset") {
+      const form = button.closest(".modal");
+      const presets = {
+        openai: { name: "OpenAI / ChatGPT API", protocol: "openai", baseUrl: "https://api.openai.com/v1" },
+        gemini: { name: "Google Gemini API", protocol: "gemini", baseUrl: "https://generativelanguage.googleapis.com/v1beta" },
+        anthropic: { name: "Claude API", protocol: "anthropic", baseUrl: "https://api.anthropic.com/v1" },
+        local: { name: "", protocol: "openai-compatible", baseUrl: "http://localhost:11434/v1" },
+      };
+      const preset = presets[button.dataset.preset];
+      if (form && preset) {
+        for (const [field, value] of Object.entries(preset)) form.querySelector(`[name="${field}"]`).value = value;
+        if (preset.name) form.querySelector('[name="name"]').focus();
+      }
+      return;
+    }
+    if (action === "provider-edit") {
+      const provider = view.providers.find((item) => item.id === id && item.managedBy === "local");
+      if (provider) showApiProviderModal(provider);
+    }
+    if (action === "provider-import-env") {
+      button.disabled = true;
+      try {
+        await api("/api/providers/import-environment", { method: "POST", body: JSON.stringify({ id }) });
+        await refresh();
+        showToast("Đã chuyển provider và API key vào cấu hình OpenSybau. Bản trong .env gốc vẫn được giữ lại.");
+      } finally { button.disabled = false; }
+      return;
+    }
+    if (action === "provider-discover-models") {
+      const form = button.closest(".modal");
+      const data = new FormData(form);
+      const fields = Object.fromEntries(data.entries());
+      const id = form.dataset.id || apiProviderId(fields.name) || "provider-check";
+      button.disabled = true;
+      const label = button.innerHTML;
+      button.textContent = "Đang tải…";
+      try {
+        const result = await api("/api/providers/models", { method: "POST", body: JSON.stringify({ ...fields, id, models: fields.models || "provider-check", useSavedKey: !data.has("clearApiKey") }) });
+        form.querySelector('[name="models"]').value = result.models.map((model) => model.id).join("\n");
+        showToast(`Đã tải ${result.models.length} model từ endpoint.`);
+      } catch (error) { showToast(error.message); }
+      finally { button.disabled = false; button.innerHTML = label; }
+      return;
+    }
+    if (action === "provider-delete") {
+      const provider = view.providers.find((item) => item.id === id && item.managedBy === "local");
+      if (provider && confirm(`Xóa nguồn “${provider.name}” khỏi OpenSybau? API key đã lưu cũng sẽ bị xóa.`)) {
+        await api(`/api/providers/${encodeURIComponent(id)}`, { method: "DELETE" });
+        await refresh({ configuration: true }); showToast("Đã xóa nguồn AI.");
+      }
+    }
     if (action === "connect-vault") showVaultModal();
     if (action === "disconnect-vault") { if (confirm("Ngắt vault khỏi OpenSybau? Ghi chú trên máy không bị thay đổi.")) { await api("/api/settings", { method: "POST", body: JSON.stringify({ vaultPath: "" }) }); view.vaultEntries = []; view.vaultPreview = null; await refresh(); } }
     if (action === "close-modal") { if (event.target === button || button.tagName === "BUTTON") closeOverlay(); }
@@ -885,7 +1075,7 @@ document.addEventListener("input", (event) => {
   if (homeSearch) {
     view.searchQuery = homeSearch.value;
     const results = $("[data-home-search-results]");
-    if (results) { results.innerHTML = homeSearchResults(view.searchQuery); results.hidden = !view.searchQuery.trim(); }
+    if (results) { results.innerHTML = homeSearchResults(view.searchQuery); results.hidden = !view.searchQuery.trim(); localizeDom(results, view.language); }
     return;
   }
   const fileInput = event.target.closest("[data-file-filter]");
@@ -1015,9 +1205,14 @@ window.addEventListener("popstate", () => {
   }
 });
 const events = new EventSource("/__events");
-events.addEventListener("update", () => refresh());
+events.addEventListener("update", () => scheduleRefresh(220));
 events.addEventListener("reload", () => location.reload());
-events.addEventListener("open", () => { view.streamConnected = true; if (["tasks", "chat"].includes(view.page)) render(); });
+events.addEventListener("open", () => { view.streamConnected = true; if (["tasks", "chat"].includes(view.page)) render(); scheduleRefresh(0); });
 events.addEventListener("error", () => { view.streamConnected = false; if (["tasks", "chat"].includes(view.page)) render(); });
-refresh();
-setInterval(() => { if (!document.hidden) refresh(); }, 8000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) scheduleRefresh(80); });
+refresh({ configuration: true });
+setInterval(() => {
+  if (document.hidden) return;
+  scheduleRefresh(0);
+  if (view.page === "settings" && Date.now() - lastConfigurationRefresh > 300_000) void refresh({ configuration: true });
+}, 30_000);

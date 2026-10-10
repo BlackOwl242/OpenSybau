@@ -7,7 +7,7 @@ const mode = process.argv[2];
 if (!["dev", "production"].includes(mode)) throw new Error("Usage: node scripts/run.mjs <dev|production>");
 
 try {
-  const source = await readFile(resolve(root, ".env"), "utf8");
+  const source = await readFile(resolve(process.env.WORKBENCH_ENV_FILE || resolve(root, ".env")), "utf8");
   for (const line of source.split(/\r?\n/)) {
     const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
     if (!match || process.env[match[1]] !== undefined) continue;
@@ -21,4 +21,13 @@ try {
 }
 
 process.env.WORKBENCH_MODE = mode;
-await import("../server.mjs");
+const { startWorkbench, stopWorkbench } = await import("../server.mjs");
+await startWorkbench();
+let stopping = false;
+async function shutdown() {
+  if (stopping) return;
+  stopping = true;
+  await stopWorkbench();
+}
+process.once("SIGINT", () => { void shutdown(); });
+process.once("SIGTERM", () => { void shutdown(); });

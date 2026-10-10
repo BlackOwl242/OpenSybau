@@ -3,31 +3,32 @@ import { createServer as createHttpsServer } from "node:https";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { promises as fs } from "node:fs";
-import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { createServer as createViteServer } from "vite";
-import { completeWithApi, configuredApiProviders, findClaudeCode, providerLabel } from "./src/server/provider-registry.mjs";
+import { completeWithApi, configuredApiProviders, findClaudeCode, listProviderModels, normalizeUserApiProvider, providerLabel } from "./src/server/provider-registry.mjs";
 import { roleConfig, workflowRoles } from "./src/domain/agent-roles.js";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const host = process.env.WORKBENCH_HOST || "127.0.0.1";
-const port = Number(process.env.WORKBENCH_PORT || 4173);
+const port = Number(String(process.env.WORKBENCH_PORT ?? "").trim() || 4173);
 const runtime = resolve(root, process.env.WORKBENCH_DATA_DIR || ".runtime");
 const taskDir = resolve(runtime, "tasks");
 const worktreeDir = resolve(runtime, "worktrees");
 const stateFile = resolve(runtime, "state.json");
 const memoryFile = resolve(runtime, "memory.json");
+const providerConfigFile = resolve(runtime, "providers.json");
+const providerSecretsFile = resolve(runtime, "provider-secrets.json");
 const clients = new Set();
 const running = new Map();
 const busyWorkspaces = new Set();
 const isolatedWorkspaces = new Map();
 const contentTypes = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8", ".webmanifest": "application/manifest+json; charset=utf-8", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
-const codexExe = findCodex();
-const agyExe = findAntigravity();
-const claudeCommand = findClaudeCode();
-const claudeExe = claudeCommand.executable;
+let codexExe = "";
+let agyExe = "";
+let claudeCommand = { executable: "", prefixArgs: [] };
+let claudeExe = "";
 const accessUsername = process.env.WORKBENCH_ACCESS_USERNAME || "opensybau";
 const accessPassword = process.env.WORKBENCH_ACCESS_PASSWORD || "";
 const isLoopbackBind = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(host.toLowerCase());
@@ -40,13 +41,16 @@ const tlsKey = process.env.WORKBENCH_TLS_KEY || "";
 const secureTransport = Boolean(tlsCert && tlsKey);
 let modelCache;
 let modelCacheUntil = 0;
+let modelLoadPromise = null;
 let apiProviderRuntime = new Map();
 let schedulerActive = false;
+let shuttingDown = false;
+let pumpTimer;
 
 mkdirSync(taskDir, { recursive: true });
 mkdirSync(worktreeDir, { recursive: true });
 
-if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("WORKBENCH_PORT must be a valid TCP port (1–65535).");
+if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("WORKBENCH_PORT must be a valid TCP port (0–65535).");
 if (Boolean(tlsCert) !== Boolean(tlsKey)) throw new Error("Set both WORKBENCH_TLS_CERT and WORKBENCH_TLS_KEY to enable HTTPS.");
 if (!isLoopbackBind && process.env.WORKBENCH_MODE !== "production") throw new Error("Network access is only allowed in production mode. Run npm run build, then npm start.");
 if (!isLoopbackBind && accessPassword.length < 16) throw new Error("Network access requires WORKBENCH_ACCESS_PASSWORD with at least 16 characters.");
@@ -77,6 +81,30 @@ function findOnPath(name) {
   const result = spawnSync(locator, [name], { encoding: "utf8", windowsHide: true, timeout: 5000 });
   return (result.stdout || "").split(/\r?\n/).map((item) => item.trim()).find((item) => item && existsSync(item)) || "";
 }
+
+function refreshWindowsPath() {
+  if (process.platform !== "win32") return;
+  const keys = ["HKCU\\Environment", "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment"];
+  const registered = keys.map((key) => {
+    const result = spawnSync("reg.exe", ["query", key, "/v", "Path"], { encoding: "utf8", windowsHide: true, timeout: 5000 });
+    const line = (result.stdout || "").split(/\r?\n/).find((item) => /^\s*Path\s+REG_(?:EXPAND_)?SZ\s+/i.test(item));
+    return line ? line.replace(/^\s*Path\s+REG_(?:EXPAND_)?SZ\s+/i, "").trim() : "";
+  }).filter(Boolean);
+  const paths = registered.flatMap((value) => value.split(delimiter));
+  paths.push(...String(process.env.PATH || "").split(delimiter));
+  const unique = [...new Map(paths.map((item) => [item.trim().replace(/%([^%]+)%/g, (_, name) => process.env[name] || `%${name}%`).toLowerCase(), item.trim().replace(/%([^%]+)%/g, (_, name) => process.env[name] || `%${name}%`)]).filter(([key]) => key)).values()];
+  if (unique.length) process.env.PATH = unique.join(delimiter);
+}
+
+function refreshCliExecutables() {
+  refreshWindowsPath();
+  codexExe = findCodex();
+  agyExe = findAntigravity();
+  claudeCommand = findClaudeCode();
+  claudeExe = claudeCommand.executable;
+}
+
+refreshCliExecutables();
 
 function initialState() {
   return {
@@ -113,6 +141,14 @@ for (const task of state.tasks) {
     task.error = "OpenSybau đã dừng khi tiến trình đang chạy. Kiểm tra workspace trước khi chạy lại.";
     task.updatedAt = new Date().toISOString();
   }
+  if (task.status !== "queued") {
+    const interruptedCount = failQueuedChatTurns(task, true);
+    if (interruptedCount) {
+      const interruptedAt = new Date().toISOString();
+      task.events = [...(task.events || []), { at: interruptedAt, kind: "warning", text: "Tin nhắn chat chưa hoàn tất khi OpenSybau dừng; hãy gửi lại nếu vẫn cần." }].slice(-250);
+      task.updatedAt = interruptedAt;
+    }
+  }
 }
 let memories = loadJson(memoryFile, []);
 function persist() {
@@ -125,6 +161,29 @@ function persistMemory() {
   writeFileSync(temporary, JSON.stringify(memories, null, 2), "utf8");
   renameSync(temporary, memoryFile);
 }
+function persistJsonFile(file, value) {
+  const temporary = `${file}.tmp`;
+  writeFileSync(temporary, JSON.stringify(value, null, 2), { encoding: "utf8", mode: 0o600 });
+  renameSync(temporary, file);
+}
+function savedApiProviders() {
+  const entries = loadJson(providerConfigFile, []);
+  const secrets = loadJson(providerSecretsFile, {});
+  if (!Array.isArray(entries)) throw new Error("Danh sách provider đã lưu không hợp lệ.");
+  return entries.map((entry) => ({ ...entry, apiKey: String(secrets?.[entry.id] || "") }));
+}
+function publicApiProvider(provider, connector, managedBy) {
+  return {
+    id: provider.id, name: provider.name, protocol: provider.protocol, baseUrl: provider.baseUrl || provider.endpoint || "",
+    models: provider.models.map((model) => ({ ...model })), managedBy, apiKeyRequired: Boolean(provider.apiKeyRequired),
+    apiKeyConfigured: Boolean(provider.apiKey), available: Boolean(connector?.available),
+    error: connector?.error || null,
+  };
+}
+function isLoopbackClient(request) {
+  const address = String(request.socket?.remoteAddress || "").toLowerCase().replace(/^::ffff:/, "");
+  return address === "::1" || address === "127.0.0.1" || address.startsWith("127.");
+}
 function publish(type = "state") {
   const payload = JSON.stringify({ type });
   for (const client of clients) client.write(`event: update\ndata: ${payload}\n\n`);
@@ -135,6 +194,23 @@ function record(task, text, kind = "info") {
   task.updatedAt = line.at;
   persist();
   publish("task");
+}
+function failQueuedChatTurns(task, includeRunning = false) {
+  const queuedMessageIds = new Set((task.chatQueue || []).map((turn) => turn.messageId));
+  let failedCount = 0;
+  for (const message of task.chatMessages || []) {
+    if ((message.status === "queued" && queuedMessageIds.has(message.id)) || (includeRunning && message.status === "running")) {
+      message.status = "failed";
+      failedCount += 1;
+    }
+  }
+  task.chatQueue = [];
+  task.chatResumeState = null;
+  return failedCount;
+}
+function assertTaskActive(task) {
+  const runInfo = running.get(task.id);
+  if (shuttingDown || runInfo?.stopped) throw new Error(shuttingDown ? "OpenSybau is shutting down." : "Stopped by user");
 }
 function json(response, status, value) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
@@ -186,6 +262,37 @@ function openFolder(path) {
     child.once("error", rejectPromise);
   });
 }
+function powershellLiteral(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+function openCliLoginTerminal(executable, args, title) {
+  if (process.platform !== "win32") throw new Error("Tự mở terminal đăng nhập hiện được hỗ trợ trên Windows. Hãy mở terminal trên máy chủ và chạy lệnh được hiển thị trong OpenSybau.");
+  const windowsRoot = process.env.WINDIR || "C:\\Windows";
+  const powershell = resolve(windowsRoot, "System32/WindowsPowerShell/v1.0/powershell.exe");
+  if (!existsSync(powershell)) throw new Error("Không tìm thấy Windows PowerShell. Hãy mở PowerShell thủ công và chạy lệnh đăng nhập trong hướng dẫn.");
+  const invocation = [executable, ...args].map(powershellLiteral).join(" ");
+  const script = [
+    `$Host.UI.RawUI.WindowTitle = ${powershellLiteral(`OpenSybau · ${title}`)}`,
+    `Set-Location -LiteralPath ${powershellLiteral(homedir())}`,
+    `Write-Host ${powershellLiteral(`Đang mở ${title}. Hoàn tất đăng nhập trong cửa sổ này.`)}`,
+    `& ${invocation}`,
+    "if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { Write-Host ('CLI kết thúc với mã ' + $LASTEXITCODE) -ForegroundColor Yellow }",
+    "Write-Host 'Quay lại OpenSybau và chọn Quét lại để cập nhật trạng thái.' -ForegroundColor Cyan",
+  ].join("; ");
+  const encoded = Buffer.from(script, "utf16le").toString("base64");
+  const windowsTerminal = findOnPath("wt.exe");
+  const launcher = windowsTerminal || resolve(windowsRoot, "System32/cmd.exe");
+  const launcherArgs = windowsTerminal
+    ? ["-w", "new", powershell, "-NoProfile", "-NoExit", "-EncodedCommand", encoded]
+    : ["/d", "/s", "/c", `start "" "${powershell}" -NoProfile -NoExit -EncodedCommand ${encoded}`];
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(launcher, launcherArgs, {
+      cwd: homedir(), detached: true, stdio: "ignore", windowsHide: !windowsTerminal, env: process.env,
+    });
+    child.once("spawn", () => { child.unref(); resolvePromise(); });
+    child.once("error", rejectPromise);
+  });
+}
 function matchesCredential(input, expected) {
   const inputHash = createHash("sha256").update(input).digest();
   const expectedHash = createHash("sha256").update(expected).digest();
@@ -228,12 +335,22 @@ async function inspectWorkspace(path) {
 }
 async function loadModels(force = false) {
   if (!force && modelCache && Date.now() < modelCacheUntil) return modelCache;
+  if (modelLoadPromise) return modelLoadPromise;
+  if (force) refreshCliExecutables();
+  modelLoadPromise = loadModelsUncached();
+  try { return await modelLoadPromise; }
+  finally { modelLoadPromise = null; }
+}
+async function loadModelsUncached() {
   const [codex, agy, codexLogin, claude] = await Promise.all([
     run(codexExe, ["debug", "models"], { timeout: 30000, maxBuffer: 32_000_000 }),
     run(agyExe, ["models"], { timeout: 30000, maxBuffer: 2_000_000 }),
     run(codexExe, ["login", "status"], { timeout: 10000, maxBuffer: 10000 }),
     claudeExe ? run(claudeExe, [...claudeCommand.prefixArgs, "--version"], { timeout: 10000, maxBuffer: 10000 }) : Promise.resolve({ code: -1, stdout: "", stderr: "Claude Code CLI not found" }),
   ]);
+  const claudeAuth = claude.code === 0
+    ? await run(claudeExe, [...claudeCommand.prefixArgs, "auth", "status"], { timeout: 10000, maxBuffer: 10000 })
+    : { code: -1, stdout: "", stderr: "Claude Code CLI not found" };
   let codexModels = [];
   if (codex.code === 0) {
     try {
@@ -248,6 +365,8 @@ async function loadModels(force = false) {
   }).filter(Boolean) : [];
   const codexAvailable = codex.code === 0 && codexLogin.code === 0 && codexModels.length > 0;
   const agyAvailable = agy.code === 0 && agyModels.length > 0;
+  const claudeAuthenticated = claudeAuth.code === 0 || Boolean(process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN);
+  const claudeAvailable = claude.code === 0 && claudeAuthenticated;
   const claudeModels = claude.code === 0 ? [
     { id: "sonnet", name: "Claude Sonnet · latest", efforts: ["standard"] },
     { id: "opus", name: "Claude Opus · latest", efforts: ["standard"] },
@@ -255,13 +374,13 @@ async function loadModels(force = false) {
   ] : [];
   const apiDefinitions = [];
   let apiConfigurationError = null;
-  try { apiDefinitions.push(...configuredApiProviders()); }
+  try { apiDefinitions.push(...configuredApiProviders(process.env, savedApiProviders())); }
   catch (error) { apiConfigurationError = safeError(error); }
   apiProviderRuntime = new Map(apiDefinitions.filter((definition) => definition.connector.available).map((definition) => [definition.runtime.id, definition.runtime]));
   modelCache = {
     codex: { name: "Codex CLI", kind: "cli", executable: codexExe, available: codexAvailable, authenticated: codexLogin.code === 0, capabilities: { chat: true, plan: true, build: true, review: true }, version: null, error: codexAvailable ? null : safeError(codex.stderr || codexLogin.stderr || "Codex CLI chưa đăng nhập hoặc chưa trả danh sách model."), models: codexModels },
-    antigravity: { name: "Antigravity CLI", kind: "cli", executable: agyExe, available: agyAvailable, authenticated: null, capabilities: { chat: true, plan: true, build: true, review: true }, version: null, error: agyAvailable ? null : safeError(agy.stderr || "Antigravity CLI chưa trả danh sách model."), models: agyModels },
-    claude: { name: "Claude Code", kind: "cli", executable: claudeExe || null, available: claude.code === 0, authenticated: null, capabilities: { chat: true, plan: true, build: true, review: true }, version: claude.code === 0 ? claude.stdout.trim() : null, error: claude.code === 0 ? null : "Cài Claude Code CLI và đặt CLAUDE_CLI_PATH nếu chưa có trên PATH.", models: claudeModels },
+    antigravity: { name: "Antigravity CLI", kind: "cli", executable: agyExe, available: agyAvailable, authenticated: agyAvailable, capabilities: { chat: true, plan: true, build: true, review: true }, version: null, error: agyAvailable ? null : safeError(agy.stderr || "Antigravity CLI chưa trả danh sách model. Chạy agy để hoàn tất đăng nhập lần đầu."), models: agyModels },
+    claude: { name: "Claude Code", kind: "cli", executable: claudeExe || null, available: claudeAvailable, authenticated: claude.code === 0 ? claudeAuthenticated : false, capabilities: { chat: true, plan: true, build: true, review: true }, version: claude.code === 0 ? claude.stdout.trim() : null, error: claude.code !== 0 ? "Cài Claude Code CLI và đặt CLAUDE_CLI_PATH nếu chưa có trên PATH." : !claudeAuthenticated ? "Claude Code chưa đăng nhập. Mở terminal và chạy claude auth login." : null, models: claudeModels },
     ...Object.fromEntries(apiDefinitions.map((definition) => [definition.runtime.id, definition.connector])),
     apiConfigurationError,
   };
@@ -269,6 +388,9 @@ async function loadModels(force = false) {
     run(codexExe, ["--version"], { timeout: 10000 }),
     run(agyExe, ["--version"], { timeout: 10000 }),
   ]);
+  modelCache.codex.installed = codexVersion.code === 0;
+  modelCache.antigravity.installed = agyVersion.code === 0;
+  modelCache.claude.installed = claude.code === 0;
   modelCache.codex.version = codexVersion.code === 0 ? codexVersion.stdout.trim() : "unavailable";
   modelCache.antigravity.version = agyVersion.code === 0 ? agyVersion.stdout.trim() : "unavailable";
   modelCacheUntil = Date.now() + 60_000;
@@ -854,10 +976,12 @@ function parseAgyEvent(line, task, outputParts) {
   if (["tool_start", "tool_call", "tool.started", "tool_result", "tool.completed", "tool_use", "tool_result"].includes(type) || update.tool_info) record(task, `Antigravity · ${type || "tool"}${toolName ? ` · ${String(toolName).slice(0, 120)}` : ""}`, "tool");
 }
 async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride = null) {
+  assertTaskActive(task);
   const selection = selectionOverride || (workflowRoles.some((role) => role.id === stage) ? stageSelection(task, stage) : {
     provider: task.config.chatProvider || "codex", model: task.config.chatModel || task.config.codexModel, effort: task.config.chatEffort || task.config.codexEffort,
   });
   const connector = (await loadModels())[provider];
+  assertTaskActive(task);
   if (!connector?.available) throw new Error(connector?.error || `${publicProviderName(provider)} chưa sẵn sàng.`);
   const capability = stage === "plan" || stage === "review" ? stage : stage === "build" ? "build" : "chat";
   if (!connector.capabilities?.[capability]) throw new Error(`${publicProviderName(provider)} không hỗ trợ vai trò ${roleLabel(capability)}.`);
@@ -873,6 +997,7 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
     const timeout = setTimeout(() => controller.abort(new Error("API provider timeout after 120 seconds.")), 120_000);
     try {
       const remoteContext = ["plan", "build", "review"].includes(stage) ? await externalWorkspaceContext(task, stage) : null;
+      assertTaskActive(task);
       const remotePrompt = remoteContext ? `${prompt}${remoteContext.text}` : prompt;
       const result = await completeWithApi(providerRuntime, selection.model, remotePrompt, controller.signal);
       task.usage = { ...(task.usage || {}), [provider]: result.usage || {} };
@@ -955,6 +1080,7 @@ async function executeTask(task) {
   const workspace = state.workspaces.find((w) => w.id === task.workspaceId);
   if (!workspace) throw new Error("Workspace not found");
   const info = await inspectWorkspace(workspace.path);
+  assertTaskActive(task);
   let cwd = info.path;
   task.workspaceRuntime = info;
   if (info.dirty && !task.isolated) record(task, "Workspace có thay đổi sẵn; diff sau task sẽ gồm cả thay đổi có trước.", "warning");
@@ -968,6 +1094,7 @@ async function executeTask(task) {
     const add = await git(info.path, ["worktree", "add", "-b", branchName, cwd, "HEAD"]);
     if (add.code !== 0) throw new Error(add.stderr.trim() || "Could not create isolated Git worktree");
     task.worktreePath = cwd;
+    assertTaskActive(task);
   } else {
     const sameWorkspaceActive = [...running.entries()].some(([id, runInfo]) => id !== task.id && runInfo.workspacePath === info.path && !runInfo.isolated);
     if (sameWorkspaceActive) throw new Error("This workspace already has a running shared-checkout task");
@@ -984,6 +1111,7 @@ async function executeTask(task) {
   let skillCatalog;
   if (task.skillSelectionMode !== "manual" && !task.skillSelectionCompleted) {
     skillCatalog = await loadSkillCatalog(workspace.id);
+    assertTaskActive(task);
     const candidates = rankSkillCandidates(task, skillCatalog);
     task.skillCandidatesConsidered = candidates.length;
     if (candidates.length) {
@@ -1004,6 +1132,7 @@ async function executeTask(task) {
     task.skillSelectionCompleted = true;
   }
   const skillInstructions = await resolveSelectedSkills(skillIds, workspace.id, skillCatalog);
+  assertTaskActive(task);
   task.antigravitySkillDirs = task.config.workflow === "chat-only" && task.config.chatProvider !== "antigravity" ? [] : await stageAntigravitySkillBundles(task, skillInstructions);
   task.skillIds = skillInstructions.map((skill) => skill.id);
   task.skills = skillInstructions.map(({ id, name, source, sources, providers }) => ({ id, name, source, sources, providers }));
@@ -1020,9 +1149,11 @@ async function executeTask(task) {
     const chatConfig = { provider, model: task.config.chatModel, effort: task.config.chatEffort };
     try {
       const response = await spawnStage(task, provider, "chat-initial", cwd, makeInitialChatPrompt(task, notes, skillInstructions, workspace), chatConfig);
+      assertTaskActive(task);
       message.status = "done";
       task.chatMessages.push({ id: randomUUID(), role: "assistant", provider, model: task.config.chatModel, effort: task.config.chatEffort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
       task.artifacts = await changedFilesSince(cwd, Date.parse(task.startedAt));
+      assertTaskActive(task);
       task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
       record(task, "Cuộc trò chuyện đã sẵn sàng. Bạn có thể tiếp tục với agent đã chọn hoặc chuyển sang agent khác.", "success");
     } catch (error) {
@@ -1033,8 +1164,10 @@ async function executeTask(task) {
   }
   const planSelection = stageSelection(task, "plan");
   const plan = task.plan || await spawnStage(task, planSelection.provider, "plan", cwd, makePrompt(task, "plan", "", notes, workspace, skillInstructions), planSelection);
+  assertTaskActive(task);
   task.plan = plan;
   if (task.config.workflow === "plan-only") {
+    assertTaskActive(task);
     task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
     record(task, "Hoàn tất kế hoạch (chưa chạy phần triển khai)", "success");
     return;
@@ -1044,6 +1177,7 @@ async function executeTask(task) {
   task.phase = "build"; persist(); publish("task");
   if (!(task.resumeFrom === "review" && task.implementation)) {
     const implementation = await spawnStage(task, buildSelection.provider, "build", cwd, makePrompt(task, "build", plan, notes, workspace, skillInstructions), buildSelection);
+    assertTaskActive(task);
     task.implementation = implementation || `${publicProviderName(buildSelection.provider)} hoàn tất nhưng không gửi văn bản cuối. Kiểm tra danh sách tệp/diff bên dưới.`;
     await fs.writeFile(resolve(task.storagePath, "implementation.md"), task.implementation, "utf8");
   }
@@ -1052,14 +1186,16 @@ async function executeTask(task) {
   task.resumeFrom = null;
   task.phase = "review"; persist(); publish("task");
   const review = await spawnStage(task, reviewSelection.provider, "review", cwd, makePrompt(task, "review", plan, notes, workspace, skillInstructions), reviewSelection);
+  assertTaskActive(task);
   task.review = review;
   task.artifacts = await changedFilesSince(cwd, Date.parse(task.startedAt));
+  assertTaskActive(task);
   record(task, `${publicProviderName(reviewSelection.provider)} review hoàn tất · xem kết quả và diff trong task detail.`, "handoff");
   task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
   record(task, `Hoàn tất luồng ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} → ${publicProviderName(reviewSelection.provider)}. Thay đổi nằm trong workspace hiển thị bên dưới.`, "success");
 }
 async function processTaskChatQueue(task) {
-  if (!task.chatQueue?.length) return;
+  if (shuttingDown || !task.chatQueue?.length) return;
   const workspace = state.workspaces.find((item) => item.id === task.workspaceId);
   if (!workspace) return;
   const existingRun = running.get(task.id);
@@ -1092,6 +1228,7 @@ async function processTaskChatQueue(task) {
         const prompt = makeChatPrompt(task, turn);
         const chatConfig = { provider: turn.provider, model: turn.model, effort: turn.effort };
         const response = await spawnStage(task, turn.provider, `chat-${turn.id}`, task.executionPath || workspace.path, prompt, chatConfig);
+        assertTaskActive(task);
         if (userMessage) userMessage.status = "done";
         task.chatMessages ||= [];
         task.chatMessages.push({ id: randomUUID(), role: "assistant", provider: turn.provider, model: turn.model, effort: turn.effort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
@@ -1104,7 +1241,7 @@ async function processTaskChatQueue(task) {
       persist(); publish("task");
     }
   } finally {
-    if (task.status !== "cancelled") {
+    if (!shuttingDown && task.status !== "cancelled") {
       task.status = restoreStatus;
       task.phase = restorePhase;
     }
@@ -1113,16 +1250,16 @@ async function processTaskChatQueue(task) {
     if (runInfo?.workspacePath && !runInfo.isolated) busyWorkspaces.delete(runInfo.workspacePath);
     running.delete(task.id);
     persist(); publish("task");
-    if (task.chatQueue?.length && task.status !== "cancelled") void processTaskChatQueue(task);
+    if (task.chatQueue?.length && task.status !== "cancelled" && !shuttingDown) void processTaskChatQueue(task);
     else pump();
   }
 }
 function pump() {
-  if (schedulerActive) return;
+  if (shuttingDown || schedulerActive) return;
   schedulerActive = true;
   queueMicrotask(async () => {
     try {
-      while (running.size < Math.max(1, Math.min(8, Number(state.settings.maxConcurrent) || 1))) {
+      while (!shuttingDown && running.size < Math.max(1, Math.min(8, Number(state.settings.maxConcurrent) || 1))) {
         const task = state.tasks.find((item) => {
           const path = state.workspaces.find((w) => w.id === item.workspaceId)?.path;
           return item.status === "queued" && !running.has(item.id) && !busyWorkspaces.has(path) && (item.isolated || !isolatedWorkspaces.has(path));
@@ -1133,7 +1270,7 @@ function pump() {
         if (!task.isolated && workspacePath) busyWorkspaces.add(workspacePath);
         if (task.isolated && workspacePath) isolatedWorkspaces.set(workspacePath, (isolatedWorkspaces.get(workspacePath) || 0) + 1);
         executeTask(task).catch((error) => {
-          if (task.status === "cancelled") return;
+          if (task.status === "cancelled" || shuttingDown || running.get(task.id)?.shuttingDown) return;
           task.failedPhase = task.phase;
           task.status = running.get(task.id)?.stopped ? "cancelled" : "failed";
           task.phase = task.status;
@@ -1148,11 +1285,11 @@ function pump() {
           }
           running.delete(task.id);
           persist(); publish("task");
-          if (task.chatQueue?.length) void processTaskChatQueue(task);
+      if (task.chatQueue?.length && task.status !== "cancelled" && !shuttingDown) void processTaskChatQueue(task);
           else pump();
         });
       }
-    } finally { schedulerActive = false; }
+      } finally { schedulerActive = false; }
   });
 }
 async function checkDiff(task) {
@@ -1204,6 +1341,127 @@ async function changedFilesSince(cwd, startTime) {
 async function api(request, response, pathname) {
   if (request.method === "GET" && pathname === "/api/state") return json(response, 200, publicState());
   if (request.method === "GET" && pathname === "/api/connectors") return json(response, 200, await loadModels(new URL(request.url, `http://${host}:${port}`).searchParams.has("refresh")));
+  const cliLoginMatch = pathname.match(/^\/api\/connectors\/(codex|antigravity|claude)\/login$/);
+  if (request.method === "POST" && cliLoginMatch) {
+    refreshCliExecutables();
+    const id = cliLoginMatch[1];
+    const login = id === "codex"
+      ? { executable: codexExe, args: ["login"], versionArgs: ["--version"], label: "Codex CLI" }
+      : id === "antigravity"
+        ? { executable: agyExe, args: [], versionArgs: ["--version"], label: "Antigravity CLI" }
+        : { executable: claudeCommand.executable, args: [...claudeCommand.prefixArgs, "auth", "login"], versionArgs: [...claudeCommand.prefixArgs, "--version"], label: "Claude Code" };
+    if (!login.executable) return json(response, 409, { error: `${login.label} chưa được cài trên máy chạy OpenSybau. Mở hướng dẫn cài đặt trước rồi quét lại.` });
+    const installed = await run(login.executable, login.versionArgs, { timeout: 10000, maxBuffer: 10000 });
+    if (installed.code !== 0) return json(response, 409, { error: `${login.label} chưa khởi chạy được. Hãy cài CLI hoặc kiểm tra PATH rồi quét lại.` });
+    try {
+      await openCliLoginTerminal(login.executable, login.args, login.label);
+      modelCacheUntil = 0;
+      return json(response, 200, { ok: true, message: `Đã mở terminal ${login.label} trên máy chạy OpenSybau. Hoàn tất đăng nhập ở đó, sau đó quay lại và bấm Quét lại.` });
+    } catch (error) { return json(response, 501, { error: safeError(error) }); }
+  }
+  if (request.method === "GET" && pathname === "/api/providers") {
+    const connectors = await loadModels();
+    const managed = savedApiProviders();
+    let definitions = [];
+    try { definitions = configuredApiProviders(process.env, managed); }
+    catch {
+      try { definitions = configuredApiProviders(process.env); } catch { }
+      for (const item of managed) {
+        try {
+          const normalized = normalizeUserApiProvider(item);
+          definitions.push({ runtime: normalized });
+        } catch { }
+      }
+    }
+    const managedIds = new Set(managed.map((item) => item.id));
+    const providers = definitions.map(({ runtime: provider }) => publicApiProvider(provider, connectors[provider.id], managedIds.has(provider.id) ? "local" : "environment"));
+    return json(response, 200, { providers });
+  }
+  if (request.method === "POST" && pathname === "/api/providers/models") {
+    const body = await readBody(request);
+    const saved = body.useSavedKey === false ? null : savedApiProviders().find((item) => item.id === String(body.id || ""));
+    let provider;
+    try {
+      provider = normalizeUserApiProvider({ ...body, id: body.id || "provider-check", name: body.name || "API provider", models: body.models || "provider-check", apiKey: body.apiKey || saved?.apiKey || "" });
+    } catch (error) { return json(response, 400, { error: safeError(error) }); }
+    if (provider.apiKey && !secureTransport && !isLoopbackClient(request)) return json(response, 403, { error: "Để gửi API key từ xa, hãy bật HTTPS. Hãy nhập key qua localhost hoặc cấu hình HTTPS trước." });
+    try {
+      const models = await listProviderModels({ id: provider.id, name: provider.name, protocol: provider.protocol, endpoint: provider.baseUrl, apiKey: provider.apiKey });
+      return json(response, 200, { models });
+    } catch (error) { return json(response, 400, { error: safeError(error) }); }
+  }
+  if (request.method === "POST" && pathname === "/api/providers/import-environment") {
+    const body = await readBody(request);
+    const id = String(body.id || "").trim().toLowerCase();
+    const existing = loadJson(providerConfigFile, []);
+    const secrets = loadJson(providerSecretsFile, {});
+    if (!Array.isArray(existing) || !secrets || typeof secrets !== "object" || Array.isArray(secrets)) return json(response, 500, { error: "Cấu hình provider đã lưu không hợp lệ." });
+    if (existing.some((item) => item.id === id)) return json(response, 409, { error: "Provider này đã được quản lý trong OpenSybau." });
+    if (existing.length >= 20) return json(response, 400, { error: "Tối đa 20 provider được thêm trong giao diện." });
+    let source;
+    try { source = configuredApiProviders(process.env).find((item) => item.runtime.id === id); }
+    catch (error) { return json(response, 409, { error: `Không thể đọc provider từ môi trường: ${safeError(error)}` }); }
+    if (!source) return json(response, 404, { error: "Không tìm thấy provider đã cấu hình trong môi trường." });
+    const provider = source.runtime;
+    const metadata = { id: provider.id, name: provider.name, protocol: provider.protocol, baseUrl: provider.endpoint, models: provider.models, apiKeyRequired: provider.apiKeyRequired };
+    const nextProviders = [...existing, metadata];
+    const nextSecrets = { ...secrets };
+    if (provider.apiKey) nextSecrets[id] = provider.apiKey;
+    persistJsonFile(providerConfigFile, nextProviders);
+    persistJsonFile(providerSecretsFile, nextSecrets);
+    const connectors = await loadModels(true);
+    publish("providers");
+    return json(response, 201, { provider: publicApiProvider({ ...metadata, apiKey: nextSecrets[id] || "" }, connectors[id], "local") });
+  }
+  const providerMatch = pathname.match(/^\/api\/providers(?:\/([a-z][a-z0-9-]{1,39}))?$/);
+  if (providerMatch && ["POST", "PUT", "DELETE"].includes(request.method)) {
+    const existing = loadJson(providerConfigFile, []);
+    const secrets = loadJson(providerSecretsFile, {});
+    if (!Array.isArray(existing) || !secrets || typeof secrets !== "object" || Array.isArray(secrets)) return json(response, 500, { error: "Cấu hình provider đã lưu không hợp lệ." });
+    const pathId = providerMatch[1] || "";
+    if (request.method === "DELETE") {
+      if (!pathId) return json(response, 400, { error: "Thiếu ID provider cần xóa." });
+      if (!existing.some((item) => item.id === pathId)) return json(response, 404, { error: "Chỉ có thể xóa provider do OpenSybau quản lý." });
+      const inDefaults = Object.values(state.settings.defaults?.roles || {}).some((selection) => selection?.provider === pathId);
+      const inActiveTask = state.tasks.some((task) => ["queued", "running"].includes(task.status) && (task.config?.chatProvider === pathId || Object.values(task.config?.roles || {}).some((selection) => selection?.provider === pathId)));
+      if (inDefaults || inActiveTask) return json(response, 409, { error: "Provider đang được dùng làm mặc định hoặc trong task đang chạy. Hãy đổi định tuyến trước khi xóa." });
+      persistJsonFile(providerConfigFile, existing.filter((item) => item.id !== pathId));
+      const nextSecrets = { ...secrets }; delete nextSecrets[pathId]; persistJsonFile(providerSecretsFile, nextSecrets);
+      modelCacheUntil = 0;
+      await loadModels(true);
+      publish("providers");
+      return json(response, 200, { ok: true });
+    }
+
+    const body = await readBody(request);
+    const id = pathId || String(body.id || "").trim().toLowerCase();
+    let normalized;
+    try { normalized = normalizeUserApiProvider({ ...body, id }); }
+    catch (error) { return json(response, 400, { error: safeError(error) }); }
+    const current = existing.find((item) => item.id === id);
+    if (pathId && !current) return json(response, 404, { error: "Provider không tồn tại hoặc do môi trường quản lý." });
+    if (!pathId && existing.some((item) => item.id === id)) return json(response, 409, { error: "ID provider đã tồn tại." });
+    if (!pathId && existing.length >= 20) return json(response, 400, { error: "Tối đa 20 provider được thêm trong giao diện." });
+    let environmentIds;
+    try { environmentIds = configuredApiProviders().map((item) => item.runtime.id); }
+    catch (error) { return json(response, 409, { error: `Cấu hình API trong .env đang lỗi nên chưa thể lưu provider: ${safeError(error)}` }); }
+    if (environmentIds.includes(id)) return json(response, 409, { error: "ID này đang được cấu hình trong môi trường (.env). Hãy chọn ID khác." });
+    const nextProviders = existing.filter((item) => item.id !== id);
+    const metadata = { id: normalized.id, name: normalized.name, protocol: normalized.protocol, baseUrl: normalized.baseUrl, models: normalized.models, apiKeyRequired: normalized.apiKeyRequired };
+    nextProviders.push(metadata);
+    const nextSecrets = { ...secrets };
+    if (body.clearApiKey === true) delete nextSecrets[id];
+    else if (normalized.apiKey) {
+      if (!secureTransport && !isLoopbackClient(request)) return json(response, 403, { error: "Để gửi API key từ xa, hãy bật HTTPS. Bạn vẫn có thể cấu hình key trực tiếp trên máy chủ qua localhost." });
+      nextSecrets[id] = normalized.apiKey;
+    }
+    persistJsonFile(providerConfigFile, nextProviders);
+    persistJsonFile(providerSecretsFile, nextSecrets);
+    modelCacheUntil = 0;
+    const connectors = await loadModels(true);
+    publish("providers");
+    return json(response, pathId ? 200 : 201, { provider: publicApiProvider({ ...metadata, apiKey: nextSecrets[id] || "" }, connectors[id], "local") });
+  }
   if (request.method === "GET" && pathname === "/api/skills") {
     const params = new URL(request.url, `http://${host}:${port}`).searchParams;
     const skills = await loadSkillCatalog(params.get("workspaceId") || "");
@@ -1432,6 +1690,7 @@ async function api(request, response, pathname) {
       const workspace = state.workspaces.find((item) => item.id === task.workspaceId);
       if (!workspace) return json(response, 404, { error: "Workspace của task không còn tồn tại." });
       const currentRun = running.get(task.id);
+      if (task.status === "cancelled" && currentRun?.stopped) return json(response, 409, { error: "Task đang dừng. Hãy gửi tin nhắn lại sau khi tiến trình đã kết thúc." });
       const lockPath = task.isolated ? (task.executionPath || workspace.path) : workspace.path;
       if (!currentRun && !task.isolated && busyWorkspaces.has(lockPath)) return json(response, 409, { error: "Workspace đang được task khác sử dụng. Hãy gửi tin nhắn sau khi task đó hoàn tất." });
       const previousMessages = (task.chatMessages || []).slice(-10).map(({ role, provider: messageProvider, content: messageContent }) => ({ role, provider: messageProvider, content: messageContent }));
@@ -1462,14 +1721,20 @@ async function api(request, response, pathname) {
       persist(); record(task, `Đưa task chạy lại từ stage ${task.resumeFrom}; giữ nguyên plan và skill đã chọn.${task.retryNotice ? ` ${task.retryNotice}` : ""}`, "success"); pump(); return json(response, 202, { task });
     }
     if (request.method === "POST" && action === "stop") {
-      if (task.status === "queued") { task.status = "cancelled"; task.phase = "cancelled"; record(task, "Đã hủy khi task còn trong hàng đợi.", "warning"); return json(response, 200, { task }); }
       const active = running.get(task.id);
+      if (task.status === "queued" && !active) {
+        task.status = "cancelled"; task.phase = "cancelled";
+        const abandoned = failQueuedChatTurns(task);
+        record(task, `Đã hủy khi task còn trong hàng đợi.${abandoned ? ` Đã hủy ${abandoned} tin nhắn đang chờ.` : ""}`, "warning");
+        return json(response, 200, { task });
+      }
       if (!active) return json(response, 409, { error: "Task không chạy." });
       active.stopped = true;
       if (active.child) killTree(active.child);
       if (active.abortController) active.abortController.abort(new Error("Stopped by user"));
+      const abandoned = failQueuedChatTurns(task);
       task.status = "cancelled"; task.phase = "cancelled"; task.completedAt = new Date().toISOString();
-      record(task, "Đã gửi yêu cầu dừng tới tiến trình CLI.", "warning"); return json(response, 202, { task });
+      record(task, `Đã gửi yêu cầu dừng tới tiến trình CLI.${abandoned ? ` Đã hủy ${abandoned} tin nhắn đang chờ.` : ""}`, "warning"); return json(response, 202, { task });
     }
     if (request.method === "GET" && action === "diff") return json(response, 200, { diff: await checkDiff(task), path: task.executionPath || task.workspacePath });
     if (request.method === "POST" && action === "open") {
@@ -1548,10 +1813,12 @@ async function api(request, response, pathname) {
 }
 
 let vite;
+let server;
 const productionMode = process.env.WORKBENCH_MODE === "production";
+function createWorkbenchServer() {
 const serverFactory = secureTransport ? createHttpsServer : createServer;
 const serverOptions = secureTransport ? { cert: readFileSync(resolve(tlsCert)), key: readFileSync(resolve(tlsKey)) } : undefined;
-const server = serverFactory(serverOptions, async (request, response) => {
+return serverFactory(serverOptions, async (request, response) => {
   const requestHost = (request.headers.host || "").toLowerCase();
   if (!allowedHosts.has(requestHost)) return json(response, 403, { error: "Host not allowed" });
   if (!hasValidAccess(request)) {
@@ -1565,6 +1832,7 @@ const server = serverFactory(serverOptions, async (request, response) => {
     try { originUrl = new URL(origin); } catch { return json(response, 403, { error: "Origin not allowed" }); }
     if (!["http:", "https:"].includes(originUrl.protocol) || originUrl.host.toLowerCase() !== requestHost) return json(response, 403, { error: "Origin not allowed" });
   }
+  if (shuttingDown) return json(response, 503, { error: "OpenSybau đang tắt; hãy thử lại khi mở app." });
   let pathname;
   try { pathname = new URL(request.url || "/", `${secureTransport ? "https" : "http"}://${requestHost}`).pathname; }
   catch { return json(response, 400, { error: "Invalid request URL" }); }
@@ -1609,32 +1877,82 @@ const server = serverFactory(serverOptions, async (request, response) => {
     response.end(request.method === "HEAD" ? undefined : content);
   } catch { response.writeHead(404).end("Not found"); }
 });
-
-for (const task of state.tasks) if (task.status === "failed" && (task.error?.startsWith("OpenSybau đã dừng") || task.error?.startsWith("Workbench đã dừng"))) task.events = [...(task.events || []), { at: task.updatedAt, kind: "warning", text: task.error }].slice(-250);
-for (const workspace of state.workspaces) {
-  try { workspace.runtime = await inspectWorkspace(workspace.path); }
-  catch (error) { workspace.runtime = { path: workspace.path, error: safeError(error), isGit: false, head: false }; }
-}
-persist();
-
-if (!productionMode) {
-  vite = await createViteServer({
-    configFile: resolve(root, "vite.config.js"),
-    server: { middlewareMode: { server } },
-    appType: "custom",
-  });
 }
 
-server.listen(port, host, () => {
-  console.log(`OpenSybau ready at ${secureTransport ? "https" : "http"}://${host}:${port}`);
+export async function startWorkbench() {
+  if (server?.listening) return { server, host, port: server.address().port, protocol: secureTransport ? "https" : "http" };
+  if (shuttingDown) throw new Error("OpenSybau server cannot be restarted after shutdown.");
+  for (const task of state.tasks) if (task.status === "failed" && (task.error?.startsWith("OpenSybau đã dừng") || task.error?.startsWith("Workbench đã dừng"))) task.events = [...(task.events || []), { at: task.updatedAt, kind: "warning", text: task.error }].slice(-250);
+  for (const workspace of state.workspaces) {
+    try { workspace.runtime = await inspectWorkspace(workspace.path); }
+    catch (error) { workspace.runtime = { path: workspace.path, error: safeError(error), isGit: false, head: false }; }
+  }
+  persist();
+  server = createWorkbenchServer();
+  try {
+    if (!productionMode) {
+      const { createServer: createViteServer } = await import("vite");
+      vite = await createViteServer({
+        configFile: resolve(root, "vite.config.js"),
+        server: { middlewareMode: { server } },
+        appType: "custom",
+      });
+    }
+    await new Promise((resolvePromise, reject) => {
+      server.once("error", reject);
+      server.listen(port, host, () => {
+        server.off("error", reject);
+        resolvePromise();
+      });
+    });
+  } catch (error) {
+    await vite?.close().catch(() => {});
+    vite = undefined;
+    server = undefined;
+    throw error;
+  }
+  const boundPort = server.address().port;
+  if (isLoopbackBind) {
+    for (const name of [host, "localhost", "127.0.0.1", "[::1]"]) allowedHosts.add(`${name}:${boundPort}`.toLowerCase());
+  }
+  console.log(`OpenSybau ready at ${secureTransport ? "https" : "http"}://${host}:${boundPort}`);
   console.log(`Frontend: ${productionMode ? "production build" : "Preact + Vite development mode (hot reload enabled)"}`);
   console.log(`Codex: ${codexExe}`);
   console.log(`Antigravity CLI: ${agyExe && existsSync(agyExe) ? agyExe : "not found (check PATH or ANTIGRAVITY_CLI_PATH)"}`);
   console.log(`Data: ${runtime}`);
   if (!isLoopbackBind) console.log(`Allowed hosts: ${[...allowedHosts].join(", ")} · Basic Auth enabled`);
-  setTimeout(pump, 500);
-});
+  pumpTimer = setTimeout(() => { pumpTimer = undefined; pump(); }, 500);
+  return { server, host, port: boundPort, protocol: secureTransport ? "https" : "http" };
+}
 
-const shutdown = () => { for (const item of running.values()) killTree(item.child); void vite?.close(); server.close(() => process.exit(0)); };
-process.on("SIGINT", shutdown);
-process.on("SIGTERM", shutdown);
+export async function stopWorkbench() {
+  shuttingDown = true;
+  if (pumpTimer) clearTimeout(pumpTimer);
+  pumpTimer = undefined;
+  let interrupted = false;
+  for (const [taskId, item] of running) {
+    item.stopped = true;
+    item.shuttingDown = true;
+    item.abortController?.abort(new Error("OpenSybau is shutting down."));
+    killTree(item.child);
+    const task = state.tasks.find((candidate) => candidate.id === taskId);
+    if (!task || task.status !== "running") continue;
+    const at = new Date().toISOString();
+    task.failedPhase = task.phase;
+    task.status = "failed";
+    task.phase = "failed";
+    task.error = "OpenSybau đã dừng khi tiến trình đang chạy. Kiểm tra workspace trước khi chạy lại.";
+    task.completedAt = at;
+    task.updatedAt = at;
+    failQueuedChatTurns(task, true);
+    task.events = [...(task.events || []), { at, kind: "warning", text: task.error }].slice(-250);
+    interrupted = true;
+  }
+  if (interrupted) { persist(); publish("tasks"); }
+  for (const client of clients) client.end();
+  clients.clear();
+  await vite?.close();
+  vite = undefined;
+  if (server?.listening) await new Promise((resolvePromise) => server.close(resolvePromise));
+  server = undefined;
+}

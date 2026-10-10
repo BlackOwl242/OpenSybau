@@ -1,3 +1,5 @@
+import { getLanguage, formatNumber } from "./i18n.js";
+
 function readCollapsedWorkspaces() {
   try {
     const value = JSON.parse(localStorage.getItem("workbench.collapsed-workspaces") || "[]");
@@ -7,10 +9,18 @@ function readCollapsedWorkspaces() {
   }
 }
 
+function setupAlreadyDismissed() {
+  try {
+    return localStorage.getItem("opensybau.setup-v3") === "done" || localStorage.getItem("opensybau.desktop-setup-v2") === "done";
+  } catch { return false; }
+}
+
 export const view = {
   page: "chat",
+  language: getLanguage(),
   state: null,
   connectors: null,
+  providers: [],
   skills: [],
   skillsLoaded: false,
   skillFilter: "",
@@ -44,6 +54,7 @@ export const view = {
   projectMenuId: "",
   renderedPage: "",
   renderedSelection: "",
+  desktopSetupOpen: !setupAlreadyDismissed(),
 };
 
 export const statuses = {
@@ -71,8 +82,10 @@ export const esc = (value = "") => String(value).replace(/[&<>"']/g, (character)
 })[character]);
 
 export const fmtDate = (value) => value
-  ? new Intl.DateTimeFormat("vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value))
+  ? new Intl.DateTimeFormat(view.language === "en" ? "en-US" : "vi-VN", { dateStyle: "short", timeStyle: "short" }).format(new Date(value))
   : "—";
+
+export { formatNumber };
 
 export function tokenCount(usage) {
   if (!usage || typeof usage !== "object") return 0;

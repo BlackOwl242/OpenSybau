@@ -4,13 +4,15 @@
 
 **Documentation:** [English](README.md)
 
+**Ứng dụng Windows:** OpenSybau có thể đóng gói thành bộ cài Windows cho tài khoản người dùng hiện tại. App tự chạy runtime đi kèm, chỉ mở server trên `127.0.0.1`, và lưu cấu hình cùng dữ liệu riêng trong hồ sơ Windows của bạn.
+
 > OpenSybau phù hợp cho một người vận hành hoặc một mạng riêng nhỏ. Đây không phải dịch vụ nhiều người dùng. Không đưa ứng dụng ra Internet nếu chưa có HTTPS và lớp kiểm soát truy cập.
 
 ## Tính năng
 
 - Quản lý nhiều workspace và các cuộc trò chuyện trong một giao diện.
 - Tự chọn provider riêng cho lập kế hoạch, triển khai và review giữa các CLI Codex, Antigravity và Claude Code đã cài.
-- Thêm Claude API hoặc tối đa 12 API Anthropic/OpenAI-compatible để chat, lập kế hoạch, triển khai hoặc review.
+- Thêm API Anthropic/OpenAI-compatible trong Cài đặt, kể cả endpoint local của Ollama, LM Studio và LocalAI.
 - Theo dõi các stage, hoạt động agent, đầu ra và thay đổi workspace theo thời gian thực.
 - Ghim, lưu trữ chat; tùy chọn tách task bằng Git worktree.
 - Xem skill và tri thức cục bộ, lưu ghi chú để dùng cho task sau.
@@ -19,13 +21,29 @@
 
 ## Yêu cầu
 
-- Node.js **20.19 trở lên** và npm.
+- Người cài bản desktop không cần tự cài Node.js hoặc npm.
+- Cần Node.js **20.19 trở lên** và npm nếu chạy từ mã nguồn hoặc tự build bộ cài.
 - Git để kiểm tra workspace và tạo worktree riêng khi cần.
 - Cài và cấu hình ít nhất một provider muốn sử dụng trên máy chủ. Codex CLI, Antigravity CLI và Claude Code đều là các agent cục bộ tùy chọn.
-- Có thể cấu hình API provider bằng biến môi trường. Chúng có thể chat, lập kế hoạch, review hoặc triển khai thay đổi có giới hạn trên các tệp văn bản từ ngữ cảnh được gửi kèm; chúng không chạy được công cụ trong workspace.
+- Có thể cấu hình API provider trong Cài đặt hoặc bằng biến môi trường. Chúng có thể chat, lập kế hoạch, review hoặc triển khai thay đổi có giới hạn trên các tệp văn bản từ ngữ cảnh được gửi kèm; chúng không chạy được công cụ trong workspace.
 - Các thư mục workspace phải có trên máy chủ chạy OpenSybau.
 
 Có thể chạy máy chủ trên Windows, macOS hoặc Linux. Hãy cài và đăng nhập từng CLI bằng cùng tài khoản hệ điều hành sẽ chạy server.
+
+## Tạo bộ cài desktop Windows
+
+Trên Windows, cài các gói dự án rồi build bộ cài NSIS:
+
+```powershell
+npm ci
+npm run desktop:dist
+```
+
+Bộ cài nằm trong thư mục `release/`. App cài cho tài khoản hiện tại và tạo shortcut trong Start menu cùng Desktop. Lần mở đầu, OpenSybau kiểm tra Codex CLI, Claude Code và Antigravity CLI; chỉ cần cài những agent bạn muốn dùng rồi chọn **Quét lại**. Bạn cũng có thể cấu hình API từ hướng dẫn khởi động. OpenSybau không tự cài công cụ bên thứ ba.
+
+Desktop app chỉ mở server trên `127.0.0.1`. Nếu muốn điều khiển bằng điện thoại hoặc máy khác trong mạng, hãy làm theo hướng dẫn chạy browser-host bên dưới.
+
+Cấu hình, API key, hội thoại và dữ liệu task được lưu riêng tại `%APPDATA%\OpenSybau`, không nằm trong thư mục cài app.
 
 ## Cài đặt nhanh
 
@@ -145,11 +163,11 @@ Sao chép `.env.example` thành `.env`. Git đã bỏ qua `.env`; không đưa f
 | `WORKBENCH_CLAUDE_MODEL` | Chưa đặt | Model ID hiển thị trong connector Claude API. |
 | `WORKBENCH_CLAUDE_MODELS` | Chưa đặt | Danh sách model Claude API tùy chọn, phân tách bằng dấu phẩy hoặc JSON array. |
 | `WORKBENCH_CLAUDE_BASE_URL` | `https://api.anthropic.com/v1` | Base URL tùy chọn cho API tương thích Anthropic. Bắt buộc HTTPS, trừ localhost. |
-| `WORKBENCH_API_PROVIDERS` | Chưa đặt | JSON array tùy chọn để khai báo tối đa 12 API provider bổ sung. |
+| `WORKBENCH_API_PROVIDERS` | Chưa đặt | JSON array tùy chọn để khai báo tối đa 12 API provider bổ sung; Cài đặt còn hỗ trợ quản lý tối đa 20 provider cục bộ. |
 
 ### Định tuyến provider và cấu hình API
 
-Mỗi task có thể chọn riêng provider, model và mức suy nghĩ cho **Lập kế hoạch**, **Triển khai** và **Review**. Ví dụ: Claude lập kế hoạch → Codex triển khai → Antigravity review, nếu các CLI tương ứng đã cài và sẵn sàng. Bạn có thể đặt mặc định trong **Cài đặt** hoặc ghi đè khi tạo từng task. Chat có lựa chọn provider riêng.
+Mỗi task có thể chọn riêng provider, model và mức suy nghĩ cho **Lập kế hoạch**, **Triển khai** và **Review**. Ví dụ: Claude lập kế hoạch → Codex triển khai → Antigravity review, nếu các CLI tương ứng đã cài và sẵn sàng. Bạn có thể đặt mặc định trong **Cài đặt** hoặc ghi đè khi tạo từng task. Chat có lựa chọn provider riêng. Thêm endpoint API ngay trong **Cài đặt → Nguồn AI và model**, mỗi dòng nhập một model ID. Ollama, LM Studio và LocalAI có thể dùng HTTP trên `localhost` mà không cần API key; endpoint cloud phải dùng HTTPS.
 
 CLI cục bộ có thể xem workspace đã đăng ký và dùng công cụ của chính CLI đó. Claude Code là tùy chọn; hãy cài và đăng nhập trên máy chủ, hoặc đặt `CLAUDE_CLI_PATH` nếu hệ thống không tự tìm thấy.
 
@@ -167,7 +185,7 @@ EXAMPLE_API_KEY=your-key
 WORKBENCH_API_PROVIDERS='[{"id":"example-api","name":"Example API","protocol":"openai-compatible","baseUrl":"https://api.example.com/v1","apiKeyEnv":"EXAMPLE_API_KEY","models":["your-model-id"]}]'
 ```
 
-Dùng `protocol: "anthropic"` cho endpoint tương thích Anthropic Messages hoặc `protocol: "openai-compatible"` cho endpoint tương thích Chat Completions. Mỗi provider cần ID chữ thường duy nhất, `baseUrl` dùng HTTPS (HTTP chỉ được phép cho localhost), và ít nhất một model ID. API key chỉ được đọc từ môi trường, không trả về trình duyệt và không lưu trong cài đặt task. Khởi động lại OpenSybau sau khi sửa `.env`.
+Dùng `protocol: "anthropic"` cho endpoint tương thích Anthropic Messages hoặc `protocol: "openai-compatible"` cho endpoint tương thích Chat Completions. Mỗi provider cần ID chữ thường duy nhất, `baseUrl` dùng HTTPS (HTTP chỉ được phép cho localhost), và ít nhất một model ID. API key từ môi trường chỉ đọc tại máy chủ. Key nhập trong Cài đặt được lưu riêng trong `WORKBENCH_DATA_DIR`; chúng không được trả về trình duyệt hoặc lưu trong cài đặt task. Chỉ nhập key từ localhost hoặc qua HTTPS. Khởi động lại OpenSybau sau khi sửa `.env`.
 
 API provider có thể chat, lập kế hoạch, review và triển khai. Chúng nhận yêu cầu cùng ngữ cảnh do OpenSybau chuẩn bị; khi lập kế hoạch/review, ngữ cảnh có thể gồm đường dẫn, manifest, diff hoặc một số tệp mã nguồn. Khi triển khai, model trả về danh sách có cấu trúc gồm nội dung đầy đủ của các tệp văn bản; OpenSybau kiểm tra rồi ghi các tệp đó bên trong workspace đã chọn. Mỗi task API được giới hạn tối đa 40 tệp và 1 MB nội dung; model không chạy lệnh hoặc đọc thêm tệp ngoài ngữ cảnh đã gửi. **Ngữ cảnh này được gửi khỏi máy chủ tới API provider đã cấu hình.** Chọn CLI cục bộ nếu task cần tự đọc workspace, chạy công cụ, hiểu repo rộng hơn hoặc chỉnh sửa lặp nhiều lần.
 
@@ -178,7 +196,7 @@ Khi đặt password, tất cả route, tài nguyên tĩnh, API và luồng sự 
 ## Dữ liệu và cách chạy task
 
 - Node.js server quản lý hàng đợi task, lưu dữ liệu, tiến trình CLI và cập nhật trực tiếp; frontend Preact/Vite được phục vụ từ cùng server.
-- Lịch sử task, cài đặt, ghi chú, event và đầu ra được lưu tại `WORKBENCH_DATA_DIR` (mặc định `.runtime`). Hãy sao lưu thư mục này nếu cần giữ dữ liệu.
+- Lịch sử task, cài đặt, ghi chú, event, cấu hình provider, API key và đầu ra được lưu tại `WORKBENCH_DATA_DIR` (mặc định `.runtime`). Hãy sao lưu và bảo vệ thư mục này như các thông tin đăng nhập cục bộ khác.
 - Chế độ thường sửa workspace đã chọn và xếp tuần tự các task dùng chung workspace. Chế độ Git worktree tạo thư mục làm việc riêng nếu repo có ít nhất một commit; kết quả không tự merge.
 - Task lưu provider/model riêng cho mỗi vai trò. CLI làm việc trong workspace theo cơ chế quyền riêng; API provider triển khai thay đổi tệp văn bản có giới hạn từ ngữ cảnh được gửi kèm nhưng không chạy công cụ trong workspace.
 - Task có thể sửa tệp trong workspace. Hãy xem kết quả và Git diff trước khi dùng thay đổi.

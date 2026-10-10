@@ -1,21 +1,69 @@
 {
   "name": "opensybau",
+  "description": "A local-first multi-agent coding workspace for Windows and the browser.",
+  "author": "OpenSybau",
   "private": true,
   "version": "0.2.0",
   "type": "module",
+  "main": "desktop/main.cjs",
   "engines": {
     "node": ">=20.19.0"
   },
   "scripts": {
     "dev": "node scripts/run.mjs dev",
     "build": "vite build",
-    "start": "node scripts/run.mjs production"
+    "start": "node scripts/run.mjs production",
+    "desktop:dev": "npm run build && electron .",
+    "desktop:dist": "npm run build && electron-builder --win nsis"
   },
   "dependencies": {
     "preact": "^11.0.0"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",
-    "vite": "^8.3.3"
+    "vite": "^8.3.3",
+    "electron": "^42.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.opensybau.desktop",
+    "productName": "OpenSybau",
+    "asar": true,
+    "files": [
+      "desktop/**/*",
+      "server.mjs",
+      "src/**/*",
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".env.example",
+        "to": "opensybau.env.example"
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "OpenSybau-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OpenSybau"
+    }
   }
 }

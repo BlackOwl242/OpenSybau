@@ -4,6 +4,7 @@ import { NavRail } from "./components/NavRail.jsx";
 import { ContextSidebar } from "./components/ContextSidebar.jsx";
 import { MobileNav } from "./components/MobileNav.jsx";
 import { TopBar } from "./components/TopBar.jsx";
+import { DesktopSetupDialog } from "./components/DesktopSetupDialog.jsx";
 import { pageLayouts } from "./navigation.js";
 
 export function AppShell({ snapshot, pageMarkup }) {
@@ -24,5 +25,6 @@ export function AppShell({ snapshot, pageMarkup }) {
       <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${page === "chat" && snapshot.selected ? "is-task-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
     </main>
     <MobileNav page={page} />
+    {snapshot.desktopSetupOpen && <DesktopSetupDialog connectors={snapshot.connectors} />}
   </div>;
 }

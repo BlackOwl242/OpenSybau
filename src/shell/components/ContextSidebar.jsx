@@ -68,6 +68,11 @@ function SideContent({ snapshot }) {
   const workspaces = state.workspaces || [];
   const tasks = state.tasks || [];
   const collapsedWorkspaces = snapshot.collapsedWorkspaces || [];
+  const tasksByWorkspace = new Map();
+  tasks.forEach((task) => {
+    if (!tasksByWorkspace.has(task.workspaceId)) tasksByWorkspace.set(task.workspaceId, []);
+    tasksByWorkspace.get(task.workspaceId).push(task);
+  });
   const sections = new Map();
   [...workspaces]
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || a.name.localeCompare(b.name))
@@ -90,7 +95,7 @@ function SideContent({ snapshot }) {
         {items.map((workspace) => <WorkspaceGroup
           key={workspace.id}
           workspace={workspace}
-          tasks={tasks.filter((task) => task.workspaceId === workspace.id)}
+          tasks={tasksByWorkspace.get(workspace.id) || []}
           selected={snapshot.selected}
           collapsedWorkspaces={collapsedWorkspaces}
           projectMenuId={snapshot.projectMenuId}
