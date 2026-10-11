@@ -1011,7 +1011,7 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
   const capability = stage === "plan" || stage === "review" ? stage : stage === "build" ? "build" : "chat";
   if (!connector.capabilities?.[capability]) throw new Error(`${publicProviderName(provider)} không hỗ trợ vai trò ${roleLabel(capability)}.`);
   if (task.permissionPreset === "read-only" && stage === "build") throw new Error("Preset chỉ đọc đang bật; không chạy stage triển khai để tránh sửa workspace.");
-  if (task.permissionPreset === "read-only" && provider === "antigravity" && (stage === "chat-initial" || stage.startsWith("chat-"))) throw new Error("Antigravity CLI chưa có chế độ chỉ đọc cho phiên chat chạy nền của OpenSybau. Hãy chọn Codex/Claude hoặc đổi preset quyền.");
+  if (task.permissionPreset === "read-only" && provider === "antigravity") throw new Error("Antigravity CLI chưa có chế độ chỉ đọc cho lần chạy nền của OpenSybau. Hãy chọn Codex/Claude/API hoặc đổi preset quyền.");
   if (!connector.models?.some((item) => item.id === selection.model && item.efforts.includes(selection.effort))) throw new Error(`Model hoặc mức suy nghĩ không hợp lệ cho ${publicProviderName(provider)}.`);
 
   record(task, `${publicProviderName(provider)} bắt đầu · ${roleLabel(stage)} · ${selection.model} (${selection.effort})`, "stage");
@@ -1774,7 +1774,7 @@ async function api(request, response, pathname) {
       const connectors = await loadModels();
       const connector = connectors[provider];
       if (!connector?.available || !connector.capabilities?.chat || provider === "codex" && !connector.authenticated) return json(response, 503, { error: connector?.error || `${publicProviderName(provider)} chưa sẵn sàng để chat.` });
-      if (task.permissionPreset === "read-only" && provider === "antigravity") return json(response, 409, { error: "Antigravity CLI chưa có chế độ chỉ đọc cho phiên chat chạy nền. Hãy chọn Codex/Claude hoặc đổi preset quyền." });
+      if (task.permissionPreset === "read-only" && provider === "antigravity") return json(response, 409, { error: "Antigravity CLI chưa có chế độ chỉ đọc cho lần chạy nền. Hãy chọn Codex/Claude/API hoặc đổi preset quyền." });
       const model = connector.models.find((item) => item.id === String(body.model || ""));
       const effort = String(body.effort || "");
       if (!model || !model.efforts.includes(effort)) return json(response, 400, { error: `Model hoặc mức suy nghĩ không hợp lệ cho ${publicProviderName(provider)}.` });
