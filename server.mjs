@@ -924,9 +924,29 @@ function makePrompt(task, stage, plan, memory, workspace, skillInstructions = []
   }
   return `Review the implementation for correctness, regressions, security issues, and missing checks. Do not edit files. Use the diff and source context supplied to you. Report findings first with severity and file/line references, then summarize checks.\n\nUser request:\n${task.prompt}\n\nImplementation plan:\n${plan}\n${memoryText}${skillText}`;
 }
+function chatHistoryBefore(task, messageId) {
+  const messages = task.chatMessages || [];
+  const messageIndex = messages.findIndex((message) => message.id === messageId);
+  if (messageIndex < 0) return [];
+  const priorUsers = messages.slice(0, messageIndex)
+    .filter((message) => message.role === "user" && (message.status === undefined || message.status === "done"));
+  const assistantReplies = messages.filter((message) => message.role === "assistant" && (message.status === undefined || message.status === "done"));
+  const usedReplies = new Set();
+  const history = [];
+  for (const userMessage of priorUsers) {
+    history.push(userMessage);
+    let reply = assistantReplies.find((message) => message.replyToMessageId === userMessage.id && !usedReplies.has(message.id));
+    if (!reply) reply = assistantReplies.find((message) => !message.replyToMessageId && !usedReplies.has(message.id));
+    if (reply) {
+      usedReplies.add(reply.id);
+      history.push(reply);
+    }
+  }
+  return history.slice(-10).map(({ role, provider, content }) => ({ role, provider, content }));
+}
 function makeChatPrompt(task, turn) {
   const workspace = state.workspaces.find((item) => item.id === task.workspaceId);
-  const history = (turn.history || []).slice(-8).map((message) => `${message.role === "user" ? "User" : message.provider || "Assistant"}: ${String(message.content || "").slice(0, 1800)}`).join("\n\n");
+  const history = chatHistoryBefore(task, turn.messageId).slice(-8).map((message) => `${message.role === "user" ? "User" : message.provider || "Assistant"}: ${String(message.content || "").slice(0, 1800)}`).join("\n\n");
   const plan = String(task.plan || "").slice(0, 4500);
   const latestEvents = (task.events || []).filter((event) => ["stage", "handoff", "tool", "error", "success"].includes(event.kind)).slice(-8).map((event) => `- ${String(event.text).slice(0, 220)}`).join("\n");
   return `Continue the user's OpenSybau conversation for this real workspace. Answer in the user's language. You may inspect or edit files to fulfill the new request, but keep changes scoped to what the user asks; inspect only files relevant to the request. Do not reveal private chain-of-thought; give a concise rationale, actions, and results.\n\nWorkspace: ${task.executionPath || task.workspacePath}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}\nOriginal task: ${String(task.prompt).slice(0, 5000)}\nSaved plan (truncated if long):\n${plan || "No plan saved."}\n\nRecent observable activity:\n${latestEvents || "No activity recorded."}\n\nRecent conversation:\n${history || "No earlier chat messages."}\n\nNew user message:\n${String(turn.content).slice(0, 8000)}`;
@@ -1151,7 +1171,7 @@ async function executeTask(task) {
       const response = await spawnStage(task, provider, "chat-initial", cwd, makeInitialChatPrompt(task, notes, skillInstructions, workspace), chatConfig);
       assertTaskActive(task);
       message.status = "done";
-      task.chatMessages.push({ id: randomUUID(), role: "assistant", provider, model: task.config.chatModel, effort: task.config.chatEffort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
+      task.chatMessages.push({ id: randomUUID(), role: "assistant", replyToMessageId: message.id, provider, model: task.config.chatModel, effort: task.config.chatEffort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
       task.artifacts = await changedFilesSince(cwd, Date.parse(task.startedAt));
       assertTaskActive(task);
       task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
@@ -1231,7 +1251,7 @@ async function processTaskChatQueue(task) {
         assertTaskActive(task);
         if (userMessage) userMessage.status = "done";
         task.chatMessages ||= [];
-        task.chatMessages.push({ id: randomUUID(), role: "assistant", provider: turn.provider, model: turn.model, effort: turn.effort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
+        task.chatMessages.push({ id: randomUUID(), role: "assistant", replyToMessageId: userMessage?.id, provider: turn.provider, model: turn.model, effort: turn.effort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
         record(task, `${publicProviderName(turn.provider)} đã trả lời trong chat.`, "success");
       } catch (error) {
         if (userMessage) userMessage.status = "failed";
@@ -1703,16 +1723,16 @@ async function api(request, response, pathname) {
       if (task.status === "cancelled" && currentRun?.stopped) return json(response, 409, { error: "Task đang dừng. Hãy gửi tin nhắn lại sau khi tiến trình đã kết thúc." });
       const lockPath = task.isolated ? (task.executionPath || workspace.path) : workspace.path;
       if (!currentRun && !task.isolated && busyWorkspaces.has(lockPath)) return json(response, 409, { error: "Workspace đang được task khác sử dụng. Hãy gửi tin nhắn sau khi task đó hoàn tất." });
-      const previousMessages = (task.chatMessages || []).slice(-10).map(({ role, provider: messageProvider, content: messageContent }) => ({ role, provider: messageProvider, content: messageContent }));
       const message = { id: randomUUID(), role: "user", provider, model: model.id, effort, content, status: "queued", createdAt: new Date().toISOString() };
       task.chatMessages ||= [];
       task.chatQueue ||= [];
       task.chatMessages.push(message);
-      task.chatQueue.push({ id: randomUUID(), messageId: message.id, provider, model: model.id, effort, content, history: previousMessages });
+      task.chatQueue.push({ id: randomUUID(), messageId: message.id, provider, model: model.id, effort, content });
+      const queuedPosition = task.chatQueue.length;
       record(task, `Đã nhận tin nhắn chat cho ${publicProviderName(provider)}${currentRun && !currentRun.isChat ? "; sẽ chuyển sau stage đang chạy" : ""}.`, "chat");
       if (!currentRun && task.status !== "queued") void processTaskChatQueue(task);
       else if (!currentRun) pump();
-      return json(response, 202, { accepted: true, task });
+      return json(response, 202, { accepted: true, queuedPosition, task });
     }
     if (request.method === "POST" && action === "run") {
       if (!(["failed", "cancelled"].includes(task.status))) return json(response, 409, { error: "Chỉ có thể chạy lại task đã dừng hoặc thất bại." });

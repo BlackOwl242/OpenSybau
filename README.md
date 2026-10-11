@@ -14,7 +14,7 @@
 - Route planning, implementation, and review independently between the installed Codex, Antigravity, and Claude Code CLIs.
 - Add Anthropic/OpenAI-compatible API providers in Settings, including local Ollama, LM Studio, and LocalAI endpoints.
 - Follow task stages, agent events, outputs, and workspace changes as they happen.
-- Rename conversations, copy their original request, pin, archive, and restore them; optionally isolate task work in Git worktrees.
+- Rename conversations, queue multiple messages in order, copy their original request, pin, archive, and restore them; optionally isolate task work in Git worktrees.
 - Group projects into sections, pin projects, and open project folders on the host.
 - Browse local skills and knowledge, and keep notes for later tasks.
 - Use the responsive interface in a mobile browser; install it on the home screen as a web app when served over HTTPS.

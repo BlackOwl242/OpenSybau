@@ -515,6 +515,19 @@ function chatPage() {
     </div>
   </section>`;
 }
+function orderedConversationMessages(messages) {
+  const users = messages.filter((message) => message.role === "user");
+  const assistants = messages.filter((message) => message.role === "assistant");
+  const used = new Set();
+  const ordered = [];
+  for (const user of users) {
+    ordered.push(user);
+    let reply = assistants.find((message) => message.replyToMessageId === user.id && !used.has(message.id));
+    if (!reply) reply = assistants.find((message) => !message.replyToMessageId && !used.has(message.id));
+    if (reply) { used.add(reply.id); ordered.push(reply); }
+  }
+  return [...ordered, ...assistants.filter((message) => !used.has(message.id))];
+}
 function taskConversationPage() {
   const task = view.state.tasks.find((item) => item.id === view.selected);
   if (!task) return "";
@@ -531,7 +544,7 @@ function taskConversationPage() {
     if (task.implementation) transcript.push({ role: "assistant", provider: buildRole.provider, label: `Triển khai · ${providerTitle(view.connectors, buildRole.provider)}`, model: buildRole.model, effort: buildRole.effort, content: task.implementation, createdAt: task.updatedAt });
     if (task.review) transcript.push({ role: "assistant", provider: reviewRole.provider, label: `Review · ${providerTitle(view.connectors, reviewRole.provider)}`, model: reviewRole.model, effort: reviewRole.effort, content: task.review, createdAt: task.updatedAt });
   }
-  transcript.push(...messages);
+  transcript.push(...orderedConversationMessages(messages));
   const busy = ["queued", "running"].includes(task.status);
   const provider = view.chatProvider || (workflow === "chat-only" ? task.config.chatProvider : planRole.provider) || "codex";
   const models = view.connectors?.[provider]?.models || [];
@@ -539,20 +552,24 @@ function taskConversationPage() {
   const model = models.find((item) => item.id === modelId) || models[0];
   const effort = view.chatEffort || (workflow === "chat-only" ? task.config.chatEffort : planRole.effort) || model?.efforts?.find((item) => item === "medium") || model?.efforts?.[0] || "";
   const canSend = Boolean(model && view.connectors?.[provider]?.available && view.connectors?.[provider]?.capabilities?.chat && (provider !== "codex" || view.connectors?.codex?.authenticated));
+  const queuedTurns = task.chatQueue || [];
+  const hasActiveChatMessage = messages.some((message) => message.role === "user" && message.status === "running");
+  const queueSummary = `${hasActiveChatMessage ? (view.language === "en" ? "Agent is replying" : "Agent đang trả lời") : ""}${queuedTurns.length ? `${hasActiveChatMessage ? " · " : ""}${view.language === "en" ? `${queuedTurns.length} queued` : `${queuedTurns.length} tin đang chờ`}` : ""}`;
   const totalUsage = Object.values(task.usage || {}).reduce((sum, item) => sum + tokenCount(item), 0);
   const transcriptHtml = transcript.length ? transcript.map((message) => {
     const isUser = message.role === "user";
     const sender = isUser ? "Bạn" : message.label || providerTitle(view.connectors, message.provider);
     const modelLabel = [message.model, message.effort].filter(Boolean).join(" · ");
-    const pending = message.status === "queued" ? "Đang chờ" : message.status === "running" ? "Đang xử lý" : message.status === "failed" ? "Lỗi" : "";
+    const queuePosition = message.status === "queued" ? queuedTurns.findIndex((turn) => turn.messageId === message.id) : -1;
+    const pending = message.status === "queued" ? queuePosition >= 0 ? (view.language === "en" ? `Queued · ${queuePosition + 1}/${queuedTurns.length}` : `Trong hàng đợi · ${queuePosition + 1}/${queuedTurns.length}`) : (view.language === "en" ? "Queued" : "Đang chờ") : message.status === "running" ? (view.language === "en" ? "Agent is replying" : "Đang xử lý") : message.status === "failed" ? (view.language === "en" ? "Failed" : "Lỗi") : "";
     const content = message.content ? renderMarkdown(message.content) : "";
     return `<article class="chat-message ${isUser ? "from-user" : "from-agent"}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small></header><div class="chat-message-content ${isUser ? "user-message-content" : "agent-message-content"}">${content}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}</div></article>`;
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
   const composerConfig = `${providerTitle(view.connectors, provider)}${model?.name ? ` · ${model.name}` : ""}${effort ? ` · ${effort}` : ""}`;
   return `<section class="task-conversation-page" aria-label="Cuộc trò chuyện">
-    <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`}</small></div><span>${icon("book-open-text", 14)} ${formatNumber(transcript.length)} tin nhắn</span></header>
+    <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`}</small></div><span class="chat-pane-meta">${queueSummary ? `<span class="chat-queue-summary">${icon("list-checks", 13)}${esc(queueSummary)}</span>` : ""}${icon("book-open-text", 14)} ${formatNumber(transcript.length)} tin nhắn</span></header>
       <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
-      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}"><textarea name="message" class="chat-input" maxlength="8000" rows="3" required placeholder="Nhắn tiếp trong cuộc trò chuyện này…">${esc(view.chatDraft)}</textarea><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><button type="button" class="chat-config-trigger" data-action="task-instruction" data-id="${task.id}" title="Đổi agent, model hoặc mức suy nghĩ">${icon("settings-2", 14)}<span>${esc(composerConfig)}</span></button><button class="button primary chat-send-button" type="submit" aria-label="Gửi tin nhắn" title="Gửi tin nhắn" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></footer></form>
+      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}"><textarea name="message" class="chat-input" maxlength="8000" rows="3" required placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(view.chatDraft)}</textarea><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><button type="button" class="chat-config-trigger" data-action="task-instruction" data-id="${task.id}" title="Đổi agent, model hoặc mức suy nghĩ">${icon("settings-2", 14)}<span>${esc(composerConfig)}</span></button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></footer></form>
     </section>
   </section>`;
 }
@@ -788,9 +805,9 @@ async function handleSubmit(event) {
       showToast("Đã lưu nguồn AI. API key chỉ được giữ trên máy này.");
     } else if (form.dataset.form === "task-chat") {
       view.forceChatScroll = true;
-      await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, provider: object.provider, model: object.model, effort: object.effort }) });
+      const result = await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, provider: object.provider, model: object.model, effort: object.effort }) });
       view.chatDraft = "";
-      showToast("Đã nhận tin nhắn; timeline sẽ cập nhật khi agent xử lý.");
+      showToast(view.language === "en" ? `Added to chat queue · position ${result.queuedPosition || 1}.` : `Đã thêm vào hàng đợi chat · vị trí ${result.queuedPosition || 1}.`);
     } else if (form.dataset.form === "memory") {
       await api("/api/memory", { method: "POST", body: JSON.stringify(object) }); showToast("Đã lưu ghi nhớ trên máy.");
     } else if (form.dataset.form === "skill-create") {

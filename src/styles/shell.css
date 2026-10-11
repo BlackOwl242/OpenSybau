@@ -403,6 +403,9 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .task-conversation-page .chat-config-trigger { max-width: min(72%, 460px); min-height: 30px; display: inline-flex; align-items: center; gap: 7px; overflow: hidden; padding: 0 8px; border: 1px solid #45474a; border-radius: 7px; color: #c8cace; background: #292a2c; font-size: 10px; }
 .wb-page-content .task-conversation-page .chat-config-trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wb-page-content .task-conversation-page .chat-config-trigger:hover { background: #3b3d40; }
+.wb-page-content .task-conversation-page .chat-pane-meta { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 7px; white-space: nowrap; }
+.wb-page-content .task-conversation-page .chat-queue-summary { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border: 1px solid #46516a; border-radius: 999px; color: #c6d3f2; background: #303747; font-size: 10px; }
+.wb-page-content .task-conversation-page .chat-queue-summary .wb-icon { flex: 0 0 auto; }
 .wb-page-content .task-conversation-page .chat-send-button { width: 34px; min-width: 34px; height: 34px; min-height: 34px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: #fff; background: #3b66ca; }
 .wb-page-content .task-conversation-page .chat-send-button:hover { background: #4b76dd; }
 .wb-page-content .task-conversation-page .chat-send-button:disabled { opacity: .55; }
