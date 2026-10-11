@@ -94,7 +94,7 @@ button:disabled { cursor: not-allowed; }
 .wb-project-preview > button { justify-self: start; display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; color: #b9cbff; background: transparent; font-size: 10px; }
 .wb-project-children { display: grid; gap: 2px; margin-left: 17px; padding-left: 7px; border-left: 1px solid #3a3c3f; }
 .wb-project-empty { padding: 7px 8px; color: #8e9297; font-size: 10px; }
-.wb-task-item { min-width: 0; display: flex; align-items: center; border-radius: 6px; }
+.wb-task-item { position: relative; min-width: 0; display: flex; align-items: center; border-radius: 6px; }
 .wb-task-item:hover, .wb-task-item:focus-within { background: #2e3032; }
 .wb-task-link { width: 100%; min-width: 0; min-height: 31px; display: flex; align-items: center; gap: 7px; padding: 5px 8px; border: 0; border-radius: 6px; color: #c8cace; background: transparent; text-align: left; }
 .wb-task-link:hover { color: #f1f2f3; background: #2e3032; }
@@ -104,6 +104,9 @@ button:disabled { cursor: not-allowed; }
 .wb-task-copy strong { display: block; overflow: hidden; color: inherit; font-size: 11px; font-weight: 450; text-overflow: ellipsis; white-space: nowrap; }
 .wb-task-actions { flex: 0 0 auto; display: flex; padding-right: 2px; opacity: 0; pointer-events: none; }
 .wb-task-item:hover .wb-task-actions, .wb-task-item:focus-within .wb-task-actions { opacity: 1; pointer-events: auto; }
+.wb-task-menu { position: absolute; top: 30px; right: 2px; z-index: 13; width: 176px; display: grid; gap: 2px; padding: 5px; border: 1px solid #414346; border-radius: 8px; background: #292a2c; box-shadow: 0 12px 30px #0009; }
+.wb-task-menu button { min-height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 5px; color: #e1e2e3; background: transparent; font-size: 10px; text-align: left; }
+.wb-task-menu button:hover { background: #3a3c3f; }
 .wb-task-item.is-archived .wb-task-link { color: #92969c; }
 .wb-recent-heading { margin-top: 17px; padding-top: 10px; border-top: 1px solid #303133; }
 .wb-archived-heading { margin-top: 12px; padding-top: 9px; border-top: 1px solid #303133; }

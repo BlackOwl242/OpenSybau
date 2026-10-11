@@ -461,7 +461,7 @@ function render() {
   const previousSelection = activeComposer === "message" ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
   const selectedTask = view.selected && view.state.tasks.some((task) => task.id === view.selected);
   const pageMarkup = (pages[view.page] || taskPage)();
-  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, projectMenuId: view.projectMenuId }, pageMarkup);
+  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
   localizeDom(document.querySelector("#overlay"), view.language);
   const nextContent = $("#content");
@@ -762,6 +762,10 @@ async function handleSubmit(event) {
       await api(`/api/workspaces/${encodeURIComponent(form.dataset.id)}`, { method: "PATCH", body: JSON.stringify({ section: object.section }) });
       view.projectMenuId = "";
       showToast("Đã chuyển dự án sang section.");
+    } else if (form.dataset.form === "task-rename") {
+      await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}`, { method: "PATCH", body: JSON.stringify({ title: object.title }) });
+      view.taskMenuId = "";
+      showToast("Đã đổi tên chat.");
     } else if (form.dataset.form === "task") {
       const task = await api("/api/tasks", { method: "POST", body: JSON.stringify({ ...object, isolated: data.has("isolated") }) });
       view.selected = task.task.id; view.page = "chat"; view.chatProvider = task.task.config.chatProvider || task.task.config.roles?.plan?.provider || "codex"; view.chatModel = task.task.config.workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = task.task.config.workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; showToast("Task thật đã vào hàng đợi.");
@@ -829,7 +833,7 @@ document.addEventListener("click", async (event) => {
   if (task) {
     const selectedTask = view.state.tasks.find((item) => item.id === task.dataset.task);
     clearSidebarSearch();
-    view.selected = task.dataset.task; view.page = "chat"; view.projectMenuId = "";
+    view.selected = task.dataset.task; view.page = "chat"; view.projectMenuId = ""; view.taskMenuId = "";
     view.homeWorkspaceId = selectedTask?.workspaceId || view.homeWorkspaceId;
     view.chatProvider = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatProvider || "codex" : "codex";
     view.chatModel = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatModel || "" : "";
@@ -853,10 +857,12 @@ document.addEventListener("click", async (event) => {
   const button = event.target.closest("[data-action]");
   if (!button) {
     if (view.projectMenuId && !event.target.closest(".wb-project-group")) { view.projectMenuId = ""; render(); }
+    if (view.taskMenuId && !event.target.closest(".wb-task-item")) { view.taskMenuId = ""; render(); }
     return;
   }
   const action = button.dataset.action; const id = button.dataset.id;
   if (!button.closest(".wb-project-group") && view.projectMenuId) { view.projectMenuId = ""; render(); }
+  if (!button.closest(".wb-task-item") && view.taskMenuId) view.taskMenuId = "";
   try {
     if (action === "toggle-language") {
       view.language = setLanguage(view.language === "en" ? "vi" : "en");
@@ -885,6 +891,22 @@ document.addEventListener("click", async (event) => {
       render();
     }
     if (action === "toggle-project-menu") { view.projectMenuId = view.projectMenuId === id ? "" : id; render(); return; }
+    if (action === "toggle-task-menu") { const key = button.dataset.key || id; view.taskMenuId = view.taskMenuId === key ? "" : key; render(); return; }
+    if (action === "rename-task") {
+      const task = view.state.tasks.find((item) => item.id === id);
+      view.taskMenuId = "";
+      if (task) {
+        showModal("Đổi tên chat", `<label>Tên chat<input name="title" value="${esc(task.title)}" maxlength="120" required autocomplete="off"></label>`, "Lưu tên", "task-rename");
+        $(".modal").dataset.id = task.id;
+      }
+      return;
+    }
+    if (action === "copy-task-prompt") {
+      const task = view.state.tasks.find((item) => item.id === id);
+      if (task?.prompt) { await navigator.clipboard.writeText(task.prompt); showToast("Đã sao chép yêu cầu ban đầu."); }
+      else showToast("Chat này chưa có yêu cầu để sao chép.");
+      view.taskMenuId = ""; render(); return;
+    }
     if (action === "edit-project") {
       const workspace = view.state.workspaces.find((item) => item.id === id);
       view.projectMenuId = "";
@@ -1005,11 +1027,11 @@ document.addEventListener("click", async (event) => {
     }
     if (action === "toggle-task-pin") {
       const task = view.state.tasks.find((item) => item.id === id);
-      if (task) { await api(`/api/tasks/${encodeURIComponent(id)}/pin`, { method: "POST", body: JSON.stringify({ pinned: !task.pinned }) }); await refresh(); }
+      if (task) { await api(`/api/tasks/${encodeURIComponent(id)}/pin`, { method: "POST", body: JSON.stringify({ pinned: !task.pinned }) }); view.taskMenuId = ""; await refresh(); }
     }
     if (action === "archive-task" || action === "restore-task") {
       await api(`/api/tasks/${encodeURIComponent(id)}/archive`, { method: "POST", body: JSON.stringify({ archived: action === "archive-task" }) });
-      await refresh(); showToast(action === "archive-task" ? "Đã lưu trữ chat." : "Đã khôi phục chat.");
+      view.taskMenuId = ""; await refresh(); showToast(action === "archive-task" ? "Đã lưu trữ chat." : "Đã khôi phục chat.");
     }
     if (action === "task-instruction") { const task = view.state.tasks.find((item) => item.id === id); if (task) openTaskInstructionModal(task); }
     if (action === "inspect-task" || action === "open-task-flow") { view.selected = id; view.page = "flows"; render(); }

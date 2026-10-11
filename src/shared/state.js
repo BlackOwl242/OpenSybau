@@ -52,6 +52,7 @@ export const view = {
   searchQuery: "",
   collapsedWorkspaces: readCollapsedWorkspaces(),
   projectMenuId: "",
+  taskMenuId: "",
   renderedPage: "",
   renderedSelection: "",
   desktopSetupOpen: !setupAlreadyDismissed(),

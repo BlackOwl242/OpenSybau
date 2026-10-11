@@ -1668,6 +1668,16 @@ async function api(request, response, pathname) {
     const action = match[2] || "";
     const task = state.tasks.find((t) => t.id === id);
     if (!task) return json(response, 404, { error: "Task không tồn tại." });
+    if (request.method === "PATCH" && !action) {
+      const body = await readBody(request);
+      if (body.title !== undefined) {
+        const title = String(body.title || "").trim();
+        if (!title || title.length > 120) return json(response, 400, { error: "Tên chat cần từ 1 đến 120 ký tự." });
+        task.title = title;
+        task.updatedAt = new Date().toISOString();
+      }
+      persist(); publish("tasks"); return json(response, 200, { task });
+    }
     if (request.method === "POST" && action === "pin") {
       const body = await readBody(request); task.pinned = Boolean(body.pinned);
       persist(); publish("tasks"); return json(response, 200, { task });
