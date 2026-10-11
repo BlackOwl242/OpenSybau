@@ -3,7 +3,7 @@
   "description": "A local-first multi-agent coding workspace for Windows and the browser.",
   "author": "OpenSybau",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.2.3",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "node scripts/run.mjs dev",
     "build": "vite build",
+    "test": "node scripts/test-task-features.mjs",
     "start": "node scripts/run.mjs production",
     "desktop:dev": "npm run build && electron .",
     "desktop:dist": "npm run build && electron-builder --win nsis"

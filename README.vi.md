@@ -14,7 +14,9 @@
 - Tự chọn provider riêng cho lập kế hoạch, triển khai và review giữa các CLI Codex, Antigravity và Claude Code đã cài.
 - Thêm API Anthropic/OpenAI-compatible trong Cài đặt, kể cả endpoint local của Ollama, LM Studio và LocalAI.
 - Theo dõi các stage, hoạt động agent, đầu ra và thay đổi workspace theo thời gian thực.
-- Đổi tên chat, gửi nhiều tin nhắn theo hàng đợi tuần tự, sao chép yêu cầu ban đầu, ghim, lưu trữ và khôi phục chat; tùy chọn tách task bằng Git worktree.
+- Đổi tên chat, gửi nhiều tin nhắn theo hàng đợi tuần tự, fork từ lượt đã hoàn tất, ghim, lưu trữ và khôi phục chat; tùy chọn tách task bằng Git worktree.
+- Lưu mục tiêu dài hạn và checklist nghiệm thu cho các lượt chat tiếp theo; chọn preset chỉ đọc hoặc cho phép sửa workspace.
+- Fork chỉ tạo nhánh hội thoại; các nhánh vẫn dùng chung workspace. Preset chỉ đọc dùng sandbox read-only cho Codex, plan mode cho Claude và chặn ghi qua API; chat nền Antigravity chưa hỗ trợ preset này.
 - Sắp xếp dự án theo section, ghim dự án và mở thư mục dự án trên máy chủ.
 - Xem skill và tri thức cục bộ, lưu ghi chú để dùng cho task sau.
 - Giao diện tự điều chỉnh cho điện thoại; có thể thêm lên màn hình chính như web app khi chạy qua HTTPS.

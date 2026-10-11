@@ -563,11 +563,13 @@ function taskConversationPage() {
     const queuePosition = message.status === "queued" ? queuedTurns.findIndex((turn) => turn.messageId === message.id) : -1;
     const pending = message.status === "queued" ? queuePosition >= 0 ? (view.language === "en" ? `Queued · ${queuePosition + 1}/${queuedTurns.length}` : `Trong hàng đợi · ${queuePosition + 1}/${queuedTurns.length}`) : (view.language === "en" ? "Queued" : "Đang chờ") : message.status === "running" ? (view.language === "en" ? "Agent is replying" : "Đang xử lý") : message.status === "failed" ? (view.language === "en" ? "Failed" : "Lỗi") : "";
     const content = message.content ? renderMarkdown(message.content) : "";
-    return `<article class="chat-message ${isUser ? "from-user" : "from-agent"}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small></header><div class="chat-message-content ${isUser ? "user-message-content" : "agent-message-content"}">${content}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}</div></article>`;
+    const forkButton = isUser && message.id && (!message.status || message.status === "done") ? `<button type="button" class="chat-fork-button" data-action="fork-chat" data-id="${task.id}" data-message-id="${esc(message.id)}" title="Tạo nhánh hội thoại từ đây; workspace vẫn dùng chung">${icon("git-branch", 12)} Fork</button>` : "";
+    return `<article class="chat-message ${isUser ? "from-user" : "from-agent"}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small>${forkButton}</header><div class="chat-message-content ${isUser ? "user-message-content" : "agent-message-content"}">${content}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}</div></article>`;
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
   const composerConfig = `${providerTitle(view.connectors, provider)}${model?.name ? ` · ${model.name}` : ""}${effort ? ` · ${effort}` : ""}`;
+  const goalPanel = `<section class="task-goal-panel"><header><div><strong>${view.language === "en" ? "Long-term goal" : "Mục tiêu dài hạn"}</strong><small>${task.goal ? esc(task.goal) : (view.language === "en" ? "Add a goal and acceptance checklist for future turns." : "Thêm mục tiêu và checklist để agent dùng ở các lượt tiếp theo.")}</small></div><button type="button" class="button quiet small" data-action="edit-task-goal" data-id="${task.id}">${task.goal ? (view.language === "en" ? "Edit" : "Sửa") : (view.language === "en" ? "Add" : "Thêm")}</button></header>${task.goalChecklist?.length ? `<ul>${task.goalChecklist.map((item) => `<li><label><input type="checkbox" data-action="toggle-goal-item" data-id="${task.id}" data-goal-id="${item.id}" ${item.done ? "checked" : ""}><span class="${item.done ? "is-done" : ""}">${esc(item.text)}</span></label></li>`).join("")}</ul>` : ""}</section>`;
   return `<section class="task-conversation-page" aria-label="Cuộc trò chuyện">
-    <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`}</small></div><span class="chat-pane-meta">${queueSummary ? `<span class="chat-queue-summary">${icon("list-checks", 13)}${esc(queueSummary)}</span>` : ""}${icon("book-open-text", 14)} ${formatNumber(transcript.length)} tin nhắn</span></header>
+    ${goalPanel}<section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`} · ${task.permissionPreset === "read-only" ? "Chỉ đọc" : "Sửa workspace"}</small></div><span class="chat-pane-meta">${queueSummary ? `<span class="chat-queue-summary">${icon("list-checks", 13)}${esc(queueSummary)}</span>` : ""}<button type="button" class="button quiet small" data-action="task-permissions" data-id="${task.id}">${icon("shield", 13)} Quyền</button>${icon("book-open-text", 14)} ${formatNumber(transcript.length)} tin nhắn</span></header>
       <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
       <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}"><textarea name="message" class="chat-input" maxlength="8000" rows="3" required placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(view.chatDraft)}</textarea><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><button type="button" class="chat-config-trigger" data-action="task-instruction" data-id="${task.id}" title="Đổi agent, model hoặc mức suy nghĩ">${icon("settings-2", 14)}<span>${esc(composerConfig)}</span></button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></footer></form>
     </section>
@@ -623,6 +625,18 @@ function openTaskInstructionModal(task) {
   $(".modal").dataset.id = task.id;
   $(".modal").classList.add("task-instruction-modal");
 }
+function openTaskGoalModal(task) {
+  const checklist = (task.goalChecklist || []).map((item) => item.text).join("\n");
+  const body = `<label>Mục tiêu<textarea name="goal" rows="3" maxlength="2000" placeholder="Kết quả dài hạn cần đạt">${esc(task.goal || "")}</textarea></label><label>Checklist nghiệm thu<textarea name="checklist" rows="6" maxlength="6000" placeholder="Mỗi dòng là một tiêu chí hoàn tất">${esc(checklist)}</textarea><small>Tối đa 20 mục, mỗi mục tối đa 300 ký tự. Agent sẽ nhận checklist ở các lượt sau.</small></label>`;
+  showModal("Mục tiêu dài hạn", body, "Lưu mục tiêu", "task-goal");
+  $(".modal").dataset.id = task.id;
+}
+function openTaskPermissionsModal(task) {
+  const current = task.permissionPreset || "workspace-write";
+  const body = `<label>Preset quyền<select name="permissionPreset"><option value="read-only" ${current === "read-only" ? "selected" : ""}>Chỉ đọc workspace</option><option value="workspace-write" ${current === "workspace-write" ? "selected" : ""}>Được sửa workspace</option></select><small>Chỉ đọc được ánh xạ sang sandbox read-only của Codex và plan mode của Claude. Antigravity chat nền chưa hỗ trợ chế độ chỉ đọc; API không được phép ghi tệp trong preset này. Không áp dụng “hỏi trước” vì OpenSybau chưa nhận và chuyển tiếp yêu cầu duyệt CLI.</small></label>`;
+  showModal("Quyền của task", body, "Lưu quyền", "task-permissions");
+  $(".modal").dataset.id = task.id;
+}
 function taskDetails() {
   const task = view.state.tasks.find((item) => item.id === view.selected);
   if (!task) return "";
@@ -661,7 +675,7 @@ async function openTaskModal() {
   const options = workspaces.map((w) => `<option value="${w.id}">${esc(w.name)} · ${esc(w.path)}</option>`).join("");
   const hasBuild = providersForRole(view.connectors, "build").length > 0;
   const canPlanOnly = providersForRole(view.connectors, "plan").length > 0;
-  const body = `<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="5" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea><small>Nếu chọn provider API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới endpoint đã cấu hình.</small></label><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 17)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò. Skill có thể được gửi tới API provider nếu bạn chọn agent API.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
+  const body = `<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="5" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea><small>Nếu chọn provider API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới endpoint đã cấu hình.</small></label><label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label><label>Quyền<select name="permissionPreset"><option value="workspace-write" selected>Được sửa workspace</option><option value="read-only">Chỉ đọc workspace</option></select><small>Chỉ đọc không chạy stage triển khai; Antigravity chat nền không hỗ trợ chế độ chỉ đọc.</small></label><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 17)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò. Skill có thể được gửi tới API provider nếu bạn chọn agent API.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
   showModal("Task mới", body, "Tạo và chạy");
   syncWorkflow(); syncIsolation();
 }
@@ -808,6 +822,13 @@ async function handleSubmit(event) {
       const result = await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, provider: object.provider, model: object.model, effort: object.effort }) });
       view.chatDraft = "";
       showToast(view.language === "en" ? `Added to chat queue · position ${result.queuedPosition || 1}.` : `Đã thêm vào hàng đợi chat · vị trí ${result.queuedPosition || 1}.`);
+    } else if (form.dataset.form === "task-goal") {
+      const checklist = String(object.checklist || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      await api("/api/tasks/" + encodeURIComponent(form.dataset.id) + "/goal", { method: "POST", body: JSON.stringify({ goal: object.goal, checklist }) });
+      showToast("Đã lưu mục tiêu và checklist cho các lượt chat tiếp theo.");
+    } else if (form.dataset.form === "task-permissions") {
+      await api("/api/tasks/" + encodeURIComponent(form.dataset.id), { method: "PATCH", body: JSON.stringify({ permissionPreset: object.permissionPreset }) });
+      showToast("Đã cập nhật preset quyền của task.");
     } else if (form.dataset.form === "memory") {
       await api("/api/memory", { method: "POST", body: JSON.stringify(object) }); showToast("Đã lưu ghi nhớ trên máy.");
     } else if (form.dataset.form === "skill-create") {
@@ -1049,6 +1070,26 @@ document.addEventListener("click", async (event) => {
     if (action === "archive-task" || action === "restore-task") {
       await api(`/api/tasks/${encodeURIComponent(id)}/archive`, { method: "POST", body: JSON.stringify({ archived: action === "archive-task" }) });
       view.taskMenuId = ""; await refresh(); showToast(action === "archive-task" ? "Đã lưu trữ chat." : "Đã khôi phục chat.");
+    }
+    if (action === "edit-task-goal") { const task = view.state.tasks.find((item) => item.id === id); if (task) openTaskGoalModal(task); return; }
+    if (action === "task-permissions") { const task = view.state.tasks.find((item) => item.id === id); if (task) openTaskPermissionsModal(task); return; }
+    if (action === "toggle-goal-item") {
+      const itemId = button.dataset.goalId;
+      const item = view.state.tasks.find((entry) => entry.id === id)?.goalChecklist?.find((entry) => entry.id === itemId);
+      if (item) { await api("/api/tasks/" + encodeURIComponent(id) + "/checklist", { method: "POST", body: JSON.stringify({ id: itemId, done: button.checked }) }); await refresh(); }
+      return;
+    }
+    if (action === "fork-chat") {
+      const source = view.state.tasks.find((item) => item.id === id);
+      if (source) {
+        const result = await api("/api/tasks/" + encodeURIComponent(id) + "/fork", { method: "POST", body: JSON.stringify({ messageId: button.dataset.messageId }) });
+        view.selected = result.task.id; view.page = "chat"; view.chatDraft = "";
+        view.chatProvider = result.task.config.chatProvider || source.config?.roles?.plan?.provider || "codex";
+        view.chatModel = result.task.config.chatModel || source.config?.roles?.plan?.model || "";
+        view.chatEffort = result.task.config.chatEffort || source.config?.roles?.plan?.effort || "";
+        await refresh(); showToast("Đã tạo nhánh chat tại lượt này. Chat gốc vẫn được giữ nguyên.");
+      }
+      return;
     }
     if (action === "task-instruction") { const task = view.state.tasks.find((item) => item.id === id); if (task) openTaskInstructionModal(task); }
     if (action === "inspect-task" || action === "open-task-flow") { view.selected = id; view.page = "flows"; render(); }

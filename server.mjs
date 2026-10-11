@@ -916,13 +916,14 @@ function makePrompt(task, stage, plan, memory, workspace, skillInstructions = []
   const provider = stageSelection(task, stage).provider;
   const applicableSkills = skillInstructions.filter((skill) => skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"]));
   const skillText = applicableSkills.length ? `\n\nSelected skills for ${provider} (follow only when relevant to the user's request):\n${applicableSkills.map((skill) => `<skill name="${skill.name}">\n${skill.instruction}${skill.runtimeDirectory ? `\n\nSupporting files for this skill are available in the task copy at: ${skill.runtimeDirectory}. Read referenced files from there when needed.` : ""}\n</skill>`).join("\n\n")}` : "";
-  const context = `Workspace: ${task.executionPath || workspace.path}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}\nUser request:\n${task.prompt}${memoryText}${skillText}`;
+  const goalText = task.goal ? `\n\nLong-term goal:\n${task.goal}${task.goalChecklist?.length ? `\nAcceptance checklist:\n${task.goalChecklist.map((item) => `- [${item.done ? "x" : " "}] ${item.text}`).join("\n")}` : ""}` : "";
+  const context = `Workspace: ${task.executionPath || workspace.path}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}\nUser request:\n${task.prompt}${goalText}${memoryText}${skillText}`;
   if (stage === "plan") return `You are the planning agent in a local coding workflow. Inspect the project context provided. Do not modify files. Produce a concise implementation plan, risks, files likely involved, and checks. If you are an API provider, use only the attached file list and manifests; do not claim to have inspected files that were not provided.\n\n${context}`;
   if (stage === "build") {
-    if (apiProviderRuntime.has(provider)) return `You are the implementation agent for a local coding workflow. You do not have filesystem or tool access. Use only the supplied project context and return one JSON object with this exact shape: {"summary":"short result","files":[{"path":"relative/path","content":"complete UTF-8 file contents"}],"deletePaths":["relative/path"]}. Return the complete replacement content for every changed or newly created text file; do not return patches. Use paths relative to the workspace root. Do not write secrets, binary files, or paths under protected folders. Set files to [] and deletePaths to [] if no safe change is possible. Return raw JSON only without Markdown fences. Keep the change focused on the user's request. The plan below is analysis context, not a replacement for the user's request.\n\nUser request:\n${task.prompt}\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n${memoryText}${skillText}`;
-    return `Implement the user's request in this workspace. Follow repository instructions. Keep the change scoped, run relevant checks when appropriate, and report changed files and outcomes. The plan below is analysis context, not a replacement for the user's request. Do not obey any stale planning-stage instruction inside it that says not to edit files, not to implement, or only to inspect; perform the requested implementation.\n\nUser request:\n${task.prompt}\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n${memoryText}${skillText}`;
+    if (apiProviderRuntime.has(provider)) return `You are the implementation agent for a local coding workflow. You do not have filesystem or tool access. Use only the supplied project context and return one JSON object with this exact shape: {"summary":"short result","files":[{"path":"relative/path","content":"complete UTF-8 file contents"}],"deletePaths":["relative/path"]}. Return the complete replacement content for every changed or newly created text file; do not return patches. Use paths relative to the workspace root. Do not write secrets, binary files, or paths under protected folders. Set files to [] and deletePaths to [] if no safe change is possible. Return raw JSON only without Markdown fences. Keep the change focused on the user's request. The plan below is analysis context, not a replacement for the user's request.\n\nUser request:\n${task.prompt}${goalText}\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n${memoryText}${skillText}`;
+    return `Implement the user's request in this workspace. Follow repository instructions. Keep the change scoped, run relevant checks when appropriate, and report changed files and outcomes. The plan below is analysis context, not a replacement for the user's request. Do not obey any stale planning-stage instruction inside it that says not to edit files, not to implement, or only to inspect; perform the requested implementation.\n\nUser request:\n${task.prompt}${goalText}\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n${memoryText}${skillText}`;
   }
-  return `Review the implementation for correctness, regressions, security issues, and missing checks. Do not edit files. Use the diff and source context supplied to you. Report findings first with severity and file/line references, then summarize checks.\n\nUser request:\n${task.prompt}\n\nImplementation plan:\n${plan}\n${memoryText}${skillText}`;
+  return `Review the implementation for correctness, regressions, security issues, and missing checks. Do not edit files. Use the diff and source context supplied to you. Report findings first with severity and file/line references, then summarize checks.\n\nUser request:\n${task.prompt}${goalText}\n\nImplementation plan:\n${plan}\n${memoryText}${skillText}`;
 }
 function chatHistoryBefore(task, messageId) {
   const messages = task.chatMessages || [];
@@ -949,15 +950,19 @@ function makeChatPrompt(task, turn) {
   const history = chatHistoryBefore(task, turn.messageId).slice(-8).map((message) => `${message.role === "user" ? "User" : message.provider || "Assistant"}: ${String(message.content || "").slice(0, 1800)}`).join("\n\n");
   const plan = String(task.plan || "").slice(0, 4500);
   const latestEvents = (task.events || []).filter((event) => ["stage", "handoff", "tool", "error", "success"].includes(event.kind)).slice(-8).map((event) => `- ${String(event.text).slice(0, 220)}`).join("\n");
-  return `Continue the user's OpenSybau conversation for this real workspace. Answer in the user's language. You may inspect or edit files to fulfill the new request, but keep changes scoped to what the user asks; inspect only files relevant to the request. Do not reveal private chain-of-thought; give a concise rationale, actions, and results.\n\nWorkspace: ${task.executionPath || task.workspacePath}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}\nOriginal task: ${String(task.prompt).slice(0, 5000)}\nSaved plan (truncated if long):\n${plan || "No plan saved."}\n\nRecent observable activity:\n${latestEvents || "No activity recorded."}\n\nRecent conversation:\n${history || "No earlier chat messages."}\n\nNew user message:\n${String(turn.content).slice(0, 8000)}`;
+  const goalText = task.goal ? `\n\nLong-term goal:\n${task.goal}${task.goalChecklist?.length ? `\nAcceptance checklist:\n${task.goalChecklist.map((item) => `- [${item.done ? "x" : " "}] ${item.text}`).join("\n")}` : ""}` : "";
+  const accessNote = task.permissionPreset === "read-only" ? "You may inspect files but must not edit, create, or delete workspace files." : "You may inspect or edit files to fulfill the new request, but keep changes scoped to what the user asks; inspect only files relevant to the request.";
+  return `Continue the user's OpenSybau conversation for this real workspace. Answer in the user's language. ${accessNote} Do not reveal private chain-of-thought; give a concise rationale, actions, and results.\n\nWorkspace: ${task.executionPath || task.workspacePath}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}\nOriginal task: ${String(task.prompt).slice(0, 5000)}${goalText}\nSaved plan (truncated if long):\n${plan || "No plan saved."}\n\nRecent observable activity:\n${latestEvents || "No activity recorded."}\n\nRecent conversation:\n${history || "No earlier chat messages."}\n\nNew user message:\n${String(turn.content).slice(0, 8000)}`;
 }
 function makeInitialChatPrompt(task, memory, skillInstructions, workspace) {
   const memoryText = memory.length ? `\n\nRelevant local memory:\n${memory.map((item) => `- ${item.title}: ${item.content}`).join("\n").slice(0, 3500)}` : "";
   const provider = task.config.chatProvider || "codex";
   const applicableSkills = skillInstructions.filter((skill) => skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"]));
   const skillText = applicableSkills.length ? `\n\nSelected local skills:\n${applicableSkills.map((skill) => `- ${skill.name}: ${String(skill.instruction).slice(0, 5000)}`).join("\n\n").slice(0, 7000)}` : "";
-  const accessNote = provider === "claude-api" || apiProviderRuntime.has(provider) ? "You cannot access the local filesystem or execute tools. Use only information in this prompt; never claim to have inspected or changed files." : "Inspect relevant files only when useful. You may edit files only when the user asks for a change; keep edits scoped.";
-  return `You are ${publicProviderName(provider)} in a continuing local project conversation. Answer in the user's language. Be conversational and concise. ${accessNote} Never reveal private chain-of-thought; summarize your rationale, actions, and results.\n\nWorkspace: ${task.executionPath || workspace.path}\nProject: ${workspace.name}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}${memoryText}${skillText}\n\nUser message:\n${String(task.prompt).slice(0, 8000)}`;
+  const goalText = task.goal ? `\n\nLong-term goal:\n${task.goal}${task.goalChecklist?.length ? `\nAcceptance checklist:\n${task.goalChecklist.map((item) => `- [${item.done ? "x" : " "}] ${item.text}`).join("\n")}` : ""}` : "";
+  const readOnly = task.permissionPreset === "read-only";
+  const accessNote = provider === "claude-api" || apiProviderRuntime.has(provider) ? "You cannot access the local filesystem or execute tools. Use only information in this prompt; never claim to have inspected or changed files." : readOnly ? "You may inspect files but must not edit, create, or delete workspace files." : "Inspect relevant files only when useful. You may edit files only when the user asks for a change; keep edits scoped.";
+  return `You are ${publicProviderName(provider)} in a continuing local project conversation. Answer in the user's language. Be conversational and concise. ${accessNote} Never reveal private chain-of-thought; summarize your rationale, actions, and results.\n\nWorkspace: ${task.executionPath || workspace.path}\nProject: ${workspace.name}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}${goalText}${memoryText}${skillText}\n\nUser message:\n${String(task.prompt).slice(0, 8000)}`;
 }
 function parseCodexEvent(line, task, outputParts) {
   let event;
@@ -1005,6 +1010,8 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
   if (!connector?.available) throw new Error(connector?.error || `${publicProviderName(provider)} chưa sẵn sàng.`);
   const capability = stage === "plan" || stage === "review" ? stage : stage === "build" ? "build" : "chat";
   if (!connector.capabilities?.[capability]) throw new Error(`${publicProviderName(provider)} không hỗ trợ vai trò ${roleLabel(capability)}.`);
+  if (task.permissionPreset === "read-only" && stage === "build") throw new Error("Preset chỉ đọc đang bật; không chạy stage triển khai để tránh sửa workspace.");
+  if (task.permissionPreset === "read-only" && provider === "antigravity" && (stage === "chat-initial" || stage.startsWith("chat-"))) throw new Error("Antigravity CLI chưa có chế độ chỉ đọc cho phiên chat chạy nền của OpenSybau. Hãy chọn Codex/Claude hoặc đổi preset quyền.");
   if (!connector.models?.some((item) => item.id === selection.model && item.efforts.includes(selection.effort))) throw new Error(`Model hoặc mức suy nghĩ không hợp lệ cho ${publicProviderName(provider)}.`);
 
   record(task, `${publicProviderName(provider)} bắt đầu · ${roleLabel(stage)} · ${selection.model} (${selection.effort})`, "stage");
@@ -1038,7 +1045,7 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
     const projectDirs = additionalWritableProjectDirs(task, cwd);
     args = [
       ...(process.platform === "win32" ? ["--config", 'windows.sandbox="unelevated"'] : []),
-      "--disable", "unified_exec", "--ask-for-approval", "never", "exec", "--json", "--ephemeral", "--skip-git-repo-check", "--sandbox", stage === "build" || stage.startsWith("chat-") || stage === "chat-initial" ? "workspace-write" : "read-only", "-C", cwd, "--model", selection.model, "--config", `model_reasoning_effort=${JSON.stringify(selection.effort)}`, "--output-last-message", resolve(task.storagePath, `${stage}.md`), ...projectDirs.flatMap((directory) => ["--add-dir", directory]), "-",
+      "--disable", "unified_exec", "--ask-for-approval", "never", "exec", "--json", "--ephemeral", "--skip-git-repo-check", "--sandbox", task.permissionPreset === "read-only" || !(stage === "build" || stage.startsWith("chat-") || stage === "chat-initial") ? "read-only" : "workspace-write", "-C", cwd, "--model", selection.model, "--config", `model_reasoning_effort=${JSON.stringify(selection.effort)}`, "--output-last-message", resolve(task.storagePath, `${stage}.md`), ...projectDirs.flatMap((directory) => ["--add-dir", directory]), "-",
     ];
   } else if (provider === "antigravity") {
     exe = agyExe;
@@ -1048,7 +1055,7 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
   } else if (provider === "claude") {
     exe = claudeExe;
     const additionalDirs = additionalWritableProjectDirs(task, cwd);
-    args = [...claudeCommand.prefixArgs, "-p", "--model", selection.model, "--output-format", "json", "--permission-mode", stage === "plan" || stage === "review" ? "plan" : "acceptEdits", "--max-turns", "20", ...additionalDirs.flatMap((directory) => ["--add-dir", directory])];
+    args = [...claudeCommand.prefixArgs, "-p", "--model", selection.model, "--output-format", "json", "--permission-mode", task.permissionPreset === "read-only" || stage === "plan" || stage === "review" ? "plan" : "acceptEdits", "--max-turns", "20", ...additionalDirs.flatMap((directory) => ["--add-dir", directory])];
   } else {
     throw new Error(`Provider ${provider} không có bộ chạy cục bộ.`);
   }
@@ -1645,6 +1652,8 @@ async function api(request, response, pathname) {
     if (prompt.length < 6 || prompt.length > 12000) return json(response, 400, { error: "Yêu cầu cần từ 6 đến 12.000 ký tự." });
     const connectors = await loadModels();
     const workflow = ["chat-only", "plan-only", "codex-antigravity"].includes(body.workflow) ? body.workflow : "codex-antigravity";
+    const permissionPreset = body.permissionPreset === undefined ? "workspace-write" : body.permissionPreset;
+    if (!["read-only", "workspace-write"].includes(permissionPreset)) return json(response, 400, { error: "Preset quyền không hợp lệ." });
     const roles = Object.fromEntries(workflowRoles.map((role) => [role.id, requestedRole(body, role.id, connectors)]));
     const chatProvider = String(body.chatProvider || state.settings.defaults?.chatProvider || "codex");
     const chatConnector = connectors[chatProvider];
@@ -1675,14 +1684,14 @@ async function api(request, response, pathname) {
     const task = {
       id, title: String(body.title || prompt.split(/\r?\n/)[0]).trim().slice(0, 120) || "Task mới",
       prompt, workspaceId: workspace.id, workspacePath: info.path, status: "queued", phase: "queued",
-      isolated, config, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), events: [],
+      isolated, config, permissionPreset, goal: String(body.goal || "").trim().slice(0, 2000), goalChecklist: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), events: [],
       skillSelectionMode: "auto", skillSelectionCompleted: false, skillIds: [], skills: [],
       memoryUsed: [], storagePath: resolve(taskDir, id),
     };
     state.tasks.unshift(task); persist(); record(task, "Task được tạo từ giao diện và đưa vào hàng đợi thật.", "success"); pump();
     return json(response, 201, { task });
   }
-  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive))?$/);
+  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist))?$/);
   if (match) {
     const id = decodeURIComponent(match[1]);
     const action = match[2] || "";
@@ -1690,6 +1699,11 @@ async function api(request, response, pathname) {
     if (!task) return json(response, 404, { error: "Task không tồn tại." });
     if (request.method === "PATCH" && !action) {
       const body = await readBody(request);
+      if (body.permissionPreset !== undefined) {
+        if (!["read-only", "workspace-write"].includes(body.permissionPreset)) return json(response, 400, { error: "Preset quyền không hợp lệ." });
+        if (["queued", "running"].includes(task.status)) return json(response, 409, { error: "Hãy đợi task kết thúc trước khi đổi quyền." });
+        task.permissionPreset = body.permissionPreset;
+      }
       if (body.title !== undefined) {
         const title = String(body.title || "").trim();
         if (!title || title.length > 120) return json(response, 400, { error: "Tên chat cần từ 1 đến 120 ký tự." });
@@ -1697,6 +1711,52 @@ async function api(request, response, pathname) {
         task.updatedAt = new Date().toISOString();
       }
       persist(); publish("tasks"); return json(response, 200, { task });
+    }
+    if (request.method === "POST" && action === "fork") {
+      const body = await readBody(request);
+      const messageIndex = (task.chatMessages || []).findIndex((item) => item.id === body.messageId && item.role === "user");
+      if (messageIndex < 0) return json(response, 404, { error: "Không tìm thấy lượt chat để fork." });
+      const sourceMessage = task.chatMessages[messageIndex];
+      if (sourceMessage.status && sourceMessage.status !== "done") return json(response, 409, { error: "Chỉ có thể fork từ lượt chat đã hoàn tất." });
+      const copiedMessages = task.chatMessages.slice(0, messageIndex + 1).filter((item) => !item.status || item.status === "done");
+      const reply = task.chatMessages.find((item) => item.role === "assistant" && item.replyToMessageId === sourceMessage.id && (!item.status || item.status === "done"));
+      if (reply) copiedMessages.push(reply);
+      const forkId = `task-${randomUUID().slice(0, 8)}`;
+      const now = new Date().toISOString();
+      const forkTask = {
+        id: forkId, title: `Fork: ${task.title}`.slice(0, 120), prompt: task.prompt, workspaceId: task.workspaceId, workspacePath: task.workspacePath,
+        status: "done", phase: "done", isolated: false, config: { ...task.config, workflow: "chat-only", chatProvider: sourceMessage.provider || task.config.chatProvider, chatModel: sourceMessage.model || task.config.chatModel, chatEffort: sourceMessage.effort || task.config.chatEffort }, permissionPreset: task.permissionPreset || "workspace-write",
+        goal: task.goal || "", goalChecklist: (task.goalChecklist || []).map((item) => ({ ...item })), chatMessages: copiedMessages.map((item) => ({ ...item })), chatQueue: [],
+        forkedFrom: task.id, forkedFromMessageId: sourceMessage.id, createdAt: now, updatedAt: now, completedAt: now,
+        events: [{ at: now, kind: "success", text: `Forked from ${task.title} at a completed user message.` }], skills: task.skills || [], skillIds: task.skillIds || [], memoryUsed: [],
+        storagePath: resolve(taskDir, forkId),
+      };
+      await fs.mkdir(forkTask.storagePath, { recursive: true });
+      state.tasks.unshift(forkTask); persist(); publish("tasks");
+      return json(response, 201, { task: forkTask });
+    }
+    if (request.method === "POST" && action === "goal") {
+      const body = await readBody(request);
+      if (["queued", "running"].includes(task.status)) return json(response, 409, { error: "Hãy đợi task kết thúc trước khi sửa mục tiêu." });
+      const goal = String(body.goal || "").trim();
+      if (goal.length > 2000) return json(response, 400, { error: "Mục tiêu tối đa 2.000 ký tự." });
+      if (!Array.isArray(body.checklist) || body.checklist.length > 20) return json(response, 400, { error: "Checklist cần là danh sách tối đa 20 mục." });
+      const checklist = [];
+      for (const [index, entry] of body.checklist.entries()) {
+        const text = String(typeof entry === "string" ? entry : entry.text || "").trim();
+        if (!text || text.length > 300) return json(response, 400, { error: "Mỗi mục checklist cần từ 1 đến 300 ký tự." });
+        const old = (task.goalChecklist || []).find((item) => item.id === entry?.id) || (task.goalChecklist || [])[index];
+        checklist.push({ id: old?.id || randomUUID(), text, done: Boolean(old?.done) });
+      }
+      task.goal = goal; task.goalChecklist = checklist; task.updatedAt = new Date().toISOString();
+      persist(); publish("tasks"); return json(response, 200, { task });
+    }
+    if (request.method === "POST" && action === "checklist") {
+      const body = await readBody(request);
+      const item = (task.goalChecklist || []).find((entry) => entry.id === body.id);
+      if (!item) return json(response, 404, { error: "Không tìm thấy mục checklist." });
+      item.done = Boolean(body.done); task.updatedAt = new Date().toISOString(); persist(); publish("tasks");
+      return json(response, 200, { task });
     }
     if (request.method === "POST" && action === "pin") {
       const body = await readBody(request); task.pinned = Boolean(body.pinned);
@@ -1714,6 +1774,7 @@ async function api(request, response, pathname) {
       const connectors = await loadModels();
       const connector = connectors[provider];
       if (!connector?.available || !connector.capabilities?.chat || provider === "codex" && !connector.authenticated) return json(response, 503, { error: connector?.error || `${publicProviderName(provider)} chưa sẵn sàng để chat.` });
+      if (task.permissionPreset === "read-only" && provider === "antigravity") return json(response, 409, { error: "Antigravity CLI chưa có chế độ chỉ đọc cho phiên chat chạy nền. Hãy chọn Codex/Claude hoặc đổi preset quyền." });
       const model = connector.models.find((item) => item.id === String(body.model || ""));
       const effort = String(body.effort || "");
       if (!model || !model.efforts.includes(effort)) return json(response, 400, { error: `Model hoặc mức suy nghĩ không hợp lệ cho ${publicProviderName(provider)}.` });
