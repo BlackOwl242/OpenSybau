@@ -3,7 +3,7 @@
   "description": "A local-first multi-agent coding workspace for Windows and the browser.",
   "author": "OpenSybau",
   "private": true,
-  "version": "0.2.6",
+  "version": "0.2.7",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {

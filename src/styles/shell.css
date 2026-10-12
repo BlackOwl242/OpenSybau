@@ -489,7 +489,7 @@ button:disabled { cursor: not-allowed; }
   .wb-rail { display: none; }
   .wb-context-sidebar, .wb-context-sidebar.is-mobile-only {
     position: fixed; top: 0; bottom: 0; left: 0; z-index: 42;
-    width: min(86vw, 340px); height: 100dvh; display: flex;
+    width: min(340px, max(280px, 86vw)); height: 100dvh; display: flex;
     border-right: 1px solid #44474b; box-shadow: 18px 0 44px #0008;
     transform: translateX(-105%); transition: transform .2s ease;
   }
