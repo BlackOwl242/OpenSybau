@@ -248,7 +248,9 @@ async function readBody(request) {
 }
 function run(exe, args, options = {}) {
   return new Promise((resolvePromise) => {
-    const child = spawn(exe, args, { cwd: options.cwd || root, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, NO_COLOR: "1" } });
+    // In an Electron production build, `root` can be inside app.asar and is not
+    // a valid process working directory for external CLIs. Run probes from home.
+    const child = spawn(exe, args, { cwd: options.cwd || homedir(), windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, NO_COLOR: "1" } });
     let stdout = "";
     let stderr = "";
     const limit = options.maxBuffer || 2_000_000;

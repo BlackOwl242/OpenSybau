@@ -516,7 +516,7 @@ function settingsPage() {
       : status.tone === "missing" ? agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
     return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${status.tone}">${status.label}</span></strong><small>${esc(detail)}</small></div>${action}</article>`;
   }).join("");
-  const noReadyConnector = !Object.values(view.connectors || {}).some((connector) => connector.available && connector.capabilities?.plan);
+  const noReadyConnector = !Object.values(view.connectors || {}).some((connector) => connector?.available && connector.capabilities?.plan);
   return `<div class="page-head"><div><div class="eyebrow">PREFERENCES & MODELS</div><h1>Cài đặt</h1><p>Chọn model mặc định cho từng vai trò và kết nối nguồn AI dùng chung cho các task.</p></div></div>
   <form class="settings-form" data-modal data-form="settings">
     <section class="settings-card"><header><div><h2>Ai ra lệnh, ai thực hiện</h2><p>Chọn model lập kế hoạch (ra lệnh), model triển khai (thực hiện) và model review. Mỗi task vẫn có thể dùng bộ model khác.</p></div></header>
