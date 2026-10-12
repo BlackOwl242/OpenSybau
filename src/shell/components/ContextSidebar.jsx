@@ -18,8 +18,8 @@ function TaskLink({ task, selected, archived = false, taskMenuId = "", menuKey =
       <span class="wb-task-copy"><strong>{task.title}</strong></span>
     </button>
     <div class="wb-task-actions">
-      {!archived ? <button class="wb-task-action" data-action="open-task-flow" data-id={task.id} title="Mở bản ghi điều phối" aria-label={`Mở bản ghi điều phối: ${task.title}`}><Icon name="workflow" size={13} /></button> : null}
-      <button class="wb-task-action" data-action="toggle-task-menu" data-id={task.id} data-key={menuKey} aria-expanded={menuOpen} title="Thao tác chat" aria-label={`Thao tác chat ${task.title}`}><Icon name="ellipsis" size={14} /></button>
+      {!archived ? <button class="wb-task-action" data-action="open-task-flow" data-id={task.id} title="Mở bản ghi điều phối" aria-label={`Mở bản ghi điều phối: ${task.title}`}><Icon name="workflow" size={16} /></button> : null}
+      <button class="wb-task-action" data-action="toggle-task-menu" data-id={task.id} data-key={menuKey} aria-expanded={menuOpen} title="Thao tác chat" aria-label={`Thao tác chat ${task.title}`}><Icon name="ellipsis" size={16} /></button>
     </div>
     {menuOpen ? <TaskMenu task={task} archived={archived} /> : null}
   </div>;

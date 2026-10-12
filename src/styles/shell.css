@@ -76,6 +76,7 @@ button:disabled { cursor: not-allowed; }
 .wb-project-actions { flex: 0 0 auto; display: flex; align-items: center; padding-right: 3px; opacity: 0; pointer-events: none; }
 .wb-project-row:hover .wb-project-actions, .wb-project-row:focus-within .wb-project-actions, .wb-project-group.has-menu-open .wb-project-actions { opacity: 1; pointer-events: auto; }
 .wb-project-action, .wb-task-action { width: 25px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 5px; color: #a7aaaf; background: transparent; }
+.wb-task-action { width: 32px; height: 32px; }
 .wb-project-action:hover, .wb-task-action:hover { color: #fff; background: #3a3c3f; }
 .wb-project-menu { position: absolute; top: 32px; right: 1px; z-index: 12; width: 190px; display: grid; gap: 2px; padding: 5px; border: 1px solid #414346; border-radius: 8px; background: #292a2c; box-shadow: 0 12px 30px #0009; }
 .wb-project-menu button { min-height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 5px; color: #e1e2e3; background: transparent; font-size: 10px; text-align: left; }
@@ -102,7 +103,7 @@ button:disabled { cursor: not-allowed; }
 .wb-task-link > .wb-icon { flex: 0 0 auto; color: #b9caff; }
 .wb-task-copy { min-width: 0; flex: 1; }
 .wb-task-copy strong { display: block; overflow: hidden; color: inherit; font-size: 11px; font-weight: 450; text-overflow: ellipsis; white-space: nowrap; }
-.wb-task-actions { flex: 0 0 auto; display: flex; padding-right: 2px; opacity: 0; pointer-events: none; }
+.wb-task-actions { flex: 0 0 auto; display: flex; gap: 2px; padding-right: 2px; opacity: 0; pointer-events: none; }
 .wb-task-item:hover .wb-task-actions, .wb-task-item:focus-within .wb-task-actions { opacity: 1; pointer-events: auto; }
 .wb-task-menu { position: absolute; top: 30px; right: 2px; z-index: 13; width: 176px; display: grid; gap: 2px; padding: 5px; border: 1px solid #414346; border-radius: 8px; background: #292a2c; box-shadow: 0 12px 30px #0009; }
 .wb-task-menu button { min-height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 5px; color: #e1e2e3; background: transparent; font-size: 10px; text-align: left; }
@@ -308,7 +309,7 @@ button:disabled { cursor: not-allowed; }
 .wb-project-open:hover { color: #f3f4f5; background: #3a3c3f; }
 .wb-project-new-chat { min-height: 30px; display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 0; border-radius: 6px; color: #aeb1b6; background: transparent; text-align: left; font-size: 10px; }
 .wb-project-new-chat:hover { color: #e8e9ea; background: #292a2c; }
-.wb-task-item { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 27px; align-items: center; border-radius: 6px; }
+.wb-task-item { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 68px; align-items: center; border-radius: 6px; }
 .wb-task-item:hover, .wb-task-item.is-selected { background: #303234; }
 .wb-task-item .wb-task-link { min-width: 0; min-height: 30px; padding-right: 3px; border-radius: 6px 0 0 6px; background: transparent; }
 .wb-task-item .wb-task-link:hover, .wb-task-item.is-selected .wb-task-link { background: transparent; }
@@ -405,13 +406,14 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .task-conversation-page .chat-config-trigger:hover { background: #3b3d40; }
 .wb-page-content .task-conversation-page .chat-pane-meta { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 7px; white-space: nowrap; }
 .wb-page-content .task-conversation-page .pane-heading > .chat-pane-meta { overflow: visible; text-overflow: clip; flex: 0 1 auto; }
-.wb-page-content .task-conversation-page .chat-pane-meta .button { min-width: 108px; min-height: 40px; flex: 0 0 auto; justify-content: center; padding-inline: 14px; font-size: 12px; }
-.wb-page-content .task-conversation-page .chat-pane-meta .chat-goal-button { min-width: 124px; }
+.wb-page-content .task-conversation-page .chat-pane-meta .button { min-width: 0; min-height: 32px; flex: 0 0 auto; justify-content: center; padding-inline: 9px; font-size: 11px; }
 .wb-page-content .task-conversation-page .chat-message-count { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; }
 @media (max-width: 620px) {
   .wb-page-content .task-conversation-page .pane-heading { flex-wrap: wrap; align-items: flex-start; }
   .wb-page-content .task-conversation-page .pane-heading > div { flex: 1 1 100%; }
   .wb-page-content .task-conversation-page .pane-heading > .chat-pane-meta { flex: 1 1 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .wb-page-content .task-conversation-page .chat-pane-meta > .button { width: 36px; min-width: 36px; height: 34px; padding: 0; }
+  .wb-page-content .task-conversation-page .chat-pane-meta > .button > span { display: none; }
 }
 .wb-page-content .task-conversation-page .chat-queue-summary { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; border: 1px solid #46516a; border-radius: 999px; color: #c6d3f2; background: #303747; font-size: 10px; }
 .wb-page-content .task-conversation-page .chat-queue-summary .wb-icon { flex: 0 0 auto; }
