@@ -442,6 +442,9 @@ button:disabled { cursor: not-allowed; }
 #overlay .modal-head h2 { color: #ededee; }
 #overlay .modal label small, #overlay .modal .form-note { color: #a4a7ac; }
 #overlay .modal input:not([type="checkbox"]), #overlay .modal select, #overlay .modal textarea { border-color: #4a4c50; color: #ececed; background: #202123; }
+#overlay .modal input[type="file"][data-content-file-import] { width: 100%; min-width: 0; padding: 7px; border-style: dashed; border-radius: 7px; color: #c6c8cd; background: #242527; font-size: 12px; }
+#overlay .modal input[type="file"][data-content-file-import]::file-selector-button { margin-right: 10px; padding: 7px 10px; border: 1px solid #484a4e; border-radius: 6px; color: #ececed; background: #303234; font: inherit; cursor: pointer; }
+#overlay .modal input[type="file"][data-content-file-import]::file-selector-button:hover { background: #383a3d; }
 #overlay .modal input::placeholder, #overlay .modal textarea::placeholder { color: #858990; }
 #overlay .modal .model-provider, #overlay .modal .check-row { border-color: #414346; color: #e1e2e3; background: #292a2c; }
 #overlay .modal .model-provider > header strong, #overlay .modal .check-row strong { color: #e8e9ea; }

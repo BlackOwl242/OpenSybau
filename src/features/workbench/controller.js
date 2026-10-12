@@ -460,8 +460,53 @@ function skillPage() {
   }).join("");
   return `<div class="page-head"><div><div class="eyebrow">SKILL LIBRARY · LOCAL</div><h1>Kỹ năng</h1><p>Xem, tạo và quản lý hướng dẫn cho đúng CLI; không sửa trực tiếp file do plugin sở hữu.</p></div><button class="button primary" data-action="new-skill">${icon("plus", 15)} Tạo skill</button></div><section class="settings-card skill-manager"><header><div><h2>${view.skills.length} skill · ${sources} nguồn</h2><p>Skill cá nhân cho phép sửa/xóa. Skill plugin và tích hợp sẵn có thể sao chép thành bản cá nhân.</p></div><button class="button" data-action="scan-skills">${icon("refresh-cw", 14)} Quét lại</button></header><label class="skill-search"><span>${icon("search", 15)}</span><input type="search" data-skill-filter="library" value="${esc(view.skillFilter)}" placeholder="Tìm theo tên, mô tả, ID, Codex hoặc Antigravity…" autocomplete="off"><small data-skill-result-count>${view.skills.length} skill</small></label><div class="skill-manager-list">${entries || `<p class="settings-empty">Chưa tìm thấy skill. Quét lại sau khi cài skill cá nhân.</p>`}</div><p class="skill-filter-empty" hidden>Không tìm thấy skill khớp nội dung tìm kiếm.</p></section>`;
 }
+const contentImportExtensions = new Set([
+  ".md", ".markdown", ".mdx", ".txt", ".text", ".rst", ".adoc", ".json", ".jsonc", ".yaml", ".yml", ".toml", ".csv", ".tsv", ".xml", ".html", ".htm", ".log", ".diff", ".patch",
+  ".css", ".scss", ".less", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue", ".svelte", ".astro", ".py", ".go", ".rs", ".java", ".kt", ".c", ".h", ".cpp", ".hpp", ".cs", ".php", ".rb", ".swift", ".sql", ".sh", ".ps1", ".bat", ".cmd",
+]);
+const markdownContentExtensions = new Set([".md", ".markdown", ".mdx", ".txt", ".text", ".rst", ".adoc"]);
+const contentImportAccept = [...contentImportExtensions].join(",");
+function contentFileImportField(target) {
+  return '<label class="content-file-import">Thêm tệp nội dung<input type="file" accept="' + contentImportAccept + '" multiple data-content-file-import data-import-target="' + esc(target) + '"><small data-content-file-status>Chọn nhiều tệp văn bản cùng lúc, gồm Markdown (.md), TXT, JSON, YAML, CSV, HTML và mã nguồn. Tệp được nối vào nội dung, không lưu riêng.</small></label>';
+}
+async function importContentFiles(input) {
+  const files = [...(input.files || [])];
+  if (!files.length) return;
+  input.disabled = true;
+  const form = input.closest("form");
+  const target = form?.querySelector('textarea[name="' + input.dataset.importTarget + '"]');
+  const status = input.closest("label")?.querySelector("[data-content-file-status]");
+  try {
+    if (!target) throw new Error("Không tìm thấy ô nội dung để nhập tệp.");
+    if (files.length > 20) throw new Error("Mỗi lần chỉ có thể nhập tối đa 20 tệp.");
+    if (files.some((file) => file.size > 1_000_000) || files.reduce((total, file) => total + file.size, 0) > 1_000_000) throw new Error("Tổng dung lượng tệp mỗi lần nhập tối đa 1 MB.");
+    const imported = await Promise.all(files.map(async (file) => {
+      const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
+      if (!contentImportExtensions.has(extension) || /^\.env(?:\.|$)/i.test(file.name)) throw new Error('Không hỗ trợ tệp "' + file.name + '". Hãy chọn tệp văn bản hoặc Markdown.');
+      const content = await file.text();
+      if (content.includes("\u0000")) throw new Error('Tệp "' + file.name + '" có vẻ là tệp nhị phân; chỉ nhập được nội dung văn bản.');
+      if (!content.trim()) throw new Error('Tệp "' + file.name + '" đang trống.');
+      const codeFence = String.fromCharCode(96).repeat(3);
+      return markdownContentExtensions.has(extension)
+        ? "### Nội dung từ tệp: " + file.name + "\n\n" + content.trim()
+        : "### Nội dung từ tệp: " + file.name + "\n\n" + codeFence + extension.slice(1) + "\n" + content.trim() + "\n" + codeFence;
+    }));
+    const previous = target.value.trimEnd();
+    const next = previous ? previous + "\n\n" + imported.join("\n\n") : imported.join("\n\n");
+    if (target.maxLength > 0 && next.length > target.maxLength) throw new Error("Nội dung sau khi nhập vượt giới hạn " + target.maxLength.toLocaleString("vi-VN") + " ký tự; nội dung hiện tại chưa bị thay đổi.");
+    target.value = next;
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    if (status) status.textContent = "Đã nhập " + files.length + " tệp: " + files.slice(0, 4).map((file) => file.name).join(", ") + (files.length > 4 ? " và " + (files.length - 4) + " tệp khác" : "");
+    showToast("Đã nhập " + files.length + " tệp vào nội dung.");
+  } catch (error) {
+    showToast(error.message || "Không thể nhập tệp.");
+  } finally {
+    input.value = "";
+    input.disabled = false;
+  }
+}
 function showSkillCreateModal() {
-  const body = `<label>Tên skill<input name="name" maxlength="100" required placeholder="Ví dụ: review-api"></label><label>Mô tả ngắn<input name="description" maxlength="500" required placeholder="Khi nào và cách nào nên dùng skill này"></label><label>Dùng cho<select name="scope"><option value="shared">Codex và Antigravity</option><option value="codex">Chỉ Codex</option><option value="antigravity">Chỉ Antigravity</option></select></label><label>Hướng dẫn<textarea name="instructions" rows="9" placeholder="Quy trình, quy tắc và kết quả mong muốn…"></textarea></label><p class="form-note">Skill được lưu thành SKILL.md trong thư mục cá nhân của CLI. OpenSybau không ghi đè skill trùng tên.</p>`;
+  const body = '<label>Tên skill<input name="name" maxlength="100" required placeholder="Ví dụ: review-api"></label><label>Mô tả ngắn<input name="description" maxlength="500" required placeholder="Khi nào và cách nào nên dùng skill này"></label><label>Dùng cho<select name="scope"><option value="shared">Codex và Antigravity</option><option value="codex">Chỉ Codex</option><option value="antigravity">Chỉ Antigravity</option></select></label>' + contentFileImportField("instructions") + '<label>Hướng dẫn<textarea name="instructions" maxlength="98000" rows="9" placeholder="Quy trình, quy tắc và kết quả mong muốn…"></textarea></label><p class="form-note">Skill được lưu thành SKILL.md trong thư mục cá nhân của CLI. OpenSybau không ghi đè skill trùng tên.</p>';
   showModal("Tạo skill", body, "Tạo skill", "skill-create");
 }
 async function showSkillView(id) {
@@ -905,8 +950,8 @@ function showProjectSectionModal(workspace) {
   $(".modal").dataset.id = workspace.id;
 }
 function showMemoryModal() {
-  const options = `<option value="all">Dùng chung</option>${view.state.workspaces.map((w) => `<option value="${w.id}">${esc(w.name)}</option>`).join("")}`;
-  const body = `<label>Tên ghi nhớ<input name="title" maxlength="120" required placeholder="Ví dụ: Cách chạy kiểm thử dự án"></label><label>Nội dung<textarea name="content" maxlength="5000" rows="4" required placeholder="Một ghi chú đã kiểm chứng, hữu ích cho các task sau"></textarea></label><label>Phạm vi<select name="workspaceId">${options}</select></label><div class="form-note">Mỗi task chỉ nạp tối đa 3 ghi chú có từ khóa khớp yêu cầu.</div>`;
+  const options = '<option value="all">Dùng chung</option>' + view.state.workspaces.map((w) => '<option value="' + w.id + '">' + esc(w.name) + '</option>').join("");
+  const body = '<label>Tên ghi nhớ<input name="title" maxlength="120" required placeholder="Ví dụ: Cách chạy kiểm thử dự án"></label>' + contentFileImportField("content") + '<label>Nội dung<textarea name="content" maxlength="5000" rows="4" required placeholder="Một ghi chú đã kiểm chứng, hữu ích cho các task sau"></textarea></label><label>Phạm vi<select name="workspaceId">' + options + '</select></label><div class="form-note">Mỗi task chỉ nạp tối đa 3 ghi chú có từ khóa khớp yêu cầu.</div>';
   showModal("Ghi nhớ mới", body, "Lưu ghi nhớ");
 }
 function showDiffModal(data) {
@@ -1371,6 +1416,7 @@ document.addEventListener("input", (event) => {
   applySkillFilter(input);
 });
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-content-file-import]")) { void importContentFiles(event.target); return; }
   if (event.target.matches("[data-task-preset-version]")) syncTaskPresetControls(event.target.closest("form"));
   if (event.target.matches("select[name=workflow], select[name=workspaceId]")) { syncWorkflow(); syncIsolation(); }
   if (event.target.matches(".home-composer select[name=workflow]")) {
