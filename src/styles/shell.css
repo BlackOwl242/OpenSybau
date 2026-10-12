@@ -720,7 +720,14 @@ body .wb-app-shell select optgroup {
   body .desktop-setup-dialog select option:checked,
   body .wb-app-shell select option:checked {
     color: #fff;
-    background: #365fc3;
+    background-color: #365fc3 !important;
+  }
+
+  body .wb-page-content select option::checkmark,
+  body #overlay select option::checkmark,
+  body .desktop-setup-dialog select option::checkmark,
+  body .wb-app-shell select option::checkmark {
+    display: none;
   }
 
   body .wb-page-content select option:hover,
@@ -735,6 +742,12 @@ body .wb-app-shell select optgroup {
   body #overlay select::picker-icon,
   body .desktop-setup-dialog select::picker-icon,
   body .wb-app-shell select::picker-icon {
-    color: #c6c8cc;
+    content: "";
+    width: 8px;
+    height: 8px;
+    margin-top: -4px;
+    border-right: 1.5px solid #c6c8cc;
+    border-bottom: 1.5px solid #c6c8cc;
+    transform: rotate(45deg);
   }
 }
