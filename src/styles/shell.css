@@ -691,6 +691,8 @@ body .wb-app-shell select optgroup {
   body .desktop-setup-dialog select,
   body .wb-app-shell select {
     appearance: base-select;
+    align-items: center;
+    text-align: start;
   }
 
   body .wb-page-content select::picker(select),
@@ -710,9 +712,13 @@ body .wb-app-shell select optgroup {
   body #overlay select option,
   body .desktop-setup-dialog select option,
   body .wb-app-shell select option {
-    min-height: 34px;
+    display: flex;
+    align-items: center;
+    min-height: 36px;
     border-radius: 5px;
     padding: 7px 10px;
+    line-height: 1.35;
+    transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
   }
 
   body .wb-page-content select option:checked,
@@ -735,7 +741,8 @@ body .wb-app-shell select optgroup {
   body .desktop-setup-dialog select option:hover,
   body .wb-app-shell select option:hover {
     color: #fff;
-    background: #343a46;
+    background-color: #3a414d !important;
+    box-shadow: inset 0 0 0 1px #515a68;
   }
 
   body .wb-page-content select::picker-icon,
@@ -743,11 +750,11 @@ body .wb-app-shell select optgroup {
   body .desktop-setup-dialog select::picker-icon,
   body .wb-app-shell select::picker-icon {
     content: "";
-    width: 8px;
-    height: 8px;
-    margin-top: -4px;
-    border-right: 1.5px solid #c6c8cc;
-    border-bottom: 1.5px solid #c6c8cc;
+    width: 6px;
+    height: 6px;
+    margin-top: -3px;
+    border-right: 1px solid #c6c8cc;
+    border-bottom: 1px solid #c6c8cc;
     transform: rotate(45deg);
   }
 }
