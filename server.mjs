@@ -109,7 +109,7 @@ refreshCliExecutables();
 function initialState() {
   return {
     version: 1,
-    settings: { maxConcurrent: 2, defaults: {}, vaultPath: "" },
+    settings: { maxConcurrent: 2, defaults: {}, vaultPath: "", taskPresets: [] },
     workspaces: [],
     tasks: [],
   };
@@ -124,6 +124,7 @@ state.settings ||= { maxConcurrent: 2 };
 state.settings.defaults ||= {};
 state.settings.vaultPath ||= "";
 state.settings.maxConcurrent ||= 2;
+state.settings.taskPresets = Array.isArray(state.settings.taskPresets) ? state.settings.taskPresets : [];
 state.workspaces ||= [];
 state.tasks ||= [];
 for (const workspace of state.workspaces) {
@@ -139,6 +140,7 @@ for (const task of state.tasks) {
     task.status = "failed";
     task.phase = "failed";
     task.error = "OpenSybau đã dừng khi tiến trình đang chạy. Kiểm tra workspace trước khi chạy lại.";
+    if (task.activeStageRunId) finishStageRerun(task, "failed", task.error);
     task.updatedAt = new Date().toISOString();
   }
   if (task.status !== "queued") {
@@ -194,6 +196,15 @@ function record(task, text, kind = "info") {
   task.updatedAt = line.at;
   persist();
   publish("task");
+}
+function finishStageRerun(task, status, error = "") {
+  const attempt = (task.stageRunHistory || []).find((item) => item.id === task.activeStageRunId);
+  if (attempt) {
+    attempt.status = status;
+    attempt.completedAt = new Date().toISOString();
+    if (error) attempt.error = String(error).slice(0, 2000);
+  }
+  task.activeStageRunId = null;
 }
 function failQueuedChatTurns(task, includeRunning = false) {
   const queuedMessageIds = new Set((task.chatQueue || []).map((turn) => turn.messageId));
@@ -725,6 +736,62 @@ function roleLabel(role) { return workflowRoles.find((item) => item.id === role)
 function stageSelection(task, stage) {
   return roleConfig(task.config, stage) || { provider: "codex", model: task.config.codexModel, effort: task.config.codexEffort };
 }
+function normalizeTaskPresetProfile(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Cấu hình mẫu tác vụ không hợp lệ.");
+  const workflow = String(input.workflow || "");
+  if (!["chat-only", "plan-only", "codex-antigravity"].includes(workflow)) throw new Error("Luồng trong mẫu tác vụ không hợp lệ.");
+  const permissionPreset = String(input.permissionPreset || "workspace-write");
+  if (!["read-only", "workspace-write"].includes(permissionPreset)) throw new Error("Preset quyền trong mẫu không hợp lệ.");
+  const selection = (value, label) => {
+    const provider = String(value?.provider || "").trim();
+    const model = String(value?.model || "").trim();
+    const effort = String(value?.effort || "").trim();
+    if (!/^[a-z][a-z0-9-]{1,39}$/.test(provider) || !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(model) || !/^[A-Za-z][A-Za-z0-9-]{0,29}$/.test(effort)) {
+      throw new Error(`Cấu hình ${label} trong mẫu tác vụ không hợp lệ.`);
+    }
+    return { provider, model, effort };
+  };
+  const roles = {};
+  if (workflow === "plan-only" || workflow === "codex-antigravity") {
+    for (const role of workflowRoles) {
+      if (workflow === "plan-only" && role.id !== "plan") continue;
+      roles[role.id] = selection(input.roles?.[role.id], role.label);
+    }
+  }
+  if (workflow === "chat-only") {
+    const chat = selection({ provider: input.chatProvider, model: input.chatModel, effort: input.chatEffort }, "chat");
+    return { workflow, permissionPreset, roles, chatProvider: chat.provider, chatModel: chat.model, chatEffort: chat.effort };
+  }
+  return { workflow, permissionPreset, roles };
+}
+function supportedRerunStages(task) {
+  if (task.config?.workflow === "chat-only") return ["chat"];
+  return task.config?.workflow === "plan-only" ? ["plan"] : ["plan", "build", "review"];
+}
+function inferredRerunStage(task) {
+  if (task.config?.workflow === "chat-only") return "chat";
+  return task.failedPhase || (task.implementation?.startsWith("Antigravity hoàn tất (CLI trả mã 0)") ? "build" : task.plan ? task.implementation ? "review" : "build" : "plan");
+}
+function stageOutputSnapshot(value) {
+  const text = String(value || "");
+  const limit = 40_000;
+  return { text: text.slice(0, limit), truncated: text.length > limit };
+}
+function createStageRerunSnapshot(task, stage, now) {
+  const order = task.config?.workflow === "chat-only" ? ["chat"] : task.config?.workflow === "plan-only" ? ["plan"] : ["plan", "build", "review"];
+  const start = Math.max(0, order.indexOf(stage));
+  const affected = new Set(order.slice(start));
+  const previousOutputs = {};
+  if (affected.has("plan") && task.plan) previousOutputs.plan = stageOutputSnapshot(task.plan);
+  if (affected.has("build") && task.implementation) previousOutputs.build = stageOutputSnapshot(task.implementation);
+  if (affected.has("review") && task.review) previousOutputs.review = stageOutputSnapshot(task.review);
+  return {
+    id: randomUUID(), stage, status: "queued", requestedAt: now,
+    previousOutputs,
+    previousArtifacts: (task.artifacts || []).slice(0, 100),
+    previousExecutionPath: task.executionPath || "",
+  };
+}
 function requestedRole(body, roleId, connectors) {
   const defaults = state.settings.defaults || {};
   const saved = defaults.roles?.[roleId] || roleConfig(defaults, roleId);
@@ -1114,14 +1181,23 @@ async function executeTask(task) {
   task.storagePath = resolve(taskDir, task.id);
   await fs.mkdir(task.storagePath, { recursive: true });
   if (task.isolated) {
-    if (!info.isGit || !info.head) throw new Error("Worktree requires a Git repository with at least one commit. Turn off isolation or create an initial commit first.");
-    const attempt = Date.now().toString(36);
-    cwd = resolve(worktreeDir, `${task.id}-${attempt}`);
-    const branchName = `workbench/${task.id.toLowerCase()}-${attempt}`;
-    const add = await git(info.path, ["worktree", "add", "-b", branchName, cwd, "HEAD"]);
-    if (add.code !== 0) throw new Error(add.stderr.trim() || "Could not create isolated Git worktree");
+    const previousPath = resolve(task.executionPath || task.worktreePath || ".");
+    const canReusePrevious = within(worktreeDir, previousPath) && previousPath !== resolve(worktreeDir) && existsSync(previousPath);
+    const previousInfo = canReusePrevious ? await inspectWorkspace(previousPath).catch(() => null) : null;
+    const previousRepoIsManaged = previousInfo?.path && within(resolve(worktreeDir), resolve(previousInfo.path)) && resolve(previousInfo.path) !== resolve(worktreeDir);
+    if (previousInfo?.isGit && previousInfo.head && previousRepoIsManaged) {
+      cwd = previousInfo.path;
+    } else {
+      if (!info.isGit || !info.head) throw new Error("Worktree requires a Git repository with at least one commit. Turn off isolation or create an initial commit first.");
+      const attempt = Date.now().toString(36);
+      cwd = resolve(worktreeDir, `${task.id}-${attempt}`);
+      const branchName = `workbench/${task.id.toLowerCase()}-${attempt}`;
+      const add = await git(info.path, ["worktree", "add", "-b", branchName, cwd, "HEAD"]);
+      if (add.code !== 0) throw new Error(add.stderr.trim() || "Could not create isolated Git worktree");
+      task.worktreePath = cwd;
+      assertTaskActive(task);
+    }
     task.worktreePath = cwd;
-    assertTaskActive(task);
   } else {
     const sameWorkspaceActive = [...running.entries()].some(([id, runInfo]) => id !== task.id && runInfo.workspacePath === info.path && !runInfo.isolated);
     if (sameWorkspaceActive) throw new Error("This workspace already has a running shared-checkout task");
@@ -1129,7 +1205,9 @@ async function executeTask(task) {
   task.executionPath = cwd;
   task.status = "running";
   task.startedAt = new Date().toISOString();
-  task.phase = task.config.workflow === "chat-only" ? "chat" : "plan";
+  task.phase = task.config.workflow === "chat-only" ? "chat" : task.resumeFrom || "plan";
+  const activeRerun = (task.stageRunHistory || []).find((item) => item.id === task.activeStageRunId);
+  if (activeRerun) { activeRerun.status = "running"; activeRerun.startedAt = task.startedAt; }
   persist(); publish("task");
   const notes = relevantMemory(task, workspace);
   task.memoryUsed = notes.map((m) => ({ id: m.id, title: m.title }));
@@ -1182,6 +1260,7 @@ async function executeTask(task) {
       task.artifacts = await changedFilesSince(cwd, Date.parse(task.startedAt));
       assertTaskActive(task);
       task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
+      finishStageRerun(task, "done");
       record(task, "Cuộc trò chuyện đã sẵn sàng. Bạn có thể tiếp tục với agent đã chọn hoặc chuyển sang agent khác.", "success");
     } catch (error) {
       message.status = "failed";
@@ -1196,6 +1275,7 @@ async function executeTask(task) {
   if (task.config.workflow === "plan-only") {
     assertTaskActive(task);
     task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
+    finishStageRerun(task, "done");
     record(task, "Hoàn tất kế hoạch (chưa chạy phần triển khai)", "success");
     return;
   }
@@ -1219,6 +1299,7 @@ async function executeTask(task) {
   assertTaskActive(task);
   record(task, `${publicProviderName(reviewSelection.provider)} review hoàn tất · xem kết quả và diff trong task detail.`, "handoff");
   task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
+  finishStageRerun(task, "done");
   record(task, `Hoàn tất luồng ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} → ${publicProviderName(reviewSelection.provider)}. Thay đổi nằm trong workspace hiển thị bên dưới.`, "success");
 }
 async function processTaskChatQueue(task) {
@@ -1297,11 +1378,13 @@ function pump() {
         if (!task.isolated && workspacePath) busyWorkspaces.add(workspacePath);
         if (task.isolated && workspacePath) isolatedWorkspaces.set(workspacePath, (isolatedWorkspaces.get(workspacePath) || 0) + 1);
         executeTask(task).catch((error) => {
-          if (task.status === "cancelled" || shuttingDown || running.get(task.id)?.shuttingDown) return;
+          if (task.status === "cancelled") { finishStageRerun(task, "cancelled", "Đã dừng theo yêu cầu."); persist(); publish("task"); return; }
+          if (shuttingDown || running.get(task.id)?.shuttingDown) return;
           task.failedPhase = task.phase;
           task.status = running.get(task.id)?.stopped ? "cancelled" : "failed";
           task.phase = task.status;
           task.error = safeError(error);
+          finishStageRerun(task, task.status, task.error);
           record(task, task.error, "error");
         }).finally(() => {
           const runInfo = running.get(task.id);
@@ -1677,6 +1760,16 @@ async function api(request, response, pathname) {
         if (error) return json(response, 400, { error });
       }
     }
+    let presetRef = null;
+    if (body.presetRef !== undefined && body.presetRef !== null) {
+      const presetId = String(body.presetRef?.id || "");
+      const presetVersion = Number(body.presetRef?.version);
+      const preset = state.settings.taskPresets.find((item) => item.id === presetId);
+      if (!Number.isSafeInteger(presetVersion) || presetVersion < 1 || !preset?.versions?.some((item) => Number(item.version) === presetVersion)) {
+        return json(response, 409, { error: "Mẫu tác vụ đã thay đổi hoặc bị xóa. Hãy chọn lại mẫu trước khi tạo task." });
+      }
+      presetRef = { id: preset.id, name: preset.name, version: presetVersion };
+    }
     const info = await inspectWorkspace(workspace.path);
     const isolated = body.isolated === true;
     if (isolated && (!info.isGit || !info.head)) return json(response, 400, { error: "Tách task cần Git repo có ít nhất một commit. Bỏ chọn cách ly để chạy tuần tự trong workspace." });
@@ -1684,7 +1777,7 @@ async function api(request, response, pathname) {
     const task = {
       id, title: String(body.title || prompt.split(/\r?\n/)[0]).trim().slice(0, 120) || "Task mới",
       prompt, workspaceId: workspace.id, workspacePath: info.path, status: "queued", phase: "queued",
-      isolated, config, permissionPreset, goal: String(body.goal || "").trim().slice(0, 2000), goalChecklist: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), events: [],
+      isolated, config, permissionPreset, presetRef, goal: String(body.goal || "").trim().slice(0, 2000), goalChecklist: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), events: [],
       skillSelectionMode: "auto", skillSelectionCompleted: false, skillIds: [], skills: [],
       memoryUsed: [], storagePath: resolve(taskDir, id),
     };
@@ -1796,8 +1889,15 @@ async function api(request, response, pathname) {
       return json(response, 202, { accepted: true, queuedPosition, task });
     }
     if (request.method === "POST" && action === "run") {
-      if (!(["failed", "cancelled"].includes(task.status))) return json(response, 409, { error: "Chỉ có thể chạy lại task đã dừng hoặc thất bại." });
-      task.resumeFrom = task.failedPhase || (task.implementation?.startsWith("Antigravity hoàn tất (CLI trả mã 0)") ? "build" : task.plan ? task.implementation ? "review" : "build" : "plan");
+      const body = await readBody(request);
+      const canReplayCompleted = task.config?.workflow !== "chat-only";
+      if (!(["failed", "cancelled"].includes(task.status) || canReplayCompleted && task.status === "done")) return json(response, 409, { error: "Chỉ có thể chạy lại task đã hoàn tất, dừng hoặc thất bại." });
+      if (running.has(task.id)) return json(response, 409, { error: "Task vẫn đang dừng. Hãy thử lại sau khi tiến trình kết thúc." });
+      const stage = body.stage === undefined ? inferredRerunStage(task) : String(body.stage);
+      if (!supportedRerunStages(task).includes(stage)) return json(response, 400, { error: "Giai đoạn chạy lại không hợp lệ với luồng của task." });
+      if (task.config?.workflow === "chat-only" && task.status === "done") return json(response, 409, { error: "Chat đã hoàn tất. Hãy gửi tin nhắn mới để tiếp tục cuộc trò chuyện." });
+      const workspace = state.workspaces.find((item) => item.id === task.workspaceId);
+      if (!workspace) return json(response, 404, { error: "Workspace của task không còn tồn tại." });
       const buildRole = task.config.roles?.build || roleConfig(task.config, "build");
       const buildModel = (await loadModels())[buildRole.provider]?.models.find((model) => model.id === buildRole.model);
       if (buildModel && !buildModel.efforts.includes(buildRole.effort)) {
@@ -1808,13 +1908,25 @@ async function api(request, response, pathname) {
         if (buildRole.provider === "antigravity") task.config.agyEffort = buildRole.effort;
         task.retryNotice = `Mức suy nghĩ ${previousEffort} cũ không tương thích với model ${buildModel.name}; dùng ${buildRole.effort} theo cấu hình agent.`;
       }
-      task.status = "queued"; task.phase = "queued"; task.error = null; task.stageFailure = null; task.executionPath = null; task.worktreePath = null; task.events = [];
-      persist(); record(task, `Đưa task chạy lại từ stage ${task.resumeFrom}; giữ nguyên plan và skill đã chọn.${task.retryNotice ? ` ${task.retryNotice}` : ""}`, "success"); pump(); return json(response, 202, { task });
+      const now = new Date().toISOString();
+      const attempt = createStageRerunSnapshot(task, stage, now);
+      task.stageRunHistory = [...(task.stageRunHistory || []), attempt].slice(-5);
+      task.activeStageRunId = attempt.id;
+      task.resumeFrom = stage;
+      const stageOrder = task.config?.workflow === "plan-only" ? ["plan"] : ["plan", "build", "review"];
+      const affected = stage === "chat" ? [] : stageOrder.slice(stageOrder.indexOf(stage));
+      if (affected.includes("plan")) task.plan = "";
+      if (affected.includes("build")) task.implementation = "";
+      if (affected.includes("review")) task.review = "";
+      if (affected.includes("plan") || affected.includes("build")) task.artifacts = [];
+      task.status = "queued"; task.phase = "queued"; task.error = null; task.failedPhase = null; task.stageFailure = null; task.completedAt = null;
+      persist(); record(task, `Đưa task vào hàng đợi chạy lại từ stage ${stage}; giữ các đầu ra trước đó trong lịch sử.${task.retryNotice ? ` ${task.retryNotice}` : ""}`, "success"); pump(); return json(response, 202, { task });
     }
     if (request.method === "POST" && action === "stop") {
       const active = running.get(task.id);
       if (task.status === "queued" && !active) {
         task.status = "cancelled"; task.phase = "cancelled";
+        finishStageRerun(task, "cancelled", "Đã hủy khi task còn trong hàng đợi.");
         const abandoned = failQueuedChatTurns(task);
         record(task, `Đã hủy khi task còn trong hàng đợi.${abandoned ? ` Đã hủy ${abandoned} tin nhắn đang chờ.` : ""}`, "warning");
         return json(response, 200, { task });
@@ -1823,6 +1935,7 @@ async function api(request, response, pathname) {
       active.stopped = true;
       if (active.child) killTree(active.child);
       if (active.abortController) active.abortController.abort(new Error("Stopped by user"));
+      finishStageRerun(task, "cancelled", "Đã dừng theo yêu cầu.");
       const abandoned = failQueuedChatTurns(task);
       task.status = "cancelled"; task.phase = "cancelled"; task.completedAt = new Date().toISOString();
       record(task, `Đã gửi yêu cầu dừng tới tiến trình CLI.${abandoned ? ` Đã hủy ${abandoned} tin nhắn đang chờ.` : ""}`, "warning"); return json(response, 202, { task });
@@ -1835,6 +1948,44 @@ async function api(request, response, pathname) {
       return json(response, 200, { ok: true });
     }
     if (request.method === "GET" && !action) return json(response, 200, task);
+  }
+  if (pathname === "/api/task-presets" && request.method === "GET") {
+    return json(response, 200, { presets: state.settings.taskPresets });
+  }
+  if (pathname === "/api/task-presets" && request.method === "POST") {
+    const body = await readBody(request);
+    const name = String(body.name || "").trim();
+    if (!name || name.length > 80) return json(response, 400, { error: "Tên mẫu cần từ 1 đến 80 ký tự." });
+    let profile;
+    try { profile = normalizeTaskPresetProfile(body.profile); }
+    catch (error) { return json(response, 400, { error: safeError(error) }); }
+    const id = String(body.id || "");
+    let preset = id ? state.settings.taskPresets.find((item) => item.id === id) : null;
+    if (id && !preset) return json(response, 404, { error: "Không tìm thấy mẫu tác vụ cần tạo phiên bản mới." });
+    const duplicateName = state.settings.taskPresets.find((item) => item.id !== id && String(item.name || "").toLocaleLowerCase() === name.toLocaleLowerCase());
+    if (duplicateName) return json(response, 409, { error: "Tên mẫu này đã được dùng. Chọn tên khác hoặc chọn mẫu đó để lưu phiên bản mới." });
+    if (!preset && state.settings.taskPresets.length >= 50) return json(response, 409, { error: "Đã đạt giới hạn 50 mẫu tác vụ." });
+    const now = new Date().toISOString();
+    if (!preset) {
+      preset = { id: randomUUID(), name, currentVersion: 0, versions: [] };
+      state.settings.taskPresets.push(preset);
+    }
+    const version = Math.max(0, ...preset.versions.map((item) => Number(item.version) || 0)) + 1;
+    preset.name = name;
+    preset.versions.push({ version, createdAt: now, profile });
+    preset.versions = preset.versions.slice(-25);
+    preset.currentVersion = version;
+    persist(); publish("settings");
+    return json(response, 201, { preset });
+  }
+  const taskPresetMatch = pathname.match(/^\/api\/task-presets\/([^/]+)$/);
+  if (request.method === "DELETE" && taskPresetMatch) {
+    const id = decodeURIComponent(taskPresetMatch[1]);
+    const before = state.settings.taskPresets.length;
+    state.settings.taskPresets = state.settings.taskPresets.filter((item) => item.id !== id);
+    if (state.settings.taskPresets.length === before) return json(response, 404, { error: "Mẫu tác vụ không tồn tại." });
+    persist(); publish("settings");
+    return json(response, 200, { ok: true });
   }
   if (request.method === "POST" && pathname === "/api/settings") {
     const body = await readBody(request);

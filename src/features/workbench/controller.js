@@ -146,6 +146,130 @@ function roleEditor(roleId, overrides = {}) {
   const providerHint = connector?.kind === "api" ? roleId === "build" ? "API ngoài · trả nội dung tệp" : "API ngoài · gửi ngữ cảnh" : connector ? "Agent cục bộ" : "Chưa có provider sẵn sàng";
   return `<section class="agent-role-card" data-role-card="${roleId}"><header><strong>${role.label}</strong><small>${selection.candidates.length ? esc(providerHint) : "Chưa có provider sẵn sàng"}</small></header><label>Agent<select name="${roleId}Provider" data-role-provider="${roleId}" ${providerOptions ? "required" : "disabled"}>${providerOptions || `<option value="">Chưa có agent khả dụng</option>`}</select></label><label>Model<select name="${roleId}Model" data-role-model="${roleId}" ${modelOptions ? "required" : "disabled"}>${modelOptions || `<option value="">Chưa có model</option>`}</select></label><label>Mức suy nghĩ<select name="${roleId}Effort" data-role-effort="${roleId}" ${effortOptions ? "required" : "disabled"}>${effortOptions || `<option value="">Không áp dụng</option>`}</select></label></section>`;
 }
+function taskPresetRefValue(id, version) { return id && version ? `${id}@${version}` : ""; }
+function parseTaskPresetRef(value) {
+  const raw = String(value || "");
+  const split = raw.lastIndexOf("@");
+  if (split < 1) return null;
+  const version = Number(raw.slice(split + 1));
+  return Number.isSafeInteger(version) && version > 0 ? { id: raw.slice(0, split), version } : null;
+}
+function taskPresetVersionOptions(selected = "") {
+  const presets = view.state?.settings?.taskPresets || [];
+  const versions = presets.flatMap((preset) => (preset.versions || []).map((entry) => ({
+    value: taskPresetRefValue(preset.id, entry.version),
+    label: `${preset.name} · v${entry.version}`,
+  }))).sort((a, b) => a.label.localeCompare(b.label, view.language === "en" ? "en" : "vi"));
+  return `<option value="">Không dùng mẫu</option>${versions.map((entry) => `<option value="${esc(entry.value)}" ${entry.value === selected ? "selected" : ""}>${esc(entry.label)}</option>`).join("")}`;
+}
+function taskPresetToolsMarkup() {
+  return `<section class="task-preset-tools" aria-label="Mẫu tác vụ"><header><strong>Mẫu tác vụ</strong><small>Lưu cấu hình luồng, quyền và agent/model theo từng phiên bản.</small></header><div class="task-preset-controls"><label>Mẫu đã lưu<select name="taskPresetVersion" data-task-preset-version>${taskPresetVersionOptions()}</select></label><label>Tên mẫu<input name="taskPresetName" maxlength="80" autocomplete="off" placeholder="Ví dụ: Review pull request"></label><div class="task-preset-actions"><button type="button" class="button quiet small" data-action="apply-task-preset" disabled>Áp dụng</button><button type="button" class="button quiet small" data-action="save-task-preset">Lưu phiên bản</button><button type="button" class="button quiet small" data-action="delete-task-preset" disabled>Xóa mẫu</button></div></div><small class="task-preset-note">Không lưu yêu cầu, workspace hoặc trạng thái Git. Chọn mẫu rồi bấm Áp dụng để nạp cấu hình.</small><input type="hidden" name="appliedPresetId"><input type="hidden" name="appliedPresetVersion"></section>`;
+}
+function taskPresetVersion(ref) {
+  if (!ref) return null;
+  const preset = (view.state?.settings?.taskPresets || []).find((item) => item.id === ref.id);
+  const version = preset?.versions?.find((item) => Number(item.version) === Number(ref.version));
+  return preset && version ? { preset, version } : null;
+}
+function syncTaskPresetControls(form) {
+  const select = form?.querySelector("[data-task-preset-version]");
+  const ref = parseTaskPresetRef(select?.value);
+  const resolved = taskPresetVersion(ref);
+  const name = form?.querySelector("[name=taskPresetName]");
+  const apply = form?.querySelector('[data-action="apply-task-preset"]');
+  const remove = form?.querySelector('[data-action="delete-task-preset"]');
+  if (resolved && name) name.value = resolved.preset.name;
+  if (apply) apply.disabled = !resolved;
+  if (remove) remove.disabled = !resolved;
+}
+function readTaskPresetProfile(form) {
+  const workflow = form.querySelector('[name="workflow"]')?.value || "codex-antigravity";
+  const roles = Object.fromEntries(workflowRoles.map((role) => [role.id, {
+    provider: form.querySelector(`[name="${role.id}Provider"]`)?.value || "",
+    model: form.querySelector(`[name="${role.id}Model"]`)?.value || "",
+    effort: form.querySelector(`[name="${role.id}Effort"]`)?.value || "",
+  }]));
+  return {
+    workflow,
+    permissionPreset: form.querySelector('[name="permissionPreset"]')?.value || "workspace-write",
+    roles,
+    chatProvider: form.querySelector('[name="chatProvider"]')?.value || "",
+    chatModel: form.querySelector('[name="chatModel"]')?.value || "",
+    chatEffort: form.querySelector('[name="chatEffort"]')?.value || "",
+  };
+}
+function applyTaskPreset(form) {
+  const ref = parseTaskPresetRef(form?.querySelector("[data-task-preset-version]")?.value);
+  const resolved = taskPresetVersion(ref);
+  if (!resolved) throw new Error("Mẫu tác vụ không còn khả dụng. Hãy tải lại danh sách mẫu.");
+  const { profile } = resolved.version;
+  form.querySelector('[name="workflow"]').value = profile.workflow;
+  form.querySelector('[name="permissionPreset"]').value = profile.permissionPreset;
+  syncWorkflow();
+  for (const role of workflowRoles) {
+    const selection = profile.roles?.[role.id];
+    if (!selection) continue;
+    const provider = form.querySelector(`[name="${role.id}Provider"]`);
+    const model = form.querySelector(`[name="${role.id}Model"]`);
+    const effort = form.querySelector(`[name="${role.id}Effort"]`);
+    if (!provider || !model || !effort) continue;
+    provider.value = selection.provider;
+    syncRoleProvider(form, role.id);
+    model.value = selection.model;
+    syncEffortForModel(form, `[name="${role.id}Model"]`, `[name="${role.id}Effort"]`, `[name="${role.id}Provider"]`);
+    effort.value = selection.effort;
+  }
+  if (profile.workflow === "chat-only") {
+    const provider = form.querySelector('[name="chatProvider"]');
+    if (provider) {
+      provider.value = profile.chatProvider;
+      syncChatAgentFields(form);
+      form.querySelector('[name="chatModel"]').value = profile.chatModel;
+      syncEffortForModel(form, '[name="chatModel"]', '[name="chatEffort"]', '[name="chatProvider"]');
+      form.querySelector('[name="chatEffort"]').value = profile.chatEffort;
+    }
+  }
+  form.querySelector('[name="appliedPresetId"]').value = ref.id;
+  form.querySelector('[name="appliedPresetVersion"]').value = String(ref.version);
+  syncIsolation();
+}
+async function saveTaskPreset(form) {
+  const name = String(form?.querySelector('[name="taskPresetName"]')?.value || "").trim();
+  if (!name) throw new Error("Nhập tên mẫu trước khi lưu.");
+  const selectedRef = parseTaskPresetRef(form.querySelector("[data-task-preset-version]")?.value);
+  const selected = taskPresetVersion(selectedRef);
+  const id = selected && selected.preset.name.toLocaleLowerCase() === name.toLocaleLowerCase() ? selected.preset.id : "";
+  const saved = await api("/api/task-presets", {
+    method: "POST",
+    body: JSON.stringify({ id, name, profile: readTaskPresetProfile(form) }),
+  });
+  await refresh();
+  const newRef = taskPresetRefValue(saved.preset.id, saved.preset.currentVersion);
+  const select = form.querySelector("[data-task-preset-version]");
+  select.innerHTML = taskPresetVersionOptions(newRef);
+  select.value = newRef;
+  form.querySelector('[name="taskPresetName"]').value = saved.preset.name;
+  form.querySelector('[name="appliedPresetId"]').value = saved.preset.id;
+  form.querySelector('[name="appliedPresetVersion"]').value = String(saved.preset.currentVersion);
+  syncTaskPresetControls(form);
+  showToast(view.language === "en" ? "Saved " + saved.preset.name + " · v" + saved.preset.currentVersion + "." : "Đã lưu mẫu " + saved.preset.name + " · v" + saved.preset.currentVersion + ".");
+}
+async function deleteTaskPreset(form) {
+  const ref = parseTaskPresetRef(form?.querySelector("[data-task-preset-version]")?.value);
+  const selected = taskPresetVersion(ref);
+  if (!selected) throw new Error("Chọn mẫu cần xóa trước.");
+  if (!confirm("Xóa toàn bộ phiên bản của mẫu “" + selected.preset.name + "”? Các task đã tạo vẫn giữ bản ghi cấu hình.")) return;
+  await api("/api/task-presets/" + encodeURIComponent(selected.preset.id), { method: "DELETE" });
+  await refresh();
+  const select = form.querySelector("[data-task-preset-version]");
+  select.innerHTML = taskPresetVersionOptions();
+  select.value = "";
+  form.querySelector('[name="taskPresetName"]').value = "";
+  form.querySelector('[name="appliedPresetId"]').value = "";
+  form.querySelector('[name="appliedPresetVersion"]').value = "";
+  syncTaskPresetControls(form);
+  showToast(view.language === "en" ? "Task template deleted." : "Đã xóa mẫu tác vụ.");
+}
 function chatAgentEditor(overrides = {}) {
   const { candidates, provider, connector, models, model, effort } = normalizedChatSelection(overrides);
   return `<section class="agent-role-card chat-agent-card"><header><strong>Agent hội thoại</strong><small>${connector?.kind === "api" ? "API bên ngoài · không có quyền workspace" : connector ? "Agent cục bộ" : "Chưa có provider sẵn sàng"}</small></header><label>Agent<select name="chatProvider" data-chat-agent-provider ${candidates.length ? "required" : "disabled"}>${candidates.map(([id, item]) => `<option value="${esc(id)}" ${id === provider ? "selected" : ""}>${esc(item.name || id)}${item.kind === "api" ? " · API" : " · CLI"}</option>`).join("") || `<option value="">Chưa có agent khả dụng</option>`}</select></label><label>Model<select name="chatModel" data-chat-agent-model ${model ? "required" : "disabled"}>${models.map((item) => `<option value="${esc(item.id)}" ${item.id === model?.id ? "selected" : ""}>${esc(item.name)}</option>`).join("") || `<option value="">Chưa có model</option>`}</select></label><label>Mức suy nghĩ<select name="chatEffort" data-chat-agent-effort ${model ? "required" : "disabled"}>${(model?.efforts || []).map((item) => `<option value="${esc(item)}" ${item === effort ? "selected" : ""}>${esc(item)}</option>`).join("") || `<option value="">Không áp dụng</option>`}</select></label></section>`;
@@ -652,13 +776,35 @@ function taskDetails() {
     [`Triển khai · ${providerTitle(view.connectors, roleConfig(task.config, "build").provider)}`, task.implementation],
     [`Review · ${providerTitle(view.connectors, roleConfig(task.config, "review").provider)}`, task.review],
   ].filter(([, output]) => output);
+  const replayStages = task.config.workflow === "plan-only" ? [["plan", "Kế hoạch"]] : [["plan", "Kế hoạch"], ["build", "Triển khai"], ["review", "Review"]];
+  const defaultReplayStage = task.status === "done"
+    ? replayStages.at(-1)[0]
+    : replayStages.some(([id]) => id === task.failedPhase) ? task.failedPhase
+      : task.plan ? task.implementation ? "review" : "build" : "plan";
+  const canRerun = !busy && !task.processRunning;
+  const presetBadge = task.presetRef?.name ? `<span class="pill">${esc(translateText("Nguồn mẫu", view.language))}: ${esc(task.presetRef.name)} · v${Number(task.presetRef.version) || 1}</span>` : "";
+  const replayControls = canRerun && task.config.workflow !== "chat-only"
+    ? `<div class="stage-rerun-controls"><label>Chạy lại từ<select data-rerun-stage>${replayStages.map(([id, label]) => `<option value="${id}" ${id === defaultReplayStage ? "selected" : ""}>${label}</option>`).join("")}</select></label><button class="button primary" data-action="rerun-stage" data-id="${task.id}">Chạy lại</button></div>`
+    : canRerun && task.config.workflow === "chat-only" && ["failed", "cancelled"].includes(task.status)
+      ? `<button class="button primary" data-action="rerun-task" data-id="${task.id}">Chạy lại chat</button>`
+      : "";
+  const stageRunHistory = (task.stageRunHistory || []).length ? `<section class="orchestration-stage-history"><strong>Lịch sử chạy lại</strong>${[...(task.stageRunHistory || [])].reverse().map((attempt) => {
+    const stageLabel = { plan: "Kế hoạch", build: "Triển khai", review: "Review", chat: "Chat" }[attempt.stage] || attempt.stage;
+    const statusLabel = { queued: "Trong hàng đợi", running: "Đang chạy", done: "Hoàn tất", failed: "Lỗi", cancelled: "Đã dừng" }[attempt.status] || "Đã ghi nhận";
+    const outputRows = Object.entries(attempt.previousOutputs || {}).map(([stage, snapshot]) => {
+      const label = { plan: "Kế hoạch trước đó", build: "Triển khai trước đó", review: "Review trước đó" }[stage] || stage;
+      return `<details><summary>${label}</summary><pre>${esc(snapshot.text || "")}${snapshot.truncated ? "\n\n… phần cuối đã được rút gọn trong lịch sử." : ""}</pre></details>`;
+    }).join("");
+    const previousArtifacts = attempt.previousArtifacts?.length ? `<div class="stage-history-files"><small>${esc(translateText("Tệp từ lần chạy trước", view.language))}</small>${attempt.previousArtifacts.slice(0, 30).map((file) => `<code>${esc(file)}</code>`).join("")}</div>` : "";
+    return `<details class="stage-history-entry"><summary>${esc(stageLabel)} · ${esc(statusLabel)} · ${fmtDate(attempt.requestedAt)}</summary>${attempt.error ? `<p class="stage-history-error">${esc(attempt.error)}</p>` : ""}${outputRows || "<p>Không có đầu ra cũ cho giai đoạn này.</p>"}${previousArtifacts}</details>`;
+  }).join("")}</section>` : "";
   return `<section class="task-orchestration-page" aria-label="Điều phối task">
     <header class="conversation-top"><div class="conversation-context"><span class="conversation-repo">${icon("folder-code", 15)} ${esc(workspace?.name || task.workspacePath)}</span><span class="conversation-separator">/</span><span class="conversation-task-id">${esc(task.id)}</span></div><div class="detail-head-actions"><button class="button quiet small" data-action="back-chat" data-id="${task.id}">${icon("arrow-left", 14)} Cuộc trò chuyện</button><button class="button quiet small" data-action="open-folder" data-id="${task.id}">${icon("folder-code", 14)} Mở workspace</button><button class="button quiet small" data-action="task-instruction" data-id="${task.id}">${icon("arrow-up-right", 14)} Gửi chỉ dẫn</button><button class="button quiet small" data-action="new-task">${icon("plus", 14)} Task mới</button></div></header>
-    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span><span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${formatNumber(usage)} tokens</span>` : ""}<span>${formatNumber(events.length)} sự kiện · ${formatNumber(nodes.length)} node</span></div></div></div>
+    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span>${presetBadge}<span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${formatNumber(usage)} tokens</span>` : ""}<span>${formatNumber(events.length)} sự kiện · ${formatNumber(nodes.length)} node</span></div></div></div>
     ${task.skills?.length ? `<div class="skill-used">${icon("notebook-tabs", 14)} Skill đã chọn: ${task.skills.map((skill) => esc(skill.name)).join(" · ")}</div>` : ""}
     <div class="orchestration-layout"><section class="orchestration-canvas"><header class="orchestration-canvas-head"><div><small>LUỒNG THỰC THI · ${esc(task.config.workflow === "chat-only" ? "CHAT" : task.config.workflow === "plan-only" ? "PLAN ONLY" : "CODE PIPELINE")}</small><h3>${busy ? "Điều phối đang hoạt động" : "Bản ghi điều phối"}</h3></div><span class="activity-live ${busy ? "is-live" : ""}"><i></i>${busy ? "Đang chạy" : "Đã lưu"}</span></header><div class="orchestration-flow">${nodes.map((node, index) => orchestrationNodeHtml(node, index, nodes.length)).join("")}</div></section>
-      <aside class="orchestration-activity"><header class="orchestration-activity-head"><div><small>EVENT LOG</small><h3>Điều phối & hoạt động</h3></div><span>${events.length} sự kiện</span></header><div class="orchestration-activity-note">${icon("workflow", 14)} Chỉ hiện hoạt động, handoff, đầu ra và công cụ được CLI ghi nhận. Suy luận nội bộ của model không được cung cấp.</div><div class="orchestration-event-list" id="agent-activity-feed">${sortedEvents.length ? sortedEvents.map((item) => { const text = String(item.text || ""); const longOutput = item.kind === "output" && text.length > 320; return `<article class="orchestration-event kind-${esc(item.kind)}"><span class="orchestration-event-mark">${icon(({ stage: "square-terminal", handoff: "workflow", tool: "settings-2", output: "file", chat: "book-open-text", memory: "brain", error: "circle-question-mark", success: "check", warning: "circle-question-mark" })[item.kind] || "workflow", 14)}</span><div><header><strong>${esc(eventLabels[item.kind] || "EVENT")}</strong><time>${fmtDate(item.at)}</time></header>${longOutput ? `<p>${esc(text.slice(0, 280))}…</p><details class="orchestration-event-details"><summary>Xem đầu ra đầy đủ</summary><pre>${esc(text)}</pre></details>` : `<p>${esc(text)}</p>`}</div></article>`; }).join("") : `<p class="orchestration-activity-empty">Các sự kiện sẽ xuất hiện khi task được chạy.</p>`}</div>${stages.length ? `<section class="orchestration-stage-results"><strong>Đầu ra agent</strong>${stages.map(([label, output]) => `<details><summary>${esc(label)}</summary><pre>${esc(output)}</pre></details>`).join("")}</section>` : ""}${(task.artifacts || []).length ? `<section class="orchestration-artifacts"><strong>${icon("file", 14)} Tệp thay đổi · ${task.artifacts.length}</strong>${task.artifacts.slice(0, 20).map((file) => `<div>${icon("file", 13)}<code>${esc(file)}</code></div>`).join("")}</section>` : ""}</aside></div>
-    <footer class="detail-actions">${task.status === "running" || task.status === "queued" ? `<button class="button danger" data-action="stop-task" data-id="${task.id}">${icon("square", 13)} Dừng task</button>` : ["failed", "cancelled"].includes(task.status) ? `<button class="button primary" data-action="rerun-task" data-id="${task.id}">Chạy lại</button>` : ""}${task.status !== "queued" ? `<button class="button quiet" data-action="show-diff" data-id="${task.id}">Xem diff</button>` : ""}</footer>
+      <aside class="orchestration-activity"><header class="orchestration-activity-head"><div><small>EVENT LOG</small><h3>Điều phối & hoạt động</h3></div><span>${events.length} sự kiện</span></header><div class="orchestration-activity-note">${icon("workflow", 14)} Chỉ hiện hoạt động, handoff, đầu ra và công cụ được CLI ghi nhận. Suy luận nội bộ của model không được cung cấp.</div><div class="orchestration-event-list" id="agent-activity-feed">${sortedEvents.length ? sortedEvents.map((item) => { const text = String(item.text || ""); const longOutput = item.kind === "output" && text.length > 320; return `<article class="orchestration-event kind-${esc(item.kind)}"><span class="orchestration-event-mark">${icon(({ stage: "square-terminal", handoff: "workflow", tool: "settings-2", output: "file", chat: "book-open-text", memory: "brain", error: "circle-question-mark", success: "check", warning: "circle-question-mark" })[item.kind] || "workflow", 14)}</span><div><header><strong>${esc(eventLabels[item.kind] || "EVENT")}</strong><time>${fmtDate(item.at)}</time></header>${longOutput ? `<p>${esc(text.slice(0, 280))}…</p><details class="orchestration-event-details"><summary>Xem đầu ra đầy đủ</summary><pre>${esc(text)}</pre></details>` : `<p>${esc(text)}</p>`}</div></article>`; }).join("") : `<p class="orchestration-activity-empty">Các sự kiện sẽ xuất hiện khi task được chạy.</p>`}</div>${stages.length ? `<section class="orchestration-stage-results"><strong>Đầu ra agent</strong>${stages.map(([label, output]) => `<details><summary>${esc(label)}</summary><pre>${esc(output)}</pre></details>`).join("")}</section>` : ""}${(task.artifacts || []).length ? `<section class="orchestration-artifacts"><strong>${icon("file", 14)} Tệp thay đổi · ${task.artifacts.length}</strong>${task.artifacts.slice(0, 20).map((file) => `<div>${icon("file", 13)}<code>${esc(file)}</code></div>`).join("")}</section>` : ""}${stageRunHistory}</aside></div>
+    <footer class="detail-actions">${task.status === "running" || task.status === "queued" ? `<button class="button danger" data-action="stop-task" data-id="${task.id}">${icon("square", 13)} Dừng task</button>` : replayControls}${task.status !== "queued" ? `<button class="button quiet" data-action="show-diff" data-id="${task.id}">Xem diff</button>` : ""}</footer>
   </section>`;
 }
 function showModal(title, body, submitLabel, formType = "") {
@@ -675,9 +821,9 @@ async function openTaskModal() {
   const options = workspaces.map((w) => `<option value="${w.id}">${esc(w.name)} · ${esc(w.path)}</option>`).join("");
   const hasBuild = providersForRole(view.connectors, "build").length > 0;
   const canPlanOnly = providersForRole(view.connectors, "plan").length > 0;
-  const body = `<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="5" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea><small>Nếu chọn provider API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới endpoint đã cấu hình.</small></label><label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label><label>Quyền<select name="permissionPreset"><option value="workspace-write" selected>Được sửa workspace</option><option value="read-only">Chỉ đọc workspace</option></select><small>Chỉ đọc không chạy stage triển khai; Antigravity CLI bị chặn vì chưa có chế độ chỉ đọc riêng cho lần chạy nền.</small></label><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 17)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò. Skill có thể được gửi tới API provider nếu bạn chọn agent API.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
+  const body = `${taskPresetToolsMarkup()}<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="5" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea><small>Nếu chọn provider API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới endpoint đã cấu hình.</small></label><label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label><label>Quyền<select name="permissionPreset"><option value="workspace-write" selected>Được sửa workspace</option><option value="read-only">Chỉ đọc workspace</option></select><small>Chỉ đọc không chạy stage triển khai; Antigravity CLI bị chặn vì chưa có chế độ chỉ đọc riêng cho lần chạy nền.</small></label><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 17)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò. Skill có thể được gửi tới API provider nếu bạn chọn agent API.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
   showModal("Task mới", body, "Tạo và chạy");
-  syncWorkflow(); syncIsolation();
+  syncWorkflow(); syncIsolation(); syncTaskPresetControls($(".modal"));
 }
 function syncWorkflow() {
   const select = $(".modal select[name=workflow], .home-composer select[name=workflow]");
@@ -798,7 +944,9 @@ async function handleSubmit(event) {
       view.taskMenuId = "";
       showToast("Đã đổi tên chat.");
     } else if (form.dataset.form === "task") {
-      const task = await api("/api/tasks", { method: "POST", body: JSON.stringify({ ...object, isolated: data.has("isolated") }) });
+      const { taskPresetVersion, taskPresetName, appliedPresetId, appliedPresetVersion, ...taskInput } = object;
+      const presetRef = appliedPresetId && appliedPresetVersion ? { id: appliedPresetId, version: Number(appliedPresetVersion) } : null;
+      const task = await api("/api/tasks", { method: "POST", body: JSON.stringify({ ...taskInput, ...(presetRef ? { presetRef } : {}), isolated: data.has("isolated") }) });
       view.selected = task.task.id; view.page = "chat"; view.chatProvider = task.task.config.chatProvider || task.task.config.roles?.plan?.provider || "codex"; view.chatModel = task.task.config.workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = task.task.config.workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; showToast("Task thật đã vào hàng đợi.");
     } else if (form.dataset.form === "home-task") {
       const workflow = object.workflow || "chat-only";
@@ -902,6 +1050,13 @@ document.addEventListener("click", async (event) => {
   if (!button.closest(".wb-project-group") && view.projectMenuId) { view.projectMenuId = ""; render(); }
   if (!button.closest(".wb-task-item") && view.taskMenuId) view.taskMenuId = "";
   try {
+    if (action === "apply-task-preset") {
+      applyTaskPreset(button.closest("form[data-form=task]"));
+      showToast(view.language === "en" ? "Task template applied. Review its settings before creating the task." : "Đã áp dụng mẫu. Hãy kiểm tra cấu hình trước khi tạo task.");
+      return;
+    }
+    if (action === "save-task-preset") { await saveTaskPreset(button.closest("form[data-form=task]")); return; }
+    if (action === "delete-task-preset") { await deleteTaskPreset(button.closest("form[data-form=task]")); return; }
     if (action === "toggle-language") {
       view.language = setLanguage(view.language === "en" ? "vi" : "en");
       render();
@@ -1052,6 +1207,12 @@ document.addEventListener("click", async (event) => {
     }
     if (action === "stop-task") { await api(`/api/tasks/${encodeURIComponent(id)}/stop`, { method: "POST" }); showToast("Đã gửi lệnh dừng."); await refresh(); }
     if (action === "rerun-task") { await api(`/api/tasks/${encodeURIComponent(id)}/run`, { method: "POST" }); showToast("Task được đưa lại vào hàng đợi."); await refresh(); }
+    if (action === "rerun-stage") {
+      const stage = button.closest(".stage-rerun-controls")?.querySelector("[data-rerun-stage]")?.value || "";
+      await api(`/api/tasks/${encodeURIComponent(id)}/run`, { method: "POST", body: JSON.stringify({ stage }) });
+      showToast(view.language === "en" ? "Task queued from the selected stage." : "Task đã vào hàng đợi từ giai đoạn đã chọn.");
+      await refresh();
+    }
     if (action === "show-diff") { const data = await api(`/api/tasks/${encodeURIComponent(id)}/diff`); showDiffModal(data); }
     if (action === "open-folder") { await api(`/api/tasks/${encodeURIComponent(id)}/open`, { method: "POST" }); showToast("Đã mở thư mục dự án trong Explorer."); }
     if (action === "open-project-folder") { await api(`/api/workspaces/${encodeURIComponent(id)}/open`, { method: "POST" }); showToast("Đã mở thư mục dự án trong Explorer."); }
@@ -1171,6 +1332,7 @@ document.addEventListener("input", (event) => {
   applySkillFilter(input);
 });
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-task-preset-version]")) syncTaskPresetControls(event.target.closest("form"));
   if (event.target.matches("select[name=workflow], select[name=workspaceId]")) { syncWorkflow(); syncIsolation(); }
   if (event.target.matches(".home-composer select[name=workflow]")) {
     view.homeWorkflow = event.target.value;
