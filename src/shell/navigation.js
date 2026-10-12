@@ -7,7 +7,6 @@ export const navigation = [
   { id: "skills", label: "Kỹ năng", icon: "notebook-tabs", group: "library", count: "skills" },
   { id: "memory", label: "Bộ nhớ", icon: "brain", group: "library", count: "memory" },
   { id: "settings", label: "Cài đặt", icon: "settings-2", group: "system" },
-  { id: "design-system", label: "Giao diện", icon: "paintbrush", group: "system" },
 ];
 
 export const pageTitles = Object.fromEntries(navigation.map((item) => [item.id, item.label]));

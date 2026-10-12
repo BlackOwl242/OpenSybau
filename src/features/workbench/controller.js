@@ -5,7 +5,6 @@ import { cliConnectionStatus, cliProviderGuides } from "../../domain/provider-gu
 import { localizeDom, setLanguage, translateText } from "../../shared/i18n.js";
 import { updateWorkbenchShell } from "../../shell/mount.jsx";
 import { readBrowserRoute, syncBrowserRoute } from "../../shell/router.js";
-import { applyThemeColor, readThemeColors, resetThemeColor, resetThemeColors, themeColorControls } from "../../shared/theme.js";
 
 Object.assign(view, readBrowserRoute());
 document.documentElement.lang = view.language;
@@ -535,30 +534,6 @@ function settingsPage() {
   </form>`;
 }
 
-function designSystemPage() {
-  const colors = readThemeColors();
-  const groups = [...new Set(themeColorControls.map((control) => control.group))];
-  const controls = groups.map((group) => `<section class="settings-card appearance-color-group"><header><div><h2>${esc(group)}</h2></div></header><div class="appearance-color-list">${themeColorControls.filter((control) => control.group === group).map((control) => `<div class="appearance-color-row" data-theme-row="${control.id}"><label for="theme-color-${control.id}"><strong>${esc(control.label)}</strong><small>${esc(control.description)}</small></label><div class="appearance-color-fields"><input id="theme-color-${control.id}" class="appearance-color-picker" type="color" value="${colors[control.id]}" data-theme-color="${control.id}" aria-label="Chọn màu: ${esc(control.label)}"><input class="appearance-color-hex" type="text" value="${colors[control.id]}" maxlength="7" pattern="#[0-9a-fA-F]{6}" spellcheck="false" autocomplete="off" data-theme-color="${control.id}" aria-label="Mã màu: ${esc(control.label)}"><button class="icon-button appearance-color-reset" type="button" data-action="reset-theme-color" data-theme-color="${control.id}" aria-label="Khôi phục màu mặc định: ${esc(control.label)}" title="Khôi phục mặc định">${icon("rotate-cw", 14)}</button></div></div>`).join("")}</div></section>`).join("");
-  return `<div class="page-head appearance-page-head"><div><div class="eyebrow">OPENSYBAU · GIAO DIỆN</div><h1>Giao diện</h1><p>Tùy chỉnh màu của từng thành phần. Thay đổi được áp dụng ngay và lưu trên máy này.</p></div><button class="button quiet" type="button" data-action="reset-theme-colors">Khôi phục mặc định</button></div>
-    <div class="appearance-settings"><section class="settings-card appearance-preview"><header><div><h2>Xem trước</h2><p>Thay đổi màu để xem giao diện cập nhật ngay.</p></div></header><div class="appearance-preview-surface"><div class="appearance-preview-heading"><span class="appearance-preview-mark">${icon("workflow", 16)}</span><span><strong>Workspace mẫu</strong><small>Thẻ và trạng thái giao diện</small></span><span class="pill status-done"><i></i>Sẵn sàng</span></div><div class="appearance-preview-body"><strong>Nội dung hiển thị</strong><p>Chữ chính, chữ phụ, viền và màu nền được dùng xuyên suốt ứng dụng.</p><input value="Ô nhập mẫu" readonly aria-label="Ví dụ ô nhập"><div><button class="button quiet small" type="button">Nút phụ</button><button class="button primary small" type="button">Nút chính</button></div></div></div></section><div class="appearance-color-grid">${controls}</div></div>`;
-}
-
-function syncThemeColorRow(id, color = readThemeColors()[id]) {
-  const row = document.querySelector(`[data-theme-row="${CSS.escape(id)}"]`);
-  if (!row) return;
-  row.querySelectorAll("[data-theme-color]").forEach((input) => { input.value = color; });
-}
-
-function updateThemeColorInput(input) {
-  const id = input.dataset.themeColor;
-  if (!themeColorControls.some((control) => control.id === id)) return false;
-  let color = input.value.trim();
-  if (!color.startsWith("#") && /^[\da-f]{6}$/i.test(color)) color = `#${color}`;
-  if (!/^#[\da-f]{6}$/i.test(color) || !applyThemeColor(id, color)) return true;
-  syncThemeColorRow(id, color.toLowerCase());
-  return true;
-}
-
 function showApiProviderModal(provider = null) {
   const editing = Boolean(provider);
   const models = (provider?.models || []).map((model) => model.id).join("\n");
@@ -596,7 +571,7 @@ function apiProviderId(name) {
 function render() {
   if (!view.state) return;
   syncLocation();
-  const pages = { chat: chatPage, tasks: taskPage, flows: workflowPage, workspaces: workspacePage, knowledge: knowledgePage, skills: skillPage, memory: memoryPage, settings: settingsPage, "design-system": designSystemPage };
+  const pages = { chat: chatPage, tasks: taskPage, flows: workflowPage, workspaces: workspacePage, knowledge: knowledgePage, skills: skillPage, memory: memoryPage, settings: settingsPage };
   const content = $("#content");
   const renderKey = `${view.page}:${view.selected || ""}`;
   const contentScroll = view.renderedPage === renderKey ? content.scrollTop : 0;
@@ -1080,17 +1055,6 @@ async function handleWorkbenchClick(event) {
   if (!button.closest(".wb-project-group") && view.projectMenuId) { view.projectMenuId = ""; render(); }
   if (!button.closest(".wb-task-item") && view.taskMenuId) view.taskMenuId = "";
   try {
-    if (action === "reset-theme-color") {
-      const colorId = button.dataset.themeColor;
-      if (resetThemeColor(colorId)) syncThemeColorRow(colorId);
-      return;
-    }
-    if (action === "reset-theme-colors") {
-      resetThemeColors();
-      themeColorControls.forEach(({ id: colorId }) => syncThemeColorRow(colorId));
-      showToast("Đã khôi phục màu giao diện mặc định.");
-      return;
-    }
     if (action === "apply-task-preset") {
       applyTaskPreset(button.closest("form[data-form=task]"));
       showToast(view.language === "en" ? "Task template applied. Review its settings before creating the task." : "Đã áp dụng mẫu. Hãy kiểm tra cấu hình trước khi tạo task.");
@@ -1383,8 +1347,6 @@ document.addEventListener("click", async (event) => {
 });
 document.addEventListener("submit", handleSubmit);
 document.addEventListener("input", (event) => {
-  const themeColorInput = event.target.closest("[data-theme-color]");
-  if (themeColorInput) { updateThemeColorInput(themeColorInput); return; }
   const chatInput = event.target.closest(".chat-input");
   if (chatInput) { view.chatDraft = chatInput.value; return; }
   const homePrompt = event.target.closest("[data-home-prompt]");
@@ -1409,11 +1371,6 @@ document.addEventListener("input", (event) => {
   applySkillFilter(input);
 });
 document.addEventListener("change", (event) => {
-  if (event.target.matches(".appearance-color-hex")) {
-    if (!/^#[\da-f]{6}$/i.test(event.target.value.trim())) syncThemeColorRow(event.target.dataset.themeColor);
-    else updateThemeColorInput(event.target);
-    return;
-  }
   if (event.target.matches("[data-task-preset-version]")) syncTaskPresetControls(event.target.closest("form"));
   if (event.target.matches("select[name=workflow], select[name=workspaceId]")) { syncWorkflow(); syncIsolation(); }
   if (event.target.matches(".home-composer select[name=workflow]")) {

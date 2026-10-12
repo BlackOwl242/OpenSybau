@@ -36,7 +36,6 @@ import Square01Icon from "@hugeicons/core-free-icons/Square01Icon";
 import SquarePenIcon from "@hugeicons/core-free-icons/SquarePenIcon";
 import Target01Icon from "@hugeicons/core-free-icons/Target01Icon";
 import WorkflowSquare01Icon from "@hugeicons/core-free-icons/WorkflowSquare01Icon";
-import PaintBrush01Icon from "@hugeicons/core-free-icons/PaintBrush01Icon";
 
 const iconData = {
   archive: Archive01Icon,
@@ -63,7 +62,6 @@ const iconData = {
   "list-checks": CheckListIcon,
   "message-circle": MessageCircleIcon,
   "notebook-tabs": NotebookTabsIcon,
-  paintbrush: PaintBrush01Icon,
   pin: PinIcon,
   "plug-zap": PlugZapIcon,
   plus: Add01Icon,

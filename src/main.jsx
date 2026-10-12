@@ -5,9 +5,8 @@ import "./styles/legacy-dark-theme.css";
 import "./styles/tokens.css";
 import "./styles/shell.css";
 import "./styles/preset-theme.css";
-import { applyThemeColors } from "./shared/theme.js";
 
-applyThemeColors();
+try { localStorage.removeItem("opensybau.theme-colors.v1"); } catch {}
 mountWorkbench();
 import("./features/workbench/controller.js").catch((error) => {
   const root = document.querySelector("#root");
