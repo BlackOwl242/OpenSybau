@@ -5,6 +5,7 @@ import { cliConnectionStatus, cliProviderGuides } from "../../domain/provider-gu
 import { localizeDom, setLanguage, translateText } from "../../shared/i18n.js";
 import { updateWorkbenchShell } from "../../shell/mount.jsx";
 import { readBrowserRoute, syncBrowserRoute } from "../../shell/router.js";
+import { applyThemeColor, readThemeColors, resetThemeColor, resetThemeColors, themeColorControls } from "../../shared/theme.js";
 
 Object.assign(view, readBrowserRoute());
 document.documentElement.lang = view.language;
@@ -535,22 +536,27 @@ function settingsPage() {
 }
 
 function designSystemPage() {
-  return `<div class="page-head"><div><div class="eyebrow">OPENSYBAU · GIAO DIỆN</div><h1>Giao diện</h1><p>Quy chuẩn dùng chung cho màu sắc, chữ, icon, trạng thái và component của OpenSybau.</p></div></div>
-    <div class="design-system-page">
-      <section class="settings-card design-system-section"><header><div><h2>Token màu</h2><p>Palette xám và xanh đang được dùng trong OpenSybau.</p></div></header><div class="design-token-grid">
-        <div><i class="token-swatch token-background"></i><span><strong>Nền</strong><small>background</small></span></div><div><i class="token-swatch token-card"></i><span><strong>Bề mặt</strong><small>card / sidebar</small></span></div><div><i class="token-swatch token-muted"></i><span><strong>Phụ</strong><small>muted</small></span></div><div><i class="token-swatch token-primary"></i><span><strong>Nhấn</strong><small>primary / xanh</small></span></div><div><i class="token-swatch token-border"></i><span><strong>Viền</strong><small>border / input</small></span></div>
-      </div></section>
-      <section class="settings-card design-system-section"><header><div><h2>Component dùng chung</h2><p>Nút, trạng thái, trường nhập, thẻ, dòng danh sách và trạng thái trống cùng lấy từ một hệ token.</p></div></header><div class="design-component-grid">
-        <article class="design-preview-card"><h3>Nút</h3><div class="design-preview-actions"><button class="button primary" type="button">Lưu thay đổi</button><button class="button quiet" type="button">Hủy</button><button class="button danger" type="button">Xóa</button></div></article>
-        <article class="design-preview-card"><h3>Trạng thái</h3><div class="design-preview-actions"><span class="pill status-running"><i></i>Đang chạy</span><span class="pill status-done"><i></i>Hoàn tất</span><span class="pill status-queued"><i></i>Đang chờ</span></div></article>
-        <article class="design-preview-card"><h3>Trường nhập và chọn</h3><div class="design-preview-fields"><label>Tìm kiếm<input placeholder="Tìm trong workspace…" /></label><label>Model<select><option>GPT-6-Luna</option><option>GPT-6-Sol</option></select></label></div></article>
-        <article class="design-preview-card"><h3>Thẻ</h3><div class="design-sample-card"><span class="design-sample-icon">${icon("workflow", 17)}</span><span><strong>Pipeline review</strong><small>Kế hoạch → triển khai → review</small></span><span class="pill status-done"><i></i>Sẵn sàng</span></div></article>
-        <article class="design-preview-card"><h3>Dòng danh sách</h3><div class="design-sample-list"><button type="button"><span class="design-sample-icon">${icon("square-terminal", 16)}</span><span><strong>Chat workspace</strong><small>Cập nhật lúc vừa xong</small></span>${icon("chevron-right", 15)}</button><button type="button"><span class="design-sample-icon">${icon("folder-code", 16)}</span><span><strong>Dự án cục bộ</strong><small>Được đăng ký trong OpenSybau</small></span>${icon("chevron-right", 15)}</button></div></article>
-        <article class="design-preview-card"><h3>Trạng thái trống</h3><div class="design-empty-state"><span class="design-sample-icon">${icon("notebook-tabs", 18)}</span><strong>Chưa có nội dung</strong><p>Thêm dữ liệu để bắt đầu. Mọi thông tin vẫn được lưu cục bộ.</p><button class="button primary small" type="button">${icon("plus", 14)} Tạo mới</button></div></article>
-      </div></section>
-      <section class="settings-card design-system-section"><header><div><h2>Menu và hộp thoại</h2><p>Menu nền đặc, mục chọn màu trung tính; hộp thoại dùng chung header, vùng cuộn nội dung và footer.</p></div></header><div class="design-overlay-samples"><div class="design-menu-sample"><strong>Thao tác</strong><button type="button">${icon("copy", 14)} Sao chép</button><button type="button" class="is-selected">${icon("check", 14)} Đang chọn</button><button type="button">${icon("settings-2", 14)} Cài đặt</button></div><div class="design-modal-sample"><header><div><small>OPENSYBAU · LOCAL</small><h3>Hộp thoại mẫu</h3></div><button class="icon-button" type="button" aria-label="Đóng">${icon("x", 15)}</button></header><div><label>Tên hiển thị<input value="OpenSybau · giao diện tối" readonly /></label><p>Tiêu đề và nút đóng đứng yên; vùng nội dung riêng có thể cuộn.</p></div><footer><button class="button quiet small" type="button">Hủy</button><button class="button primary small" type="button">Xong</button></footer></div></div></section>
-      <section class="settings-card design-system-section design-system-type"><header><div><h2>Chữ và icon</h2><p>Nunito Sans Variable · Hugeicons Stroke Rounded.</p></div></header><div><h1>Tiêu đề trang</h1><h2>Tiêu đề mục</h2><p>Văn bản giao diện và nội dung sử dụng cùng bộ font, màu chữ và khoảng cách.</p><span>${icon("search", 17)} ${icon("workflow", 17)} ${icon("settings-2", 17)} ${icon("brain", 17)} ${icon("square-terminal", 17)}</span></div></section>
-    </div>`;
+  const colors = readThemeColors();
+  const groups = [...new Set(themeColorControls.map((control) => control.group))];
+  const controls = groups.map((group) => `<section class="settings-card appearance-color-group"><header><div><h2>${esc(group)}</h2></div></header><div class="appearance-color-list">${themeColorControls.filter((control) => control.group === group).map((control) => `<div class="appearance-color-row" data-theme-row="${control.id}"><label for="theme-color-${control.id}"><strong>${esc(control.label)}</strong><small>${esc(control.description)}</small></label><div class="appearance-color-fields"><input id="theme-color-${control.id}" class="appearance-color-picker" type="color" value="${colors[control.id]}" data-theme-color="${control.id}" aria-label="Chọn màu: ${esc(control.label)}"><input class="appearance-color-hex" type="text" value="${colors[control.id]}" maxlength="7" pattern="#[0-9a-fA-F]{6}" spellcheck="false" autocomplete="off" data-theme-color="${control.id}" aria-label="Mã màu: ${esc(control.label)}"><button class="icon-button appearance-color-reset" type="button" data-action="reset-theme-color" data-theme-color="${control.id}" aria-label="Khôi phục màu mặc định: ${esc(control.label)}" title="Khôi phục mặc định">${icon("rotate-cw", 14)}</button></div></div>`).join("")}</div></section>`).join("");
+  return `<div class="page-head appearance-page-head"><div><div class="eyebrow">OPENSYBAU · GIAO DIỆN</div><h1>Giao diện</h1><p>Tùy chỉnh màu của từng thành phần. Thay đổi được áp dụng ngay và lưu trên máy này.</p></div><button class="button quiet" type="button" data-action="reset-theme-colors">Khôi phục mặc định</button></div>
+    <div class="appearance-settings"><section class="settings-card appearance-preview"><header><div><h2>Xem trước</h2><p>Thay đổi màu để xem giao diện cập nhật ngay.</p></div></header><div class="appearance-preview-surface"><div class="appearance-preview-heading"><span class="appearance-preview-mark">${icon("workflow", 16)}</span><span><strong>Workspace mẫu</strong><small>Thẻ và trạng thái giao diện</small></span><span class="pill status-done"><i></i>Sẵn sàng</span></div><div class="appearance-preview-body"><strong>Nội dung hiển thị</strong><p>Chữ chính, chữ phụ, viền và màu nền được dùng xuyên suốt ứng dụng.</p><input value="Ô nhập mẫu" readonly aria-label="Ví dụ ô nhập"><div><button class="button quiet small" type="button">Nút phụ</button><button class="button primary small" type="button">Nút chính</button></div></div></div></section><div class="appearance-color-grid">${controls}</div></div>`;
+}
+
+function syncThemeColorRow(id, color = readThemeColors()[id]) {
+  const row = document.querySelector(`[data-theme-row="${CSS.escape(id)}"]`);
+  if (!row) return;
+  row.querySelectorAll("[data-theme-color]").forEach((input) => { input.value = color; });
+}
+
+function updateThemeColorInput(input) {
+  const id = input.dataset.themeColor;
+  if (!themeColorControls.some((control) => control.id === id)) return false;
+  let color = input.value.trim();
+  if (!color.startsWith("#") && /^[\da-f]{6}$/i.test(color)) color = `#${color}`;
+  if (!/^#[\da-f]{6}$/i.test(color) || !applyThemeColor(id, color)) return true;
+  syncThemeColorRow(id, color.toLowerCase());
+  return true;
 }
 
 function showApiProviderModal(provider = null) {
@@ -1074,6 +1080,17 @@ async function handleWorkbenchClick(event) {
   if (!button.closest(".wb-project-group") && view.projectMenuId) { view.projectMenuId = ""; render(); }
   if (!button.closest(".wb-task-item") && view.taskMenuId) view.taskMenuId = "";
   try {
+    if (action === "reset-theme-color") {
+      const colorId = button.dataset.themeColor;
+      if (resetThemeColor(colorId)) syncThemeColorRow(colorId);
+      return;
+    }
+    if (action === "reset-theme-colors") {
+      resetThemeColors();
+      themeColorControls.forEach(({ id: colorId }) => syncThemeColorRow(colorId));
+      showToast("Đã khôi phục màu giao diện mặc định.");
+      return;
+    }
     if (action === "apply-task-preset") {
       applyTaskPreset(button.closest("form[data-form=task]"));
       showToast(view.language === "en" ? "Task template applied. Review its settings before creating the task." : "Đã áp dụng mẫu. Hãy kiểm tra cấu hình trước khi tạo task.");
@@ -1366,6 +1383,8 @@ document.addEventListener("click", async (event) => {
 });
 document.addEventListener("submit", handleSubmit);
 document.addEventListener("input", (event) => {
+  const themeColorInput = event.target.closest("[data-theme-color]");
+  if (themeColorInput) { updateThemeColorInput(themeColorInput); return; }
   const chatInput = event.target.closest(".chat-input");
   if (chatInput) { view.chatDraft = chatInput.value; return; }
   const homePrompt = event.target.closest("[data-home-prompt]");
@@ -1390,6 +1409,11 @@ document.addEventListener("input", (event) => {
   applySkillFilter(input);
 });
 document.addEventListener("change", (event) => {
+  if (event.target.matches(".appearance-color-hex")) {
+    if (!/^#[\da-f]{6}$/i.test(event.target.value.trim())) syncThemeColorRow(event.target.dataset.themeColor);
+    else updateThemeColorInput(event.target);
+    return;
+  }
   if (event.target.matches("[data-task-preset-version]")) syncTaskPresetControls(event.target.closest("form"));
   if (event.target.matches("select[name=workflow], select[name=workspaceId]")) { syncWorkflow(); syncIsolation(); }
   if (event.target.matches(".home-composer select[name=workflow]")) {

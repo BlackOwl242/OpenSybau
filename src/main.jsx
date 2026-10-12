@@ -5,7 +5,9 @@ import "./styles/legacy-dark-theme.css";
 import "./styles/tokens.css";
 import "./styles/shell.css";
 import "./styles/preset-theme.css";
+import { applyThemeColors } from "./shared/theme.js";
 
+applyThemeColors();
 mountWorkbench();
 import("./features/workbench/controller.js").catch((error) => {
   const root = document.querySelector("#root");
