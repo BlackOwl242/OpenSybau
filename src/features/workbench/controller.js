@@ -1007,7 +1007,7 @@ async function handleSubmit(event) {
   } catch (error) { if (form.dataset.form === "task-chat") view.forceChatScroll = false; showToast(error.message); submit.disabled = false; submit.textContent = "Thử lại"; }
   finally { view.busy = false; }
 }
-document.addEventListener("click", async (event) => {
+async function handleWorkbenchClick(event) {
   if (event.target.matches?.(".home-config-backdrop")) { view.homeConfigOpen = false; render(); return; }
   if (event.target.matches?.(".task-chat-config-backdrop")) { view.chatConfigOpen = false; render(); return; }
   const page = event.target.closest("[data-page]");
@@ -1323,6 +1323,27 @@ document.addEventListener("click", async (event) => {
     if (action === "remove-workspace") { if (confirm("Gỡ dự án khỏi OpenSybau? Thư mục và tệp trên máy sẽ không bị xóa.")) { await api(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE" }); view.projectMenuId = ""; if (view.page === "workspaces" && view.selected === id) { view.selected = null; view.workspaceDir = ""; view.workspaceEntries = []; view.filePreview = null; } await refresh(); } }
     if (action === "delete-memory") { if (confirm("Xóa ghi nhớ này?")) { await api(`/api/memory/${encodeURIComponent(id)}`, { method: "DELETE" }); await refresh(); } }
   } catch (error) { showToast(error.message); }
+}
+const activeButtonActions = new WeakSet();
+const lastButtonActionAt = new WeakMap();
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest?.("button");
+  if (!button) return handleWorkbenchClick(event);
+  const now = Date.now();
+  const lastActionAt = lastButtonActionAt.get(button) || 0;
+  if (activeButtonActions.has(button) || now - lastActionAt < 400) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  activeButtonActions.add(button);
+  lastButtonActionAt.set(button, now);
+  button.setAttribute("aria-busy", "true");
+  try { await handleWorkbenchClick(event); }
+  finally {
+    activeButtonActions.delete(button);
+    if (button.isConnected) button.removeAttribute("aria-busy");
+  }
 });
 document.addEventListener("submit", handleSubmit);
 document.addEventListener("input", (event) => {
