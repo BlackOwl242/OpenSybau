@@ -7,7 +7,7 @@
     "url": "https://github.com/BlackOwl242/OpenSybau.git"
   },
   "private": true,
-  "version": "0.2.24",
+  "version": "0.2.25",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -27,6 +27,8 @@
     "preact": "^11.0.0"
   },
   "devDependencies": {
+    "@fontsource-variable/nunito-sans": "^5.3.0",
+    "@hugeicons/core-free-icons": "^4.3.5",
     "@preact/preset-vite": "^2.10.6",
     "electron": "^42.0.0",
     "electron-builder": "^26.0.12",

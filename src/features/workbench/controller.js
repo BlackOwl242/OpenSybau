@@ -534,6 +534,25 @@ function settingsPage() {
   </form>`;
 }
 
+function designSystemPage() {
+  return `<div class="page-head"><div><div class="eyebrow">LUMA · MIST · CYAN</div><h1>Giao diện</h1><p>Preset dùng chung cho màu sắc, chữ, icon, trạng thái và các component của OpenSybau.</p></div></div>
+    <div class="design-system-page">
+      <section class="settings-card design-system-section"><header><div><h2>Token màu</h2><p>Bảng màu tối Mist và Cyan từ preset b1aKNWRJK.</p></div></header><div class="design-token-grid">
+        <div><i class="token-swatch token-background"></i><span><strong>Nền</strong><small>background</small></span></div><div><i class="token-swatch token-card"></i><span><strong>Bề mặt</strong><small>card / sidebar</small></span></div><div><i class="token-swatch token-muted"></i><span><strong>Phụ</strong><small>muted</small></span></div><div><i class="token-swatch token-primary"></i><span><strong>Nhấn</strong><small>primary / cyan</small></span></div><div><i class="token-swatch token-border"></i><span><strong>Viền</strong><small>border / input</small></span></div>
+      </div></section>
+      <section class="settings-card design-system-section"><header><div><h2>Component dùng chung</h2><p>Nút, trạng thái, trường nhập, thẻ, dòng danh sách và trạng thái trống cùng lấy từ một hệ token.</p></div></header><div class="design-component-grid">
+        <article class="design-preview-card"><h3>Nút</h3><div class="design-preview-actions"><button class="button primary" type="button">Lưu thay đổi</button><button class="button quiet" type="button">Hủy</button><button class="button danger" type="button">Xóa</button></div></article>
+        <article class="design-preview-card"><h3>Trạng thái</h3><div class="design-preview-actions"><span class="pill status-running"><i></i>Đang chạy</span><span class="pill status-done"><i></i>Hoàn tất</span><span class="pill status-queued"><i></i>Đang chờ</span></div></article>
+        <article class="design-preview-card"><h3>Trường nhập và chọn</h3><div class="design-preview-fields"><label>Tìm kiếm<input placeholder="Tìm trong workspace…" /></label><label>Model<select><option>GPT-6-Luna</option><option>GPT-6-Sol</option></select></label></div></article>
+        <article class="design-preview-card"><h3>Thẻ</h3><div class="design-sample-card"><span class="design-sample-icon">${icon("workflow", 17)}</span><span><strong>Pipeline review</strong><small>Kế hoạch → triển khai → review</small></span><span class="pill status-done"><i></i>Sẵn sàng</span></div></article>
+        <article class="design-preview-card"><h3>Dòng danh sách</h3><div class="design-sample-list"><button type="button"><span class="design-sample-icon">${icon("square-terminal", 16)}</span><span><strong>Chat workspace</strong><small>Cập nhật lúc vừa xong</small></span>${icon("chevron-right", 15)}</button><button type="button"><span class="design-sample-icon">${icon("folder-code", 16)}</span><span><strong>Dự án cục bộ</strong><small>Được đăng ký trong OpenSybau</small></span>${icon("chevron-right", 15)}</button></div></article>
+        <article class="design-preview-card"><h3>Trạng thái trống</h3><div class="design-empty-state"><span class="design-sample-icon">${icon("notebook-tabs", 18)}</span><strong>Chưa có nội dung</strong><p>Thêm dữ liệu để bắt đầu. Mọi thông tin vẫn được lưu cục bộ.</p><button class="button primary small" type="button">${icon("plus", 14)} Tạo mới</button></div></article>
+      </div></section>
+      <section class="settings-card design-system-section"><header><div><h2>Menu và hộp thoại</h2><p>Menu nền trong nhẹ, nhấn chọn rõ ràng; hộp thoại dùng chung header, vùng cuộn nội dung và footer.</p></div></header><div class="design-overlay-samples"><div class="design-menu-sample"><strong>Thao tác</strong><button type="button">${icon("copy", 14)} Sao chép</button><button type="button" class="is-selected">${icon("check", 14)} Đang chọn</button><button type="button">${icon("settings-2", 14)} Cài đặt</button></div><div class="design-modal-sample"><header><div><small>OPENSYBAU · LOCAL</small><h3>Hộp thoại mẫu</h3></div><button class="icon-button" type="button" aria-label="Đóng">${icon("x", 15)}</button></header><div><label>Tên hiển thị<input value="Nunito Sans · Luma" readonly /></label><p>Tiêu đề và nút đóng đứng yên; vùng nội dung riêng có thể cuộn.</p></div><footer><button class="button quiet small" type="button">Hủy</button><button class="button primary small" type="button">Xong</button></footer></div></div></section>
+      <section class="settings-card design-system-section design-system-type"><header><div><h2>Chữ và icon</h2><p>Nunito Sans Variable · Hugeicons Stroke Rounded.</p></div></header><div><h1>Tiêu đề trang</h1><h2>Tiêu đề mục</h2><p>Văn bản giao diện và nội dung sử dụng cùng bộ font, màu chữ và khoảng cách.</p><span>${icon("search", 17)} ${icon("workflow", 17)} ${icon("settings-2", 17)} ${icon("brain", 17)} ${icon("square-terminal", 17)}</span></div></section>
+    </div>`;
+}
+
 function showApiProviderModal(provider = null) {
   const editing = Boolean(provider);
   const models = (provider?.models || []).map((model) => model.id).join("\n");
@@ -571,7 +590,7 @@ function apiProviderId(name) {
 function render() {
   if (!view.state) return;
   syncLocation();
-  const pages = { chat: chatPage, tasks: taskPage, flows: workflowPage, workspaces: workspacePage, knowledge: knowledgePage, skills: skillPage, memory: memoryPage, settings: settingsPage };
+  const pages = { chat: chatPage, tasks: taskPage, flows: workflowPage, workspaces: workspacePage, knowledge: knowledgePage, skills: skillPage, memory: memoryPage, settings: settingsPage, "design-system": designSystemPage };
   const content = $("#content");
   const renderKey = `${view.page}:${view.selected || ""}`;
   const contentScroll = view.renderedPage === renderKey ? content.scrollTop : 0;

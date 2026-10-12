@@ -1,4 +1,5 @@
 import { getLanguage, formatNumber } from "./i18n.js";
+import { iconSvg } from "./ui/icons.js";
 
 function readCollapsedWorkspaces() {
   try {
@@ -71,7 +72,7 @@ export const efforts = ["minimal", "low", "medium", "high", "xhigh", "max", "ult
 export const $ = (selector, root = document) => root.querySelector(selector);
 
 export function icon(name, size = 16) {
-  return window.LucideIcons.toSvg(name, size);
+  return iconSvg(name, size);
 }
 
 export const esc = (value = "") => String(value).replace(/[&<>"']/g, (character) => ({

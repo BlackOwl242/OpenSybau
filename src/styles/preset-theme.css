@@ -1,0 +1,382 @@
+/* System-wide component styles translated from shadcn's Luma preset. */
+:root {
+  --radius-sm: calc(var(--radius) * .6);
+  --radius-md: calc(var(--radius) * .8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+}
+
+html, body, #root { color: var(--foreground); background: var(--background); }
+body { font-family: "Nunito Sans Variable", "Segoe UI", Arial, sans-serif; }
+button, input, select, textarea { font-family: inherit; }
+::selection { color: var(--primary-foreground); background: color-mix(in oklch, var(--primary) 82%, var(--background)); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
+a:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--ring) !important;
+  outline-offset: 2px;
+}
+
+/* Buttons and icon buttons share one shape, focus, and motion scale. */
+body .wb-page-content .button,
+body #overlay .button,
+body .desktop-setup-dialog .button,
+body .icon-button,
+body .wb-top-icon,
+body .wb-language-toggle,
+body .wb-update-button,
+body .home-composer-settings,
+body .chat-config-trigger {
+  border-radius: var(--radius-md);
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+body .wb-page-content .button:not(.primary):not(.danger),
+body #overlay .button:not(.primary):not(.danger),
+body .desktop-setup-dialog .button:not(.primary):not(.danger),
+body .icon-button {
+  color: var(--foreground);
+  border-color: var(--input);
+  background: var(--secondary);
+}
+body .wb-page-content .button:not(:disabled):hover,
+body #overlay .button:not(:disabled):hover,
+body .desktop-setup-dialog .button:not(:disabled):hover,
+body .icon-button:not(:disabled):hover {
+  border-color: color-mix(in oklch, var(--sidebar-primary) 38%, var(--input));
+  background: color-mix(in oklch, var(--secondary) 78%, var(--sidebar-primary) 22%);
+}
+body .wb-page-content .button.primary,
+body #overlay .button.primary,
+body .desktop-setup-dialog .button.primary {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+body .wb-page-content .button.primary:not(:disabled):hover,
+body #overlay .button.primary:not(:disabled):hover,
+body .desktop-setup-dialog .button.primary:not(:disabled):hover {
+  border-color: color-mix(in oklch, var(--primary) 86%, white);
+  background: color-mix(in oklch, var(--primary) 86%, white);
+  box-shadow: 0 2px 10px color-mix(in oklch, var(--sidebar-primary) 18%, transparent);
+  transform: translateY(-1px);
+}
+body .wb-page-content .button.danger,
+body #overlay .button.danger {
+  border-color: color-mix(in oklch, var(--destructive) 32%, var(--border));
+  color: var(--destructive);
+  background: color-mix(in oklch, var(--card) 84%, var(--destructive) 16%);
+}
+body .wb-page-content .button:disabled,
+body #overlay .button:disabled,
+body .desktop-setup-dialog .button:disabled { opacity: .52; transform: none; }
+
+/* Inputs, native dropdowns, and options use the same Mist/Cyan palette. */
+body .wb-page-content input:not([type="checkbox"]),
+body .wb-page-content select,
+body .wb-page-content textarea,
+body #overlay input:not([type="checkbox"]),
+body #overlay select,
+body #overlay textarea,
+body .desktop-setup-dialog input:not([type="checkbox"]),
+body .desktop-setup-dialog select,
+body .desktop-setup-dialog textarea,
+body .wb-app-shell input:not([type="checkbox"]),
+body .wb-app-shell select,
+body .wb-app-shell textarea {
+  border-color: var(--input) !important;
+  border-radius: var(--radius-md) !important;
+  color: var(--foreground) !important;
+  background-color: color-mix(in oklch, var(--background) 88%, white 12%) !important;
+  accent-color: var(--sidebar-primary);
+}
+body .wb-page-content input::placeholder,
+body .wb-page-content textarea::placeholder,
+body #overlay input::placeholder,
+body #overlay textarea::placeholder { color: var(--muted-foreground); }
+body .wb-page-content select option,
+body #overlay select option,
+body .desktop-setup-dialog select option,
+body .wb-app-shell select option,
+body .wb-page-content select optgroup,
+body #overlay select optgroup,
+body .desktop-setup-dialog select optgroup,
+body .wb-app-shell select optgroup {
+  color: var(--foreground);
+  background: var(--popover);
+}
+@supports (appearance: base-select) {
+  body .wb-page-content select::picker(select),
+  body #overlay select::picker(select),
+  body .desktop-setup-dialog select::picker(select),
+  body .wb-app-shell select::picker(select) {
+    color: var(--popover-foreground);
+    background: color-mix(in oklch, var(--popover) 88%, transparent);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 16px 36px rgb(0 0 0 / 34%);
+    padding: 4px;
+    backdrop-filter: blur(14px) saturate(125%);
+  }
+  body .wb-page-content select option,
+  body #overlay select option,
+  body .desktop-setup-dialog select option,
+  body .wb-app-shell select option {
+    min-height: 34px;
+    border-radius: var(--radius-sm);
+    padding: 7px 10px;
+    transition: color 130ms ease, background-color 130ms ease;
+  }
+  body .wb-page-content select option:checked,
+  body #overlay select option:checked,
+  body .desktop-setup-dialog select option:checked,
+  body .wb-app-shell select option:checked {
+    color: var(--primary-foreground);
+    background-color: var(--primary) !important;
+  }
+  body .wb-page-content select option::checkmark,
+  body #overlay select option::checkmark,
+  body .desktop-setup-dialog select option::checkmark,
+  body .wb-app-shell select option::checkmark { display: none; }
+  body .wb-page-content select option:hover,
+  body #overlay select option:hover,
+  body .desktop-setup-dialog select option:hover,
+  body .wb-app-shell select option:hover {
+    color: var(--foreground);
+    background-color: var(--muted) !important;
+  }
+}
+
+/* Shared surfaces: lists, cards, dialogs, and empty states. */
+.wb-page-content .quick-stats,
+.wb-page-content .task-list,
+.wb-page-content .workspace-list,
+.wb-page-content .memory-list,
+.wb-page-content .settings-card,
+.wb-page-content .task-skill-picker,
+.wb-page-content .skill-library-row,
+.wb-page-content .task-row,
+.wb-page-content .workspace-card,
+.wb-page-content .memory-card,
+.wb-page-content .workflow-card,
+.wb-page-content .empty-state,
+.wb-page-content .info-panel,
+.wb-page-content .file-browser,
+.wb-page-content .file-preview,
+.wb-page-content .file-row,
+.wb-page-content .chat-home-card,
+.wb-page-content .chat-home-empty,
+.wb-page-content .home-composer,
+.wb-page-content .home-agent-card,
+.wb-page-content .home-recent,
+.wb-page-content .home-recent-card,
+.wb-page-content .detail-panel,
+.wb-page-content .output-box,
+.wb-page-content .artifact-box,
+.wb-page-content .stage-results details,
+.wb-page-content .diff-content,
+.wb-page-content .settings-empty,
+.wb-page-content .check-row,
+.wb-page-content .model-provider,
+.wb-page-content .task-skill-option,
+.wb-page-content .orchestration-canvas,
+.wb-page-content .orchestration-activity,
+.wb-page-content .task-chat-pane,
+.wb-page-content .agent-activity-pane,
+#overlay .modal,
+.wb-page-content .composer-config-dialog,
+.wb-page-content .app-dialog-shell,
+.desktop-setup-dialog,
+.wb-project-menu,
+.wb-task-menu,
+.wb-mobile-more-menu {
+  border-color: var(--border);
+}
+.wb-page-content .settings-card,
+.wb-page-content .empty-state,
+.wb-page-content .info-panel,
+.wb-page-content .file-browser,
+.wb-page-content .file-preview,
+.wb-page-content .model-provider,
+.wb-page-content .task-skill-picker,
+.wb-page-content .detail-panel,
+.wb-page-content .orchestration-canvas,
+.wb-page-content .orchestration-activity,
+.wb-page-content .task-chat-pane,
+.wb-page-content .agent-activity-pane,
+#overlay .modal,
+.wb-page-content .composer-config-dialog,
+.wb-page-content .app-dialog-shell,
+.desktop-setup-dialog {
+  background-color: var(--card);
+  color: var(--card-foreground);
+}
+.wb-page-content .composer-config-dialog > header,
+.wb-page-content .composer-config-dialog > footer,
+#overlay .modal > header,
+#overlay .modal > footer { border-color: var(--border); }
+.wb-page-content .composer-config-dialog > header h2,
+#overlay .modal > header h2 { color: var(--foreground); }
+.wb-page-content .composer-config-dialog > header small,
+.wb-page-content .composer-config-dialog > footer,
+#overlay .modal > header small,
+#overlay .modal > footer { color: var(--muted-foreground); }
+.wb-page-content .composer-config-dialog,
+#overlay .modal,
+.desktop-setup-dialog { border-radius: var(--radius-xl); }
+.wb-page-content .task-list,
+.wb-page-content .workspace-list,
+.wb-page-content .memory-list,
+.wb-page-content .quick-stats,
+.wb-page-content .skill-library-row,
+.wb-page-content .task-row,
+.wb-page-content .workspace-card,
+.wb-page-content .memory-card,
+.wb-page-content .workflow-card,
+.wb-page-content .file-row,
+.wb-page-content .chat-home-card,
+.wb-page-content .home-agent-card,
+.wb-page-content .home-recent-card,
+.wb-page-content .output-box,
+.wb-page-content .artifact-box,
+.wb-page-content .settings-empty,
+.wb-page-content .check-row,
+.wb-page-content .task-skill-option {
+  background-color: color-mix(in oklch, var(--card) 78%, var(--background));
+  color: var(--card-foreground);
+}
+.wb-page-content .task-row,
+.wb-page-content .workspace-card,
+.wb-page-content .memory-card,
+.wb-page-content .skill-library-row,
+.wb-page-content .orchestration-event,
+.wb-page-content .workflow-card footer,
+.wb-page-content .quick-stats > div { border-color: var(--border); }
+.wb-page-content .task-row:hover,
+.wb-page-content .task-row.selected,
+.wb-page-content .workspace-card:hover,
+.wb-page-content .file-row:hover,
+.wb-page-content .design-sample-list button:hover {
+  background-color: var(--muted);
+}
+.wb-page-content .pill { border-color: var(--border); border-radius: 999px; }
+.wb-page-content .pill.status-running { color: var(--wb-green); background: var(--wb-green-soft); }
+.wb-page-content .pill.status-done { color: var(--sidebar-primary); background: var(--wb-blue-soft); }
+.wb-page-content .pill.status-queued { color: var(--wb-amber); background: var(--wb-amber-soft); }
+.wb-page-content .pill.status-failed { color: var(--destructive); background: var(--wb-red-soft); }
+.wb-page-content .pill.status-cancelled { color: var(--muted-foreground); background: var(--secondary); }
+
+/* Menus use the preset's subtle translucent surface with a bold active item. */
+.wb-project-menu,
+.wb-task-menu,
+.wb-mobile-more-menu,
+.wb-sidebar-search .wb-search-results,
+.home-search-results,
+.home-search-popover {
+  border-color: var(--border);
+  color: var(--popover-foreground);
+  background-color: color-mix(in oklch, var(--popover) 88%, transparent);
+  box-shadow: 0 16px 36px rgb(0 0 0 / 34%);
+  backdrop-filter: blur(14px) saturate(125%);
+}
+.wb-project-menu button,
+.wb-task-menu button,
+.wb-mobile-more-menu button,
+.wb-sidebar-search .wb-search-results button,
+.home-search-results button { border-radius: var(--radius-sm); transition: color 130ms ease, background-color 130ms ease; }
+.wb-project-menu button:hover,
+.wb-task-menu button:hover,
+.wb-mobile-more-menu button:hover,
+.wb-sidebar-search .wb-search-results button:hover,
+.home-search-results button:hover { background: var(--muted); }
+.wb-project-menu button[aria-current="true"],
+.wb-task-menu button[aria-current="true"],
+.wb-mobile-more-menu button.is-active,
+.wb-project-menu button.is-selected,
+.wb-task-menu button.is-selected {
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+.wb-rail-link.is-active::before { background: var(--sidebar-primary); }
+.wb-rail-link.is-active { color: var(--sidebar-primary); }
+.wb-project-row:hover,
+.wb-task-item:hover,
+.wb-task-item.is-selected { background: var(--muted); }
+.wb-task-item .wb-task-link.is-selected { color: var(--foreground); }
+.wb-project-toggle:focus-visible,
+.wb-task-link:focus-visible,
+.wb-mobile-nav button:focus-visible { outline-color: var(--ring) !important; }
+.wb-topbar, .wb-context-sidebar, .wb-page-sidebar { border-color: var(--border); }
+.wb-page-content .path-crumb,
+.wb-page-content .markdown-preview a,
+.wb-page-content .workflow-task-title:hover strong { color: var(--sidebar-primary); }
+.wb-page-content .settings-actions,
+.wb-page-content .modal-actions,
+.wb-page-content .pane-heading,
+.wb-page-content .detail-path,
+.wb-page-content .conversation-top { border-color: var(--border); }
+.wb-page-content .modal-backdrop,
+.wb-page-content .detail-backdrop,
+#overlay .modal-backdrop { background: rgb(0 0 0 / 58%); }
+
+/* Preview the production tokens and primitives on the Giao diện route. */
+.design-system-page { display: grid; gap: 18px; }
+.design-system-section { margin: 0; padding: 18px; }
+.design-system-section > header { margin-bottom: 16px; }
+.design-system-section > header h2 { margin: 0; color: var(--foreground); }
+.design-system-section > header p { margin: 4px 0 0; color: var(--muted-foreground); }
+.design-token-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.design-token-grid > div { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: color-mix(in oklch, var(--card) 74%, var(--background)); }
+.design-token-grid span { min-width: 0; display: grid; gap: 2px; }
+.design-token-grid strong, .design-preview-card h3 { color: var(--foreground); font-size: 13px; }
+.design-token-grid small { color: var(--muted-foreground); font-size: 11px; }
+.token-swatch { width: 30px; height: 30px; flex: 0 0 auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.token-background { background: var(--background); }
+.token-card { background: var(--card); }
+.token-muted { background: var(--muted); }
+.token-primary { background: var(--primary); }
+.token-border { background: var(--border); }
+.design-component-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.design-preview-card { min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: color-mix(in oklch, var(--card) 72%, var(--background)); }
+.design-preview-card h3 { margin: 0 0 12px; font-size: 13px; font-weight: 650; }
+.design-preview-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.design-preview-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.design-preview-fields label, .design-modal-sample label { display: grid; gap: 6px; color: var(--muted-foreground); font-size: 12px; }
+.design-preview-fields input, .design-preview-fields select, .design-modal-sample input { min-width: 0; width: 100%; min-height: 36px; padding: 7px 10px; border: 1px solid var(--input); border-radius: var(--radius-md); color: var(--foreground); background: var(--background); }
+.design-sample-card { min-height: 56px; display: flex; align-items: center; gap: 10px; padding: 9px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--card); }
+.design-sample-card > span:nth-child(2), .design-sample-list button > span:nth-child(2) { min-width: 0; flex: 1; display: grid; gap: 2px; }
+.design-sample-card strong, .design-sample-list strong { color: var(--foreground); font-size: 12px; }
+.design-sample-card small, .design-sample-list small { color: var(--muted-foreground); font-size: 11px; }
+.design-sample-icon { width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--sidebar-primary); background: var(--muted); }
+.design-sample-list { display: grid; gap: 4px; }
+.design-sample-list button { min-width: 0; display: flex; align-items: center; gap: 9px; padding: 7px; border: 0; border-radius: var(--radius-md); color: var(--muted-foreground); background: transparent; text-align: left; transition: background-color 140ms ease; }
+.design-empty-state { min-height: 135px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 14px; border: 1px dashed var(--border); border-radius: var(--radius-md); text-align: center; }
+.design-empty-state > strong { color: var(--foreground); font-size: 13px; }
+.design-empty-state > p { max-width: 38ch; margin: 0 0 4px; color: var(--muted-foreground); font-size: 12px; }
+.design-overlay-samples { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(280px, 1.3fr); gap: 14px; align-items: start; }
+.design-menu-sample { display: grid; gap: 3px; padding: 7px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: color-mix(in oklch, var(--popover) 88%, transparent); box-shadow: 0 12px 28px rgb(0 0 0 / 24%); backdrop-filter: blur(14px); }
+.design-menu-sample > strong { padding: 6px 8px; color: var(--muted-foreground); font-size: 11px; }
+.design-menu-sample > button { min-height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); color: var(--foreground); background: transparent; text-align: left; }
+.design-menu-sample > button:hover { background: var(--muted); }
+.design-menu-sample > button.is-selected { color: var(--primary-foreground); background: var(--primary); }
+.design-modal-sample { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); box-shadow: 0 14px 32px rgb(0 0 0 / 24%); }
+.design-modal-sample > header, .design-modal-sample > footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.design-modal-sample > header { padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.design-modal-sample > header small { color: var(--muted-foreground); font-size: 10px; letter-spacing: .06em; }
+.design-modal-sample > header h3 { margin: 2px 0 0; color: var(--foreground); font-size: 15px; }
+.design-modal-sample > div { display: grid; gap: 10px; }
+.design-modal-sample > div > p { margin: 0; color: var(--muted-foreground); font-size: 12px; }
+.design-modal-sample > footer { justify-content: flex-end; padding-top: 10px; border-top: 1px solid var(--border); }
+.design-system-type > div { display: grid; gap: 8px; }
+.design-system-type h1, .design-system-type h2, .design-system-type p { margin: 0; }
+.design-system-type h1 { color: var(--foreground); font-size: 25px; }
+.design-system-type h2 { color: var(--foreground); font-size: 18px; }
+.design-system-type p { color: var(--muted-foreground); }
+.design-system-type > div > span { display: flex; gap: 12px; color: var(--sidebar-primary); }
+
+@media (max-width: 740px) {
+  .design-token-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .design-component-grid, .design-overlay-samples { grid-template-columns: 1fr; }
+  .design-preview-fields { grid-template-columns: 1fr; }
+  .design-system-section { padding: 14px; }
+}
