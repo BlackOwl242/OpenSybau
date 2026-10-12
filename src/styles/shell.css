@@ -405,7 +405,8 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .task-conversation-page .chat-config-trigger:hover { background: #3b3d40; }
 .wb-page-content .task-conversation-page .chat-pane-meta { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 7px; white-space: nowrap; }
 .wb-page-content .task-conversation-page .pane-heading > .chat-pane-meta { overflow: visible; text-overflow: clip; flex: 0 1 auto; }
-.wb-page-content .task-conversation-page .chat-pane-meta .button { flex: 0 0 auto; }
+.wb-page-content .task-conversation-page .chat-pane-meta .button { min-width: 108px; min-height: 40px; flex: 0 0 auto; justify-content: center; padding-inline: 14px; font-size: 12px; }
+.wb-page-content .task-conversation-page .chat-pane-meta .chat-goal-button { min-width: 124px; }
 .wb-page-content .task-conversation-page .chat-message-count { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; }
 @media (max-width: 620px) {
   .wb-page-content .task-conversation-page .pane-heading { flex-wrap: wrap; align-items: flex-start; }
@@ -429,6 +430,9 @@ button:disabled { cursor: not-allowed; }
 #overlay .modal input::placeholder, #overlay .modal textarea::placeholder { color: #858990; }
 #overlay .modal .model-provider, #overlay .modal .check-row { border-color: #414346; color: #e1e2e3; background: #292a2c; }
 #overlay .modal .model-provider > header strong, #overlay .modal .check-row strong { color: #e8e9ea; }
+#overlay .task-instruction-guidance { border-color: #414346; color: #c6c8cb; background: #292a2c; }
+#overlay .task-instruction-guidance strong, #overlay .task-instruction-guidance b { color: #e8e9ea; }
+#overlay .task-instruction-access-note { color: #a4a7ac; }
 #overlay .modal .model-provider > label, #overlay .modal .check-row small { color: #a4a7ac; }
 #overlay .modal .model-provider select { border-color: #4a4c50; color: #ececed; background: #202123; }
 #overlay .modal .task-skill-auto { border-color: #414346; color: #e1e2e3; background: #292a2c; }

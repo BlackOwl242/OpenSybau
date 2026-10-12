@@ -677,7 +677,7 @@ body.launch-home #content.home-launch-content{background:#fff}
 .task-orchestration-page>.detail-actions{position:static;margin:14px 0 20px;padding:12px 0;border-top:1px solid #eceef2}
 .task-instruction-modal{width:min(520px,100%)}
 .task-instruction-modal .chat-input{min-height:130px}
-.task-instruction-models{display:grid;grid-template-columns:1fr 1.35fr .8fr;gap:10px}
+.task-instruction-guidance{margin:0 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;color:var(--ink);background:var(--panel);font-size:11px;line-height:1.55}.task-instruction-guidance strong{font-weight:650}.task-instruction-access-note{display:block;margin:0 0 14px;color:var(--muted);font-size:10px;line-height:1.5}.task-instruction-models{display:grid;grid-template-columns:1fr 1.35fr .8fr;gap:10px}
 .task-instruction-models label{min-width:0}
 .task-instruction-modal .modal-actions{margin-top:10px}
 .workflow-lane{justify-content:flex-start;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin}
