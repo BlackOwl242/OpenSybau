@@ -5,8 +5,12 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { cliIsInstalled } from "../src/server/cli-status.mjs";
 
 const root = process.cwd();
+assert.equal(cliIsInstalled("C:\\Users\\test\\agy.exe", -1, () => true), true, "An executable present on disk is installed even if its version command cannot start.");
+assert.equal(cliIsInstalled("C:\\Users\\test\\missing.exe", -1, () => false), false, "A missing executable with a failed version command is not installed.");
+assert.equal(cliIsInstalled("", 0, () => false), true, "A successful version command confirms installation.");
 const dataDir = await mkdtemp(path.join(os.tmpdir(), "opensybau-feature-test-"));
 const now = new Date().toISOString();
 let providerCalls = 0;

@@ -8,6 +8,7 @@ import { homedir } from "node:os";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { completeWithApi, configuredApiProviders, findClaudeCode, listProviderModels, normalizeUserApiProvider, providerLabel } from "./src/server/provider-registry.mjs";
+import { cliIsInstalled } from "./src/server/cli-status.mjs";
 import { roleConfig, workflowRoles } from "./src/domain/agent-roles.js";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
@@ -399,9 +400,9 @@ async function loadModelsUncached() {
     run(codexExe, ["--version"], { timeout: 10000 }),
     run(agyExe, ["--version"], { timeout: 10000 }),
   ]);
-  modelCache.codex.installed = codexVersion.code === 0;
-  modelCache.antigravity.installed = agyVersion.code === 0;
-  modelCache.claude.installed = claude.code === 0;
+  modelCache.codex.installed = cliIsInstalled(codexExe, codexVersion.code);
+  modelCache.antigravity.installed = cliIsInstalled(agyExe, agyVersion.code);
+  modelCache.claude.installed = cliIsInstalled(claudeExe, claude.code);
   modelCache.codex.version = codexVersion.code === 0 ? codexVersion.stdout.trim() : "unavailable";
   modelCache.antigravity.version = agyVersion.code === 0 ? agyVersion.stdout.trim() : "unavailable";
   modelCacheUntil = Date.now() + 60_000;
