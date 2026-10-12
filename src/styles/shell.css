@@ -271,6 +271,7 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .chat-message, .wb-page-content .chat-message.from-user { border-color: #45474a; color: #e2e3e4; background: #303234; }
 .wb-page-content .chat-message > div { color: #d4d5d7; }
 .wb-page-content pre, .wb-page-content code { border-color: #414346; color: #dedfe1; background: #202123; }
+.wb-page-content .workspace-card-main code { margin: 5px 0; padding: 0; border: 0; border-radius: 0; color: #c4c6c9; background: transparent; font-family: inherit; font-size: 13px; font-weight: 400; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
 .wb-page-content .orchestration-flow { background-color: #242527; background-image: radial-gradient(#44464a .7px, transparent .7px); }
 .wb-page-content .orchestration-node-card { border-color: #484a4d; background: #303133; }
 .wb-page-content .orchestration-node-card > header > span, .wb-page-content .orchestration-node-main p, .wb-page-content .orchestration-event p { color: #aeb1b6; }
