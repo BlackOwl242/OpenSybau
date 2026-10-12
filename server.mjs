@@ -72,9 +72,16 @@ function findCodex() {
 }
 
 function findAntigravity() {
-  if (process.env.ANTIGRAVITY_CLI_PATH) return resolve(process.env.ANTIGRAVITY_CLI_PATH);
-  if (process.platform === "win32") return resolve(process.env.LOCALAPPDATA || resolve(homedir(), "AppData/Local"), "agy/bin/agy.exe");
-  return findOnPath("agy") || "agy";
+  const candidates = [];
+  if (process.env.ANTIGRAVITY_CLI_PATH) candidates.push(resolve(process.env.ANTIGRAVITY_CLI_PATH));
+  if (process.platform === "win32") {
+    candidates.push(resolve(process.env.LOCALAPPDATA || resolve(homedir(), "AppData/Local"), "agy/bin/agy.exe"));
+    candidates.push(findOnPath("agy.exe"));
+    candidates.push(findOnPath("agy"));
+  } else {
+    candidates.push(findOnPath("agy"));
+  }
+  return candidates.find((candidate) => candidate && existsSync(candidate)) || candidates.find(Boolean) || "agy";
 }
 
 function findOnPath(name) {
@@ -313,6 +320,12 @@ function matchesCredential(input, expected) {
   return timingSafeEqual(inputHash, expectedHash);
 }
 function hasValidAccess(request) {
+  // Development and the local operator of a LAN server should not need to enter
+  // the shared password. Keep auth enabled for production loopback servers,
+  // which may be exposed through a reverse proxy.
+  const requestHost = String(request.headers.host || "").toLowerCase();
+  const localHost = /^(?:localhost|127\.0\.0\.1|\[::1\]|::1)(?::\d{1,5})?$/.test(requestHost);
+  if (isLoopbackClient(request) && (process.env.WORKBENCH_MODE !== "production" || (!isLoopbackBind && localHost))) return true;
   if (!accessPassword) return isLoopbackBind;
   const match = String(request.headers.authorization || "").match(/^Basic\s+([A-Za-z0-9+/]+=*)$/i);
   if (!match) return false;

@@ -124,7 +124,15 @@ On the host computer:
 npm start
 ```
 
-On the phone, join the same Wi-Fi and open `http://192.168.1.20:4173`, replacing the example IP with your host's address. When prompted, enter the username and password from `.env`.
+On the host machine, open `http://127.0.0.1:4173` without a password. On your phone, join the same Wi-Fi and open `http://192.168.1.20:4173`, replacing the example IP with your host's address. The browser will prompt for credentials: the default username is `opensybau`, and the password is the value you set in `.env`.
+
+If you have not created a password yet, generate a random one with Node.js:
+
+```sh
+node -e "console.log(require('node:crypto').randomBytes(24).toString('base64url'))"
+```
+
+Copy the result into `WORKBENCH_ACCESS_PASSWORD` in `.env`, then restart with `npm start`. Save that password for signing in from your phone; OpenSybau does not use a shared default password.
 
 The phone gets a mobile layout with a bottom navigation bar and a slide-out workspace/chat list. You can use the link directly in the browser. For a home-screen app shortcut, serve the app through HTTPS and choose **Add to Home Screen** in the browser menu. The installed shortcut still needs a network connection to the host.
 

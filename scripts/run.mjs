@@ -21,6 +21,10 @@ try {
 }
 
 process.env.WORKBENCH_MODE = mode;
+// Development is always local-only, even when .env contains the production/LAN
+// bind address. Network access remains available through the guarded production
+// server (`npm start`).
+if (mode === "dev") process.env.WORKBENCH_HOST = "127.0.0.1";
 const { startWorkbench, stopWorkbench } = await import("../server.mjs");
 await startWorkbench();
 let stopping = false;

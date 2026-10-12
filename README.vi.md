@@ -124,7 +124,15 @@ Trên máy chủ, chạy:
 npm start
 ```
 
-Trên điện thoại, kết nối cùng Wi-Fi, mở `http://192.168.1.20:4173` (thay IP ví dụ bằng địa chỉ thật của máy chủ), rồi nhập username và password đã đặt trong `.env` khi trình duyệt hỏi.
+Trên máy chủ, mở `http://127.0.0.1:4173` không cần mật khẩu. Trên điện thoại, kết nối cùng Wi-Fi và mở `http://192.168.1.20:4173` (thay IP ví dụ bằng địa chỉ thật của máy chủ); trình duyệt sẽ hỏi thông tin đăng nhập. Username mặc định là `opensybau`, còn password là giá trị bạn đặt trong `.env`.
+
+Nếu chưa có password, tạo một chuỗi ngẫu nhiên bằng Node.js:
+
+```sh
+node -e "console.log(require('node:crypto').randomBytes(24).toString('base64url'))"
+```
+
+Chép kết quả vào `WORKBENCH_ACCESS_PASSWORD` trong `.env`, rồi khởi động lại `npm start`. Hãy lưu lại chuỗi này để đăng nhập từ điện thoại; OpenSybau không tự đặt một mật khẩu mặc định dùng chung cho mọi người.
 
 Giao diện điện thoại có thanh điều hướng dưới cùng và danh sách workspace/chat dạng trượt từ cạnh bên. Bạn có thể dùng trực tiếp trong trình duyệt. Nếu chạy qua HTTPS, mở menu trình duyệt và chọn **Add to Home Screen / Thêm vào màn hình chính** để tạo biểu tượng mở như app. Shortcut này vẫn cần kết nối mạng tới máy chủ.
 
