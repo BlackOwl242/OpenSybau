@@ -9,12 +9,13 @@ export function DesktopSetupDialog({ connectors }) {
   const missing = cliProviderGuides.filter(({ id }) => !connectors[id]?.available);
 
   return <div class="desktop-setup-backdrop" role="presentation">
-    <section class="desktop-setup-dialog" role="dialog" aria-modal="true" aria-labelledby="desktop-setup-title">
-      <header class="desktop-setup-heading">
+    <section class="desktop-setup-dialog app-dialog-shell" role="dialog" aria-modal="true" aria-labelledby="desktop-setup-title">
+      <header class="desktop-setup-heading app-dialog-header">
         <span class="desktop-setup-mark"><Icon name="workflow" size={21} /></span>
         <div><div class="desktop-setup-eyebrow">OPENSYBAU · THIẾT LẬP</div><h2 id="desktop-setup-title">Kết nối AI cho workspace</h2></div>
         <button class="wb-top-icon" type="button" data-action="dismiss-desktop-setup" aria-label="Đóng hướng dẫn">×</button>
       </header>
+      <div class="app-dialog-content desktop-setup-content">
       <p class="desktop-setup-intro">OpenSybau kiểm tra các CLI trên máy đang chạy ứng dụng. Chọn một cách kết nối phù hợp; bạn không cần cài tất cả và vẫn có thể thiết lập sau.</p>
       <div class="desktop-setup-agent-list">
         {cliProviderGuides.map((agent) => {
@@ -35,12 +36,13 @@ export function DesktopSetupDialog({ connectors }) {
         <strong>{readyCount ? `${readyCount} provider sẵn sàng` : "Chưa có provider nào sẵn sàng"}</strong>
         <span>{readyCount ? "Bạn có thể bắt đầu ngay. Khi cần, thêm CLI, API hoặc model local trong Cài đặt." : "Máy này chưa có kết nối sẵn. Bạn có thể cài một CLI hoặc thêm OpenAI, Gemini, Claude API hay model local trong Cài đặt."}</span>
       </div>
-      <footer class="desktop-setup-actions">
+      {(missing.length > 0 || configuredApis.length === 0) && <p class="desktop-setup-footnote">Nếu CLI chưa cài, mở hướng dẫn chính thức. Nút đăng nhập mở terminal trên máy chạy OpenSybau; sau khi đăng nhập, bấm Quét lại. CLI không cần API key riêng.</p>}
+      </div>
+      <footer class="desktop-setup-actions app-dialog-footer">
         <button type="button" class="button quiet" data-action="desktop-open-settings"><Icon name="settings-2" size={15} /> Mở cài đặt</button>
         <button type="button" class="button quiet" data-action="refresh"><Icon name="refresh-cw" size={15} /> Quét lại</button>
         <button type="button" class="button primary" data-action="dismiss-desktop-setup">{readyCount ? "Bắt đầu sử dụng" : "Tiếp tục thiết lập sau"}</button>
       </footer>
-      {(missing.length > 0 || configuredApis.length === 0) && <p class="desktop-setup-footnote">Nếu CLI chưa cài, mở hướng dẫn chính thức. Nút đăng nhập mở terminal trên máy chạy OpenSybau; sau khi đăng nhập, bấm Quét lại. CLI không cần API key riêng.</p>}
     </section>
   </div>;
 }
