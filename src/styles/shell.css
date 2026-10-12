@@ -158,6 +158,9 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content.is-home { padding: 0 clamp(18px, 3vw, 42px); }
 .wb-page-content.is-task-detail { padding: 0; scrollbar-gutter: auto; }
 .wb-page-content { font-size: var(--wb-font-body); line-height: var(--wb-line-body); }
+.wb-page-content > .settings-form,
+.wb-page-content > .skill-manager,
+.wb-page-content > .task-orchestration-page { width: 100%; max-width: none; margin-left: 0; margin-right: 0; }
 .wb-page-content > .page-head { min-height: 72px; margin: 0 0 22px; }
 .wb-page-content .page-head h1 { color: var(--wb-ink-strong); font-size: var(--wb-font-page); font-weight: 680; line-height: 1.16; letter-spacing: -.035em; }
 .wb-page-content h2 { font-size: var(--wb-font-section); line-height: 1.3; }
