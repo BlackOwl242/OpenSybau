@@ -1,4 +1,5 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
 const path = require("node:path");
 
@@ -7,6 +8,8 @@ let mainWindow;
 let stopWorkbench;
 let stopping = false;
 let workbenchUrl;
+let updateState = { status: "idle", currentVersion: app.getVersion() };
+let updateCheckRunning = false;
 
 app.setName("OpenSybau");
 app.setPath("userData", path.join(app.getPath("appData"), "OpenSybau"));
@@ -62,6 +65,13 @@ async function createMainWindow() {
   workbenchUrl = `${server.protocol}://${server.host}:${server.port}`;
 
   ipcMain.handle("opensybau:open-config-folder", async () => shell.openPath(userData));
+  ipcMain.handle("opensybau:update:get-state", () => updateState);
+  ipcMain.handle("opensybau:update:check", () => checkForAppUpdate());
+  ipcMain.handle("opensybau:update:restart", () => {
+    if (updateState.status !== "downloaded") return false;
+    autoUpdater.quitAndInstall(false, true);
+    return true;
+  });
   mainWindow = new BrowserWindow({
     width: 1480,
     height: 960,
@@ -85,6 +95,57 @@ async function createMainWindow() {
   });
   await mainWindow.loadURL(workbenchUrl);
   mainWindow.on("closed", () => { mainWindow = null; });
+  initializeAutoUpdates();
+}
+
+function publishUpdateState(nextState) {
+  updateState = { currentVersion: app.getVersion(), ...nextState };
+  if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("opensybau:update:state", updateState);
+}
+
+function initializeAutoUpdates() {
+  if (!app.isPackaged || process.platform !== "win32") return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("checking-for-update", () => publishUpdateState({ status: "checking" }));
+  autoUpdater.on("update-available", (info) => publishUpdateState({ status: "available", version: info.version }));
+  autoUpdater.on("update-not-available", () => publishUpdateState({ status: "not-available" }));
+  autoUpdater.on("download-progress", (progress) => publishUpdateState({ status: "downloading", percent: Math.round(progress.percent || 0) }));
+  autoUpdater.on("update-downloaded", async (info) => {
+    publishUpdateState({ status: "downloaded", version: info.version });
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const choice = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "OpenSybau đã sẵn sàng cập nhật",
+      message: `Đã tải OpenSybau ${info.version}. Khởi động lại ứng dụng để cài đặt bản mới?`,
+      buttons: ["Khởi động lại ngay", "Để sau"],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    });
+    if (choice.response === 0) autoUpdater.quitAndInstall(false, true);
+  });
+  autoUpdater.on("error", (error) => publishUpdateState({ status: "error", error: error?.message || "Không thể kiểm tra cập nhật." }));
+  void checkForAppUpdate();
+  const timer = setInterval(() => { void checkForAppUpdate(); }, 6 * 60 * 60 * 1000);
+  timer.unref();
+}
+
+async function checkForAppUpdate() {
+  if (!app.isPackaged || process.platform !== "win32") return updateState;
+  if (updateCheckRunning || updateState.status === "downloading" || updateState.status === "downloaded") return updateState;
+  updateCheckRunning = true;
+  publishUpdateState({ status: "checking" });
+  try {
+    await autoUpdater.checkForUpdates();
+    return updateState;
+  } catch (error) {
+    const message = error?.message || "Không thể kiểm tra cập nhật.";
+    publishUpdateState({ status: "error", error: message });
+    return updateState;
+  } finally {
+    updateCheckRunning = false;
+  }
 }
 
 app.on("second-instance", () => {

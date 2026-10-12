@@ -1071,6 +1071,14 @@ document.addEventListener("click", async (event) => {
     if (action === "dismiss-desktop-setup") { view.desktopSetupOpen = false; try { localStorage.setItem("opensybau.setup-v3", "done"); localStorage.setItem("opensybau.desktop-setup-v2", "done"); } catch {} render(); return; }
     if (action === "desktop-open-settings") { view.desktopSetupOpen = false; view.page = "settings"; view.selected = null; try { localStorage.setItem("opensybau.setup-v3", "done"); localStorage.setItem("opensybau.desktop-setup-v2", "done"); } catch {} render(); return; }
     if (action === "open-setup-assistant") { view.desktopSetupOpen = true; render(); return; }
+    if (action === "app-update-check") {
+      const state = await window.opensybauDesktop?.checkForUpdates();
+      if (state?.status === "not-available") showToast(view.language === "en" ? "You are using the latest version." : "Bạn đang dùng phiên bản mới nhất.");
+      else if (state?.status === "error") showToast(state.error || (view.language === "en" ? "Could not check for updates." : "Không kiểm tra được cập nhật."));
+      else showToast(view.language === "en" ? "Checking for updates…" : "Đang kiểm tra cập nhật…");
+      return;
+    }
+    if (action === "app-update-restart") { await window.opensybauDesktop?.restartToUpdate(); return; }
     if (action === "new-chat") { view.page = "chat"; view.selected = null; view.chatDraft = ""; view.homeWorkspaceId = button.dataset.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id || ""; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; clearSidebarSearch(); view.homeConfigOpen = false; closeOverlay(); render(); }
     if (action === "refresh") { await api("/api/connectors?refresh=1"); await refresh({ configuration: true }); showToast("Đã đọc lại trạng thái CLI."); }
     if (action === "scan-skills") {

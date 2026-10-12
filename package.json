@@ -2,8 +2,12 @@
   "name": "opensybau",
   "description": "A local-first multi-agent coding workspace for Windows and the browser.",
   "author": "OpenSybau",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BlackOwl242/OpenSybau.git"
+  },
   "private": true,
-  "version": "0.2.12",
+  "version": "0.2.13",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -15,18 +19,26 @@
     "test": "node scripts/test-task-features.mjs",
     "start": "node scripts/run.mjs production",
     "desktop:dev": "npm run build && electron .",
-    "desktop:dist": "npm run build && electron-builder --win nsis"
+    "desktop:dist": "npm run build && electron-builder --win nsis",
+    "desktop:release": "npm run build && electron-builder --win nsis --publish always"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "preact": "^11.0.0"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",
-    "vite": "^8.3.3",
     "electron": "^42.0.0",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.0.12",
+    "vite": "^8.3.3"
   },
   "build": {
+    "publish": {
+      "provider": "github",
+      "owner": "BlackOwl242",
+      "repo": "OpenSybau",
+      "releaseType": "release"
+    },
     "appId": "com.opensybau.desktop",
     "productName": "OpenSybau",
     "asar": true,

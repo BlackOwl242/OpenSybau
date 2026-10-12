@@ -43,7 +43,7 @@ npm ci
 npm run desktop:dist
 ```
 
-Bộ cài nằm trong thư mục `release/`. App cài cho tài khoản hiện tại và tạo shortcut trong Start menu cùng Desktop. Lần mở đầu, OpenSybau kiểm tra Codex CLI, Claude Code và Antigravity CLI; chỉ cần cài những agent bạn muốn dùng rồi chọn **Quét lại**. Bạn cũng có thể cấu hình API từ hướng dẫn khởi động. OpenSybau không tự cài công cụ bên thứ ba.
+Bộ cài nằm trong thư mục `release/`. App cài cho tài khoản hiện tại và tạo shortcut trong Start menu cùng Desktop. Bản EXE tự kiểm tra GitHub Releases khi khởi động, tải bản mới ở nền và hỏi bạn khởi động lại để cài. Lần mở đầu, OpenSybau kiểm tra Codex CLI, Claude Code và Antigravity CLI; chỉ cần cài những agent bạn muốn dùng rồi chọn **Quét lại**. Bạn cũng có thể cấu hình API từ hướng dẫn khởi động. OpenSybau không tự cài công cụ bên thứ ba.
 
 Desktop app chỉ mở server trên `127.0.0.1`. Nếu muốn điều khiển bằng điện thoại hoặc máy khác trong mạng, hãy làm theo hướng dẫn chạy browser-host bên dưới.
 

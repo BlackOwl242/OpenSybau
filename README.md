@@ -43,7 +43,7 @@ npm ci
 npm run desktop:dist
 ```
 
-The installer is written to `release/`. It installs for the current Windows user and creates Start menu and desktop shortcuts. On first launch, OpenSybau checks Codex CLI, Claude Code, and Antigravity CLI; install only the agents you want to use, then select **Quét lại**. You can also configure API providers from the setup guide. OpenSybau does not silently install third-party agents.
+The installer is written to `release/`. It installs for the current Windows user and creates Start menu and desktop shortcuts. The EXE checks GitHub Releases at startup, downloads updates in the background, and asks you to restart to install them. On first launch, OpenSybau checks Codex CLI, Claude Code, and Antigravity CLI; install only the agents you want to use, then select **Quét lại**. You can also configure API providers from the setup guide. OpenSybau does not silently install third-party agents.
 
 The desktop app keeps its server on `127.0.0.1`. Use the browser-host setup below when you want a phone or another computer to connect over a local network.
 
