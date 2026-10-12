@@ -562,12 +562,12 @@ body.launch-home #content.home-launch-content{background:#fff}
 .home-task-card small{font-size:9px}
 .composer-config-backdrop{position:fixed;z-index:40;inset:0;display:grid;place-items:center;padding:20px;background:#161a2047;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
 .composer-config-backdrop[hidden]{display:none!important}
-.composer-config-dialog{width:min(540px,calc(100vw - 32px));max-height:min(82dvh,720px);overflow:auto;padding:18px;border:1px solid #e4e6ea;border-radius:14px;background:#fff;box-shadow:0 20px 70px #0d152333;color:#252a32;text-align:left}
+.composer-config-dialog{width:min(700px,calc(100vw - 32px));max-height:min(88dvh,840px);overflow:auto;padding:22px;border:1px solid #e4e6ea;border-radius:14px;background:#fff;box-shadow:0 20px 70px #0d152333;color:#252a32;text-align:left}
 .composer-config-dialog>header,.composer-config-dialog>footer{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .composer-config-dialog>header{margin-bottom:17px;padding-bottom:12px;border-bottom:1px solid #eceef1}
 .composer-config-dialog>header small{color:#7e8590;font-size:9px;letter-spacing:.7px}
 .composer-config-dialog>header h2{margin:3px 0 0;font-size:17px;font-weight:620;letter-spacing:-.25px}
-.composer-config-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.composer-config-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:14px}
 .composer-config-grid>label{min-width:0;display:grid;gap:6px;color:#69717c;font-size:11px}
 .composer-config-grid select{width:100%;height:37px;min-width:0;padding:0 10px;border:1px solid #dfe2e7;border-radius:7px;background:#fff;color:#292f38;font-size:12px}
 .composer-config-grid select:focus{outline:2px solid #315fcb2e;border-color:#8299cf}
@@ -793,8 +793,10 @@ body.launch-home #content.home-launch-content{background:#fff}
 .stage-history-entry>p{margin:7px 0;color:var(--wb-muted);font-size:10px}
 .stage-history-entry .stage-history-error{color:var(--wb-red)}
 .home-role-grid{margin:12px 0}
-.composer-config-dialog .agent-role-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.composer-config-dialog .agent-role-grid{grid-template-columns:minmax(0,1fr)}
 @media(max-width:850px){.agent-role-grid{grid-template-columns:1fr}.composer-config-dialog .agent-role-grid{grid-template-columns:1fr}.agent-role-card{grid-template-columns:1fr 1fr}.agent-role-card>header{grid-column:1/-1}.chat-agent-card{grid-template-columns:1fr 1fr}}
+@media(min-width:601px){.composer-config-dialog .agent-role-card{grid-template-columns:minmax(0,1fr)}.composer-config-dialog .agent-role-card>header,.composer-config-dialog .agent-role-card>label{grid-column:1}}
+@media(max-width:600px){.composer-config-backdrop{padding:8px}.composer-config-dialog{width:calc(100vw - 16px);max-height:calc(100dvh - 16px);padding:16px}.composer-config-dialog .agent-role-card{grid-template-columns:minmax(0,1fr)}.composer-config-dialog .agent-role-card>header,.composer-config-dialog .agent-role-card>label{grid-column:1}.composer-config-dialog .agent-role-card select{height:44px}.composer-config-dialog>footer{align-items:stretch;flex-direction:column}.composer-config-dialog>footer>.button{align-self:flex-end}}
 @media(max-width:620px){.provider-setup-row{grid-template-columns:9px minmax(0,1fr)}.provider-row-actions{grid-column:2;justify-content:flex-start}.provider-setup-card>header,.cli-setup-card>header{align-items:flex-start}.provider-model-field{grid-template-columns:1fr}.provider-model-field>button{justify-self:start;margin-top:-7px;margin-bottom:13px}.provider-connect-callout{grid-template-columns:30px minmax(0,1fr)}.provider-connect-icon{width:30px;height:30px}.provider-connect-callout>div:last-child{grid-column:1/-1;justify-content:flex-start}.cli-guide-row{grid-template-columns:30px minmax(0,1fr)}.cli-guide-row>.button,.cli-guide-ready{grid-column:2;justify-self:start}.cli-guide-icon{width:30px;height:30px}}
 @media(max-width:700px){.task-preset-tools>header{align-items:flex-start;flex-direction:column;gap:3px}.task-preset-controls{grid-template-columns:1fr}.task-preset-actions{grid-column:1}.stage-rerun-controls{width:100%;align-items:stretch;flex-direction:column;margin-right:0}.stage-rerun-controls select{width:100%}.stage-rerun-controls .button{width:100%;justify-content:center}}
 .goal-checklist-status{display:grid;gap:8px;padding-top:10px;border-top:1px solid var(--line)}.goal-checklist-status>strong{font-size:11px}.goal-checklist-status ul{display:grid;gap:6px;margin:0;padding:0;list-style:none}.goal-checklist-status li label{display:flex;align-items:flex-start;gap:8px;color:var(--ink);font-size:11px;line-height:1.5}.goal-checklist-status input{margin:2px 0 0;accent-color:#6484d8}.goal-checklist-status .is-done{text-decoration:line-through;color:var(--muted)}.chat-fork-button{display:inline-flex;align-items:center;gap:4px;border:0;border-radius:4px;padding:3px 6px;color:#75809a;background:transparent;font-size:9px}.chat-fork-button:hover{color:#365fc3;background:#e8edfa}.chat-pane-meta{display:flex;align-items:center;gap:9px}
