@@ -11,7 +11,7 @@
 html, body, #root { color: var(--foreground); background: var(--background); }
 body { font-family: "Nunito Sans Variable", "Segoe UI", Arial, sans-serif; }
 button, input, select, textarea { font-family: inherit; }
-::selection { color: var(--primary-foreground); background: color-mix(in oklch, var(--primary) 82%, var(--background)); }
+::selection { color: var(--primary-foreground); background: color-mix(in srgb, var(--primary) 82%, var(--background)); }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
 a:focus-visible, [tabindex]:focus-visible {
   outline: 2px solid var(--ring) !important;
@@ -43,8 +43,8 @@ body .wb-page-content .button:not(:disabled):hover,
 body #overlay .button:not(:disabled):hover,
 body .desktop-setup-dialog .button:not(:disabled):hover,
 body .icon-button:not(:disabled):hover {
-  border-color: color-mix(in oklch, var(--sidebar-primary) 38%, var(--input));
-  background: color-mix(in oklch, var(--secondary) 78%, var(--sidebar-primary) 22%);
+  border-color: var(--wb-border-strong);
+  background: var(--wb-control-hover);
 }
 body .wb-page-content .button.primary,
 body #overlay .button.primary,
@@ -56,16 +56,16 @@ body .desktop-setup-dialog .button.primary {
 body .wb-page-content .button.primary:not(:disabled):hover,
 body #overlay .button.primary:not(:disabled):hover,
 body .desktop-setup-dialog .button.primary:not(:disabled):hover {
-  border-color: color-mix(in oklch, var(--primary) 86%, white);
-  background: color-mix(in oklch, var(--primary) 86%, white);
-  box-shadow: 0 2px 10px color-mix(in oklch, var(--sidebar-primary) 18%, transparent);
+  border-color: #4770d1;
+  background: #4770d1;
+  box-shadow: 0 2px 10px rgb(54 95 195 / 18%);
   transform: translateY(-1px);
 }
 body .wb-page-content .button.danger,
 body #overlay .button.danger {
-  border-color: color-mix(in oklch, var(--destructive) 32%, var(--border));
+  border-color: color-mix(in srgb, var(--destructive) 32%, var(--border));
   color: var(--destructive);
-  background: color-mix(in oklch, var(--card) 84%, var(--destructive) 16%);
+  background: color-mix(in srgb, var(--card) 84%, var(--destructive) 16%);
 }
 body .wb-page-content .button:disabled,
 body #overlay .button:disabled,
@@ -87,8 +87,8 @@ body .wb-app-shell textarea {
   border-color: var(--input) !important;
   border-radius: var(--radius-md) !important;
   color: var(--foreground) !important;
-  background-color: color-mix(in oklch, var(--background) 88%, white 12%) !important;
-  accent-color: var(--sidebar-primary);
+  background-color: var(--wb-field) !important;
+  accent-color: var(--primary);
 }
 body .wb-page-content input::placeholder,
 body .wb-page-content textarea::placeholder,
@@ -111,12 +111,11 @@ body .wb-app-shell select optgroup {
   body .desktop-setup-dialog select::picker(select),
   body .wb-app-shell select::picker(select) {
     color: var(--popover-foreground);
-    background: color-mix(in oklch, var(--popover) 88%, transparent);
+    background: var(--popover);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     box-shadow: 0 16px 36px rgb(0 0 0 / 34%);
     padding: 4px;
-    backdrop-filter: blur(14px) saturate(125%);
   }
   body .wb-page-content select option,
   body #overlay select option,
@@ -132,7 +131,7 @@ body .wb-app-shell select optgroup {
   body .desktop-setup-dialog select option:checked,
   body .wb-app-shell select option:checked {
     color: var(--primary-foreground);
-    background-color: var(--primary) !important;
+    background-color: var(--wb-hover) !important;
   }
   body .wb-page-content select option::checkmark,
   body #overlay select option::checkmark,
@@ -242,7 +241,7 @@ body .wb-app-shell select optgroup {
 .wb-page-content .settings-empty,
 .wb-page-content .check-row,
 .wb-page-content .task-skill-option {
-  background-color: color-mix(in oklch, var(--card) 78%, var(--background));
+  background-color: var(--wb-surface-soft);
   color: var(--card-foreground);
 }
 .wb-page-content .task-row,
@@ -266,7 +265,7 @@ body .wb-app-shell select optgroup {
 .wb-page-content .pill.status-failed { color: var(--destructive); background: var(--wb-red-soft); }
 .wb-page-content .pill.status-cancelled { color: var(--muted-foreground); background: var(--secondary); }
 
-/* Menus use the preset's subtle translucent surface with a bold active item. */
+/* Menus share the original solid dark surface and neutral active state. */
 .wb-project-menu,
 .wb-task-menu,
 .wb-mobile-more-menu,
@@ -275,9 +274,8 @@ body .wb-app-shell select optgroup {
 .home-search-popover {
   border-color: var(--border);
   color: var(--popover-foreground);
-  background-color: color-mix(in oklch, var(--popover) 88%, transparent);
+  background-color: var(--popover);
   box-shadow: 0 16px 36px rgb(0 0 0 / 34%);
-  backdrop-filter: blur(14px) saturate(125%);
 }
 .wb-project-menu button,
 .wb-task-menu button,
@@ -294,8 +292,8 @@ body .wb-app-shell select optgroup {
 .wb-mobile-more-menu button.is-active,
 .wb-project-menu button.is-selected,
 .wb-task-menu button.is-selected {
-  color: var(--primary-foreground);
-  background: var(--primary);
+  color: var(--foreground);
+  background: var(--wb-hover);
 }
 .wb-rail-link.is-active::before { background: var(--sidebar-primary); }
 .wb-rail-link.is-active { color: var(--sidebar-primary); }
@@ -326,7 +324,7 @@ body .wb-app-shell select optgroup {
 .design-system-section > header h2 { margin: 0; color: var(--foreground); }
 .design-system-section > header p { margin: 4px 0 0; color: var(--muted-foreground); }
 .design-token-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
-.design-token-grid > div { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: color-mix(in oklch, var(--card) 74%, var(--background)); }
+.design-token-grid > div { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--wb-surface-soft); }
 .design-token-grid span { min-width: 0; display: grid; gap: 2px; }
 .design-token-grid strong, .design-preview-card h3 { color: var(--foreground); font-size: 13px; }
 .design-token-grid small { color: var(--muted-foreground); font-size: 11px; }
@@ -337,7 +335,7 @@ body .wb-app-shell select optgroup {
 .token-primary { background: var(--primary); }
 .token-border { background: var(--border); }
 .design-component-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.design-preview-card { min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: color-mix(in oklch, var(--card) 72%, var(--background)); }
+.design-preview-card { min-width: 0; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--wb-surface-soft); }
 .design-preview-card h3 { margin: 0 0 12px; font-size: 13px; font-weight: 650; }
 .design-preview-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .design-preview-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -354,11 +352,11 @@ body .wb-app-shell select optgroup {
 .design-empty-state > strong { color: var(--foreground); font-size: 13px; }
 .design-empty-state > p { max-width: 38ch; margin: 0 0 4px; color: var(--muted-foreground); font-size: 12px; }
 .design-overlay-samples { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(280px, 1.3fr); gap: 14px; align-items: start; }
-.design-menu-sample { display: grid; gap: 3px; padding: 7px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: color-mix(in oklch, var(--popover) 88%, transparent); box-shadow: 0 12px 28px rgb(0 0 0 / 24%); backdrop-filter: blur(14px); }
+.design-menu-sample { display: grid; gap: 3px; padding: 7px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--popover); box-shadow: 0 12px 28px rgb(0 0 0 / 24%); }
 .design-menu-sample > strong { padding: 6px 8px; color: var(--muted-foreground); font-size: 11px; }
 .design-menu-sample > button { min-height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); color: var(--foreground); background: transparent; text-align: left; }
 .design-menu-sample > button:hover { background: var(--muted); }
-.design-menu-sample > button.is-selected { color: var(--primary-foreground); background: var(--primary); }
+.design-menu-sample > button.is-selected { color: var(--foreground); background: var(--wb-hover); }
 .design-modal-sample { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card); box-shadow: 0 14px 32px rgb(0 0 0 / 24%); }
 .design-modal-sample > header, .design-modal-sample > footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .design-modal-sample > header { padding-bottom: 10px; border-bottom: 1px solid var(--border); }
