@@ -743,10 +743,10 @@ function openTaskInstructionModal(task) {
   const providers = Object.entries(view.connectors || {}).filter(([, connector]) => connectorSupports(connector, "chat"));
   const options = models.map((item) => `<option value="${esc(item.id)}" ${item.id === model?.id ? "selected" : ""}>${esc(item.name)}</option>`).join("");
   const effortOptions = (model?.efforts || efforts).map((effort) => `<option value="${esc(effort)}" ${effort === view.chatEffort ? "selected" : ""}>${esc(effort)}</option>`).join("");
-  const body = `<label>Chỉ dẫn bổ sung<textarea name="message" class="chat-input" maxlength="8000" rows="5" required placeholder="Yêu cầu thay đổi tiếp theo cho task này…">${esc(view.chatDraft)}</textarea></label><div class="task-instruction-guidance"><strong>Áp dụng cho lượt chat tiếp theo.</strong> Mục tiêu đã lưu vẫn được gửi kèm làm bối cảnh. Nếu yêu cầu mới khác mục tiêu, agent ưu tiên yêu cầu mới cho lượt này và nêu rõ điểm khác; mục tiêu dài hạn không tự đổi. Dùng nút <b>Mục tiêu</b> để sửa định hướng lâu dài. Mỗi tin nhắn chọn một agent/model; có thể đổi agent giữa các tin nhắn rồi gửi liên tiếp theo hàng đợi. Muốn pipeline nhiều vai trò, chọn luồng Pipeline khi tạo task.</div><small class="task-instruction-access-note">API agent chỉ nhận nội dung và ngữ cảnh trong chat; agent CLI mới có thể đọc hoặc sửa workspace.</small><div class="task-instruction-models"><label>Agent<select name="provider" data-chat-provider>${providers.map(([id, connector]) => `<option value="${esc(id)}" ${provider === id ? "selected" : ""}>${esc(connector.name || id)}${connector.kind === "api" ? " · API" : " · CLI"}</option>`).join("") || `<option value="">Chưa có agent khả dụng</option>`}</select></label><label>Model<select name="model" data-chat-model ${model ? "" : "disabled"}>${options || `<option value="">Chưa có model khả dụng</option>`}</select></label><label>Mức suy nghĩ<select name="effort" data-chat-effort>${effortOptions}</select></label></div>`;
-  showModal("Gửi chỉ dẫn cho task", body, "Gửi chỉ dẫn", "task-chat");
+  const body = `<div class="task-instruction-models"><label>Agent<select name="provider" data-chat-provider>${providers.map(([id, connector]) => `<option value="${esc(id)}" ${provider === id ? "selected" : ""}>${esc(connector.name || id)}${connector.kind === "api" ? " · API" : " · CLI"}</option>`).join("") || `<option value="">Chưa có agent khả dụng</option>`}</select></label><label>Model<select name="model" data-chat-model ${model ? "" : "disabled"}>${options || `<option value="">Chưa có model khả dụng</option>`}</select></label><label>Mức suy nghĩ<select name="effort" data-chat-effort>${effortOptions}</select></label></div>`;
+  showModal("Cấu hình lượt chat", body, "Áp dụng", "task-chat-config");
   $(".modal").dataset.id = task.id;
-  $(".modal").classList.add("task-instruction-modal");
+  $(".modal").classList.add("task-chat-config-modal");
 }
 function openTaskGoalModal(task) {
   const checklist = (task.goalChecklist || []).map((item) => item.text).join("\n");
@@ -970,6 +970,11 @@ async function handleSubmit(event) {
       const result = await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, provider: object.provider, model: object.model, effort: object.effort }) });
       view.chatDraft = "";
       showToast(view.language === "en" ? `Added to chat queue · position ${result.queuedPosition || 1}.` : `Đã thêm vào hàng đợi chat · vị trí ${result.queuedPosition || 1}.`);
+    } else if (form.dataset.form === "task-chat-config") {
+      view.chatProvider = object.provider;
+      view.chatModel = object.model;
+      view.chatEffort = object.effort;
+      showToast("Đã áp dụng agent và model cho tin nhắn tiếp theo.");
     } else if (form.dataset.form === "task-goal") {
       const checklist = String(object.checklist || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
       await api("/api/tasks/" + encodeURIComponent(form.dataset.id) + "/goal", { method: "POST", body: JSON.stringify({ goal: object.goal, checklist }) });
@@ -1392,7 +1397,7 @@ document.addEventListener("change", (event) => {
     view.chatProvider = event.target.value;
     view.chatModel = "";
     view.chatEffort = "";
-    const task = view.state.tasks.find((item) => item.id === $(".task-instruction-modal")?.dataset.id);
+    const task = view.state.tasks.find((item) => item.id === $(".task-chat-config-modal")?.dataset.id);
     if (task) openTaskInstructionModal(task); else render();
   }
   if (event.target.matches("[data-chat-model]")) {
@@ -1400,7 +1405,7 @@ document.addEventListener("change", (event) => {
     const models = view.connectors?.[view.chatProvider]?.models || [];
     const model = models.find((item) => item.id === view.chatModel);
     view.chatEffort = model?.efforts?.includes("medium") ? "medium" : model?.efforts?.[0] || "";
-    const task = view.state.tasks.find((item) => item.id === $(".task-instruction-modal")?.dataset.id);
+    const task = view.state.tasks.find((item) => item.id === $(".task-chat-config-modal")?.dataset.id);
     if (task) openTaskInstructionModal(task); else render();
   }
   if (event.target.matches("[data-chat-effort]")) { view.chatEffort = event.target.value; }
