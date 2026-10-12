@@ -766,6 +766,27 @@ body.launch-home .main {
   background: #202020;
 }
 
+#overlay .modal-sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: -22px -22px 12px;
+  padding: 22px 22px 0;
+  background: #202020;
+}
+
+#overlay .modal-sticky-top > .modal-head {
+  position: static;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 700px) {
+  #overlay .modal-sticky-top {
+    margin: -17px -17px 12px;
+    padding: 17px 17px 0;
+  }
+}
+
 button[aria-busy="true"] {
   cursor: wait;
 }
