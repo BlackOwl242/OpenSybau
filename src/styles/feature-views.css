@@ -179,9 +179,9 @@ button svg{display:block;flex:0 0 auto;fill:none;stroke:currentColor;stroke-widt
 .file-preview-empty p{margin:0;font-size:12px;text-align:center}
 .code-preview{flex:1;margin:0;padding:17px 18px;overflow:auto;background:#fbfcfd;color:#334055;font:12px/1.7 var(--mono);white-space:pre;tab-size:2}
 .code-preview code{font:inherit}
-.markdown-preview{max-width:850px;padding:24px 30px;color:#343d4b;font-size:13px;line-height:1.75;overflow-wrap:anywhere}
+.markdown-preview{width:100%;max-width:none;padding:32px clamp(20px,3vw,44px);color:#343d4b;font-size:16px;line-height:1.8;overflow-wrap:anywhere}
 .markdown-preview h1,.markdown-preview h2,.markdown-preview h3,.markdown-preview h4{color:#222d3e;line-height:1.35;letter-spacing:-.25px;margin:1.5em 0 .5em}
-.markdown-preview h1{font-size:23px}.markdown-preview h2{font-size:19px}.markdown-preview h3{font-size:16px}.markdown-preview h4{font-size:14px}
+.markdown-preview h1{font-size:clamp(24px,2vw,30px)}.markdown-preview h2{font-size:clamp(21px,1.8vw,25px)}.markdown-preview h3{font-size:clamp(18px,1.5vw,21px)}.markdown-preview h4{font-size:17px}
 .markdown-preview p{margin:0 0 1em}.markdown-preview ul,.markdown-preview ol{padding-left:22px}.markdown-preview li{padding:2px 0}
 .markdown-preview blockquote{margin:14px 0;padding:2px 0 2px 13px;border-left:3px solid #c9d2e2;color:#687387}
 .markdown-preview code{padding:2px 4px;border-radius:3px;background:#f1f3f6;font:11px var(--mono)}
@@ -247,7 +247,7 @@ button svg{display:block;flex:0 0 auto;fill:none;stroke:currentColor;stroke-widt
   .file-preview-head{align-items:flex-start;padding:11px}
   .file-preview-head .button{white-space:normal}
   .code-preview{min-height:38vh;padding:12px;font-size:11px}
-  .markdown-preview{padding:18px 15px;font-size:12px}
+  .markdown-preview{padding:22px 18px;font-size:15px;line-height:1.75}
   .skill-manager-row{grid-template-columns:minmax(0,1fr);gap:9px}
   .skill-manager-actions{grid-column:1;flex-wrap:wrap}
   .skill-manager>header{align-items:flex-start}
