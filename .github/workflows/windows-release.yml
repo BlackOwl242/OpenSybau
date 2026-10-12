@@ -21,7 +21,51 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Build and publish installer
-        run: npm run desktop:release
+      - name: Build Windows installer
+        run: npm run desktop:dist
+      - name: Regenerate updater metadata from the final installer
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME does not match package version $version"
+          }
+
+          $installer = "release/OpenSybau-Setup-$version-x64.exe"
+          $installerPath = Join-Path $PWD $installer
+          $installerName = Split-Path $installer -Leaf
+          $installerSize = (Get-Item -LiteralPath $installerPath).Length
+          $hashHex = (Get-FileHash -LiteralPath $installerPath -Algorithm SHA512).Hash
+          $hashBytes = [byte[]]::new($hashHex.Length / 2)
+          for ($i = 0; $i -lt $hashBytes.Length; $i++) {
+            $hashBytes[$i] = [Convert]::ToByte($hashHex.Substring($i * 2, 2), 16)
+          }
+          $sha512 = [Convert]::ToBase64String($hashBytes)
+          $releaseDate = [DateTime]::UtcNow.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+          $metadata = @"
+          version: $version
+          files:
+            - url: $installerName
+              sha512: $sha512
+              size: $installerSize
+          path: $installerName
+          sha512: $sha512
+          releaseDate: '$releaseDate'
+          "@
+          [System.IO.File]::WriteAllText((Join-Path $PWD "release/latest.yml"), $metadata, [System.Text.UTF8Encoding]::new($false))
+      - name: Publish installer and updater metadata
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $installer = "release/OpenSybau-Setup-$version-x64.exe"
+          $blockmap = "${installer}.blockmap"
+          gh release create "$env:GITHUB_REF_NAME" `
+            $installer `
+            $blockmap `
+            "release/latest.yml" `
+            --title "OpenSybau $env:GITHUB_REF_NAME" `
+            --notes "Windows x64 installer and verified updater metadata." `
+            --verify-tag `
+            --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
