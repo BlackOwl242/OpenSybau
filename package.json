@@ -7,7 +7,7 @@
     "url": "https://github.com/BlackOwl242/OpenSybau.git"
   },
   "private": true,
-  "version": "0.2.27",
+  "version": "0.2.28",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -19,7 +19,7 @@
     "test": "node scripts/test-task-features.mjs",
     "start": "node scripts/run.mjs production",
     "desktop:dev": "npm run build && electron .",
-    "desktop:dist": "npm run build && electron-builder --win nsis",
+    "desktop:dist": "npm run build && electron-builder --win nsis --publish never",
     "desktop:release": "npm run build && electron-builder --win nsis --publish always"
   },
   "dependencies": {
