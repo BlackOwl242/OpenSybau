@@ -255,8 +255,9 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .settings-card > header p, .wb-page-content .file-preview-head small, .wb-page-content .form-note { font-size: 13px; line-height: 1.55; }
 .wb-page-content label { font-size: 13px; }
 .wb-page-content .file-row strong { font-size: 13px; }
-.wb-page-content .orchestration-node-main p, .wb-page-content .orchestration-event p, .wb-page-content .orchestration-node-details summary, .wb-page-content .orchestration-event-details summary { font-size: 12px; line-height: 1.55; }
-.wb-page-content .orchestration-node-details time, .wb-page-content .orchestration-event time { font-size: 10px; }
+.wb-page-content .orchestration-node-main p, .wb-page-content .orchestration-event p { font-size: 13px; line-height: 1.6; }
+.wb-page-content .orchestration-node-details summary, .wb-page-content .orchestration-event-details summary { font-size: 13px; line-height: 1.5; }
+.wb-page-content .orchestration-node-details time, .wb-page-content .orchestration-event time { font-size: 11px; }
 .wb-page-content .chat-message-content { font-size: 14px; line-height: 1.7; }
 .wb-page-content .task-state.state-running { border-color: #72bc94; box-shadow: 0 0 0 3px #72bc941c; }
 .wb-page-content .task-state.state-running i, .wb-page-content .task-state.state-done { background: #72bc94; }
@@ -342,22 +343,24 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .task-orchestration-page .conversation-separator { color: #777b81; }
 .wb-page-content .task-orchestration-page .detail-title-row h2 { color: #ededee; }
 .wb-page-content .task-orchestration-page .orchestration-canvas-head, .wb-page-content .task-orchestration-page .orchestration-activity-head { border-color: var(--wb-border-subtle); background: var(--wb-panel-header); }
-.wb-page-content .task-orchestration-page .orchestration-canvas-head h3, .wb-page-content .task-orchestration-page .orchestration-activity-head h3 { color: #ededee; }
-.wb-page-content .task-orchestration-page .orchestration-canvas-head small, .wb-page-content .task-orchestration-page .orchestration-activity-head small { color: #9da0a5; }
+.wb-page-content .task-orchestration-page .orchestration-canvas-head h3, .wb-page-content .task-orchestration-page .orchestration-activity-head h3 { color: #ededee; font-size: 16px; }
+.wb-page-content .task-orchestration-page .orchestration-canvas-head small, .wb-page-content .task-orchestration-page .orchestration-activity-head small, .wb-page-content .task-orchestration-page .orchestration-node-card > header small { color: #9da0a5; font-size: 11px; }
 .wb-page-content .task-orchestration-page .orchestration-activity-head > span { color: #a4a7ac; }
+.wb-page-content .task-orchestration-page .orchestration-node-card > header > span { font-size: 12px; }
+.wb-page-content .task-orchestration-page .orchestration-activity-note { font-size: 13px; line-height: 1.6; }
 .wb-page-content .task-orchestration-page .orchestration-rail > span { border-color: #4a4c50; color: #c5c7ca; background: #303234; }
 .wb-page-content .task-orchestration-page .orchestration-rail > i { background: #4a4c50; }
 .wb-page-content .task-orchestration-page .orchestration-node-icon, .wb-page-content .task-orchestration-page .orchestration-event-mark { color: #c4c6ca; background: #3a3c3f; }
-.wb-page-content .task-orchestration-page .orchestration-node-main h3 { color: #e8e9ea; }
+.wb-page-content .task-orchestration-page .orchestration-node-main h3 { color: #e8e9ea; font-size: 16px; }
 .wb-page-content .task-orchestration-page .orchestration-node-details, .wb-page-content .task-orchestration-page .orchestration-event { border-color: #414346; }
 .wb-page-content .task-orchestration-page .orchestration-node-details summary, .wb-page-content .task-orchestration-page .orchestration-node-details > div p, .wb-page-content .task-orchestration-page .orchestration-node-details code { color: #b3b6bb; }
 .wb-page-content .task-orchestration-page .orchestration-node-details time, .wb-page-content .task-orchestration-page .orchestration-event time { color: #8f9399; }
-.wb-page-content .task-orchestration-page .orchestration-event > div > header strong { color: #b3b6bb; }
+.wb-page-content .task-orchestration-page .orchestration-event > div > header strong { color: #b3b6bb; font-size: 11px; }
 .wb-page-content .task-orchestration-page .orchestration-event-details pre { color: #d5d6d8; background: #202123; }
 .wb-page-content .task-orchestration-page .orchestration-stage-results, .wb-page-content .task-orchestration-page .orchestration-artifacts { border-color: #414346; }
 .wb-page-content .task-orchestration-page .orchestration-stage-results > strong, .wb-page-content .task-orchestration-page .orchestration-artifacts > strong { color: #d1d2d4; }
 .wb-page-content .task-orchestration-page .orchestration-stage-results details { border-color: #414346; }
-.wb-page-content .task-orchestration-page .orchestration-stage-results summary { color: #c3c5c8; }
+.wb-page-content .task-orchestration-page .orchestration-stage-results summary { color: #c3c5c8; font-size: 13px; }
 .wb-page-content .task-orchestration-page .orchestration-stage-results pre { color: #d5d6d8; background: #202123; }
 .wb-page-content .task-orchestration-page .orchestration-artifacts > div { color: #b7babf; }
 .wb-page-content .task-orchestration-page .detail-actions { border-color: #414346; background: #242526; }
