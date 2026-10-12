@@ -759,32 +759,28 @@ body.launch-home .main {
   box-shadow: 0 18px 60px #0008;
 }
 
+#overlay .modal {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 #overlay .modal-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: #202020;
-}
-
-#overlay .modal-sticky-top {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  margin: -22px -22px 12px;
-  padding: 22px 22px 0;
-  background: #202020;
-}
-
-#overlay .modal-sticky-top > .modal-head {
   position: static;
-  margin-bottom: 16px;
+  flex: 0 0 auto;
+  background: inherit;
 }
 
-@media (max-width: 700px) {
-  #overlay .modal-sticky-top {
-    margin: -17px -17px 12px;
-    padding: 17px 17px 0;
-  }
+#overlay .modal-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #545454 #2b2c2e;
+}
+
+#overlay .modal-actions {
+  flex: 0 0 auto;
 }
 
 button[aria-busy="true"] {
