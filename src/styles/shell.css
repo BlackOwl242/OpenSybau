@@ -717,6 +717,7 @@ body .wb-app-shell select optgroup {
     border-radius: 8px;
     box-shadow: 0 10px 28px rgb(0 0 0 / 38%);
     padding: 4px;
+    position-try-order: normal;
   }
 
   body .wb-page-content select option,
