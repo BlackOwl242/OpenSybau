@@ -660,3 +660,81 @@ button:disabled { cursor: not-allowed; }
   flex: 0 0 auto;
   min-width: 0;
 }
+
+/* Keep every native dropdown on the same OpenSybau palette. */
+body .wb-page-content select,
+body #overlay select,
+body .desktop-setup-dialog select,
+body .wb-app-shell select {
+  color-scheme: dark !important;
+  color: #ececed !important;
+  background-color: #202123 !important;
+  border-color: #484a4e !important;
+  accent-color: #5b82e8;
+}
+
+body .wb-page-content select option,
+body #overlay select option,
+body .desktop-setup-dialog select option,
+body .wb-app-shell select option,
+body .wb-page-content select optgroup,
+body #overlay select optgroup,
+body .desktop-setup-dialog select optgroup,
+body .wb-app-shell select optgroup {
+  color: #ececed;
+  background-color: #252628;
+}
+
+@supports (appearance: base-select) {
+  body .wb-page-content select,
+  body #overlay select,
+  body .desktop-setup-dialog select,
+  body .wb-app-shell select {
+    appearance: base-select;
+  }
+
+  body .wb-page-content select::picker(select),
+  body #overlay select::picker(select),
+  body .desktop-setup-dialog select::picker(select),
+  body .wb-app-shell select::picker(select) {
+    appearance: base-select;
+    color: #ececed;
+    background: #252628;
+    border: 1px solid #484a4e;
+    border-radius: 8px;
+    box-shadow: 0 10px 28px rgb(0 0 0 / 38%);
+    padding: 4px;
+  }
+
+  body .wb-page-content select option,
+  body #overlay select option,
+  body .desktop-setup-dialog select option,
+  body .wb-app-shell select option {
+    min-height: 34px;
+    border-radius: 5px;
+    padding: 7px 10px;
+  }
+
+  body .wb-page-content select option:checked,
+  body #overlay select option:checked,
+  body .desktop-setup-dialog select option:checked,
+  body .wb-app-shell select option:checked {
+    color: #fff;
+    background: #365fc3;
+  }
+
+  body .wb-page-content select option:hover,
+  body #overlay select option:hover,
+  body .desktop-setup-dialog select option:hover,
+  body .wb-app-shell select option:hover {
+    color: #fff;
+    background: #343a46;
+  }
+
+  body .wb-page-content select::picker-icon,
+  body #overlay select::picker-icon,
+  body .desktop-setup-dialog select::picker-icon,
+  body .wb-app-shell select::picker-icon {
+    color: #c6c8cc;
+  }
+}
