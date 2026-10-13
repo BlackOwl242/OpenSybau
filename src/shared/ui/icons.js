@@ -14,6 +14,7 @@ import ChevronRightIcon from "@hugeicons/core-free-icons/ChevronRightIcon";
 import CodeFolderIcon from "@hugeicons/core-free-icons/CodeFolderIcon";
 import CommandLineIcon from "@hugeicons/core-free-icons/CommandLineIcon";
 import Copy01Icon from "@hugeicons/core-free-icons/Copy01Icon";
+import Delete02Icon from "@hugeicons/core-free-icons/Delete02Icon";
 import Download01Icon from "@hugeicons/core-free-icons/Download01Icon";
 import File01Icon from "@hugeicons/core-free-icons/File01Icon";
 import Folder01Icon from "@hugeicons/core-free-icons/Folder01Icon";
@@ -49,6 +50,7 @@ const iconData = {
   "chevron-down": ChevronDownIcon,
   "chevron-right": ChevronRightIcon,
   copy: Copy01Icon,
+  delete: Delete02Icon,
   "download-cloud": Download01Icon,
   ellipsis: MoreHorizontalIcon,
   file: File01Icon,

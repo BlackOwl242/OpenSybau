@@ -51,6 +51,11 @@ const fixture = {
       permissionPreset: "workspace-write", createdAt: now, updatedAt: now, events: [{ id: "prior-event", text: "Kept event from the earlier run", kind: "info", at: now }],
       plan: "Old plan to preserve in history", implementation: "", review: "", artifacts: [], skillSelectionMode: "manual", skillSelectionCompleted: true, skillIds: [],
     },
+    {
+      id: "task-archived-test", title: "Archived chat fixture", prompt: "An archived chat for deletion", workspaceId: "workspace-test", workspacePath: root,
+      status: "done", phase: "done", isolated: false, archived: true, config: { workflow: "chat-only" },
+      permissionPreset: "workspace-write", createdAt: now, updatedAt: now, events: [], chatMessages: [],
+    },
   ],
 };
 
@@ -93,6 +98,10 @@ try {
     return { status: response.status, body: await response.json() };
   };
 
+  const nestedWorkspace = await request("/api/workspaces", "POST", { path: path.join(root, "src", "domain") });
+  assert.equal(nestedWorkspace.status, 201);
+  assert.equal(nestedWorkspace.body.workspace.path, path.join(root, "src", "domain"), "Registering a nested folder must preserve the exact folder selected by the user.");
+
   const goal = await request("/api/tasks/task-feature-test/goal", "POST", {
     goal: "Deliver a stable feature",
     checklist: ["Preserve the original chat", "Keep the goal in later prompts"],
@@ -109,8 +118,18 @@ try {
   const permission = await request("/api/tasks/task-feature-test", "PATCH", { permissionPreset: "read-only" });
   assert.equal(permission.status, 200);
   assert.equal(permission.body.task.permissionPreset, "read-only");
+  const fullAccess = await request("/api/tasks/task-feature-test", "PATCH", { permissionPreset: "full-access" });
+  assert.equal(fullAccess.status, 200);
+  assert.equal(fullAccess.body.task.permissionPreset, "full-access");
+  await request("/api/tasks/task-feature-test", "PATCH", { permissionPreset: "read-only" });
   const invalidPermission = await request("/api/tasks/task-feature-test", "PATCH", { permissionPreset: "unrestricted" });
   assert.equal(invalidPermission.status, 400);
+  const rejectUnarchivedDelete = await request("/api/tasks/task-feature-test", "DELETE");
+  assert.equal(rejectUnarchivedDelete.status, 409, "Chats must be archived before permanent deletion.");
+  const deletedArchivedChat = await request("/api/tasks/task-archived-test", "DELETE");
+  assert.equal(deletedArchivedChat.status, 200);
+  assert.equal(deletedArchivedChat.body.deleted, true);
+  assert.equal((await request("/api/state")).body.workspaces.some((workspace) => workspace.id === "workspace-test"), true, "Deleting a chat must not delete its workspace.");
 
   const fork = await request("/api/tasks/task-feature-test/fork", "POST", { messageId: userTwo.id });
   assert.equal(fork.status, 201);
@@ -169,11 +188,12 @@ try {
   });
   assert.equal(createFromStaleTemplate.status, 409);
   const createdFromTemplate = await request("/api/tasks", "POST", {
-    workspaceId: "workspace-test", prompt: "Create task from a saved template", workflow: "plan-only", permissionPreset: "workspace-write",
+    workspaceId: "workspace-test", prompt: "Create task from a saved template", workflow: "plan-only",
     planProvider: "test-api", planModel: "test-model", planEffort: "standard",
     presetRef: { id: secondVersion.body.preset.id, version: 2 },
   });
   assert.equal(createdFromTemplate.status, 201);
+  assert.equal(createdFromTemplate.body.task.permissionPreset, "full-access", "New tasks default to full local CLI access when the user has not chosen a narrower preset.");
   assert.deepEqual(createdFromTemplate.body.task.presetRef, { id: secondVersion.body.preset.id, name: "Test planning", version: 2 });
   const createdTask = await waitForTask(createdFromTemplate.body.task.id);
   assert.equal(createdTask.plan, "Fresh test plan 2");
@@ -183,7 +203,7 @@ try {
   assert.equal(persisted.tasks.some((task) => task.forkedFromMessageId === userTwo.id), true);
   assert.equal(persisted.tasks.find((task) => task.id === createdTask.id).presetRef.version, 2);
   assert.equal(persisted.settings.taskPresets[0].versions.length, 2);
-  process.stdout.write("Task feature integration checks passed: goal/checklist, permissions, forks, stage reruns with history, versioned task presets, and persistence.\n");
+  process.stdout.write("Task feature integration checks passed: goal/checklist, permissions, archived chat deletion, forks, stage reruns with history, versioned task presets, and persistence.\n");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

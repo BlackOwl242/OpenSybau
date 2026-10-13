@@ -7,6 +7,7 @@ function TaskMenu({ task, archived = false }) {
     {!archived ? <button role="menuitem" data-action="toggle-task-pin" data-id={task.id}><Icon name="pin" size={14} />{task.pinned ? "Bỏ ghim" : "Ghim"}</button> : null}
     <button role="menuitem" data-action={archived ? "restore-task" : "archive-task"} data-id={task.id}><Icon name={archived ? "archive-restore" : "archive"} size={14} />{archived ? "Khôi phục" : "Lưu trữ"}</button>
     <button role="menuitem" data-action="copy-task-prompt" data-id={task.id}><Icon name="copy" size={14} />Sao chép yêu cầu</button>
+    {archived ? <><div class="wb-task-menu-divider" /><button class="is-danger" role="menuitem" data-action="delete-chat" data-id={task.id}><Icon name="delete" size={14} />Xóa vĩnh viễn</button></> : null}
   </div>;
 }
 

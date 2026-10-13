@@ -105,9 +105,12 @@ button:disabled { cursor: not-allowed; }
 .wb-task-copy strong { display: block; overflow: hidden; color: inherit; font-size: 11px; font-weight: 450; text-overflow: ellipsis; white-space: nowrap; }
 .wb-task-actions { flex: 0 0 auto; display: flex; gap: 2px; padding-right: 2px; opacity: 0; pointer-events: none; }
 .wb-task-item:hover .wb-task-actions, .wb-task-item:focus-within .wb-task-actions { opacity: 1; pointer-events: auto; }
-.wb-task-menu { position: absolute; top: 30px; right: 2px; z-index: 13; width: 176px; display: grid; gap: 2px; padding: 5px; border: 1px solid #414346; border-radius: 8px; background: #292a2c; box-shadow: 0 12px 30px #0009; }
+.wb-task-menu { position: absolute; top: 30px; right: 0; z-index: 13; width: 176px; display: grid; gap: 2px; padding: 5px; border: 1px solid #414346; border-radius: 8px; background: #292a2c; box-shadow: 0 12px 30px #0009; }
 .wb-task-menu button { min-height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 5px; color: #e1e2e3; background: transparent; font-size: 10px; text-align: left; }
 .wb-task-menu button:hover { background: #3a3c3f; }
+.wb-task-menu button.is-danger { color: #f0a4a4; }
+.wb-task-menu button.is-danger:hover { background: #3c2c2e; }
+.wb-task-menu-divider { height: 1px; margin: 3px 4px; background: #414346; }
 .wb-task-item.is-archived .wb-task-link { color: #92969c; }
 .wb-recent-heading { margin-top: 17px; padding-top: 10px; border-top: 1px solid #303133; }
 .wb-archived-heading { margin-top: 12px; padding-top: 9px; border-top: 1px solid #303133; }
@@ -302,8 +305,6 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .auto-skill-chip, .wb-page-content .home-composer-foot { color: #a7aaaf; }
 .wb-page-content .home-submit { border: 0; border-radius: 50%; color: #222426; background: #e0e1e2; }
 .wb-page-content .home-submit:hover { background: #fff; }
-.wb-page-content .home-add-workspace { border-color: #484a4e; color: #e4e5e6; background: #303234; }
-.wb-page-content .home-add-workspace:hover { border-color: #5a5d62; background: #3b3d40; }
 .wb-page-content .command-stage h1 { color: #f0f0f1; }
 .wb-page-content .concurrency-card { margin-top: 16px; }
 .concurrency-setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -319,7 +320,8 @@ button:disabled { cursor: not-allowed; }
 .wb-project-open:hover { color: #f3f4f5; background: #3a3c3f; }
 .wb-project-new-chat { min-height: 30px; display: flex; align-items: center; gap: 8px; padding: 5px 8px; border: 0; border-radius: 6px; color: #aeb1b6; background: transparent; text-align: left; font-size: 10px; }
 .wb-project-new-chat:hover { color: #e8e9ea; background: #292a2c; }
-.wb-task-item { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 68px; align-items: center; border-radius: 6px; }
+.wb-task-item { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-radius: 6px; }
+.wb-task-item .wb-task-actions { gap: 2px; padding-right: 0; }
 .wb-task-item:hover, .wb-task-item.is-selected { background: #303234; }
 .wb-task-item .wb-task-link { min-width: 0; min-height: 30px; padding-right: 3px; border-radius: 6px 0 0 6px; background: transparent; }
 .wb-task-item .wb-task-link:hover, .wb-task-item.is-selected .wb-task-link { background: transparent; }
@@ -546,9 +548,6 @@ button:disabled { cursor: not-allowed; }
   .wb-page-content .home-composer-settings { min-height: 40px; }
   .wb-page-content .home-composer-settings > span, .wb-page-content .home-composer-settings > .wb-icon:last-child { display: none; }
   .wb-page-content .home-composer-settings::after { content: "Cấu hình"; font-size: 12px; }
-  .wb-page-content .home-composer-controls.has-add-workspace .auto-skill-chip { display: none; }
-  .wb-page-content .home-add-workspace { width: 40px; height: 40px; padding: 0; }
-  .wb-page-content .home-add-workspace span { display: none; }
   .wb-page-content .conversation-top { height: auto; min-height: 0; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px; }
   .wb-page-content .task-orchestration-page > .conversation-top { padding-right: 0; padding-left: 0; }
   .wb-page-content .conversation-context { width: 100%; min-width: 0; flex-wrap: wrap; overflow: hidden; }

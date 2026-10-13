@@ -210,7 +210,7 @@ function publish(type = "state") {
   for (const client of clients) client.write(`event: update\ndata: ${payload}\n\n`);
 }
 function record(task, text, kind = "info") {
-  const line = { at: new Date().toISOString(), text: String(text).slice(0, 2000), kind };
+  const line = { at: new Date().toISOString(), text: String(text).slice(0, 8000), kind };
   task.events = [...(task.events || []), line].slice(-250);
   task.updatedAt = line.at;
   persist();
@@ -221,7 +221,7 @@ function finishStageRerun(task, status, error = "") {
   if (attempt) {
     attempt.status = status;
     attempt.completedAt = new Date().toISOString();
-    if (error) attempt.error = String(error).slice(0, 2000);
+    if (error) attempt.error = String(error).slice(0, 8000);
   }
   task.activeStageRunId = null;
 }
@@ -247,7 +247,7 @@ function json(response, status, value) {
   response.end(JSON.stringify(value));
 }
 function safeError(error) {
-  return String(error?.message || error || "Unknown error").slice(0, 2000);
+  return String(error?.message || error || "Unknown error").slice(0, 8000);
 }
 function killTree(child) {
   if (!child?.pid) return;
@@ -363,14 +363,14 @@ async function inspectWorkspace(path) {
   const stat = await fs.stat(realPath);
   if (!stat.isDirectory()) throw new Error("Đường dẫn workspace phải trỏ tới một thư mục.");
   const repo = await git(realPath, ["rev-parse", "--show-toplevel"]);
-  if (repo.code !== 0) return { path: realPath, isGit: false, branch: null, head: false, dirty: null };
+  if (repo.code !== 0) return { path: realPath, gitRoot: null, isGit: false, branch: null, head: false, dirty: null };
   const repoPath = (repo.stdout || "").trim();
   const [branch, head, status] = await Promise.all([
     git(repoPath, ["branch", "--show-current"]),
     git(repoPath, ["rev-parse", "--verify", "HEAD"]),
     git(repoPath, ["status", "--short"]),
   ]);
-  return { path: repoPath, isGit: true, branch: (branch.stdout || "").trim(), head: head.code === 0, dirty: Boolean((status.stdout || "").trim()) };
+  return { path: realPath, gitRoot: repoPath, isGit: true, branch: (branch.stdout || "").trim(), head: head.code === 0, dirty: Boolean((status.stdout || "").trim()) };
 }
 async function loadModels(force = false) {
   if (!force && modelCache && Date.now() < modelCacheUntil) return modelCache;
@@ -783,7 +783,7 @@ function normalizeTaskPresetProfile(input) {
   const workflow = String(input.workflow || "");
   if (!["chat-only", "plan-only", "codex-antigravity"].includes(workflow)) throw new Error("Luồng trong mẫu tác vụ không hợp lệ.");
   const permissionPreset = String(input.permissionPreset || "workspace-write");
-  if (!["read-only", "workspace-write"].includes(permissionPreset)) throw new Error("Preset quyền trong mẫu không hợp lệ.");
+  if (!["read-only", "workspace-write", "full-access"].includes(permissionPreset)) throw new Error("Preset quyền trong mẫu không hợp lệ.");
   const selection = (value, label) => {
     const provider = String(value?.provider || "").trim();
     const model = String(value?.model || "").trim();
@@ -1060,7 +1060,7 @@ function makeChatPrompt(task, turn) {
   const plan = String(task.plan || "").slice(0, 4500);
   const latestEvents = (task.events || []).filter((event) => ["stage", "handoff", "tool", "error", "success"].includes(event.kind)).slice(-8).map((event) => `- ${String(event.text).slice(0, 220)}`).join("\n");
   const goalText = task.goal ? `\n\nLong-term goal:\n${task.goal}${task.goalChecklist?.length ? `\nAcceptance checklist:\n${task.goalChecklist.map((item) => `- [${item.done ? "x" : " "}] ${item.text}`).join("\n")}` : ""}` : "";
-  const accessNote = task.permissionPreset === "read-only" ? "You may inspect files but must not edit, create, or delete workspace files." : "You may inspect or edit files to fulfill the new request, but keep changes scoped to what the user asks; inspect only files relevant to the request.";
+  const accessNote = task.permissionPreset === "read-only" ? "You may inspect files but must not edit, create, or delete workspace files." : task.permissionPreset === "full-access" ? "The user explicitly granted full local access for this task. You may run commands and read or modify files anywhere available to the user's operating-system account, but keep changes scoped to the request." : "You may inspect or edit files to fulfill the new request, but keep changes scoped to what the user asks; inspect only files relevant to the request.";
   return `Continue the user's OpenSybau conversation for this real workspace. Answer in the user's language. ${accessNote} The latest user message defines this chat turn and may request work that differs from the long-term goal. Follow that explicit request for this turn, briefly point out a conflict with the saved goal, and never silently change the saved goal. If the user wants a lasting direction change, tell them to update it through the Goal control. Do not reveal private chain-of-thought; give a concise rationale, actions, and results.\n\nWorkspace: ${task.executionPath || task.workspacePath}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}\nOriginal task: ${String(task.prompt).slice(0, 5000)}${goalText}\nSaved plan (truncated if long):\n${plan || "No plan saved."}\n\nRecent observable activity:\n${latestEvents || "No activity recorded."}\n\nRecent conversation:\n${history || "No earlier chat messages."}\n\nNew user message:\n${String(turn.content).slice(0, 8000)}`;
 }
 function makeInitialChatPrompt(task, memory, skillInstructions, workspace) {
@@ -1070,7 +1070,7 @@ function makeInitialChatPrompt(task, memory, skillInstructions, workspace) {
   const skillText = applicableSkills.length ? `\n\nSelected local skills:\n${applicableSkills.map((skill) => `- ${skill.name}: ${String(skill.instruction).slice(0, 5000)}`).join("\n\n").slice(0, 7000)}` : "";
   const goalText = task.goal ? `\n\nLong-term goal:\n${task.goal}${task.goalChecklist?.length ? `\nAcceptance checklist:\n${task.goalChecklist.map((item) => `- [${item.done ? "x" : " "}] ${item.text}`).join("\n")}` : ""}` : "";
   const readOnly = task.permissionPreset === "read-only";
-  const accessNote = provider === "claude-api" || apiProviderRuntime.has(provider) ? "You cannot access the local filesystem or execute tools. Use only information in this prompt; never claim to have inspected or changed files." : readOnly ? "You may inspect files but must not edit, create, or delete workspace files." : "Inspect relevant files only when useful. You may edit files only when the user asks for a change; keep edits scoped.";
+  const accessNote = provider === "claude-api" || apiProviderRuntime.has(provider) ? "You cannot access the local filesystem or execute tools. Use only information in this prompt; never claim to have inspected or changed files." : readOnly ? "You may inspect files but must not edit, create, or delete workspace files." : task.permissionPreset === "full-access" ? "The user explicitly granted full local access for this task. You may run commands and access files anywhere available to the user's operating-system account, while keeping changes scoped to the request." : "Inspect relevant files only when useful. You may edit files only when the user asks for a change; keep edits scoped.";
   return `You are ${publicProviderName(provider)} in a continuing local project conversation. Answer in the user's language. Be conversational and concise. ${accessNote} Treat the user's latest explicit request as the work for this turn. If it differs from the saved long-term goal, briefly point out the conflict, follow the request for this turn, and do not silently change the saved goal. Never reveal private chain-of-thought; summarize your rationale, actions, and results.\n\nWorkspace: ${task.executionPath || workspace.path}\nProject: ${workspace.name}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}${goalText}${memoryText}${skillText}\n\nUser message:\n${String(task.prompt).slice(0, 8000)}`;
 }
 function parseCodexEvent(line, task, outputParts) {
@@ -1152,19 +1152,22 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
   if (provider === "codex") {
     exe = codexExe;
     const projectDirs = additionalWritableProjectDirs(task, cwd);
+    const sandboxArgs = task.permissionPreset === "full-access"
+      ? ["--dangerously-bypass-approvals-and-sandbox"]
+      : ["--sandbox", task.permissionPreset === "read-only" || !(stage === "build" || stage.startsWith("chat-") || stage === "chat-initial") ? "read-only" : "workspace-write"];
     args = [
-      ...(process.platform === "win32" ? ["--config", 'windows.sandbox="unelevated"'] : []),
-      "--disable", "unified_exec", "--ask-for-approval", "never", "exec", "--json", "--ephemeral", "--skip-git-repo-check", "--sandbox", task.permissionPreset === "read-only" || !(stage === "build" || stage.startsWith("chat-") || stage === "chat-initial") ? "read-only" : "workspace-write", "-C", cwd, "--model", selection.model, "--config", `model_reasoning_effort=${JSON.stringify(selection.effort)}`, "--output-last-message", resolve(task.storagePath, `${stage}.md`), ...projectDirs.flatMap((directory) => ["--add-dir", directory]), "-",
+      ...(task.permissionPreset !== "full-access" && process.platform === "win32" ? ["--config", 'windows.sandbox="unelevated"'] : []),
+      "--disable", "unified_exec", "--ask-for-approval", "never", "exec", "--json", "--ephemeral", "--skip-git-repo-check", ...sandboxArgs, "-C", cwd, "--model", selection.model, "--config", `model_reasoning_effort=${JSON.stringify(selection.effort)}`, "--output-last-message", resolve(task.storagePath, `${stage}.md`), ...projectDirs.flatMap((directory) => ["--add-dir", directory]), "-",
     ];
   } else if (provider === "antigravity") {
     exe = agyExe;
     const modelEffort = selection.model.match(/-(low|medium|high|xhigh|max)$/)?.[1] || selection.effort;
     const additionalDirs = [...new Map([...(task.antigravitySkillDirs || []), ...additionalWritableProjectDirs(task, cwd)].map((directory) => [directory.toLowerCase(), directory])).values()];
-    args = [...additionalDirs.flatMap((directory) => ["--add-dir", directory]), "--prompt", "Follow the complete task instructions supplied on stdin.", "--output-format", "stream-json", "--model", selection.model, "--effort", modelEffort, "--sandbox", "--print-timeout", "0"];
+    args = [...additionalDirs.flatMap((directory) => ["--add-dir", directory]), "--prompt", "Follow the complete task instructions supplied on stdin.", "--output-format", "stream-json", "--model", selection.model, "--effort", modelEffort, ...(task.permissionPreset === "full-access" ? ["--dangerously-skip-permissions"] : ["--sandbox"]), "--print-timeout", "0"];
   } else if (provider === "claude") {
     exe = claudeExe;
     const additionalDirs = additionalWritableProjectDirs(task, cwd);
-    args = [...claudeCommand.prefixArgs, "-p", "--model", selection.model, "--output-format", "json", "--permission-mode", task.permissionPreset === "read-only" || stage === "plan" || stage === "review" ? "plan" : "acceptEdits", "--max-turns", "20", ...additionalDirs.flatMap((directory) => ["--add-dir", directory])];
+    args = [...claudeCommand.prefixArgs, "-p", "--model", selection.model, "--output-format", "json", "--permission-mode", task.permissionPreset === "full-access" ? "bypassPermissions" : task.permissionPreset === "read-only" || stage === "plan" || stage === "review" ? "plan" : "acceptEdits", "--max-turns", "20", ...additionalDirs.flatMap((directory) => ["--add-dir", directory])];
   } else {
     throw new Error(`Provider ${provider} không có bộ chạy cục bộ.`);
   }
@@ -1195,7 +1198,7 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
       if (pending.trim()) { if (provider === "codex") parseCodexEvent(pending.trim(), task, outputParts); else parseAgyEvent(pending.trim(), task, outputParts); }
       if (running.get(task.id)?.stopped) return rejectPromise(new Error("Stopped by user"));
       if (code !== 0) return rejectPromise(new Error(stderrTail.trim() || `${publicProviderName(provider)} exited with code ${code}`));
-      if (task.stageFailure) return rejectPromise(new Error(task.stageFailure.slice(0, 1400)));
+      if (task.stageFailure) return rejectPromise(new Error(task.stageFailure.slice(0, 8000)));
       let output = "";
       if (provider === "claude") {
         try {
@@ -1229,17 +1232,19 @@ async function executeTask(task) {
     const previousRepoIsManaged = previousInfo?.path && within(resolve(worktreeDir), resolve(previousInfo.path)) && resolve(previousInfo.path) !== resolve(worktreeDir);
     if (previousInfo?.isGit && previousInfo.head && previousRepoIsManaged) {
       cwd = previousInfo.path;
+      task.worktreePath = previousInfo.gitRoot || previousInfo.path;
     } else {
       if (!info.isGit || !info.head) throw new Error("Worktree requires a Git repository with at least one commit. Turn off isolation or create an initial commit first.");
       const attempt = Date.now().toString(36);
-      cwd = resolve(worktreeDir, `${task.id}-${attempt}`);
+      const worktreeRoot = resolve(worktreeDir, `${task.id}-${attempt}`);
       const branchName = `workbench/${task.id.toLowerCase()}-${attempt}`;
-      const add = await git(info.path, ["worktree", "add", "-b", branchName, cwd, "HEAD"]);
+      const add = await git(info.gitRoot || info.path, ["worktree", "add", "-b", branchName, worktreeRoot, "HEAD"]);
       if (add.code !== 0) throw new Error(add.stderr.trim() || "Could not create isolated Git worktree");
-      task.worktreePath = cwd;
+      task.worktreePath = worktreeRoot;
+      const selectedSubdirectory = relative(info.gitRoot || info.path, info.path);
+      cwd = selectedSubdirectory ? resolve(worktreeRoot, selectedSubdirectory) : worktreeRoot;
       assertTaskActive(task);
     }
-    task.worktreePath = cwd;
   } else {
     const sameWorkspaceActive = [...running.entries()].some(([id, runInfo]) => id !== task.id && runInfo.workspacePath === info.path && !runInfo.isolated);
     if (sameWorkspaceActive) throw new Error("This workspace already has a running shared-checkout task");
@@ -1384,8 +1389,9 @@ async function processTaskChatQueue(task) {
         task.chatMessages.push({ id: randomUUID(), role: "assistant", replyToMessageId: userMessage?.id, provider: turn.provider, model: turn.model, effort: turn.effort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
         record(task, `${publicProviderName(turn.provider)} đã trả lời trong chat.`, "success");
       } catch (error) {
-        if (userMessage) userMessage.status = "failed";
-        record(task, `${publicProviderName(turn.provider)} chat lỗi: ${safeError(error)}`, "error");
+        const messageError = safeError(error);
+        if (userMessage) { userMessage.status = "failed"; userMessage.error = messageError; }
+        record(task, `${publicProviderName(turn.provider)} chat lỗi: ${messageError}`, "error");
         if (running.get(task.id)?.stopped) break;
       }
       persist(); publish("task");
@@ -1777,8 +1783,8 @@ async function api(request, response, pathname) {
     if (prompt.length < 6 || prompt.length > 12000) return json(response, 400, { error: "Yêu cầu cần từ 6 đến 12.000 ký tự." });
     const connectors = await loadModels();
     const workflow = ["chat-only", "plan-only", "codex-antigravity"].includes(body.workflow) ? body.workflow : "codex-antigravity";
-    const permissionPreset = body.permissionPreset === undefined ? "workspace-write" : body.permissionPreset;
-    if (!["read-only", "workspace-write"].includes(permissionPreset)) return json(response, 400, { error: "Preset quyền không hợp lệ." });
+    const permissionPreset = body.permissionPreset === undefined ? "full-access" : body.permissionPreset;
+    if (!["read-only", "workspace-write", "full-access"].includes(permissionPreset)) return json(response, 400, { error: "Preset quyền không hợp lệ." });
     const roles = Object.fromEntries(workflowRoles.map((role) => [role.id, requestedRole(body, role.id, connectors)]));
     const chatProvider = String(body.chatProvider || state.settings.defaults?.chatProvider || "codex");
     const chatConnector = connectors[chatProvider];
@@ -1832,10 +1838,21 @@ async function api(request, response, pathname) {
     const action = match[2] || "";
     const task = state.tasks.find((t) => t.id === id);
     if (!task) return json(response, 404, { error: "Task không tồn tại." });
+    if (request.method === "DELETE" && !action) {
+      if (!task.archived) return json(response, 409, { error: "Chỉ có thể xóa chat sau khi đã lưu trữ." });
+      if (running.has(task.id) || ["queued", "running"].includes(task.status)) return json(response, 409, { error: "Không thể xóa chat đang chạy hoặc đang chờ." });
+      const storagePath = resolve(String(task.storagePath || resolve(taskDir, task.id)));
+      if (!within(taskDir, storagePath) || storagePath === taskDir) return json(response, 400, { error: "Đường dẫn dữ liệu task không hợp lệ; không thể xóa chat an toàn." });
+      try { await fs.rm(storagePath, { recursive: true, force: true }); }
+      catch (error) { return json(response, 500, { error: `Không thể xóa dữ liệu chat: ${safeError(error)}` }); }
+      state.tasks = state.tasks.filter((item) => item.id !== task.id);
+      persist(); publish("tasks");
+      return json(response, 200, { deleted: true, id: task.id });
+    }
     if (request.method === "PATCH" && !action) {
       const body = await readBody(request);
       if (body.permissionPreset !== undefined) {
-        if (!["read-only", "workspace-write"].includes(body.permissionPreset)) return json(response, 400, { error: "Preset quyền không hợp lệ." });
+        if (!["read-only", "workspace-write", "full-access"].includes(body.permissionPreset)) return json(response, 400, { error: "Preset quyền không hợp lệ." });
         if (["queued", "running"].includes(task.status)) return json(response, 409, { error: "Hãy đợi task kết thúc trước khi đổi quyền." });
         task.permissionPreset = body.permissionPreset;
       }

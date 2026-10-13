@@ -339,8 +339,6 @@ body.launch-home #content.home-launch-content{width:100%;max-width:none;height:1
 .home-agent-provider .connector-unavailable{grid-column:1/-1;font-size:8px}
 .home-composer-foot{display:flex;align-items:center;justify-content:space-between;gap:9px;padding-top:8px;color:#818b9a;font-size:8px}
 .auto-skill-chip{display:flex;align-items:center;gap:5px;color:#66748a}
-.home-add-workspace{height:34px;display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;margin:0;padding:0 10px;border:1px solid #e5e7eb;border-radius:18px;background:#fafbfc;color:#555e69;font-size:11px;white-space:nowrap;transition:background .15s,border-color .15s}
-.home-add-workspace:hover{background:#f3f4f6}
 .home-lower-grid{width:min(740px,calc(100% - 42px));display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 auto 0}
 .home-lower-panel{min-width:0;padding:10px 11px;border:1px solid #ffffffb5;border-radius:10px;background:#ffffff69}
 .home-lower-panel>header{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -667,6 +665,10 @@ body.launch-home #content.home-launch-content{background:#fff}
 .orchestration-event.kind-tool .orchestration-event-mark{background:#fbf4e8;color:#9a7628}
 .orchestration-event.kind-error .orchestration-event-mark{background:#fbefef;color:#b34143}
 .orchestration-event.kind-success .orchestration-event-mark{background:#eaf6f0;color:#28815d}
+.event-error-open,.chat-message-error{border:0;background:transparent;color:#e28383;padding:2px 4px;font:inherit;font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.event-error-open:hover,.chat-message-error:hover{color:#ffaaaa}
+.error-detail-content p{margin:0 0 10px;color:var(--text-muted,#aeb1b6)}
+.error-detail-content pre{max-height:min(55vh,520px);overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:12px;border:1px solid var(--border,#414346);border-radius:8px;background:var(--surface,#252628);font:13px/1.6 var(--mono,monospace)}
 .orchestration-activity-empty{padding:14px;color:#858d99;font-size:10px}
 .orchestration-stage-results,.orchestration-artifacts{margin:0 12px;padding:10px 0;border-top:1px solid #eceef2}
 .orchestration-stage-results>strong,.orchestration-artifacts>strong{display:flex;align-items:center;gap:6px;font-size:13px;color:#4f5968}
