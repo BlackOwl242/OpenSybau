@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findAntigravityCli, probeAntigravityCli } from "../src/server/antigravity-cli.mjs";
+import { findAntigravityCli, parseWindowsRegisteredEnvironmentValue, probeAntigravityCli } from "../src/server/antigravity-cli.mjs";
 import desktopAntigravityPath from "../desktop/antigravity-path.cjs";
 import { cliConnectionStatus } from "../src/domain/provider-guides.js";
 
@@ -23,6 +23,8 @@ try {
   assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ localAppData: local, home, fileExists: (candidate) => candidate === officialPath }), officialPath);
   assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ explicitPath: customPath, localAppData: local, home, fileExists: (candidate) => candidate === customPath || candidate === officialPath }), customPath, "A user-configured Antigravity executable must retain precedence.");
   const locate = (options = {}) => findAntigravityCli({ platform: "win32", home, env: {}, ...options });
+  assert.equal(parseWindowsRegisteredEnvironmentValue("\r\nHKEY_CURRENT_USER\\Environment\r\n    ANTIGRAVITY_CLI_PATH    REG_SZ    C:\\Users\\A User\\AppData\\Local\\agy\\bin\\agy.exe\r\n", "ANTIGRAVITY_CLI_PATH"), "C:\\Users\\A User\\AppData\\Local\\agy\\bin\\agy.exe", "A per-user Windows registry path with spaces must be parsed exactly.");
+  assert.equal(parseWindowsRegisteredEnvironmentValue("ANTIGRAVITY_CLI_PATH REG_EXPAND_SZ %LOCALAPPDATA%\\agy\\bin\\agy.exe", "ANTIGRAVITY_CLI_PATH"), "%LOCALAPPDATA%\\agy\\bin\\agy.exe", "Expandable registry environment values must be recognized.");
   assert.equal(locate({ env: { LOCALAPPDATA: join(root, "outdated-profile") } }), officialPath, "Discovery must check the real profile even when inherited LOCALAPPDATA is stale.");
   assert.equal(locate({ cachedPath: customPath }), customPath, "A confirmed custom path survives restart without PATH or an environment override.");
   assert.equal(locate({ env: { ANTIGRAVITY_CLI_PATH: join(root, "removed.exe") }, cachedPath: join(root, "removed.exe") }), officialPath, "Deleted cached/configured paths must fall back to the actual installation.");

@@ -9,7 +9,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { completeWithApi, configuredApiProviders, findClaudeCode, listProviderModels, normalizeUserApiProvider, providerLabel } from "./src/server/provider-registry.mjs";
 import { cliIsInstalled } from "./src/server/cli-status.mjs";
-import { findAntigravityCli, probeAntigravityCli } from "./src/server/antigravity-cli.mjs";
+import { findAntigravityCli, parseWindowsRegisteredEnvironmentValue, probeAntigravityCli } from "./src/server/antigravity-cli.mjs";
 import { roleConfig, workflowRoles } from "./src/domain/agent-roles.js";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
@@ -74,7 +74,25 @@ function findCodex() {
 }
 
 function findAntigravity() {
-  return findAntigravityCli({ cachedPath: loadJson(cliPathsFile, {})?.antigravity, findOnPath });
+  const inheritedPath = process.env.ANTIGRAVITY_CLI_PATH || "";
+  const configuredPath = inheritedPath && existsSync(resolve(inheritedPath))
+    ? inheritedPath
+    : readRegisteredEnvironmentValue("ANTIGRAVITY_CLI_PATH") || inheritedPath;
+  return findAntigravityCli({
+    env: { ...process.env, ANTIGRAVITY_CLI_PATH: configuredPath },
+    cachedPath: loadJson(cliPathsFile, {})?.antigravity,
+    findOnPath,
+  });
+}
+
+function readRegisteredEnvironmentValue(name) {
+  if (process.platform !== "win32") return "";
+  for (const key of ["HKCU\\Environment", "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment"]) {
+    const result = spawnSync("reg.exe", ["query", key, "/v", name], { cwd: homedir(), encoding: "utf8", windowsHide: true, timeout: 5000 });
+    const registered = parseWindowsRegisteredEnvironmentValue(result.stdout, name);
+    if (registered) return registered.replace(/%([^%]+)%/g, (_, variable) => process.env[variable] || `%${variable}%`);
+  }
+  return "";
 }
 
 function findOnPath(name) {

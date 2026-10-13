@@ -4,6 +4,13 @@ import { isAbsolute, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { cliIsInstalled } from "./cli-status.mjs";
 
+export function parseWindowsRegisteredEnvironmentValue(output, name) {
+  const escapedName = String(name || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const prefix = new RegExp(`^\\s*${escapedName}\\s+REG_(?:EXPAND_)?SZ\\s+`, "i");
+  const line = String(output || "").split(/\r?\n/).find((item) => prefix.test(item));
+  return line ? line.replace(prefix, "").trim() : "";
+}
+
 export function findAntigravityCli({ env = process.env, home = homedir(), platform = process.platform, cachedPath = "", findOnPath = () => "", fileExists = existsSync } = {}) {
   const candidates = [];
   if (env.ANTIGRAVITY_CLI_PATH) candidates.push(resolve(env.ANTIGRAVITY_CLI_PATH));
