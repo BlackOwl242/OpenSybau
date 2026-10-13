@@ -43,8 +43,10 @@ try {
   assert.equal(offline.installed, true);
   assert.equal(offline.authenticated, null, "A network/timeout failure must not imply lost sign-in.");
   assert.equal(cliConnectionStatus(offline).label, "Cần kiểm tra");
+  assert.equal(cliConnectionStatus(offline).action, "refresh", "An installed CLI with a temporary failure must offer rescanning, not sign-in.");
   const loggedOut = await failedProbe({ code: 1, stdout: "", stderr: "Please sign in" });
   assert.equal(cliConnectionStatus(loggedOut).label, "Cần đăng nhập");
+  assert.equal(cliConnectionStatus(loggedOut).action, "login");
   let scans = 0;
   const replaced = await probeAntigravityCli({
     resolveExecutable: () => ++scans === 1 ? join(root, "temporarily-removed.exe") : officialPath,

@@ -27,7 +27,7 @@ export function DesktopSetupDialog({ connectors }) {
           return <article class={`desktop-setup-agent ${status.tone === "ready" ? "is-ready" : "is-missing"}`} key={agent.id}>
             <span class="desktop-setup-agent-icon"><Icon name={status.tone === "ready" ? "check" : "square-terminal"} size={17} /></span>
             <div class="desktop-setup-agent-copy"><strong>{agent.name}</strong><span>{detail}</span>{status.tone !== "ready" && <small class={`cli-guide-status ${status.tone}`}>{status.label}</small>}</div>
-            {status.tone === "ready" ? <span class="desktop-setup-status">Sẵn sàng</span> : status.tone === "missing" ? <a class="button quiet desktop-setup-install" href={agent.url} target="_blank" rel="noreferrer">Hướng dẫn cài</a> : <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-login" data-id={agent.id}>Mở terminal đăng nhập</button>}
+            {status.tone === "ready" ? <span class="desktop-setup-status">Sẵn sàng</span> : status.tone === "missing" ? <a class="button quiet desktop-setup-install" href={agent.url} target="_blank" rel="noreferrer">Hướng dẫn cài</a> : status.action === "refresh" ? <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-refresh">Quét lại</button> : <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-login" data-id={agent.id}>Mở terminal đăng nhập</button>}
           </article>;
         })}
       </div>

@@ -561,7 +561,7 @@ function settingsPage() {
     const status = cliConnectionStatus(connector);
     const action = status.tone === "missing"
       ? `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
-      : status.tone === "ready"
+      : status.action === "refresh"
         ? `<button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} Quét lại</button>`
         : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${agent.id}">Mở terminal đăng nhập</button>`;
     const detail = status.tone === "ready"
@@ -605,13 +605,15 @@ function showCliProviderModal() {
       : status.tone === "missing" ? agent.installHelp : connector?.error || agent.summary;
     const primary = status.tone === "missing"
       ? `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
-      : status.tone === "ready"
-        ? `<button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} Đã kết nối · quét lại</button>`
+      : status.action === "refresh"
+        ? `<button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} ${status.tone === "ready" ? "Đã kết nối · quét lại" : "Quét lại"}</button>`
         : `<button class="button primary small" type="button" data-action="provider-cli-login" data-id="${agent.id}">${icon("square-terminal", 13)} ${status.tone === "needs-action" && connector?.authenticated ? "Mở CLI để kiểm tra" : "Bắt đầu đăng nhập"}</button>`;
     const docsUrl = status.tone === "missing" ? agent.url : agent.authUrl || agent.url;
     const instructions = status.tone === "missing"
       ? `<div class="cli-connect-login"><span>Cài đặt CLI</span><small>${esc(agent.installHelp)}</small></div>`
-      : `<div class="cli-connect-login"><span>Cách đăng nhập</span><code>${esc(agent.loginCommand)}</code><small>${esc(agent.loginHelp)}</small></div>`;
+      : status.tone !== "ready" && status.action === "refresh"
+        ? `<div class="cli-connect-login"><span>Kiểm tra kết nối CLI</span><small>CLI đã có trên máy. Bấm Quét lại để thử đọc danh sách model.</small></div>`
+        : `<div class="cli-connect-login"><span>Cách đăng nhập</span><code>${esc(agent.loginCommand)}</code><small>${esc(agent.loginHelp)}</small></div>`;
     return `<article class="cli-connect-card ${status.tone}"><header><span class="cli-connect-mark">${icon("square-terminal", 17)}</span><div><h3>${esc(agent.name)}</h3><span class="cli-guide-status ${status.tone}">${esc(status.label)}</span></div></header><p>${esc(detail)}</p>${instructions}<footer>${primary}<a href="${docsUrl}" target="_blank" rel="noreferrer">Tài liệu chính thức</a></footer></article>`;
   }).join("");
   const body = `<div class="cli-connect-intro"><span class="provider-connect-icon">${icon("workflow", 17)}</span><div><strong>OpenSybau tự dò CLI trên máy chủ</strong><p>CLI đã cài và đăng nhập sẽ tự xuất hiện trong danh sách nguồn AI, không cần thêm endpoint. Nếu chưa cài, mở hướng dẫn của hãng rồi quét lại; nếu chưa đăng nhập, bấm Bắt đầu đăng nhập để mở terminal.</p></div><button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} Quét lại</button></div><div class="cli-connect-list">${rows}</div><p class="cli-connect-feedback" role="status" aria-live="polite" hidden></p><p class="form-note">CLI dùng tài khoản riêng, không cần API key. Nếu bạn dùng OpenSybau từ điện thoại, terminal sẽ mở trên máy chủ; hoàn tất đăng nhập tại máy đó rồi bấm Quét lại.</p>`;

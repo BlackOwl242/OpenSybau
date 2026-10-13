@@ -30,8 +30,8 @@ export const cliProviderGuides = [
 ];
 
 export function cliConnectionStatus(connector) {
-  if (connector?.available) return { label: "Sẵn sàng", tone: "ready" };
-  if (!connector?.installed) return { label: "Chưa cài", tone: "missing" };
-  if (connector.authenticated === false) return { label: "Cần đăng nhập", tone: "needs-action" };
-  return { label: "Cần kiểm tra", tone: "needs-action" };
+  if (connector?.available) return { label: "Sẵn sàng", tone: "ready", action: "refresh" };
+  if (!connector?.installed) return { label: "Chưa cài", tone: "missing", action: "install" };
+  if (connector.authenticated === false) return { label: "Cần đăng nhập", tone: "needs-action", action: "login" };
+  return { label: "Cần kiểm tra", tone: "needs-action", action: "refresh" };
 }
