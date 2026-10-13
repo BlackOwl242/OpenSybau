@@ -9,6 +9,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { completeWithApi, configuredApiProviders, findClaudeCode, listProviderModels, normalizeUserApiProvider, providerLabel } from "./src/server/provider-registry.mjs";
 import { cliIsInstalled } from "./src/server/cli-status.mjs";
+import { findAntigravityCli, probeAntigravityCli } from "./src/server/antigravity-cli.mjs";
 import { roleConfig, workflowRoles } from "./src/domain/agent-roles.js";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
@@ -21,6 +22,7 @@ const stateFile = resolve(runtime, "state.json");
 const memoryFile = resolve(runtime, "memory.json");
 const providerConfigFile = resolve(runtime, "providers.json");
 const providerSecretsFile = resolve(runtime, "provider-secrets.json");
+const cliPathsFile = resolve(runtime, "cli-paths.json");
 const clients = new Set();
 const running = new Map();
 const busyWorkspaces = new Set();
@@ -72,21 +74,12 @@ function findCodex() {
 }
 
 function findAntigravity() {
-  const candidates = [];
-  if (process.env.ANTIGRAVITY_CLI_PATH) candidates.push(resolve(process.env.ANTIGRAVITY_CLI_PATH));
-  if (process.platform === "win32") {
-    candidates.push(resolve(process.env.LOCALAPPDATA || resolve(homedir(), "AppData/Local"), "agy/bin/agy.exe"));
-    candidates.push(findOnPath("agy.exe"));
-    candidates.push(findOnPath("agy"));
-  } else {
-    candidates.push(findOnPath("agy"));
-  }
-  return candidates.find((candidate) => candidate && existsSync(candidate)) || candidates.find(Boolean) || "agy";
+  return findAntigravityCli({ cachedPath: loadJson(cliPathsFile, {})?.antigravity, findOnPath });
 }
 
 function findOnPath(name) {
   const locator = process.platform === "win32" ? "where.exe" : "which";
-  const result = spawnSync(locator, [name], { encoding: "utf8", windowsHide: true, timeout: 5000 });
+  const result = spawnSync(locator, [name], { cwd: homedir(), encoding: "utf8", windowsHide: true, timeout: 5000 });
   return (result.stdout || "").split(/\r?\n/).map((item) => item.trim()).find((item) => item && existsSync(item)) || "";
 }
 
@@ -94,7 +87,7 @@ function refreshWindowsPath() {
   if (process.platform !== "win32") return;
   const keys = ["HKCU\\Environment", "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment"];
   const registered = keys.map((key) => {
-    const result = spawnSync("reg.exe", ["query", key, "/v", "Path"], { encoding: "utf8", windowsHide: true, timeout: 5000 });
+    const result = spawnSync("reg.exe", ["query", key, "/v", "Path"], { cwd: homedir(), encoding: "utf8", windowsHide: true, timeout: 5000 });
     const line = (result.stdout || "").split(/\r?\n/).find((item) => /^\s*Path\s+REG_(?:EXPAND_)?SZ\s+/i.test(item));
     return line ? line.replace(/^\s*Path\s+REG_(?:EXPAND_)?SZ\s+/i, "").trim() : "";
   }).filter(Boolean);
@@ -260,12 +253,13 @@ function run(exe, args, options = {}) {
     const child = spawn(exe, args, { cwd: options.cwd || homedir(), windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, NO_COLOR: "1" } });
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
     const limit = options.maxBuffer || 2_000_000;
     child.stdout.on("data", (chunk) => { if (stdout.length < limit) stdout += chunk.toString(); });
     child.stderr.on("data", (chunk) => { if (stderr.length < limit) stderr += chunk.toString(); });
-    const timer = options.timeout ? setTimeout(() => { child.kill(); }, options.timeout) : null;
-    child.on("error", (error) => { if (timer) clearTimeout(timer); resolvePromise({ code: -1, stdout, stderr: stderr || error.message }); });
-    child.on("close", (code) => { if (timer) clearTimeout(timer); resolvePromise({ code: code ?? -1, stdout, stderr }); });
+    const timer = options.timeout ? setTimeout(() => { timedOut = true; child.kill(); }, options.timeout) : null;
+    child.on("error", (error) => { if (timer) clearTimeout(timer); resolvePromise({ code: -1, stdout, stderr: stderr || error.message, timedOut }); });
+    child.on("close", (code) => { if (timer) clearTimeout(timer); resolvePromise({ code: code ?? -1, stdout, stderr, timedOut }); });
   });
 }
 async function git(cwd, args) {
@@ -371,7 +365,7 @@ async function loadModels(force = false) {
 async function loadModelsUncached() {
   const [codex, agy, codexLogin, claude] = await Promise.all([
     run(codexExe, ["debug", "models"], { timeout: 30000, maxBuffer: 32_000_000 }),
-    run(agyExe, ["models"], { timeout: 30000, maxBuffer: 2_000_000 }),
+    probeAntigravityCli({ resolveExecutable: () => findAntigravity(), run }),
     run(codexExe, ["login", "status"], { timeout: 10000, maxBuffer: 10000 }),
     claudeExe ? run(claudeExe, [...claudeCommand.prefixArgs, "--version"], { timeout: 10000, maxBuffer: 10000 }) : Promise.resolve({ code: -1, stdout: "", stderr: "Claude Code CLI not found" }),
   ]);
@@ -385,13 +379,14 @@ async function loadModelsUncached() {
       codexModels = (data.models || []).filter((m) => m.slug && m.visibility !== "hide" && m.visibility !== "hidden").map((m) => ({ id: m.slug, name: m.display_name || m.slug, efforts: (m.supported_reasoning_levels || []).map((e) => e.effort).filter(Boolean) }));
     } catch { }
   }
-  const agyModels = agy.code === 0 ? (agy.stdout || "").split(/\r?\n/).filter((line) => !/^fetching\b/i.test(line.trim())).map((line) => {
-    const [id, ...label] = line.trim().split(/\s+/);
-    const effort = id?.match(/-(low|medium|high|xhigh|max)$/)?.[1];
-    return id && label.length ? { id, name: label.join(" "), efforts: effort ? [effort] : ["low", "medium", "high", "xhigh", "max"] } : null;
-  }).filter(Boolean) : [];
+  agyExe = agy.executable;
+  if (agy.installed && agy.version !== "unavailable" && isAbsolute(agyExe)) {
+    try { persistJsonFile(cliPathsFile, { ...loadJson(cliPathsFile, {}), antigravity: agyExe }); }
+    catch (error) { console.warn("Could not save the detected Antigravity CLI path:", safeError(error)); }
+  }
+  const agyModels = agy.models;
   const codexAvailable = codex.code === 0 && codexLogin.code === 0 && codexModels.length > 0;
-  const agyAvailable = agy.code === 0 && agyModels.length > 0;
+  const agyAvailable = agy.available;
   const claudeAuthenticated = claudeAuth.code === 0 || Boolean(process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN);
   const claudeAvailable = claude.code === 0 && claudeAuthenticated;
   const claudeModels = claude.code === 0 ? [
@@ -406,21 +401,16 @@ async function loadModelsUncached() {
   apiProviderRuntime = new Map(apiDefinitions.filter((definition) => definition.connector.available).map((definition) => [definition.runtime.id, definition.runtime]));
   modelCache = {
     codex: { name: "Codex CLI", kind: "cli", executable: codexExe, available: codexAvailable, authenticated: codexLogin.code === 0, capabilities: { chat: true, plan: true, build: true, review: true }, version: null, error: codexAvailable ? null : safeError(codex.stderr || codexLogin.stderr || "Codex CLI chưa đăng nhập hoặc chưa trả danh sách model."), models: codexModels },
-    antigravity: { name: "Antigravity CLI", kind: "cli", executable: agyExe, available: agyAvailable, authenticated: agyAvailable, capabilities: { chat: true, plan: true, build: true, review: true }, version: null, error: agyAvailable ? null : safeError(agy.stderr || "Antigravity CLI chưa trả danh sách model. Chạy agy để hoàn tất đăng nhập lần đầu."), models: agyModels },
+    antigravity: { name: "Antigravity CLI", kind: "cli", executable: agyExe, installed: agy.installed, available: agyAvailable, authenticated: agy.authenticated, capabilities: { chat: true, plan: true, build: true, review: true }, version: agy.version, error: agy.error ? safeError(agy.error) : null, models: agyModels },
     claude: { name: "Claude Code", kind: "cli", executable: claudeExe || null, available: claudeAvailable, authenticated: claude.code === 0 ? claudeAuthenticated : false, capabilities: { chat: true, plan: true, build: true, review: true }, version: claude.code === 0 ? claude.stdout.trim() : null, error: claude.code !== 0 ? "Cài Claude Code CLI và đặt CLAUDE_CLI_PATH nếu chưa có trên PATH." : !claudeAuthenticated ? "Claude Code chưa đăng nhập. Mở terminal và chạy claude auth login." : null, models: claudeModels },
     ...Object.fromEntries(apiDefinitions.map((definition) => [definition.runtime.id, definition.connector])),
     apiConfigurationError,
   };
-  const [codexVersion, agyVersion] = await Promise.all([
-    run(codexExe, ["--version"], { timeout: 10000 }),
-    run(agyExe, ["--version"], { timeout: 10000 }),
-  ]);
+  const codexVersion = await run(codexExe, ["--version"], { timeout: 10000 });
   modelCache.codex.installed = cliIsInstalled(codexExe, codexVersion.code);
-  modelCache.antigravity.installed = cliIsInstalled(agyExe, agyVersion.code);
   modelCache.claude.installed = cliIsInstalled(claudeExe, claude.code);
   modelCache.codex.version = codexVersion.code === 0 ? codexVersion.stdout.trim() : "unavailable";
-  modelCache.antigravity.version = agyVersion.code === 0 ? agyVersion.stdout.trim() : "unavailable";
-  modelCacheUntil = Date.now() + 60_000;
+  modelCacheUntil = Date.now() + (agy.installed && !agy.available && agy.authenticated !== false ? 5000 : 60_000);
   return modelCache;
 }
 function skillId(file) { return createHash("sha256").update(file.toLowerCase()).digest("hex").slice(0, 16); }
