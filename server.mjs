@@ -1527,6 +1527,30 @@ async function api(request, response, pathname) {
     const connectors = await loadModels(true);
     return json(response, 200, { connector: connectors.antigravity });
   }
+  if (request.method === "POST" && pathname === "/api/connectors/claude/path") {
+    const body = await readBody(request);
+    const requestedPath = String(body.path || "").trim();
+    const extension = extname(requestedPath).toLowerCase();
+    if (!requestedPath || !isAbsolute(requestedPath) || process.platform === "win32" && ![".exe", ".js"].includes(extension)) {
+      return json(response, 400, { error: "Chọn đường dẫn tuyệt đối tới claude.exe hoặc cli.js." });
+    }
+    const executable = resolve(requestedPath);
+    let stat;
+    try { stat = await fs.stat(executable); }
+    catch (error) { return json(response, 404, { error: `Không đọc được file CLI đã chọn: ${safeError(error)}` }); }
+    if (!stat.isFile()) return json(response, 400, { error: "Đường dẫn đã chọn không phải là file CLI." });
+    const command = extension === ".js" ? { executable: process.execPath, prefixArgs: [executable] } : { executable, prefixArgs: [] };
+    const version = await run(command.executable, [...command.prefixArgs, "--version"], { timeout: 15000, maxBuffer: 10000 });
+    if (version.code !== 0) return json(response, 422, { error: `Không chạy được file đã chọn: ${safeError(version.stderr || version.stdout || "claude --version trả mã lỗi.")}` });
+    process.env.CLAUDE_CLI_PATH = executable;
+    claudeCommand = command;
+    claudeExe = command.executable;
+    persistJsonFile(cliPathsFile, { ...loadJson(cliPathsFile, {}), claude: executable, claudeManual: true });
+    modelCache = null;
+    modelCacheUntil = 0;
+    const connectors = await loadModels(true);
+    return json(response, 200, { connector: connectors.claude });
+  }
   if (request.method === "GET" && pathname === "/api/connectors") return json(response, 200, await loadModels(new URL(request.url, `http://${host}:${port}`).searchParams.has("refresh")));
   const cliLoginMatch = pathname.match(/^\/api\/connectors\/(codex|antigravity|claude)\/login$/);
   if (request.method === "POST" && cliLoginMatch) {

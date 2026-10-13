@@ -53,6 +53,8 @@ function initializeUserConfig() {
     const savedCliPaths = JSON.parse(readFileSync(path.join(userData, "cli-paths.json"), "utf8"));
     const savedPath = savedCliPaths.antigravityManual === true && savedCliPaths.antigravity;
     if (savedPath && existsSync(savedPath)) process.env.ANTIGRAVITY_CLI_PATH = savedPath;
+    const savedClaudePath = savedCliPaths.claudeManual === true && savedCliPaths.claude;
+    if (savedClaudePath && existsSync(savedClaudePath)) process.env.CLAUDE_CLI_PATH = savedClaudePath;
   } catch {}
   if (!process.env.ANTIGRAVITY_CLI_PATH) {
     const antigravityCliPath = findDesktopAntigravityPath({
@@ -88,6 +90,18 @@ async function createMainWindow() {
       defaultPath: suggestedPath,
       properties: ["openFile"],
       filters: [{ name: "Antigravity CLI", extensions: ["exe"] }],
+    });
+    return result.canceled ? "" : result.filePaths[0] || "";
+  });
+  ipcMain.handle("opensybau:claude:choose-cli", async () => {
+    const saved = (() => { try { return JSON.parse(readFileSync(path.join(userData, "cli-paths.json"), "utf8")).claude; } catch { return ""; } })();
+    const appData = process.env.APPDATA || path.join(app.getPath("home"), "AppData", "Roaming");
+    const suggestedPath = saved && existsSync(saved) ? saved : path.join(appData, "npm", "node_modules", "@anthropic-ai", "claude-code");
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Chọn Claude Code CLI (claude.exe hoặc cli.js)",
+      defaultPath: suggestedPath,
+      properties: ["openFile"],
+      filters: [{ name: "Claude Code CLI", extensions: ["exe", "js"] }],
     });
     return result.canceled ? "" : result.filePaths[0] || "";
   });

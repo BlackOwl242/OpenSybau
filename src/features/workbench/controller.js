@@ -563,19 +563,17 @@ function settingsPage() {
   const cliSetup = cliProviderGuides.map((agent) => {
     const connector = view.connectors?.[agent.id];
     const status = cliConnectionStatus(connector);
-    const chooseAntigravity = agent.id === "antigravity" && window.opensybauDesktop?.isDesktop
-      ? `<button class="button quiet small" type="button" data-action="choose-antigravity-cli">Chọn agy.exe</button>` : "";
+    const chooseCli = window.opensybauDesktop?.isDesktop && ["antigravity", "claude"].includes(agent.id)
+      ? `<button class="button quiet small" type="button" data-action="choose-cli-path" data-id="${agent.id}">${agent.id === "antigravity" ? "Chọn agy.exe" : "Chọn claude.exe / cli.js"}</button>` : "";
     const action = status.tone === "missing"
-      ? agent.id === "antigravity" && chooseAntigravity
-        ? `<div class="cli-guide-actions">${chooseAntigravity}<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a></div>`
-        : `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
+      ? `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
       : status.action === "refresh"
         ? cliRefreshButton()
         : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${agent.id}">Mở terminal đăng nhập</button>`;
     const detail = status.tone === "ready"
       ? `${connector.models.length} model${connector.models.length === 1 ? "" : "s"}${connector.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
       : status.tone === "missing" ? connector?.error || agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
-    return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${status.tone}">${status.label}</span></strong><small>${esc(detail)}</small></div>${action}</article>`;
+    return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${status.tone}">${status.label}</span></strong><small>${esc(detail)}</small></div><div class="cli-guide-actions">${chooseCli}${action}</div></article>`;
   }).join("");
   const noReadyConnector = !Object.values(view.connectors || {}).some((connector) => connector?.available && connector.capabilities?.plan);
   return `<div class="page-head"><div><div class="eyebrow">PREFERENCES & MODELS</div><h1>Cài đặt</h1><p>Chọn model mặc định cho từng vai trò và kết nối nguồn AI dùng chung cho các task.</p></div></div>
@@ -1252,15 +1250,19 @@ async function handleWorkbenchClick(event) {
       await scanCliProviders(button, { openModal: Boolean(button.closest("#overlay")) });
       return;
     }
-    if (action === "choose-antigravity-cli") {
-      const executable = await window.opensybauDesktop?.chooseAntigravityCli?.();
+    if (action === "choose-cli-path" || action === "choose-antigravity-cli") {
+      const providerId = action === "choose-antigravity-cli" ? "antigravity" : id;
+      const executable = providerId === "claude"
+        ? await window.opensybauDesktop?.chooseClaudeCli?.()
+        : await window.opensybauDesktop?.chooseAntigravityCli?.();
       if (!executable) return;
-      const result = await api("/api/connectors/antigravity/path", { method: "POST", body: JSON.stringify({ path: executable }) });
-      view.connectors = { ...view.connectors, antigravity: result.connector };
+      const result = await api(`/api/connectors/${providerId}/path`, { method: "POST", body: JSON.stringify({ path: executable }) });
+      view.connectors = { ...view.connectors, [providerId]: result.connector };
       render();
+      const displayName = providerId === "claude" ? "Claude Code" : "Antigravity";
       showToast(result.connector?.available
-        ? `Đã kết nối Antigravity CLI ${result.connector.version}.`
-        : `Đã lưu đường dẫn CLI nhưng chưa tải được model: ${result.connector?.error || "không rõ lỗi"}`);
+        ? `Đã kết nối ${displayName} CLI ${result.connector.version}.`
+        : `Đã lưu đường dẫn ${displayName} CLI nhưng chưa tải được model: ${result.connector?.error || "không rõ lỗi"}`);
       return;
     }
     if (action === "provider-cli-login") {

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { findAntigravityCli, parseWindowsRegisteredEnvironmentValue, probeAntigravityCli } from "../src/server/antigravity-cli.mjs";
 import desktopAntigravityPath from "../desktop/antigravity-path.cjs";
 import { cliConnectionStatus } from "../src/domain/provider-guides.js";
+import { findClaudeCode } from "../src/server/provider-registry.mjs";
 
 const root = await mkdtemp(join(tmpdir(), "opensybau-cli-detection-test-"));
 try {
@@ -29,6 +30,11 @@ try {
   assert.equal(locate({ cachedPath: customPath }), customPath, "A confirmed custom path survives restart without PATH or an environment override.");
   assert.equal(locate({ env: { ANTIGRAVITY_CLI_PATH: join(root, "removed.exe") }, cachedPath: join(root, "removed.exe") }), officialPath, "Deleted cached/configured paths must fall back to the actual installation.");
   assert.equal(locate({ env: { ANTIGRAVITY_CLI_PATH: customPath } }), customPath, "An existing explicit path takes precedence.");
+  const priorClaudePath = process.env.CLAUDE_CLI_PATH;
+  process.env.CLAUDE_CLI_PATH = join(root, "claude", "cli.js");
+  assert.deepEqual(findClaudeCode(), { executable: process.execPath, prefixArgs: [process.env.CLAUDE_CLI_PATH] }, "A manually selected Claude cli.js must run through the Node runtime.");
+  if (priorClaudePath === undefined) delete process.env.CLAUDE_CLI_PATH;
+  else process.env.CLAUDE_CLI_PATH = priorClaudePath;
 
   const catalog = "Fetching available models...\n\u001b[32mgemini-3.8-flash-high\u001b[0m\tGemini Flash (High)\n";
   let modelCalls = 0;

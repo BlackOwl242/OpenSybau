@@ -126,6 +126,14 @@ try {
   assert.equal(invalidPermission.status, 400);
   const invalidAntigravityPath = await request("/api/connectors/antigravity/path", "POST", { path: "agy.exe" });
   assert.equal(invalidAntigravityPath.status, 400, "Antigravity path override must require an absolute executable path.");
+  const invalidClaudePath = await request("/api/connectors/claude/path", "POST", { path: "cli.js" });
+  assert.equal(invalidClaudePath.status, 400, "Manual Claude selection must reject relative paths.");
+  const chosenClaudeScript = path.join(dataDir, "claude-cli.js");
+  await writeFile(chosenClaudeScript, 'if (process.argv[2] === "--version") console.log("2.0.0"); else process.exitCode = 1;\n', "utf8");
+  const chosenClaudePath = await request("/api/connectors/claude/path", "POST", { path: chosenClaudeScript });
+  assert.equal(chosenClaudePath.status, 200, "A selected Claude cli.js must be validated and persisted.");
+  assert.equal(chosenClaudePath.body.connector.installed, true, "The selected Claude entry point must be recognized as installed.");
+  assert.equal(JSON.parse(await readFile(path.join(dataDir, "cli-paths.json"), "utf8")).claude, chosenClaudeScript, "The selected Claude CLI path must survive app restart.");
   const rejectUnarchivedDelete = await request("/api/tasks/task-feature-test", "DELETE");
   assert.equal(rejectUnarchivedDelete.status, 409, "Chats must be archived before permanent deletion.");
   const deletedArchivedChat = await request("/api/tasks/task-archived-test", "DELETE");

@@ -21,7 +21,7 @@ export const cliProviderGuides = [
     id: "claude",
     name: "Claude Code CLI",
     summary: "OpenSybau tự dò Claude Code. Đăng nhập bằng tài khoản Anthropic hoặc Claude Console.",
-    installHelp: "Cài Claude Code theo hướng dẫn chính thức của Anthropic trên máy chạy OpenSybau, rồi quay lại đây và quét lại.",
+    installHelp: "Cài Claude Code trên máy chạy OpenSybau. Nếu tự dò không thấy, chọn claude.exe hoặc cli.js ngay cạnh mục Claude Code; bản npm thường nằm trong %APPDATA%\\npm\\node_modules\\@anthropic-ai\\claude-code\\cli.js.",
     loginCommand: "claude auth login",
     loginHelp: "Mở trình duyệt để đăng nhập Claude hoặc Claude Console. Có thể dùng Console mà không cần tự tạo API key.",
     url: "https://code.claude.com/docs/en/setup",
