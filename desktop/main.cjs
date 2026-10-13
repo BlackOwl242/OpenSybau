@@ -49,6 +49,11 @@ function initializeUserConfig() {
   process.env.WORKBENCH_ALLOWED_HOSTS = "";
   process.env.WORKBENCH_TLS_CERT = "";
   process.env.WORKBENCH_TLS_KEY = "";
+  try {
+    const savedCliPaths = JSON.parse(readFileSync(path.join(userData, "cli-paths.json"), "utf8"));
+    const savedPath = savedCliPaths.antigravityManual === true && savedCliPaths.antigravity;
+    if (savedPath && existsSync(savedPath)) process.env.ANTIGRAVITY_CLI_PATH = savedPath;
+  } catch {}
   if (!process.env.ANTIGRAVITY_CLI_PATH) {
     const antigravityCliPath = findDesktopAntigravityPath({
       localAppData: process.env.LOCALAPPDATA || "",
@@ -74,6 +79,18 @@ async function createMainWindow() {
   workbenchUrl = `${server.protocol}://${server.host}:${server.port}`;
 
   ipcMain.handle("opensybau:open-config-folder", async () => shell.openPath(userData));
+  ipcMain.handle("opensybau:antigravity:choose-cli", async () => {
+    const suggestedPath = process.env.ANTIGRAVITY_CLI_PATH && existsSync(process.env.ANTIGRAVITY_CLI_PATH)
+      ? process.env.ANTIGRAVITY_CLI_PATH
+      : path.join(process.env.LOCALAPPDATA || path.join(app.getPath("home"), "AppData", "Local"), "agy", "bin");
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: "Chọn Antigravity CLI (agy.exe)",
+      defaultPath: suggestedPath,
+      properties: ["openFile"],
+      filters: [{ name: "Antigravity CLI", extensions: ["exe"] }],
+    });
+    return result.canceled ? "" : result.filePaths[0] || "";
+  });
   ipcMain.handle("opensybau:update:get-state", () => updateState);
   ipcMain.handle("opensybau:update:check", () => checkForAppUpdate());
   ipcMain.handle("opensybau:update:restart", () => {

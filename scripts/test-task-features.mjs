@@ -124,6 +124,8 @@ try {
   await request("/api/tasks/task-feature-test", "PATCH", { permissionPreset: "read-only" });
   const invalidPermission = await request("/api/tasks/task-feature-test", "PATCH", { permissionPreset: "unrestricted" });
   assert.equal(invalidPermission.status, 400);
+  const invalidAntigravityPath = await request("/api/connectors/antigravity/path", "POST", { path: "agy.exe" });
+  assert.equal(invalidAntigravityPath.status, 400, "Antigravity path override must require an absolute executable path.");
   const rejectUnarchivedDelete = await request("/api/tasks/task-feature-test", "DELETE");
   assert.equal(rejectUnarchivedDelete.status, 409, "Chats must be archived before permanent deletion.");
   const deletedArchivedChat = await request("/api/tasks/task-archived-test", "DELETE");

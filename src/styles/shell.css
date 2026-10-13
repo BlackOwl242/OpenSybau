@@ -586,6 +586,7 @@ button:disabled { cursor: not-allowed; }
 .desktop-setup-agent-copy span { color: #aeb2b8; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .desktop-setup-status { color: #a4dbbd; font-size: 12px; white-space: nowrap; }
 .desktop-setup-install { flex: 0 0 auto; text-decoration: none; }
+.desktop-setup-agent-actions, .cli-guide-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .desktop-setup-note { display: grid; gap: 4px; margin-top: 14px; padding: 13px 14px; border: 1px solid #3c414a; border-radius: 9px; background: #25282d; }
 .desktop-setup-note strong { color: #e5e8ec; font-size: 13px; }
 .desktop-setup-note span, .desktop-setup-footnote { color: #aeb2b8; font-size: 12px; line-height: 1.5; }

@@ -74,6 +74,9 @@ function findCodex() {
 }
 
 function findAntigravity() {
+  const savedPaths = loadJson(cliPathsFile, {});
+  const manuallySelectedPath = savedPaths?.antigravityManual === true ? savedPaths.antigravity : "";
+  if (manuallySelectedPath && existsSync(manuallySelectedPath)) return manuallySelectedPath;
   const inheritedPath = process.env.ANTIGRAVITY_CLI_PATH || "";
   const configuredPath = inheritedPath && existsSync(resolve(inheritedPath))
     ? inheritedPath
@@ -374,7 +377,12 @@ async function inspectWorkspace(path) {
 }
 async function loadModels(force = false) {
   if (!force && modelCache && Date.now() < modelCacheUntil) return modelCache;
-  if (modelLoadPromise) return modelLoadPromise;
+  if (modelLoadPromise) {
+    const pending = modelLoadPromise;
+    if (!force) return pending;
+    await pending.catch(() => {});
+    if (modelLoadPromise) return modelLoadPromise;
+  }
   if (force) refreshCliExecutables();
   modelLoadPromise = loadModelsUncached();
   try { return await modelLoadPromise; }
@@ -1498,6 +1506,27 @@ async function changedFilesSince(cwd, startTime) {
 }
 async function api(request, response, pathname) {
   if (request.method === "GET" && pathname === "/api/state") return json(response, 200, publicState());
+  if (request.method === "POST" && pathname === "/api/connectors/antigravity/path") {
+    const body = await readBody(request);
+    const requestedPath = String(body.path || "").trim();
+    if (!requestedPath || !isAbsolute(requestedPath) || process.platform === "win32" && extname(requestedPath).toLowerCase() !== ".exe") {
+      return json(response, 400, { error: "Chọn đường dẫn tuyệt đối tới file agy.exe." });
+    }
+    const executable = resolve(requestedPath);
+    let stat;
+    try { stat = await fs.stat(executable); }
+    catch (error) { return json(response, 404, { error: `Không đọc được file CLI đã chọn: ${safeError(error)}` }); }
+    if (!stat.isFile()) return json(response, 400, { error: "Đường dẫn đã chọn không phải là file CLI." });
+    const version = await run(executable, ["--version"], { timeout: 10000, maxBuffer: 10000 });
+    if (version.code !== 0) return json(response, 422, { error: `Không chạy được file đã chọn: ${safeError(version.stderr || version.stdout || "agy --version trả mã lỗi.")}` });
+    process.env.ANTIGRAVITY_CLI_PATH = executable;
+    agyExe = executable;
+    persistJsonFile(cliPathsFile, { ...loadJson(cliPathsFile, {}), antigravity: executable, antigravityManual: true });
+    modelCache = null;
+    modelCacheUntil = 0;
+    const connectors = await loadModels(true);
+    return json(response, 200, { connector: connectors.antigravity });
+  }
   if (request.method === "GET" && pathname === "/api/connectors") return json(response, 200, await loadModels(new URL(request.url, `http://${host}:${port}`).searchParams.has("refresh")));
   const cliLoginMatch = pathname.match(/^\/api\/connectors\/(codex|antigravity|claude)\/login$/);
   if (request.method === "POST" && cliLoginMatch) {
