@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -19,6 +19,17 @@ export function findAntigravityCli({ env = process.env, home = homedir(), platfo
     for (const local of [env.LOCALAPPDATA, resolve(home, "AppData/Local"), env.USERPROFILE && resolve(env.USERPROFILE, "AppData/Local")].filter(Boolean)) {
       candidates.push(resolve(local, "agy/bin/agy.exe"));
     }
+    // An install launched from packaged Codex can land in its private LocalCache.
+    // That process sees the virtual %LOCALAPPDATA% path, while a normal desktop
+    // app and a web server must use the physical package path to reach the CLI.
+    const packages = resolve(home, "AppData/Local/Packages");
+    try {
+      for (const entry of readdirSync(packages, { withFileTypes: true })) {
+        if (entry.isDirectory() && /^OpenAI\.Codex_/i.test(entry.name)) {
+          candidates.push(resolve(packages, entry.name, "LocalCache/Local/agy/bin/agy.exe"));
+        }
+      }
+    } catch { /* No Windows package directory for this profile. */ }
   } else {
     candidates.push(resolve(home, ".local/bin/agy"));
   }

@@ -13,12 +13,15 @@ try {
   const local = join(home, "AppData", "Local");
   const officialPath = join(local, "agy", "bin", "agy.exe");
   const customPath = join(root, "custom", "agy.exe");
+  const packagedPath = join(local, "Packages", "OpenAI.Codex_test", "LocalCache", "Local", "agy", "bin", "agy.exe");
   const roamingAppData = join(home, "AppData", "Roaming");
   await mkdir(join(local, "agy", "bin"), { recursive: true });
   await mkdir(roamingAppData, { recursive: true });
   await mkdir(join(root, "custom"), { recursive: true });
+  await mkdir(join(local, "Packages", "OpenAI.Codex_test", "LocalCache", "Local", "agy", "bin"), { recursive: true });
   await writeFile(officialPath, "fixture");
   await writeFile(customPath, "fixture");
+  await writeFile(packagedPath, "fixture");
   assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ home, fileExists: (candidate) => candidate === officialPath }), officialPath, "The packaged desktop must pass Electron's resolved profile path into the server.");
   assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ roamingAppData, fileExists: (candidate) => candidate === officialPath }), officialPath, "Roaming AppData must locate the sibling Local profile when Electron environment variables are stale.");
   assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ localAppData: local, home, fileExists: (candidate) => candidate === officialPath }), officialPath);
@@ -31,6 +34,7 @@ try {
   assert.equal(locate({ env: { ANTIGRAVITY_CLI_PATH: join(root, "stale.exe") }, cachedPath: customPath }), customPath, "A valid cached Antigravity install must outrank a stale environment override.");
   assert.equal(locate({ env: { ANTIGRAVITY_CLI_PATH: join(root, "removed.exe") }, cachedPath: join(root, "removed.exe") }), officialPath, "Deleted cached/configured paths must fall back to the actual installation.");
   assert.equal(locate({ env: { ANTIGRAVITY_CLI_PATH: customPath } }), customPath, "An existing explicit path takes precedence.");
+  assert.equal(locate({ env: { ANTIGRAVITY_CLI_PATH: officialPath }, fileExists: (candidate) => candidate === packagedPath }), packagedPath, "Discovery must find Codex's physical LocalCache path when the virtual install path is invisible to the app.");
   const priorClaudePath = process.env.CLAUDE_CLI_PATH;
   process.env.CLAUDE_CLI_PATH = join(root, "claude", "cli.js");
   assert.deepEqual(findClaudeCode(), { executable: process.execPath, prefixArgs: [process.env.CLAUDE_CLI_PATH] }, "A manually selected Claude cli.js must run through the Node runtime.");
