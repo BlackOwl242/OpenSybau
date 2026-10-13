@@ -52,6 +52,7 @@ function initializeUserConfig() {
   if (!process.env.ANTIGRAVITY_CLI_PATH) {
     const antigravityCliPath = findDesktopAntigravityPath({
       localAppData: process.env.LOCALAPPDATA || "",
+      roamingAppData: app.getPath("appData"),
       home: app.getPath("home"),
     });
     if (antigravityCliPath) process.env.ANTIGRAVITY_CLI_PATH = antigravityCliPath;

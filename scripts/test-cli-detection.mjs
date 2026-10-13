@@ -12,11 +12,14 @@ try {
   const local = join(home, "AppData", "Local");
   const officialPath = join(local, "agy", "bin", "agy.exe");
   const customPath = join(root, "custom", "agy.exe");
+  const roamingAppData = join(home, "AppData", "Roaming");
   await mkdir(join(local, "agy", "bin"), { recursive: true });
+  await mkdir(roamingAppData, { recursive: true });
   await mkdir(join(root, "custom"), { recursive: true });
   await writeFile(officialPath, "fixture");
   await writeFile(customPath, "fixture");
   assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ home, fileExists: (candidate) => candidate === officialPath }), officialPath, "The packaged desktop must pass Electron's resolved profile path into the server.");
+  assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ roamingAppData, fileExists: (candidate) => candidate === officialPath }), officialPath, "Roaming AppData must locate the sibling Local profile when Electron environment variables are stale.");
   assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ localAppData: local, home, fileExists: (candidate) => candidate === officialPath }), officialPath);
   assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ explicitPath: customPath, localAppData: local, home, fileExists: (candidate) => candidate === customPath || candidate === officialPath }), customPath, "A user-configured Antigravity executable must retain precedence.");
   const locate = (options = {}) => findAntigravityCli({ platform: "win32", home, env: {}, ...options });
