@@ -458,7 +458,7 @@ function skillPage() {
     const action = skill.editable ? `<button class="button quiet small" data-action="edit-skill" data-id="${skill.id}">Sửa</button><button class="button danger small" data-action="delete-skill" data-id="${skill.id}">Xóa</button>` : `<button class="button quiet small" data-action="copy-skill" data-id="${skill.id}">Sao chép để sửa</button>`;
     return `<article class="skill-manager-row" data-skill-entry data-skill-search="${esc(search)}"><div class="skill-manager-main"><strong>${esc(skill.name)}</strong><p title="${esc(skill.description)}">${esc(skill.description)}</p><small>${esc(source)} · ${skill.editable ? "Có thể chỉnh sửa" : "Chỉ đọc từ plugin/CLI"}</small></div><div class="skill-manager-actions"><button class="button small" data-action="view-skill" data-id="${skill.id}">Xem</button>${action}</div></article>`;
   }).join("");
-  return `<div class="page-head"><div><div class="eyebrow">SKILL LIBRARY · LOCAL</div><h1>Kỹ năng</h1><p>Xem, tạo và quản lý hướng dẫn cho đúng CLI; không sửa trực tiếp file do plugin sở hữu.</p></div><button class="button primary" data-action="new-skill">${icon("plus", 15)} Tạo skill</button></div><section class="settings-card skill-manager"><header><div><h2>${view.skills.length} skill · ${sources} nguồn</h2><p>Skill cá nhân cho phép sửa/xóa. Skill plugin và tích hợp sẵn có thể sao chép thành bản cá nhân.</p></div><button class="button" data-action="scan-skills">${icon("refresh-cw", 14)} Quét lại</button></header><label class="skill-search"><span>${icon("search", 15)}</span><input type="search" data-skill-filter="library" value="${esc(view.skillFilter)}" placeholder="Tìm theo tên, mô tả, ID, Codex hoặc Antigravity…" autocomplete="off"><small data-skill-result-count>${view.skills.length} skill</small></label><div class="skill-manager-list">${entries || `<p class="settings-empty">Chưa tìm thấy skill. Quét lại sau khi cài skill cá nhân.</p>`}</div><p class="skill-filter-empty" hidden>Không tìm thấy skill khớp nội dung tìm kiếm.</p></section>`;
+  return `<div class="page-head"><div><div class="eyebrow">SKILL LIBRARY · LOCAL</div><h1>Kỹ năng</h1><p>Quản lý skill OpenSybau cho agent API/CLI và skill cài riêng cho từng CLI.</p></div><button class="button primary" data-action="new-skill">${icon("plus", 15)} Tạo skill</button></div><section class="settings-card skill-manager"><header><div><h2>${view.skills.length} skill · ${sources} nguồn</h2><p>Skill cá nhân cho phép sửa/xóa. Skill plugin và tích hợp sẵn có thể sao chép thành bản cá nhân.</p></div><button class="button" data-action="scan-skills">${icon("refresh-cw", 14)} Quét lại</button></header><label class="skill-search"><span>${icon("search", 15)}</span><input type="search" data-skill-filter="library" value="${esc(view.skillFilter)}" placeholder="Tìm theo tên, mô tả, ID, Codex, Claude hoặc Antigravity…" autocomplete="off"><small data-skill-result-count>${view.skills.length} skill</small></label><div class="skill-manager-list">${entries || `<p class="settings-empty">Chưa tìm thấy skill. Tạo skill OpenSybau hoặc cài skill cá nhân cho một CLI.</p>`}</div><p class="skill-filter-empty" hidden>Không tìm thấy skill khớp nội dung tìm kiếm.</p></section>`;
 }
 const contentImportExtensions = new Set([
   ".md", ".markdown", ".mdx", ".txt", ".text", ".rst", ".adoc", ".json", ".jsonc", ".yaml", ".yml", ".toml", ".csv", ".tsv", ".xml", ".html", ".htm", ".log", ".diff", ".patch",
@@ -506,8 +506,16 @@ async function importContentFiles(input) {
   }
 }
 function showSkillCreateModal() {
-  const body = '<label>Tên skill<input name="name" maxlength="100" required placeholder="Ví dụ: review-api"></label><label>Mô tả ngắn<input name="description" maxlength="500" required placeholder="Khi nào và cách nào nên dùng skill này"></label><label>Dùng cho<select name="scope"><option value="shared">Codex và Antigravity</option><option value="codex">Chỉ Codex</option><option value="antigravity">Chỉ Antigravity</option></select></label>' + contentFileImportField("instructions") + '<label>Hướng dẫn<textarea name="instructions" maxlength="98000" rows="9" placeholder="Quy trình, quy tắc và kết quả mong muốn…"></textarea></label><p class="form-note">Skill được lưu thành SKILL.md trong thư mục cá nhân của CLI. OpenSybau không ghi đè skill trùng tên.</p>';
+  const body = '<label>Tên skill<input name="name" maxlength="100" required placeholder="Ví dụ: review-api"></label><label>Mô tả ngắn<input name="description" maxlength="500" required placeholder="Khi nào và cách nào nên dùng skill này"></label><label>Dùng cho<select name="scope"><option value="universal">OpenSybau · mọi agent, gồm API</option><option value="codex">Codex CLI</option><option value="antigravity">Antigravity CLI</option><option value="claude">Claude Code CLI</option><option value="all-cli">Tất cả CLI · Codex, Antigravity, Claude</option></select></label>' + contentFileImportField("instructions") + '<label>Hướng dẫn<textarea name="instructions" maxlength="98000" rows="9" placeholder="Quy trình, quy tắc và kết quả mong muốn…"></textarea></label><p class="form-note">OpenSybau lưu skill dùng chung trong dữ liệu riêng của ứng dụng và đưa hướng dẫn vào prompt của agent đã chọn, kể cả API. Chọn một CLI để cài skill trực tiếp vào thư mục cá nhân của CLI đó. OpenSybau không ghi đè skill trùng tên.</p>';
   showModal("Tạo skill", body, "Tạo skill", "skill-create");
+}
+function defaultSkillScope(providers = []) {
+  if (providers.includes("*")) return "universal";
+  const cliProviders = ["codex", "antigravity", "claude"].filter((provider) => providers.includes(provider));
+  if (cliProviders.length === 3) return "all-cli";
+  if (cliProviders.includes("codex") && cliProviders.includes("antigravity")) return "shared";
+  if (cliProviders.length === 1) return cliProviders[0];
+  return "universal";
 }
 async function showSkillView(id) {
   const { skill } = await api(`/api/skills/${encodeURIComponent(id)}`);
@@ -1348,7 +1356,7 @@ async function handleWorkbenchClick(event) {
     if (action === "edit-skill") await showSkillEdit(id);
     if (action === "copy-skill") {
       const skill = view.skills.find((item) => item.id === id);
-      const scope = skill?.providers?.length > 1 ? "shared" : skill?.providers?.[0] || "shared";
+      const scope = defaultSkillScope(skill?.providers || []);
       await api(`/api/skills/${encodeURIComponent(id)}/copy`, { method: "POST", body: JSON.stringify({ scope }) });
       closeOverlay();
       view.skillsLoaded = false; await refresh();

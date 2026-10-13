@@ -443,9 +443,12 @@ async function loadSkillCatalog(workspaceId = "") {
   const workspace = state.workspaces.find((item) => item.id === workspaceId);
   const codexHome = resolve(process.env.CODEX_HOME || resolve(homedir(), ".codex"));
   const geminiHome = resolve(homedir(), ".gemini");
+  const claudeHome = resolve(homedir(), ".claude");
   const roots = [
+    { path: resolve(runtime, "skills"), source: "OpenSybau · mọi agent (API/CLI)", providers: ["*"], managed: true },
     { path: resolve(codexHome, "skills"), source: "Codex · cá nhân", providers: ["codex"], managed: true },
     { path: resolve(codexHome, "plugins", "cache"), source: "Codex · plugin đã cài", providers: ["codex"], managed: false },
+    { path: resolve(claudeHome, "skills"), source: "Claude Code · cá nhân", providers: ["claude"], managed: true },
     { path: resolve(geminiHome, "antigravity-cli", "skills"), source: "Antigravity CLI · cá nhân", providers: ["antigravity"], managed: true },
     { path: resolve(geminiHome, "antigravity-cli", "plugins"), source: "Antigravity CLI · plugin đã cài", providers: ["antigravity"], managed: false },
     { path: resolve(geminiHome, "antigravity-cli", "builtin", "skills"), source: "Antigravity CLI · tích hợp sẵn", providers: ["antigravity"], managed: false },
@@ -455,6 +458,7 @@ async function loadSkillCatalog(workspaceId = "") {
   ];
   if (workspace) {
     roots.push(
+      { path: resolve(workspace.path, ".claude", "skills"), source: `Workspace · ${workspace.name} (Claude Code)`, providers: ["claude"], managed: true },
       { path: resolve(workspace.path, ".agents", "skills"), source: `Workspace · ${workspace.name}`, providers: ["codex", "antigravity"], managed: true },
       { path: resolve(workspace.path, ".agent", "skills"), source: `Workspace · ${workspace.name} (legacy)`, providers: ["antigravity"], managed: true },
       { path: resolve(workspace.path, ".gemini", "skills"), source: `Workspace · ${workspace.name} (Gemini)`, providers: ["antigravity"], managed: true },
@@ -557,9 +561,18 @@ function rankSkillCandidates(task, catalog) {
   return ranked.slice(0, 36).map(({ skill }) => skill);
 }
 function skillProviderCompatible(provider, supported = []) {
+  if (supported.includes("*")) return true;
   if (supported.includes(provider)) return true;
   if (provider === "claude" || apiProviderRuntime.has(provider)) return supported.includes("codex") || supported.includes("antigravity");
   return false;
+}
+function defaultSkillScope(providers = []) {
+  if (providers.includes("*")) return "universal";
+  const cliProviders = ["codex", "antigravity", "claude"].filter((provider) => providers.includes(provider));
+  if (cliProviders.length === 3) return "all-cli";
+  if (cliProviders.includes("codex") && cliProviders.includes("antigravity")) return "shared";
+  if (cliProviders.length === 1) return cliProviders[0];
+  return "universal";
 }
 function skillSelectionPrompt(task, workspace, candidates) {
   const rows = candidates.map((skill) => `- ${skill.id} | ${skill.name} | ${(skill.providers || []).join(", ")} | ${String(skill.description).slice(0, 240)}`).join("\n");
@@ -580,7 +593,7 @@ function parseSkillSelection(output, candidates) {
   return { ids, reason: String(decision.reason || "").trim().slice(0, 500) };
 }
 async function stageAntigravitySkillBundles(task, skills) {
-  const selected = skills.filter((skill) => (skill.providers || []).includes("antigravity"));
+  const selected = skills.filter((skill) => (skill.providers || []).some((provider) => provider === "antigravity" || provider === "*"));
   if (!selected.length) return [];
   const base = resolve(task.storagePath, "antigravity-skills");
   const copied = [];
@@ -610,7 +623,7 @@ async function stageAntigravitySkillBundles(task, skills) {
     }
   }
   for (const skill of selected) {
-    const file = skill.files.find((item) => (item.providers || []).includes("antigravity"));
+    const file = skill.files.find((item) => (item.providers || []).some((provider) => provider === "antigravity" || provider === "*"));
     if (!file) continue;
     const target = resolve(base, skill.id);
     await copyDirectory(file.directory, target, file.root);
@@ -683,12 +696,17 @@ function validateSkillContent(content) {
   return content.endsWith("\n") ? content : `${content}\n`;
 }
 async function skillRoots(scope) {
+  const opensybau = resolve(runtime, "skills");
   const codex = resolve(process.env.CODEX_HOME || resolve(homedir(), ".codex"), "skills");
   const antigravity = resolve(homedir(), ".gemini", "config", "skills");
+  const claude = resolve(homedir(), ".claude", "skills");
+  if (scope === "universal") return [{ path: opensybau, provider: "*", source: "OpenSybau · mọi agent (API/CLI)" }];
   if (scope === "codex") return [{ path: codex, provider: "codex" }];
   if (scope === "antigravity") return [{ path: antigravity, provider: "antigravity" }];
+  if (scope === "claude") return [{ path: claude, provider: "claude" }];
   if (scope === "shared") return [{ path: codex, provider: "codex" }, { path: antigravity, provider: "antigravity" }];
-  throw new Error("Chọn Codex, Antigravity hoặc dùng chung.");
+  if (scope === "all-cli") return [{ path: codex, provider: "codex" }, { path: antigravity, provider: "antigravity" }, { path: claude, provider: "claude" }];
+  throw new Error("Chọn OpenSybau, Codex, Antigravity, Claude Code hoặc tất cả CLI.");
 }
 async function createSkillFiles(name, description, instructions, scope) {
   const safeName = String(name || "").trim().slice(0, 100);
@@ -713,7 +731,7 @@ async function createSkillFiles(name, description, instructions, scope) {
     for (const directory of created.reverse()) await fs.rm(directory, { recursive: true, force: true }).catch(() => {});
     throw error;
   }
-  return { name: safeName, sources: (await skillRoots(scope)).map((item) => item.provider === "codex" ? "Codex · cá nhân" : "Antigravity · cá nhân") };
+  return { name: safeName, sources: (await skillRoots(scope)).map((item) => item.source || ({ codex: "Codex · cá nhân", antigravity: "Antigravity · cá nhân", claude: "Claude Code · cá nhân" })[item.provider]) };
 }
 function publicState() {
   return {
@@ -1614,7 +1632,7 @@ async function api(request, response, pathname) {
       const body = await readBody(request);
       const frontmatter = skill.instruction.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/);
       const instructions = frontmatter ? skill.instruction.slice(frontmatter[0].length).trim() : skill.instruction;
-      const scope = body.scope || (skill.providers.length > 1 ? "shared" : skill.providers[0]);
+      const scope = body.scope || defaultSkillScope(skill.providers || []);
       try { const result = await createSkillFiles(`${skill.name} (bản tùy chỉnh)`, skill.description || `Bản tùy chỉnh của ${skill.name}`, instructions, scope); publish("skills"); return json(response, 201, result); }
       catch (error) { return json(response, 400, { error: safeError(error) }); }
     }
