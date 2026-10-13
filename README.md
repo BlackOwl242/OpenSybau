@@ -1,4 +1,4 @@
-# OpenSybau
+# <img src="public/opensybau.svg" alt="OpenSybau Logo" width="36" height="36" align="top" /> OpenSybau
 
 **A local-first control center for coding agents.** OpenSybau organizes workspaces, conversations, agent workflows, and execution activity in one browser-based interface. Tasks run on the computer that hosts OpenSybau through its configured local CLIs and API providers.
 

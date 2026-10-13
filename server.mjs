@@ -49,6 +49,31 @@ let apiProviderRuntime = new Map();
 let schedulerActive = false;
 let shuttingDown = false;
 let pumpTimer;
+let persistTimer = null;
+let publishTimer = null;
+let pendingPublishType = null;
+const skillCatalogCache = new Map();
+const SKILL_CACHE_TTL_MS = 60_000;
+const gitRepoLocks = new Map();
+
+async function withGitRepoLock(repoKey, fn) {
+  const key = String(repoKey || "").toLowerCase();
+  const prev = gitRepoLocks.get(key) || Promise.resolve();
+  let release;
+  const next = new Promise((resolvePromise) => { release = resolvePromise; });
+  gitRepoLocks.set(key, prev.then(() => next));
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (gitRepoLocks.get(key) === next) gitRepoLocks.delete(key);
+  }
+}
+
+function invalidateSkillCatalogCache() {
+  skillCatalogCache.clear();
+}
 
 mkdirSync(taskDir, { recursive: true });
 mkdirSync(worktreeDir, { recursive: true });
@@ -179,9 +204,21 @@ for (const task of state.tasks) {
 }
 let memories = loadJson(memoryFile, []);
 function persist() {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
   const temporary = `${stateFile}.tmp`;
   writeFileSync(temporary, JSON.stringify(state, null, 2), "utf8");
   renameSync(temporary, stateFile);
+}
+function schedulePersist(delayMs = 160) {
+  if (persistTimer) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    try { persist(); } catch { }
+  }, delayMs);
+  persistTimer.unref?.();
 }
 function persistMemory() {
   const temporary = `${memoryFile}.tmp`;
@@ -212,15 +249,36 @@ function isLoopbackClient(request) {
   return address === "::1" || address === "127.0.0.1" || address.startsWith("127.");
 }
 function publish(type = "state") {
+  if (publishTimer) {
+    clearTimeout(publishTimer);
+    publishTimer = null;
+    pendingPublishType = null;
+  }
   const payload = JSON.stringify({ type });
   for (const client of clients) client.write(`event: update\ndata: ${payload}\n\n`);
+}
+function schedulePublish(type = "task", delayMs = 120) {
+  pendingPublishType = type;
+  if (publishTimer) return;
+  publishTimer = setTimeout(() => {
+    const nextType = pendingPublishType || type;
+    publishTimer = null;
+    pendingPublishType = null;
+    publish(nextType);
+  }, delayMs);
+  publishTimer.unref?.();
 }
 function record(task, text, kind = "info") {
   const line = { at: new Date().toISOString(), text: String(text).slice(0, 8000), kind };
   task.events = [...(task.events || []), line].slice(-250);
   task.updatedAt = line.at;
-  persist();
-  publish("task");
+  if (kind === "output" || kind === "tool") {
+    schedulePersist();
+    schedulePublish("task");
+  } else {
+    persist();
+    publish("task");
+  }
 }
 function finishStageRerun(task, status, error = "") {
   const attempt = (task.stageRunHistory || []).find((item) => item.id === task.activeStageRunId);
@@ -458,8 +516,11 @@ function frontmatterValue(frontmatter, key) {
   }
   return initial.replace(/^(?:["'])(.*)(?:["'])$/, "$1").trim();
 }
-async function loadSkillCatalog(workspaceId = "") {
+async function loadSkillCatalog(workspaceId = "", force = false) {
   const workspace = state.workspaces.find((item) => item.id === workspaceId);
+  const cacheKey = workspace ? resolve(workspace.path).toLowerCase() : "__global__";
+  const cached = skillCatalogCache.get(cacheKey);
+  if (!force && cached && Date.now() < cached.expiresAt) return cached.items;
   const codexHome = resolve(process.env.CODEX_HOME || resolve(homedir(), ".codex"));
   const geminiHome = resolve(homedir(), ".gemini");
   const claudeHome = resolve(homedir(), ".claude");
@@ -532,7 +593,9 @@ async function loadSkillCatalog(workspaceId = "") {
       }
     }
   }
-  return [...catalog.values()].sort((a, b) => a.name.localeCompare(b.name, "vi"));
+  const items = [...catalog.values()].sort((a, b) => a.name.localeCompare(b.name, "vi"));
+  skillCatalogCache.set(cacheKey, { items, expiresAt: Date.now() + SKILL_CACHE_TTL_MS });
+  return items;
 }
 async function resolveSelectedSkills(ids, workspaceId, catalog = null) {
   if (!Array.isArray(ids)) throw new Error("Danh sách skill được chọn không hợp lệ.");
@@ -542,7 +605,7 @@ async function resolveSelectedSkills(ids, workspaceId, catalog = null) {
   if (skills.some((item) => !item)) throw new Error("Có skill không còn tồn tại trong thư viện đã quét. Hãy tải lại trang và chọn lại.");
   return skills;
 }
-function rankSkillCandidates(task, catalog) {
+function rankSkillCandidatesScored(task, catalog) {
   const words = new Set(tokenize(`${task.title} ${task.prompt}`));
   const queryText = `${task.title} ${task.prompt}`.toLocaleLowerCase();
   for (const shortTerm of ["ui", "ux", "db", "ci", "ai"]) if (new RegExp(`(?:^|[^\\p{L}\\p{N}])${shortTerm}(?:$|[^\\p{L}\\p{N}])`, "u").test(queryText)) words.add(shortTerm);
@@ -566,7 +629,7 @@ function rankSkillCandidates(task, catalog) {
     if (terms.some((term) => words.has(term))) for (const term of terms) expanded.add(term);
   }
   const activeProvider = task.config?.workflow === "chat-only" ? task.config.chatProvider || "codex" : stageSelection(task, "plan").provider;
-  const ranked = catalog.map((skill) => {
+  return catalog.map((skill) => {
     const providers = skill.providers || [];
     if (!skillProviderCompatible(activeProvider, providers)) return null;
     const titleWords = tokenize(skill.name);
@@ -576,8 +639,10 @@ function rankSkillCandidates(task, catalog) {
     const phraseScore = words.size && [...words].some((word) => word.length > 4 && skill.name.toLocaleLowerCase().includes(word)) ? 8 : 0;
     const score = titleScore + descriptionScore + phraseScore;
     return score ? { skill, score } : null;
-  }).filter(Boolean).sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name, "vi"));
-  return ranked.slice(0, 36).map(({ skill }) => skill);
+  }).filter(Boolean).sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name, "vi")).slice(0, 36);
+}
+function rankSkillCandidates(task, catalog) {
+  return rankSkillCandidatesScored(task, catalog).map(({ skill }) => skill);
 }
 function skillProviderCompatible(provider, supported = []) {
   if (supported.includes("*")) return true;
@@ -1236,6 +1301,50 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
     child.stdin.end(prompt);
   });
 }
+function mergeTaskArtifacts(existing = [], latest = []) {
+  return [...new Set([...(Array.isArray(existing) ? existing : []), ...(Array.isArray(latest) ? latest : [])])].sort();
+}
+async function cleanupTaskWorktrees(task) {
+  const workspace = state.workspaces.find((w) => w.id === task.workspaceId);
+  const repoCandidate = workspace?.path || task.workspacePath;
+  let repoRoot = null;
+  if (repoCandidate && existsSync(repoCandidate)) {
+    const info = await inspectWorkspace(repoCandidate).catch(() => null);
+    if (info?.isGit) repoRoot = info.gitRoot || info.path;
+  }
+  const candidateDirs = new Set();
+  if (task.worktreePath && within(worktreeDir, resolve(task.worktreePath)) && resolve(task.worktreePath) !== resolve(worktreeDir)) {
+    candidateDirs.add(resolve(task.worktreePath));
+  }
+  try {
+    const entries = await fs.readdir(worktreeDir, { withFileTypes: true });
+    const prefix = `${task.id.toLowerCase()}-`;
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.toLowerCase().startsWith(prefix)) {
+        candidateDirs.add(resolve(worktreeDir, entry.name));
+      }
+    }
+  } catch { }
+  if (!candidateDirs.size && !repoRoot) return;
+  await withGitRepoLock(repoRoot || worktreeDir, async () => {
+    for (const wtPath of candidateDirs) {
+      if (repoRoot) await git(repoRoot, ["worktree", "remove", "--force", wtPath]).catch(() => {});
+      await fs.rm(wtPath, { recursive: true, force: true }).catch(() => {});
+    }
+    if (repoRoot) {
+      await git(repoRoot, ["worktree", "prune"]).catch(() => {});
+      const branches = await git(repoRoot, ["branch", "--list", `workbench/${task.id.toLowerCase()}-*`]).catch(() => ({ code: -1, stdout: "" }));
+      if (branches.code === 0 && branches.stdout) {
+        for (const rawLine of branches.stdout.split(/\r?\n/)) {
+          const branch = rawLine.replace(/^[*+]?\s+/, "").trim();
+          if (branch.startsWith(`workbench/${task.id.toLowerCase()}-`)) {
+            await git(repoRoot, ["branch", "-D", branch]).catch(() => {});
+          }
+        }
+      }
+    }
+  });
+}
 async function executeTask(task) {
   const workspace = state.workspaces.find((w) => w.id === task.workspaceId);
   if (!workspace) throw new Error("Workspace not found");
@@ -1259,10 +1368,11 @@ async function executeTask(task) {
       const attempt = Date.now().toString(36);
       const worktreeRoot = resolve(worktreeDir, `${task.id}-${attempt}`);
       const branchName = `workbench/${task.id.toLowerCase()}-${attempt}`;
-      const add = await git(info.gitRoot || info.path, ["worktree", "add", "-b", branchName, worktreeRoot, "HEAD"]);
+      const repoRoot = info.gitRoot || info.path;
+      const add = await withGitRepoLock(repoRoot, () => git(repoRoot, ["worktree", "add", "-b", branchName, worktreeRoot, "HEAD"]));
       if (add.code !== 0) throw new Error(add.stderr.trim() || "Could not create isolated Git worktree");
       task.worktreePath = worktreeRoot;
-      const selectedSubdirectory = relative(info.gitRoot || info.path, info.path);
+      const selectedSubdirectory = relative(repoRoot, info.path);
       cwd = selectedSubdirectory ? resolve(worktreeRoot, selectedSubdirectory) : worktreeRoot;
       assertTaskActive(task);
     }
@@ -1285,17 +1395,24 @@ async function executeTask(task) {
   if (task.skillSelectionMode !== "manual" && !task.skillSelectionCompleted) {
     skillCatalog = await loadSkillCatalog(workspace.id);
     assertTaskActive(task);
-    const candidates = rankSkillCandidates(task, skillCatalog);
+    const scoredCandidates = rankSkillCandidatesScored(task, skillCatalog);
+    const candidates = scoredCandidates.map(({ skill }) => skill);
     task.skillCandidatesConsidered = candidates.length;
     if (candidates.length) {
-      const selector = task.config.workflow === "chat-only"
-        ? { provider: task.config.chatProvider || "codex", model: task.config.chatModel || "", effort: task.config.chatEffort || "standard" }
-        : stageSelection(task, "plan");
-      record(task, `${publicProviderName(selector.provider)} đang chọn skill phù hợp từ ${candidates.length} ứng viên tìm được trong thư viện`, "stage");
-      const selectionOutput = await spawnStage(task, selector.provider, "skill-selection", cwd, skillSelectionPrompt(task, workspace, candidates), selector);
-      const decision = parseSkillSelection(selectionOutput, candidates);
-      skillIds = decision.ids;
-      task.skillSelectionReason = decision.reason;
+      if (task.config.workflow === "chat-only") {
+        const strongMatches = scoredCandidates.filter(({ score }) => score >= 10).slice(0, 3);
+        skillIds = strongMatches.map(({ skill }) => skill.id);
+        task.skillSelectionReason = skillIds.length
+          ? `Đã tự động khớp nhanh ${skillIds.length} skill sát nhất với nội dung chat.`
+          : "Không có skill nào vượt ngưỡng khớp trực tiếp cho lượt chat này.";
+      } else {
+        const selector = stageSelection(task, "plan");
+        record(task, `${publicProviderName(selector.provider)} đang chọn skill phù hợp từ ${candidates.length} ứng viên tìm được trong thư viện`, "stage");
+        const selectionOutput = await spawnStage(task, selector.provider, "skill-selection", cwd, skillSelectionPrompt(task, workspace, candidates), selector);
+        const decision = parseSkillSelection(selectionOutput, candidates);
+        skillIds = decision.ids;
+        task.skillSelectionReason = decision.reason;
+      }
     } else {
       skillIds = [];
       task.skillSelectionReason = "Không có skill khớp đủ gần với yêu cầu.";
@@ -1309,12 +1426,12 @@ async function executeTask(task) {
   task.antigravitySkillDirs = task.config.workflow === "chat-only" && task.config.chatProvider !== "antigravity" ? [] : await stageAntigravitySkillBundles(task, skillInstructions);
   task.skillIds = skillInstructions.map((skill) => skill.id);
   task.skills = skillInstructions.map(({ id, name, source, sources, providers }) => ({ id, name, source, sources, providers }));
-    if (task.skills.length) record(task, `${publicProviderName(task.config.workflow === "chat-only" ? task.config.chatProvider : stageSelection(task, "plan").provider)} tự chọn và nạp ${task.skills.length} skill vào stage phù hợp${task.antigravitySkillDirs.length ? ` · ${task.antigravitySkillDirs.length} bộ tài nguyên Antigravity` : ""}`, "memory");
-  else if (task.skillSelectionMode === "auto" && task.skillCandidatesConsidered) record(task, task.skillSelectionReason || "Codex không chọn skill nào vì không có skill thật sự cần thiết.", "memory");
+  if (task.skills.length) record(task, `${publicProviderName(task.config.workflow === "chat-only" ? task.config.chatProvider : stageSelection(task, "plan").provider)} tự chọn và nạp ${task.skills.length} skill vào stage phù hợp${task.antigravitySkillDirs.length ? ` · ${task.antigravitySkillDirs.length} bộ tài nguyên Antigravity` : ""}`, "memory");
+  else if (task.skillSelectionMode === "auto" && task.skillCandidatesConsidered) record(task, task.skillSelectionReason || "Không chọn skill nào vì không có skill thật sự cần thiết.", "memory");
   persist(); publish("task");
   if (task.config.workflow === "chat-only") {
     const provider = task.config.chatProvider || "codex";
-      const message = task.chatMessages?.find((item) => item.role === "user" && item.initialChat) || { id: randomUUID(), role: "user", provider, model: task.config.chatModel, effort: task.config.chatEffort, content: task.prompt, attachments: (task.attachments || []).map(({ name }) => ({ name })), status: "running", initialChat: true, createdAt: task.createdAt };
+    const message = task.chatMessages?.find((item) => item.role === "user" && item.initialChat) || { id: randomUUID(), role: "user", provider, model: task.config.chatModel, effort: task.config.chatEffort, content: task.prompt, attachments: (task.attachments || []).map(({ name }) => ({ name })), status: "running", initialChat: true, createdAt: task.createdAt };
     task.chatMessages ||= [];
     if (!task.chatMessages.some((item) => item.id === message.id)) task.chatMessages.push(message);
     message.status = "running";
@@ -1325,7 +1442,7 @@ async function executeTask(task) {
       assertTaskActive(task);
       message.status = "done";
       task.chatMessages.push({ id: randomUUID(), role: "assistant", replyToMessageId: message.id, provider, model: task.config.chatModel, effort: task.config.chatEffort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
-      task.artifacts = await changedFilesSince(cwd, Date.parse(task.startedAt));
+      task.artifacts = mergeTaskArtifacts(task.artifacts, await changedFilesSince(cwd, Date.parse(task.startedAt)));
       assertTaskActive(task);
       task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
       finishStageRerun(task, "done");
@@ -1351,10 +1468,12 @@ async function executeTask(task) {
   record(task, `Handoff ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} · kế hoạch được chuyển sang stage triển khai.`, "handoff");
   task.phase = "build"; persist(); publish("task");
   if (!(task.resumeFrom === "review" && task.implementation)) {
+    const buildStartedAt = Date.now();
     const implementation = await spawnStage(task, buildSelection.provider, "build", cwd, makePrompt(task, "build", plan, notes, workspace, skillInstructions), buildSelection);
     assertTaskActive(task);
     task.implementation = implementation || `${publicProviderName(buildSelection.provider)} hoàn tất nhưng không gửi văn bản cuối. Kiểm tra danh sách tệp/diff bên dưới.`;
     await fs.writeFile(resolve(task.storagePath, "implementation.md"), task.implementation, "utf8");
+    task.artifacts = mergeTaskArtifacts(task.artifacts, await changedFilesSince(cwd, Math.min(Date.parse(task.startedAt) || buildStartedAt, buildStartedAt)));
   }
   const reviewSelection = stageSelection(task, "review");
   record(task, `Handoff ${publicProviderName(buildSelection.provider)} → ${publicProviderName(reviewSelection.provider)} · stage triển khai đã kết thúc; reviewer bắt đầu kiểm tra.`, "handoff");
@@ -1363,7 +1482,7 @@ async function executeTask(task) {
   const review = await spawnStage(task, reviewSelection.provider, "review", cwd, makePrompt(task, "review", plan, notes, workspace, skillInstructions), reviewSelection);
   assertTaskActive(task);
   task.review = review;
-  task.artifacts = await changedFilesSince(cwd, Date.parse(task.startedAt));
+  task.artifacts = mergeTaskArtifacts(task.artifacts, await changedFilesSince(cwd, Date.parse(task.startedAt)));
   assertTaskActive(task);
   record(task, `${publicProviderName(reviewSelection.provider)} review hoàn tất · xem kết quả và diff trong task detail.`, "handoff");
   task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
@@ -1387,7 +1506,7 @@ async function processTaskChatQueue(task) {
     return;
   }
   if (!existingRun) {
-    running.set(task.id, { child: null, stopped: false, workspacePath: lockPath, isolated: false, isChat: true });
+    running.set(task.id, { child: null, stopped: false, workspacePath: lockPath, isolated: Boolean(task.isolated), isChat: true });
     if (!task.isolated) busyWorkspaces.add(lockPath);
   }
   const restoreStatus = task.status === "running" ? "done" : task.status;
@@ -1401,10 +1520,14 @@ async function processTaskChatQueue(task) {
       if (userMessage) userMessage.status = "running";
       record(task, `${publicProviderName(turn.provider)} nhận tin nhắn · ${turn.model} (${turn.effort})`, "stage");
       try {
+        const turnStartedAt = Date.now();
+        const cwd = task.executionPath || workspace.path;
         const prompt = makeChatPrompt(task, turn);
         const chatConfig = { provider: turn.provider, model: turn.model, effort: turn.effort };
-        const response = await spawnStage(task, turn.provider, `chat-${turn.id}`, task.executionPath || workspace.path, prompt, chatConfig);
+        const response = await spawnStage(task, turn.provider, `chat-${turn.id}`, cwd, prompt, chatConfig);
         assertTaskActive(task);
+        const turnChanges = await changedFilesSince(cwd, turnStartedAt);
+        if (turnChanges.length) task.artifacts = mergeTaskArtifacts(task.artifacts, turnChanges);
         if (userMessage) userMessage.status = "done";
         task.chatMessages ||= [];
         task.chatMessages.push({ id: randomUUID(), role: "assistant", replyToMessageId: userMessage?.id, provider: turn.provider, model: turn.model, effort: turn.effort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
@@ -1439,7 +1562,7 @@ function pump() {
       while (!shuttingDown && running.size < Math.max(1, Math.min(8, Number(state.settings.maxConcurrent) || 1))) {
         const task = state.tasks.find((item) => {
           const path = state.workspaces.find((w) => w.id === item.workspaceId)?.path;
-          return item.status === "queued" && !running.has(item.id) && !busyWorkspaces.has(path) && (item.isolated || !isolatedWorkspaces.has(path));
+          return item.status === "queued" && !running.has(item.id) && Boolean(path) && (item.isolated || !busyWorkspaces.has(path));
         });
         if (!task) break;
         const workspacePath = state.workspaces.find((w) => w.id === task.workspaceId)?.path;
@@ -1464,11 +1587,11 @@ function pump() {
           }
           running.delete(task.id);
           persist(); publish("task");
-      if (task.chatQueue?.length && task.status !== "cancelled" && !shuttingDown) void processTaskChatQueue(task);
+          if (task.chatQueue?.length && task.status !== "cancelled" && !shuttingDown) void processTaskChatQueue(task);
           else pump();
         });
       }
-      } finally { schedulerActive = false; }
+    } finally { schedulerActive = false; }
   });
 }
 async function checkDiff(task) {
@@ -1688,13 +1811,14 @@ async function api(request, response, pathname) {
   }
   if (request.method === "GET" && pathname === "/api/skills") {
     const params = new URL(request.url, `http://${host}:${port}`).searchParams;
-    const skills = await loadSkillCatalog(params.get("workspaceId") || "");
+    const skills = await loadSkillCatalog(params.get("workspaceId") || "", params.has("refresh"));
     return json(response, 200, { skills: skills.map(({ id, name, description, source, sources, providers, files }) => ({ id, name, description, source, sources, providers, editable: files.some((file) => file.managed) })) });
   }
   if (request.method === "POST" && pathname === "/api/skills") {
     const body = await readBody(request);
     try {
       const result = await createSkillFiles(body.name, body.description, body.instructions, body.scope);
+      invalidateSkillCatalogCache();
       publish("skills");
       return json(response, 201, result);
     } catch (error) { return json(response, 400, { error: safeError(error) }); }
@@ -1713,7 +1837,7 @@ async function api(request, response, pathname) {
       const frontmatter = skill.instruction.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/);
       const instructions = frontmatter ? skill.instruction.slice(frontmatter[0].length).trim() : skill.instruction;
       const scope = body.scope || defaultSkillScope(skill.providers || []);
-      try { const result = await createSkillFiles(`${skill.name} (bản tùy chỉnh)`, skill.description || `Bản tùy chỉnh của ${skill.name}`, instructions, scope); publish("skills"); return json(response, 201, result); }
+      try { const result = await createSkillFiles(`${skill.name} (bản tùy chỉnh)`, skill.description || `Bản tùy chỉnh của ${skill.name}`, instructions, scope); invalidateSkillCatalogCache(); publish("skills"); return json(response, 201, result); }
       catch (error) { return json(response, 400, { error: safeError(error) }); }
     }
     if (request.method === "PATCH" && !action) {
@@ -1739,6 +1863,7 @@ async function api(request, response, pathname) {
         for (const entry of previous) await fs.writeFile(entry.target, entry.content, "utf8").catch(() => {});
         return json(response, 400, { error: safeError(error) });
       }
+      invalidateSkillCatalogCache();
       publish("skills"); return json(response, 200, { ok: true, name: frontmatterValue(content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---/)[1], "name") });
     }
     if (request.method === "DELETE" && !action) {
@@ -1752,6 +1877,7 @@ async function api(request, response, pathname) {
         }
         for (const entry of editableFiles) await fs.rm(entry.directory, { recursive: true, force: false });
       } catch (error) { return json(response, 400, { error: safeError(error) }); }
+      invalidateSkillCatalogCache();
       publish("skills"); return json(response, 200, { ok: true, removedSources: editableFiles.length, readonlySourcesRemain: skill.files.some((file) => !file.managed) });
     }
   }
@@ -1921,7 +2047,10 @@ async function api(request, response, pathname) {
       if (running.has(task.id) || ["queued", "running"].includes(task.status)) return json(response, 409, { error: "Không thể xóa chat đang chạy hoặc đang chờ." });
       const storagePath = resolve(String(task.storagePath || resolve(taskDir, task.id)));
       if (!within(taskDir, storagePath) || storagePath === taskDir) return json(response, 400, { error: "Đường dẫn dữ liệu task không hợp lệ; không thể xóa chat an toàn." });
-      try { await fs.rm(storagePath, { recursive: true, force: true }); }
+      try {
+        await cleanupTaskWorktrees(task);
+        await fs.rm(storagePath, { recursive: true, force: true });
+      }
       catch (error) { return json(response, 500, { error: `Không thể xóa dữ liệu chat: ${safeError(error)}` }); }
       state.tasks = state.tasks.filter((item) => item.id !== task.id);
       persist(); publish("tasks");
@@ -2340,6 +2469,8 @@ export async function stopWorkbench() {
     interrupted = true;
   }
   if (interrupted) { persist(); publish("tasks"); }
+  else if (persistTimer) { persist(); }
+  if (publishTimer) { clearTimeout(publishTimer); publishTimer = null; pendingPublishType = null; }
   for (const client of clients) client.end();
   clients.clear();
   await vite?.close();

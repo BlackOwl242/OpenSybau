@@ -372,3 +372,148 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   .composer-add-menu { bottom: calc(100% + 8px); }
   .auto-skill-chip { display: none; }
 }
+
+/* Flat modern monochrome B&W logo mark (Bauhaus Constructivist style) */
+.wb-mark {
+  background: #f5f0eb;
+  color: #000000;
+  border: 1px solid #e6dfd8;
+  border-radius: 11px;
+  box-shadow: none;
+  padding: 0;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.wb-mark:hover {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+.wb-mark-svg {
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+/* Home composer worktree toggle chip */
+.home-worktree-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--wb-surface-soft);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+  transition: color 130ms ease, border-color 130ms ease, background-color 130ms ease;
+}
+.home-worktree-chip:hover {
+  color: var(--foreground);
+  border-color: #545861;
+}
+.home-worktree-chip.is-active {
+  color: #ffffff;
+  background: #141517;
+  border-color: #d4d4d8;
+}
+.home-worktree-chip input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: #ffffff;
+}
+
+/* Inline pipeline progress strip inside conversation header */
+.chat-pipeline-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 7px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--wb-surface-soft);
+}
+.chat-pipeline-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.chat-pipeline-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  background: rgba(255, 255, 255, 0.02);
+}
+.chat-pipeline-step strong {
+  font-weight: 600;
+  color: var(--foreground);
+}
+.chat-pipeline-step small {
+  font-family: var(--wb-font-mono);
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.chat-pipeline-step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #646870;
+}
+.chat-pipeline-step.status-running {
+  border-color: rgba(129, 201, 164, 0.38);
+  background: rgba(129, 201, 164, 0.09);
+}
+.chat-pipeline-step.status-running .chat-pipeline-step-dot {
+  background: var(--wb-green);
+  box-shadow: 0 0 0 3px rgba(129, 201, 164, 0.2);
+}
+.chat-pipeline-step.status-done .chat-pipeline-step-dot {
+  background: var(--sidebar-primary);
+}
+.chat-pipeline-step.status-failed {
+  border-color: rgba(242, 139, 130, 0.35);
+}
+.chat-pipeline-step.status-failed .chat-pipeline-step-dot {
+  background: var(--destructive);
+}
+.chat-pipeline-arrow {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+/* Syntax-highlighted Git diff viewer lines */
+.diff-content .diff-line {
+  display: block;
+  padding: 0 6px;
+  border-radius: 3px;
+}
+.diff-content .diff-line-add {
+  color: #a8e5c2;
+  background: rgba(63, 185, 114, 0.13);
+}
+.diff-content .diff-line-del {
+  color: #f6b2ac;
+  background: rgba(240, 102, 92, 0.14);
+}
+.diff-content .diff-line-hunk {
+  color: #9bbcff;
+  background: rgba(155, 188, 255, 0.1);
+}
+.diff-content .diff-line-meta {
+  color: #d6d8dc;
+  font-weight: 600;
+}
+

@@ -93,6 +93,7 @@ async function createMainWindow() {
     height: 960,
     minWidth: 960,
     minHeight: 640,
+    icon: path.join(__dirname, "icon.ico"),
     backgroundColor: process.platform === "win32" ? "#00000000" : "#1b1c1d",
     ...(process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
     autoHideMenuBar: true,

@@ -1,4 +1,4 @@
-# OpenSybau
+# <img src="public/opensybau.svg" alt="OpenSybau Logo" width="36" height="36" align="top" /> OpenSybau
 
 **Trung tâm điều khiển các AI coding agent, chạy trên máy của bạn.** OpenSybau giúp quản lý nhiều workspace, cuộc trò chuyện, luồng agent và hoạt động thực thi qua giao diện trình duyệt. Task chạy trên máy chủ OpenSybau bằng các CLI và API provider bạn đã cấu hình.
 

@@ -7,7 +7,7 @@
     "url": "https://github.com/BlackOwl242/OpenSybau.git"
   },
   "private": true,
-  "version": "0.2.52",
+  "version": "0.2.53",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -61,6 +61,7 @@
       "output": "release"
     },
     "win": {
+      "icon": "desktop/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -72,6 +73,9 @@
       "artifactName": "OpenSybau-Setup-${version}-${arch}.${ext}"
     },
     "nsis": {
+      "installerIcon": "desktop/icon.ico",
+      "uninstallerIcon": "desktop/icon.ico",
+      "installerHeaderIcon": "desktop/icon.ico",
       "oneClick": false,
       "perMachine": false,
       "allowElevation": false,
