@@ -339,7 +339,8 @@ body.launch-home #content.home-launch-content{width:100%;max-width:none;height:1
 .home-agent-provider .connector-unavailable{grid-column:1/-1;font-size:8px}
 .home-composer-foot{display:flex;align-items:center;justify-content:space-between;gap:9px;padding-top:8px;color:#818b9a;font-size:8px}
 .auto-skill-chip{display:flex;align-items:center;gap:5px;color:#66748a}
-.home-add-workspace{margin:10px auto 0;padding:8px 11px;border:1px dashed #9cacc6;border-radius:7px;background:#ffffff9c;color:#45618d;font-size:10px}
+.home-add-workspace{height:34px;display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;margin:0;padding:0 10px;border:1px solid #e5e7eb;border-radius:18px;background:#fafbfc;color:#555e69;font-size:11px;white-space:nowrap;transition:background .15s,border-color .15s}
+.home-add-workspace:hover{background:#f3f4f6}
 .home-lower-grid{width:min(740px,calc(100% - 42px));display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 auto 0}
 .home-lower-panel{min-width:0;padding:10px 11px;border:1px solid #ffffffb5;border-radius:10px;background:#ffffff69}
 .home-lower-panel>header{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -544,7 +545,7 @@ body.launch-home #content.home-launch-content{background:#fff}
 .home-welcome .home-kicker{margin-bottom:8px}
 .home-welcome .home-subtitle{margin:8px auto 0}
 .home-mode-switch{justify-content:flex-start}
-.home-agent-settings,.home-add-workspace{margin-top:12px}
+.home-agent-settings{margin-top:12px}
 .home-lower-grid,.home-recent{width:min(760px,calc(100% - 48px))}
 .home-lower-grid{margin-top:30px;gap:22px}
 .home-lower-panel{padding:14px 0;border:0;border-top:1px solid #eceef1;border-radius:0;background:#fff}

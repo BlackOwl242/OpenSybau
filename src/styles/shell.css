@@ -304,7 +304,8 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .auto-skill-chip, .wb-page-content .home-composer-foot { color: #a7aaaf; }
 .wb-page-content .home-submit { border: 0; border-radius: 50%; color: #222426; background: #e0e1e2; }
 .wb-page-content .home-submit:hover { background: #fff; }
-.wb-page-content .home-add-workspace { align-self: center; margin: 0 auto 35px; border-color: #484a4e; color: #e4e5e6; background: #303234; }
+.wb-page-content .home-add-workspace { border-color: #484a4e; color: #e4e5e6; background: #303234; }
+.wb-page-content .home-add-workspace:hover { border-color: #5a5d62; background: #3b3d40; }
 .wb-page-content .command-stage h1 { color: #f0f0f1; }
 .wb-page-content .concurrency-card { margin-top: 16px; }
 .concurrency-setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -547,6 +548,9 @@ button:disabled { cursor: not-allowed; }
   .wb-page-content .home-composer-settings { min-height: 40px; }
   .wb-page-content .home-composer-settings > span, .wb-page-content .home-composer-settings > .wb-icon:last-child { display: none; }
   .wb-page-content .home-composer-settings::after { content: "Cấu hình"; font-size: 12px; }
+  .wb-page-content .home-composer-controls.has-add-workspace .auto-skill-chip { display: none; }
+  .wb-page-content .home-add-workspace { width: 40px; height: 40px; padding: 0; }
+  .wb-page-content .home-add-workspace span { display: none; }
   .wb-page-content .conversation-top { height: auto; min-height: 0; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px; }
   .wb-page-content .task-orchestration-page > .conversation-top { padding-right: 0; padding-left: 0; }
   .wb-page-content .conversation-context { width: 100%; min-width: 0; flex-wrap: wrap; overflow: hidden; }
