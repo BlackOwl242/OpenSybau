@@ -471,23 +471,43 @@ const contentImportExtensions = new Set([
 ]);
 const markdownContentExtensions = new Set([".md", ".markdown", ".mdx", ".txt", ".text", ".rst", ".adoc"]);
 const contentImportAccept = [...contentImportExtensions].join(",");
+function composerAttachmentKey(formOrInput) {
+  const form = formOrInput?.matches?.("form") ? formOrInput : formOrInput?.closest("form");
+  return form?.dataset.form === "task-chat" ? `task:${form.dataset.id}` : "home";
+}
+function composerAttachmentsMarkup(key) {
+  const files = view.composerAttachments?.[key] || [];
+  if (!files.length) return "";
+  return `<div class="composer-attachments" aria-label="Tệp đính kèm">${files.map((item) => `<div class="composer-attachment" title="${esc(item.path)}"><span class="composer-attachment-icon">${icon("file", 17)}</span><span class="composer-attachment-name">${esc(item.path)}</span><button type="button" data-action="remove-composer-attachment" data-scope="${esc(key)}" data-attachment-id="${esc(item.id)}" aria-label="Gỡ ${esc(item.path)}" title="Gỡ tệp">${icon("x", 14)}</button></div>`).join("")}</div>`;
+}
+function clearComposerAttachments(form) {
+  const key = composerAttachmentKey(form);
+  if (view.composerAttachments?.[key]) delete view.composerAttachments[key];
+}
+async function readComposerAttachments(form) {
+  const files = view.composerAttachments?.[composerAttachmentKey(form)] || [];
+  return Promise.all(files.map(async ({ file, path }) => {
+    const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
+    const content = await file.text();
+    if (content.includes("\u0000")) throw new Error(`Tệp "${file.name}" là tệp nhị phân; chỉ gửi được nội dung văn bản.`);
+    if (!content.trim()) throw new Error(`Tệp "${file.name}" đang trống.`);
+    return { name: path, content };
+  }));
+}
 function composerAddMenu(target, taskId = "") {
   const extra = taskId
     ? `<button type="button" data-action="edit-task-goal" data-id="${esc(taskId)}">${icon("target", 16)}<span>Mục tiêu cuộc trò chuyện</span></button>`
-    : `<button type="button" data-home-mode="plan">${icon("list-checks", 16)}<span>Lập kế hoạch</span></button><button type="button" data-action="toggle-home-config">${icon("settings-2", 16)}<span>Agent và model</span></button>`;
-  return `<details class="composer-add"><summary aria-label="Thêm tệp và tính năng" title="Thêm tệp và tính năng">${icon("plus", 18)}</summary><div class="composer-add-menu" role="group" aria-label="Thêm vào cuộc trò chuyện"><strong>Thêm vào cuộc trò chuyện</strong><label>${icon("file", 16)}<span>Tệp văn bản, Markdown, mã nguồn</span><input type="file" accept="${contentImportAccept}" multiple data-content-file-import data-import-target="${target}"></label><label>${icon("folder-open", 16)}<span>Thư mục tệp văn bản</span><input type="file" webkitdirectory multiple data-content-file-import data-import-target="${target}"></label>${extra}<button type="button" data-page="skills">${icon("notebook-tabs", 16)}<span>Kỹ năng</span></button><small>Tệp được thêm vào nội dung gửi tới agent. Tối đa 20 tệp, 1 MB.</small></div></details>`;
+    : `<button type="button" data-action="toggle-home-config">${icon("settings-2", 16)}<span>Agent và model</span></button>`;
+  const fileImportOptions = [
+    { label: "Tệp văn bản, Markdown, mã nguồn", icon: "file", attrs: `accept="${contentImportAccept}" multiple`, aria: "Chọn tệp văn bản hoặc Markdown" },
+    { label: "Thư mục tệp văn bản", icon: "folder-open", attrs: "webkitdirectory multiple", aria: "Chọn thư mục tệp văn bản" },
+  ].map((option) => `<label class="composer-file-option"><span class="composer-file-option-label">${icon(option.icon, 16)}<span>${option.label}</span></span><input type="file" ${option.attrs} data-content-file-import data-import-target="${target}" aria-label="${option.aria}"><small data-content-file-status aria-live="polite" hidden></small></label>`).join("");
+  return `<details class="composer-add"><summary aria-label="Thêm tệp và tính năng" title="Thêm tệp và tính năng">${icon("plus", 18)}</summary><div class="composer-add-menu" role="group" aria-label="Thêm vào cuộc trò chuyện"><strong>Thêm vào cuộc trò chuyện</strong>${fileImportOptions}${extra}<button type="button" data-page="skills">${icon("notebook-tabs", 16)}<span>Kỹ năng</span></button><small>Tệp văn bản được gửi riêng kèm tin nhắn. Tối đa 20 tệp, tổng 1 MB.</small></div></details>`;
 }
 function contentFileImportField(target) {
   return '<label class="content-file-import">Thêm tệp nội dung<input type="file" accept="' + contentImportAccept + '" multiple data-content-file-import data-import-target="' + esc(target) + '"><small data-content-file-status>Chọn nhiều tệp văn bản cùng lúc, gồm Markdown (.md), TXT, JSON, YAML, CSV, HTML và mã nguồn. Tệp được nối vào nội dung, không lưu riêng.</small></label>';
 }
-async function importContentFiles(input) {
-  const selected = [...(input.files || [])];
-  const files = input.hasAttribute("webkitdirectory")
-    ? selected.filter((file) => contentImportExtensions.has(file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "") && !/^\.env(?:\.|$)/i.test(file.name))
-    : selected;
-  if (selected.length && !files.length) { showToast("Thư mục không có tệp văn bản hoặc Markdown được hỗ trợ."); input.value = ""; return; }
-  if (!files.length) return;
-  input.disabled = true;
+async function importIntoContentField(input, files) {
   const form = input.closest("form");
   const target = form?.querySelector('textarea[name="' + input.dataset.importTarget + '"]');
   const status = input.closest("label")?.querySelector("[data-content-file-status]");
@@ -497,30 +517,54 @@ async function importContentFiles(input) {
     if (files.some((file) => file.size > 1_000_000) || files.reduce((total, file) => total + file.size, 0) > 1_000_000) throw new Error("Tổng dung lượng tệp mỗi lần nhập tối đa 1 MB.");
     const imported = await Promise.all(files.map(async (file) => {
       const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
-      if (!contentImportExtensions.has(extension) || /^\.env(?:\.|$)/i.test(file.name)) throw new Error('Không hỗ trợ tệp "' + file.name + '". Hãy chọn tệp văn bản hoặc Markdown.');
+      if (!contentImportExtensions.has(extension) || /^\.env(?:\.|$)/i.test(file.name)) throw new Error(`Không hỗ trợ tệp "${file.name}". Hãy chọn tệp văn bản hoặc Markdown.`);
       const content = await file.text();
-      if (content.includes("\u0000")) throw new Error('Tệp "' + file.name + '" có vẻ là tệp nhị phân; chỉ nhập được nội dung văn bản.');
-      if (!content.trim()) throw new Error('Tệp "' + file.name + '" đang trống.');
+      if (content.includes("\u0000")) throw new Error(`Tệp "${file.name}" có vẻ là tệp nhị phân; chỉ nhập được nội dung văn bản.`);
+      if (!content.trim()) throw new Error(`Tệp "${file.name}" đang trống.`);
       const codeFence = String.fromCharCode(96).repeat(3);
-      const name = file.webkitRelativePath || file.name;
+      const path = file.webkitRelativePath || file.name;
       return markdownContentExtensions.has(extension)
-        ? "### Nội dung từ tệp: " + name + "\n\n" + content.trim()
-        : "### Nội dung từ tệp: " + name + "\n\n" + codeFence + extension.slice(1) + "\n" + content.trim() + "\n" + codeFence;
+        ? `### Nội dung từ tệp: ${path}\n\n${content.trim()}`
+        : `### Nội dung từ tệp: ${path}\n\n${codeFence}${extension.slice(1)}\n${content.trim()}\n${codeFence}`;
     }));
     const previous = target.value.trimEnd();
     const next = previous ? previous + "\n\n" + imported.join("\n\n") : imported.join("\n\n");
-    if (target.maxLength > 0 && next.length > target.maxLength) throw new Error("Nội dung sau khi nhập vượt giới hạn " + target.maxLength.toLocaleString("vi-VN") + " ký tự; nội dung hiện tại chưa bị thay đổi.");
+    if (target.maxLength > 0 && next.length > target.maxLength) throw new Error(`Nội dung sau khi nhập vượt giới hạn ${target.maxLength.toLocaleString("vi-VN")} ký tự; nội dung hiện tại chưa bị thay đổi.`);
     target.value = next;
     target.dispatchEvent(new Event("input", { bubbles: true }));
-    if (status) status.textContent = "Đã nhập " + files.length + " tệp: " + files.slice(0, 4).map((file) => file.name).join(", ") + (files.length > 4 ? " và " + (files.length - 4) + " tệp khác" : "");
-    showToast("Đã nhập " + files.length + " tệp vào nội dung.");
+    if (status) { status.textContent = `Đã nhập ${files.length} tệp.`; status.hidden = false; }
+    showToast(`Đã nhập ${files.length} tệp vào nội dung.`);
+  } catch (error) { if (status) { status.textContent = error.message || "Không thể nhập tệp."; status.hidden = false; } showToast(error.message || "Không thể nhập tệp."); }
+  finally { input.value = ""; }
+}
+function importContentFiles(input) {
+  const selected = [...(input.files || [])];
+  const files = input.hasAttribute("webkitdirectory")
+    ? selected.filter((file) => contentImportExtensions.has(file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "") && !/^\.env(?:\.|$)/i.test(file.name))
+    : selected;
+  if (selected.length && !files.length) { showToast("Thư mục không có tệp văn bản hoặc Markdown được hỗ trợ."); input.value = ""; return; }
+  if (!files.length) return;
+  const form = input.closest("form");
+  if (!form || !["home-task", "task-chat"].includes(form.dataset.form)) { void importIntoContentField(input, files); return; }
+  const key = composerAttachmentKey(form);
+  const current = view.composerAttachments?.[key] || [];
+  try {
+    if (!form) throw new Error("Không tìm thấy khung chat để gắn tệp.");
+    if (current.length + files.length > 20) throw new Error("Mỗi khung chat chỉ hỗ trợ tối đa 20 tệp đính kèm.");
+    const totalBytes = [...current.map((item) => item.file.size), ...files.map((file) => file.size)].reduce((sum, size) => sum + size, 0);
+    if (files.some((file) => file.size > 1_000_000) || totalBytes > 1_000_000) throw new Error("Tổng dung lượng tệp đính kèm tối đa 1 MB.");
+    for (const file of files) {
+      const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "";
+      if (!contentImportExtensions.has(extension) || /^\.env(?:\.|$)/i.test(file.name)) throw new Error('Không hỗ trợ tệp "' + file.name + '". Hãy chọn tệp văn bản hoặc Markdown.');
+    }
+    view.composerAttachments ||= {};
+    view.composerAttachments[key] = [...current, ...files.map((file) => ({ id: crypto.randomUUID(), file, path: file.webkitRelativePath || file.name }))];
     input.closest(".composer-add")?.removeAttribute("open");
+    render();
+    showToast(`Đã đính kèm ${files.length} tệp vào cuộc trò chuyện.`);
   } catch (error) {
     showToast(error.message || "Không thể nhập tệp.");
-  } finally {
-    input.value = "";
-    input.disabled = false;
-  }
+  } finally { input.value = ""; }
 }
 function showSkillCreateModal() {
   const body = '<label>Tên skill<input name="name" maxlength="100" required placeholder="Ví dụ: review-api"></label><label>Mô tả ngắn<input name="description" maxlength="500" required placeholder="Khi nào và cách nào nên dùng skill này"></label><label>Dùng cho<select name="scope"><option value="universal">OpenSybau · mọi agent, gồm API</option><option value="codex">Codex CLI</option><option value="antigravity">Antigravity CLI</option><option value="claude">Claude Code CLI</option><option value="all-cli">Tất cả CLI · Codex, Antigravity, Claude</option></select></label>' + contentFileImportField("instructions") + '<label>Hướng dẫn<textarea name="instructions" maxlength="98000" rows="9" placeholder="Quy trình, quy tắc và kết quả mong muốn…"></textarea></label><p class="form-note">OpenSybau lưu skill dùng chung trong dữ liệu riêng của ứng dụng và đưa hướng dẫn vào prompt của agent đã chọn, kể cả API. Chọn một CLI để cài skill trực tiếp vào thư mục cá nhân của CLI đó. OpenSybau không ghi đè skill trùng tên.</p>';
@@ -707,7 +751,8 @@ function chatPage() {
       ${chatProviders.length ? "" : `<div class="provider-connect-callout home-provider-empty"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa có agent sẵn sàng</strong><p>Kết nối API/model local hoặc cài và đăng nhập Codex, Claude Code hay Antigravity để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="desktop-open-settings">Mở cài đặt</button><button class="button quiet small" type="button" data-action="open-setup-assistant">Hướng dẫn</button></div></div>`}
       <div class="home-mode-switch" role="tablist" aria-label="Chế độ làm việc"><button type="button" class="home-mode-tab ${view.homeMode === "chat" ? "active" : ""}" data-home-mode="chat">Chat</button><button type="button" class="home-mode-tab ${view.homeMode === "code" ? "active" : ""}" data-home-mode="code" ${pipelineReady ? "" : "disabled title=\"Cần agent có quyền làm việc trên workspace\""}>Code</button><button type="button" class="home-mode-tab ${view.homeMode === "plan" ? "active" : ""}" data-home-mode="plan" ${planReady ? "" : "disabled"}>Lập kế hoạch</button><button type="button" class="home-mode-link" data-page="tasks">${view.state.tasks.length} task</button></div>
       <form class="home-composer" data-modal data-form="home-task">
-        <textarea name="prompt" data-home-prompt required minlength="6" maxlength="12000" rows="3" placeholder="${workflow === "chat-only" ? `Nhắn ${providerTitle(view.connectors, chatSelection.provider)}…` : workflow === "plan-only" ? "Mô tả vấn đề cần phân tích và lập kế hoạch…" : "Mô tả thay đổi cần triển khai trong workspace…"}">${esc(view.chatDraft)}</textarea>
+        ${composerAttachmentsMarkup("home")}
+        <textarea name="prompt" data-home-prompt maxlength="50000" rows="3" placeholder="${workflow === "chat-only" ? `Nhắn ${providerTitle(view.connectors, chatSelection.provider)}…` : workflow === "plan-only" ? "Mô tả vấn đề cần phân tích và lập kế hoạch…" : "Mô tả thay đổi cần triển khai trong workspace…"}">${esc(view.chatDraft)}</textarea>
         <footer class="home-composer-controls"><div class="composer-add-wrap">${composerAddMenu("prompt")}<span class="auto-skill-chip">${icon("notebook-tabs", 14)} Tự chọn skill · ${view.skills.length}</span></div><div class="home-composer-actions"><button type="button" class="home-composer-settings" data-action="toggle-home-config" aria-label="Cấu hình workspace, agent và model" aria-expanded="${view.homeConfigOpen}" title="Workspace, agent, model và mức suy nghĩ">${icon("settings-2", 15)}<span>${esc(homeConfigSummary)}</span>${icon("chevron-down", 14)}</button><button class="home-submit" type="submit" aria-label="${workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${workspaces.length && canRun ? "" : "disabled"}>${icon("arrow-up-right", 17)}</button></div></footer>
         <div class="composer-config-backdrop home-config-backdrop" ${view.homeConfigOpen ? "" : "hidden"}><section class="composer-config-dialog app-dialog-shell" role="dialog" aria-modal="true" aria-label="Cấu hình tác vụ"><header class="app-dialog-header"><div><small>OPENSYBAU</small><h2>Cấu hình tác vụ</h2></div><button type="button" class="icon-button" data-action="close-composer-config" aria-label="Đóng">${icon("x", 16)}</button></header><div class="app-dialog-content composer-config-content"><div class="composer-config-grid"><label>Workspace<select name="workspaceId" data-home-workspace required ${workspaces.length ? "" : "disabled"}>${workspaces.length ? workspaces.map((workspace) => `<option value="${workspace.id}" ${workspace.id === activeWorkspaceId ? "selected" : ""}>${esc(workspace.name)}</option>`).join("") : `<option value="">Thêm workspace để bắt đầu</option>`}</select></label><label>Luồng<select name="workflow" data-home-workflow>${workflowOptions}</select></label></div><div class="chat-agent-role" ${workflow === "chat-only" ? "" : "hidden"}>${chatAgentEditor({ provider: chatSelection.provider, model: chatSelection.model?.id, effort: chatSelection.effort })}</div><div class="agent-role-grid home-role-grid" ${workflow === "chat-only" ? "hidden" : ""}>${workflowRoles.map((role) => roleEditor(role.id, roleSelections[role.id])).join("")}</div></div><footer class="app-dialog-footer"><span>${icon("notebook-tabs", 14)} Skill tự chọn · ${view.skills.length} · Tối đa ${view.state.settings.maxConcurrent} task song song</span><button type="button" class="button primary" data-action="close-composer-config">Xong</button></footer></section></div>
       </form>
@@ -737,7 +782,7 @@ function taskConversationPage() {
   const messages = task.chatMessages || [];
   const hasInitialMessage = messages.some((message) => message.role === "user" && message.initialChat);
   const transcript = [];
-  if (!hasInitialMessage && task.prompt) transcript.push({ role: "user", provider: "user", content: task.prompt, createdAt: task.createdAt });
+  if (!hasInitialMessage && (task.prompt || task.attachments?.length)) transcript.push({ role: "user", provider: "user", content: task.prompt, attachments: (task.attachments || []).map(({ name }) => ({ name })), createdAt: task.createdAt });
   if (workflow !== "chat-only") {
     if (task.plan) transcript.push({ role: "assistant", provider: planRole.provider, label: `Kế hoạch · ${providerTitle(view.connectors, planRole.provider)}`, model: planRole.model, effort: planRole.effort, content: task.plan, createdAt: task.createdAt });
     if (task.implementation) transcript.push({ role: "assistant", provider: buildRole.provider, label: `Triển khai · ${providerTitle(view.connectors, buildRole.provider)}`, model: buildRole.model, effort: buildRole.effort, content: task.implementation, createdAt: task.updatedAt });
@@ -764,13 +809,14 @@ function taskConversationPage() {
     const content = message.content ? renderMarkdown(message.content) : "";
     const forkButton = isUser && message.id && (!message.status || message.status === "done") ? `<button type="button" class="chat-fork-button" data-action="fork-chat" data-id="${task.id}" data-message-id="${esc(message.id)}" title="Tạo nhánh hội thoại từ đây; workspace vẫn dùng chung">${icon("git-branch", 12)} Fork</button>` : "";
     const messageError = message.status === "failed" ? `<button type="button" class="chat-message-error" data-action="view-error-details" data-error="${esc(message.error || "Không nhận được phản hồi từ agent.")}">Xem nguyên nhân lỗi</button>` : "";
-    return `<article class="chat-message ${isUser ? "from-user" : "from-agent"}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small>${forkButton}</header><div class="chat-message-content ${isUser ? "user-message-content" : "agent-message-content"}">${content}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}</div></article>`;
+    const messageAttachments = message.attachments?.length ? `<div class="chat-message-attachments">${message.attachments.map((file) => `<span class="chat-message-attachment">${icon("file", 14)}<span title="${esc(file.name)}">${esc(file.name)}</span></span>`).join("")}</div>` : "";
+    return `<article class="chat-message ${isUser ? "from-user" : "from-agent"}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small>${forkButton}</header><div class="chat-message-content ${isUser ? "user-message-content" : "agent-message-content"}">${content}${messageAttachments}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}</div></article>`;
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
   const composerConfig = `${providerTitle(view.connectors, provider)}${model?.name ? ` · ${model.name}` : ""}${effort ? ` · ${effort}` : ""}`;
   return `<section class="task-conversation-page" aria-label="Cuộc trò chuyện">
       <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`} · ${task.permissionPreset === "read-only" ? "Chỉ đọc" : task.permissionPreset === "full-access" ? "Toàn quyền máy" : "Sửa workspace"}</small></div><span class="chat-pane-meta">${queueSummary ? `<span class="chat-queue-summary">${icon("list-checks", 13)}${esc(queueSummary)}</span>` : ""}<button type="button" class="button quiet small" data-action="task-permissions" data-id="${task.id}" aria-label="${view.language === "en" ? "Permissions" : "Quyền"}" title="${view.language === "en" ? "Permissions" : "Quyền"}">${icon("shield", 13)}<span>${view.language === "en" ? "Permissions" : "Quyền"}</span></button><button type="button" class="button quiet small chat-goal-button" data-action="edit-task-goal" data-id="${task.id}" aria-label="${view.language === "en" ? "Goal" : "Mục tiêu"}" title="${task.goal ? esc(task.goal) : (view.language === "en" ? "Add a long-term goal" : "Thêm mục tiêu dài hạn")}">${icon("target", 13)}<span>${view.language === "en" ? "Goal" : "Mục tiêu"}</span></button><span class="chat-message-count">${icon("book-open-text", 14)} ${formatNumber(transcript.length)} ${view.language === "en" ? "messages" : "tin nhắn"}</span></span></header>
       <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
-      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}"><textarea name="message" class="chat-input" maxlength="8000" rows="3" required placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(view.chatDraft)}</textarea><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}<button type="button" class="chat-config-trigger" data-action="task-instruction" data-id="${task.id}" title="Đổi agent, model hoặc mức suy nghĩ">${icon("settings-2", 14)}<span>${esc(composerConfig)}</span></button></div><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></footer></form>
+      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<textarea name="message" class="chat-input" maxlength="50000" rows="3" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(view.chatDraft)}</textarea><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}<button type="button" class="chat-config-trigger" data-action="task-instruction" data-id="${task.id}" title="Đổi agent, model hoặc mức suy nghĩ">${icon("settings-2", 14)}<span>${esc(composerConfig)}</span></button></div><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></footer></form>
     </section>
   </section>`;
 }
@@ -1043,6 +1089,13 @@ async function handleSubmit(event) {
   view.busy = true; const submit = $("[type=submit]", form); submit.disabled = true; submit.textContent = "Đang xử lý…";
   const data = new FormData(form); const object = Object.fromEntries(data.entries());
   try {
+    if (["home-task", "task-chat"].includes(form.dataset.form)) {
+      const field = form.dataset.form === "task-chat" ? "message" : "prompt";
+      const typedText = String(object[field] || "").trim();
+      const attachments = view.composerAttachments?.[composerAttachmentKey(form)] || [];
+      if (typedText.length < 6 && !attachments.length) throw new Error("Nhập ít nhất 6 ký tự hoặc đính kèm tệp trước khi gửi.");
+      object.attachments = await readComposerAttachments(form);
+    }
     if (form.dataset.form === "workspace") {
       await api("/api/workspaces", { method: "POST", body: JSON.stringify({ path: object.path }) });
       showToast("Đã kiểm tra và thêm workspace thật.");
@@ -1066,9 +1119,9 @@ async function handleSubmit(event) {
       view.selected = task.task.id; view.page = "chat"; view.chatProvider = task.task.config.chatProvider || task.task.config.roles?.plan?.provider || "codex"; view.chatModel = task.task.config.workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = task.task.config.workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; showToast("Task thật đã vào hàng đợi.");
     } else if (form.dataset.form === "home-task") {
       const workflow = object.workflow || "chat-only";
-      const payload = { ...object, workflow, isolated: false };
+      const payload = { ...object, prompt: String(object.prompt || "").trim(), workflow, isolated: false };
       const task = await api("/api/tasks", { method: "POST", body: JSON.stringify(payload) });
-      view.selected = task.task.id; view.page = "chat"; view.chatProvider = workflow === "chat-only" ? task.task.config.chatProvider : task.task.config.roles?.plan?.provider || "codex"; view.chatModel = workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; showToast(workflow === "chat-only" ? "Đã gửi tin nhắn cho agent." : "Task thật đã vào hàng đợi.");
+      view.selected = task.task.id; view.page = "chat"; view.chatProvider = workflow === "chat-only" ? task.task.config.chatProvider : task.task.config.roles?.plan?.provider || "codex"; view.chatModel = workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; clearComposerAttachments(form); showToast(workflow === "chat-only" ? "Đã gửi tin nhắn cho agent." : "Task thật đã vào hàng đợi.");
     } else if (form.dataset.form === "settings") {
       const roles = Object.fromEntries(workflowRoles.map((role) => [role.id, { provider: object[`${role.id}Provider`], model: object[`${role.id}Model`], effort: object[`${role.id}Effort`] }]));
       await api("/api/settings", { method: "POST", body: JSON.stringify({ defaults: { roles } }) });
@@ -1083,8 +1136,9 @@ async function handleSubmit(event) {
       showToast("Đã lưu nguồn AI. API key chỉ được giữ trên máy này.");
     } else if (form.dataset.form === "task-chat") {
       view.forceChatScroll = true;
-      const result = await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, provider: object.provider, model: object.model, effort: object.effort }) });
+      const result = await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, attachments: object.attachments, provider: object.provider, model: object.model, effort: object.effort }) });
       view.chatDraft = "";
+      clearComposerAttachments(form);
       showToast(view.language === "en" ? `Added to chat queue · position ${result.queuedPosition || 1}.` : `Đã thêm vào hàng đợi chat · vị trí ${result.queuedPosition || 1}.`);
     } else if (form.dataset.form === "task-chat-config") {
       view.chatProvider = object.provider;
@@ -1168,6 +1222,16 @@ async function handleWorkbenchClick(event) {
     return;
   }
   const action = button.dataset.action; const id = button.dataset.id;
+  if (action === "remove-composer-attachment") {
+    const scope = button.dataset.scope;
+    const items = view.composerAttachments?.[scope] || [];
+    view.composerAttachments[scope] = items.filter((item) => item.id !== button.dataset.attachmentId);
+    if (!view.composerAttachments[scope].length) delete view.composerAttachments[scope];
+    if (scope === "home") view.chatDraft = $(".home-composer [name=prompt]")?.value || "";
+    else if (scope.startsWith("task:")) view.chatDraft = $(`.chat-composer[data-id="${CSS.escape(scope.slice(5))}"] [name=message]`)?.value || "";
+    render();
+    return;
+  }
   if (action === "view-error-details") { showErrorDetails(button.dataset.error); return; }
   if (!button.closest(".wb-project-group") && view.projectMenuId) { view.projectMenuId = ""; render(); }
   if (!button.closest(".wb-task-item") && view.taskMenuId) view.taskMenuId = "";

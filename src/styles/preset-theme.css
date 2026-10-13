@@ -333,6 +333,18 @@ html.desktop-glass .wb-page-content .home-composer,
 html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { background: rgba(43, 44, 46, .93); }
 
 /* Shared add menu for both chat composers. */
+.composer-attachments { min-width: 0; display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 9px; }
+.composer-attachment { position: relative; width: min(160px, 100%); min-width: 0; min-height: 108px; display: grid; grid-template-rows: 1fr auto; overflow: hidden; border: 1px solid #45474a; border-radius: 9px; color: #e2e3e5; background: #202123; }
+.composer-attachment-icon { min-height: 76px; display: grid; place-items: center; color: #c4c8ce; background: #171819; }
+.composer-attachment-name { min-width: 0; overflow: hidden; padding: 6px 24px 7px 7px; color: #d9dadd; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.composer-attachment > button { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: #d7d8da; background: #1112; opacity: 0; transition: opacity .12s ease, background .12s ease; }
+.composer-attachment:hover > button, .composer-attachment:focus-within > button { opacity: 1; }
+.composer-attachment > button:hover { background: #0009; }
+.chat-message-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chat-message-attachment { max-width: min(260px, 100%); min-width: 0; display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid #45474a; border-radius: 7px; color: #d7d9dc; background: #252628; font-size: 11px; }
+.chat-message-attachment > .wb-icon { flex: 0 0 auto; color: #aeb4bd; }
+.chat-message-attachment > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-file-option > input[type="file"] { display: none; }
 .composer-add-wrap { min-width: 0; display: flex; align-items: center; gap: 8px; }
 .composer-add { position: relative; flex: 0 0 auto; }
 .composer-add > summary { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #484b50; border-radius: 50%; color: #e6e8eb; background: #35373a; cursor: pointer; list-style: none; transition: background .15s ease, border-color .15s ease; }
@@ -342,15 +354,17 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
 .composer-add > summary:focus-visible { outline: 2px solid #83aaff; outline-offset: 2px; }
 .composer-add-menu { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 30; width: min(300px, calc(100vw - 38px)); display: grid; gap: 2px; padding: 7px; border: 1px solid #4b4d51; border-radius: 12px; color: #eef0f2; background: #2c2e30; box-shadow: 0 16px 36px #0009; }
 .composer-add-menu > strong { padding: 7px 9px 8px; color: #b6b9be; font-size: 11px; font-weight: 650; }
-.composer-add-menu > label,
 .composer-add-menu > button { min-height: 36px; display: flex; align-items: center; gap: 10px; padding: 6px 9px; border: 0; border-radius: 7px; color: #e3e5e8; background: transparent; text-align: left; font-size: 12px; cursor: pointer; }
+.composer-add-menu > .composer-file-option { position: relative; min-width: 0; min-height: 36px; display: grid; align-items: center; gap: 2px; padding: 6px 9px; border-radius: 7px; color: #e3e5e8; cursor: pointer; }
+.composer-add-menu .composer-file-option-label { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.composer-add-menu > .composer-file-option > small { padding: 0 0 2px 26px; color: #e2b16b; font-size: 10px; line-height: 1.45; }
 .composer-add-menu > label:hover,
 .composer-add-menu > button:hover,
 .composer-add-menu > label:focus-within,
 .composer-add-menu > button:focus-visible { color: #fff; background: #414448; }
-.composer-add-menu > label .wb-icon,
+.composer-add-menu > .composer-file-option .wb-icon,
 .composer-add-menu > button .wb-icon { color: #b9bec6; }
-.composer-add-menu input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.composer-add-menu input[type="file"] { position: absolute; top: 8px; left: 8px; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .composer-add-menu > small { padding: 8px 9px 5px; border-top: 1px solid #42454a; color: #aeb2b8; font-size: 10px; line-height: 1.4; }
 .task-conversation-page .task-chat-pane { overflow: visible; }
 @media (max-width: 600px) {

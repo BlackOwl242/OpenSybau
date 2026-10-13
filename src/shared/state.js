@@ -41,6 +41,7 @@ export const view = {
   chatModel: "",
   chatEffort: "",
   chatDraft: "",
+  composerAttachments: {},
   chatConfigOpen: false,
   homeMode: "chat",
   homeWorkflow: "chat-only",
