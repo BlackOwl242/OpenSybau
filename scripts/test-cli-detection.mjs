@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { findAntigravityCli, probeAntigravityCli } from "../src/server/antigravity-cli.mjs";
+import desktopAntigravityPath from "../desktop/antigravity-path.cjs";
 import { cliConnectionStatus } from "../src/domain/provider-guides.js";
 
 const root = await mkdtemp(join(tmpdir(), "opensybau-cli-detection-test-"));
@@ -15,6 +16,9 @@ try {
   await mkdir(join(root, "custom"), { recursive: true });
   await writeFile(officialPath, "fixture");
   await writeFile(customPath, "fixture");
+  assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ home, fileExists: (candidate) => candidate === officialPath }), officialPath, "The packaged desktop must pass Electron's resolved profile path into the server.");
+  assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ localAppData: local, home, fileExists: (candidate) => candidate === officialPath }), officialPath);
+  assert.equal(desktopAntigravityPath.findDesktopAntigravityPath({ explicitPath: customPath, localAppData: local, home, fileExists: (candidate) => candidate === customPath || candidate === officialPath }), customPath, "A user-configured Antigravity executable must retain precedence.");
   const locate = (options = {}) => findAntigravityCli({ platform: "win32", home, env: {}, ...options });
   assert.equal(locate({ env: { LOCALAPPDATA: join(root, "outdated-profile") } }), officialPath, "Discovery must check the real profile even when inherited LOCALAPPDATA is stale.");
   assert.equal(locate({ cachedPath: customPath }), customPath, "A confirmed custom path survives restart without PATH or an environment override.");

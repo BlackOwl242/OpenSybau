@@ -2,6 +2,7 @@ const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, promises: fs } = require("node:fs");
 const path = require("node:path");
+const { findDesktopAntigravityPath } = require("./antigravity-path.cjs");
 
 const externalHosts = new Set(["developers.openai.com", "platform.openai.com", "code.claude.com", "console.anthropic.com", "antigravity.google", "aistudio.google.com"]);
 let mainWindow;
@@ -48,6 +49,13 @@ function initializeUserConfig() {
   process.env.WORKBENCH_ALLOWED_HOSTS = "";
   process.env.WORKBENCH_TLS_CERT = "";
   process.env.WORKBENCH_TLS_KEY = "";
+  if (!process.env.ANTIGRAVITY_CLI_PATH) {
+    const antigravityCliPath = findDesktopAntigravityPath({
+      localAppData: process.env.LOCALAPPDATA || "",
+      home: app.getPath("home"),
+    });
+    if (antigravityCliPath) process.env.ANTIGRAVITY_CLI_PATH = antigravityCliPath;
+  }
 }
 
 function isAllowedExternal(value) {
