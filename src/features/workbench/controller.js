@@ -16,6 +16,8 @@ let refreshAgain = false;
 let refreshConfiguration = false;
 let refreshTimer = null;
 let lastConfigurationRefresh = 0;
+let cliScanPromise = null;
+let cliScanInProgress = false;
 let activityChartCache = { key: "", buckets: null, total: 0 };
 
 function syncLocation() {
@@ -562,7 +564,7 @@ function settingsPage() {
     const action = status.tone === "missing"
       ? `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
       : status.action === "refresh"
-        ? `<button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} Quét lại</button>`
+        ? cliRefreshButton()
         : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${agent.id}">Mở terminal đăng nhập</button>`;
     const detail = status.tone === "ready"
       ? `${connector.models.length} model${connector.models.length === 1 ? "" : "s"}${connector.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
@@ -579,7 +581,7 @@ function settingsPage() {
       ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Model vẫn chọn theo từng task; hãy khởi động lại server để bật lưu model mặc định và gắn skill.</div>`}
       <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu định tuyến mặc định</button></footer>
     </section>
-    <section class="settings-card cli-setup-card" id="cli-setup"><header><div><h2>Agent CLI</h2><p>OpenSybau tự dò Codex, Antigravity và Claude Code trên máy. Nếu CLI đã cài nhưng chưa đăng nhập, mở terminal đăng nhập ngay tại đây.</p></div><button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} Quét lại</button></header><div class="cli-guide-list">${cliSetup}</div><p class="form-note">Terminal được mở trên máy đang chạy OpenSybau. Hoàn tất OAuth hoặc đăng nhập ở đó rồi chọn Quét lại; CLI không cần khai báo API key riêng.</p></section>
+    <section class="settings-card cli-setup-card" id="cli-setup"><header><div><h2>Agent CLI</h2><p>OpenSybau tự dò Codex, Antigravity và Claude Code trên máy. Nếu CLI đã cài nhưng chưa đăng nhập, mở terminal đăng nhập ngay tại đây.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div><p class="form-note">Terminal được mở trên máy đang chạy OpenSybau. Hoàn tất OAuth hoặc đăng nhập ở đó rồi chọn Quét lại; CLI không cần khai báo API key riêng.</p></section>
     <section class="settings-card provider-setup-card"><header><div><h2>Nguồn API và model local</h2><p>Kết nối OpenAI/ChatGPT API, Google Gemini API, Claude API, Ollama, LM Studio hoặc endpoint tương thích.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa có API hoặc model local</strong><p>Chọn cấu hình nhanh để nhập API key và model, hoặc kết nối Ollama/LM Studio. Bạn không cần API nếu dùng CLI.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm API hoặc model local</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div><details class="provider-env-help"><summary>Hướng dẫn kết nối cloud và model local</summary><p><strong>OpenAI / ChatGPT API:</strong> chọn cấu hình sẵn, nhập API key OpenAI rồi tải model. <strong>Google Gemini API:</strong> chọn Google Gemini, nhập key Google AI Studio rồi tải model. <strong>Claude API:</strong> chọn Claude API, nhập Anthropic key và model.</p><p><strong>Ollama:</strong> dùng endpoint <code>http://localhost:11434/v1</code> và ID từ <code>ollama list</code>. <strong>LM Studio:</strong> dùng endpoint <code>http://localhost:1234/v1</code>. Thường không cần API key.</p><p>API key được lưu trong thư mục dữ liệu riêng của OpenSybau, không hiển thị lại trong giao diện. Chỉ nhập key qua localhost hoặc HTTPS; provider API không có quyền chạy lệnh trong workspace.</p></details></section>
     <section class="settings-card concurrency-card"><header><div><h2>Tác vụ chạy đồng thời</h2><p>Giới hạn số task có thể chạy cùng lúc trên các workspace.</p></div></header>
       <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${view.state.settings.maxConcurrent || 2}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
@@ -606,7 +608,7 @@ function showCliProviderModal() {
     const primary = status.tone === "missing"
       ? `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
       : status.action === "refresh"
-        ? `<button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} ${status.tone === "ready" ? "Đã kết nối · quét lại" : "Quét lại"}</button>`
+        ? cliRefreshButton(status.tone === "ready" ? "Đã kết nối · quét lại" : "Quét lại")
         : `<button class="button primary small" type="button" data-action="provider-cli-login" data-id="${agent.id}">${icon("square-terminal", 13)} ${status.tone === "needs-action" && connector?.authenticated ? "Mở CLI để kiểm tra" : "Bắt đầu đăng nhập"}</button>`;
     const docsUrl = status.tone === "missing" ? agent.url : agent.authUrl || agent.url;
     const instructions = status.tone === "missing"
@@ -616,9 +618,13 @@ function showCliProviderModal() {
         : `<div class="cli-connect-login"><span>Cách đăng nhập</span><code>${esc(agent.loginCommand)}</code><small>${esc(agent.loginHelp)}</small></div>`;
     return `<article class="cli-connect-card ${status.tone}"><header><span class="cli-connect-mark">${icon("square-terminal", 17)}</span><div><h3>${esc(agent.name)}</h3><span class="cli-guide-status ${status.tone}">${esc(status.label)}</span></div></header><p>${esc(detail)}</p>${instructions}<footer>${primary}<a href="${docsUrl}" target="_blank" rel="noreferrer">Tài liệu chính thức</a></footer></article>`;
   }).join("");
-  const body = `<div class="cli-connect-intro"><span class="provider-connect-icon">${icon("workflow", 17)}</span><div><strong>OpenSybau tự dò CLI trên máy chủ</strong><p>CLI đã cài và đăng nhập sẽ tự xuất hiện trong danh sách nguồn AI, không cần thêm endpoint. Nếu chưa cài, mở hướng dẫn của hãng rồi quét lại; nếu chưa đăng nhập, bấm Bắt đầu đăng nhập để mở terminal.</p></div><button class="button quiet small" type="button" data-action="provider-cli-refresh">${icon("refresh-cw", 13)} Quét lại</button></div><div class="cli-connect-list">${rows}</div><p class="cli-connect-feedback" role="status" aria-live="polite" hidden></p><p class="form-note">CLI dùng tài khoản riêng, không cần API key. Nếu bạn dùng OpenSybau từ điện thoại, terminal sẽ mở trên máy chủ; hoàn tất đăng nhập tại máy đó rồi bấm Quét lại.</p>`;
+  const body = `<div class="cli-connect-intro"><span class="provider-connect-icon">${icon("workflow", 17)}</span><div><strong>OpenSybau tự dò CLI trên máy chủ</strong><p>CLI đã cài và đăng nhập sẽ tự xuất hiện trong danh sách nguồn AI, không cần thêm endpoint. Nếu chưa cài, mở hướng dẫn của hãng rồi quét lại; nếu chưa đăng nhập, bấm Bắt đầu đăng nhập để mở terminal.</p></div>${cliRefreshButton()}</div><div class="cli-connect-list">${rows}</div><p class="cli-connect-feedback" role="status" aria-live="polite" hidden></p><p class="form-note">CLI dùng tài khoản riêng, không cần API key. Nếu bạn dùng OpenSybau từ điện thoại, terminal sẽ mở trên máy chủ; hoàn tất đăng nhập tại máy đó rồi bấm Quét lại.</p>`;
   showModal("Thêm / kết nối CLI agent", body, "Xong", "dismiss");
   $(".modal-actions .button.quiet")?.remove();
+}
+function cliRefreshButton(label = "Quét lại") {
+  const busy = cliScanInProgress;
+  return `<button class="button quiet small" type="button" data-action="provider-cli-refresh" ${busy ? 'disabled aria-busy="true"' : ""}>${icon("refresh-cw", 13)} ${busy ? "Đang quét..." : label}</button>`;
 }
 function apiProviderId(name) {
   return String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
@@ -974,6 +980,40 @@ function showToast(message) {
   const toast = $("#toast"); toast.textContent = translateText(message, view.language); toast.classList.add("visible");
   clearTimeout(view.toastTimer); view.toastTimer = setTimeout(() => toast.classList.remove("visible"), 3500);
 }
+function scanCliProviders(button, { openModal = false } = {}) {
+  if (cliScanPromise) {
+    showToast("Đang quét CLI, vui lòng đợi kết quả.");
+    return cliScanPromise;
+  }
+  cliScanInProgress = true;
+  const previousLabel = button?.innerHTML;
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = `${icon("refresh-cw", 13)} Đang quét...`;
+  }
+  showToast("Đang quét Codex, Antigravity và Claude Code...");
+  cliScanPromise = (async () => {
+    try {
+      view.connectors = await api("/api/connectors?refresh=1");
+      cliScanInProgress = false;
+      await refresh();
+      if (openModal) showCliProviderModal();
+      showToast("Đã quét lại Codex, Antigravity và Claude Code trên máy chạy OpenSybau.");
+    } catch (error) {
+      cliScanInProgress = false;
+      render();
+      showToast(`Quét CLI thất bại: ${error.message}`);
+    } finally {
+      cliScanInProgress = false;
+      cliScanPromise = null;
+      if (button?.isConnected) {
+        button.disabled = false;
+        button.innerHTML = previousLabel;
+      }
+    }
+  })();
+  return cliScanPromise;
+}
 async function handleSubmit(event) {
   const form = event.target.closest("[data-modal]");
   if (!form) return;
@@ -1134,7 +1174,7 @@ async function handleWorkbenchClick(event) {
     }
     if (action === "app-update-restart") { await window.opensybauDesktop?.restartToUpdate(); return; }
     if (action === "new-chat") { view.page = "chat"; view.selected = null; view.chatDraft = ""; view.homeWorkspaceId = button.dataset.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id || ""; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; clearSidebarSearch(); view.homeConfigOpen = false; closeOverlay(); render(); }
-    if (action === "refresh") { await api("/api/connectors?refresh=1"); await refresh({ configuration: true }); showToast("Đã đọc lại trạng thái CLI."); }
+    if (action === "refresh") { await scanCliProviders(button); }
     if (action === "scan-skills") {
       button.disabled = true;
       const result = await api("/api/skills?refresh=1");
@@ -1195,10 +1235,7 @@ async function handleWorkbenchClick(event) {
     if (action === "provider-add") showApiProviderModal();
     if (action === "provider-connect-cli") { showCliProviderModal(); return; }
     if (action === "provider-cli-refresh") {
-      view.connectors = await api("/api/connectors?refresh=1");
-      await refresh({ configuration: true });
-      showCliProviderModal();
-      showToast("Đã quét lại Codex, Antigravity và Claude Code trên máy chạy OpenSybau.");
+      await scanCliProviders(button, { openModal: Boolean(button.closest("#overlay")) });
       return;
     }
     if (action === "provider-cli-login") {
