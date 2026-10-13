@@ -88,12 +88,14 @@ async function createMainWindow() {
     autoUpdater.quitAndInstall(false, true);
     return true;
   });
+  const unpackedIconPath = path.join(__dirname.replace("app.asar", "app.asar.unpacked"), "icon.ico");
+  const windowIconPath = existsSync(unpackedIconPath) ? unpackedIconPath : path.join(__dirname, "icon.ico");
   mainWindow = new BrowserWindow({
     width: 1480,
     height: 960,
     minWidth: 960,
     minHeight: 640,
-    icon: path.join(__dirname, "icon.ico"),
+    icon: windowIconPath,
     backgroundColor: process.platform === "win32" ? "#00000000" : "#1b1c1d",
     ...(process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
     autoHideMenuBar: true,

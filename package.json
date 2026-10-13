@@ -44,6 +44,10 @@
     "appId": "com.opensybau.desktop",
     "productName": "OpenSybau",
     "asar": true,
+    "asarUnpack": [
+      "desktop/icon.ico",
+      "desktop/icon.png"
+    ],
     "files": [
       "desktop/**/*",
       "server.mjs",

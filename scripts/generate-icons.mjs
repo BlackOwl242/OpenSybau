@@ -186,16 +186,57 @@ function encodePNG(width, height, rgba) {
   ]);
 }
 
-function encodeICO(pngBuffersWithSizes) {
-  const count = pngBuffersWithSizes.length;
+function encodeDIBFrame(size, rgba) {
+  const header = Buffer.alloc(40);
+  const xorSize = size * size * 4;
+  const andRowBytes = Math.ceil(size / 32) * 4;
+  const andSize = andRowBytes * size;
+
+  header.writeUInt32LE(40, 0); // biSize
+  header.writeInt32LE(size, 4); // biWidth
+  header.writeInt32LE(size * 2, 8); // biHeight (XOR + AND)
+  header.writeUInt16LE(1, 12); // biPlanes
+  header.writeUInt16LE(32, 14); // biBitCount
+  header.writeUInt32LE(0, 16); // BI_RGB
+  header.writeUInt32LE(xorSize + andSize, 20); // biSizeImage
+
+  const xorBuf = Buffer.alloc(xorSize);
+  const andBuf = Buffer.alloc(andSize);
+
+  for (let y = 0; y < size; y++) {
+    const srcY = size - 1 - y; // bottom-up
+    for (let x = 0; x < size; x++) {
+      const srcIdx = (srcY * size + x) * 4;
+      const dstIdx = (y * size + x) * 4;
+      const r = rgba[srcIdx];
+      const g = rgba[srcIdx + 1];
+      const b = rgba[srcIdx + 2];
+      const a = rgba[srcIdx + 3];
+      xorBuf[dstIdx] = b;
+      xorBuf[dstIdx + 1] = g;
+      xorBuf[dstIdx + 2] = r;
+      xorBuf[dstIdx + 3] = a;
+      if (a < 16) {
+        const byteIdx = y * andRowBytes + (x >> 3);
+        andBuf[byteIdx] |= 0x80 >> (x & 7);
+      }
+    }
+  }
+  return Buffer.concat([header, xorBuf, andBuf]);
+}
+
+function encodeICO(frames) {
+  const count = frames.length;
   const header = Buffer.alloc(6);
   header.writeUInt16LE(0, 0);
   header.writeUInt16LE(1, 2); // type 1 = ICO
   header.writeUInt16LE(count, 4);
 
   const dirEntries = [];
+  const payloads = [];
   let offset = 6 + count * 16;
-  for (const { size, png } of pngBuffersWithSizes) {
+  for (const { size, rgba } of frames) {
+    const data = encodeDIBFrame(size, rgba);
     const entry = Buffer.alloc(16);
     entry[0] = size >= 256 ? 0 : size;
     entry[1] = size >= 256 ? 0 : size;
@@ -203,18 +244,21 @@ function encodeICO(pngBuffersWithSizes) {
     entry[3] = 0;
     entry.writeUInt16LE(1, 4); // color planes
     entry.writeUInt16LE(32, 6); // bits per pixel
-    entry.writeUInt32LE(png.length, 8);
+    entry.writeUInt32LE(data.length, 8);
     entry.writeUInt32LE(offset, 12);
     dirEntries.push(entry);
-    offset += png.length;
+    payloads.push(data);
+    offset += data.length;
   }
-  return Buffer.concat([header, ...dirEntries, ...pngBuffersWithSizes.map((item) => item.png)]);
+  return Buffer.concat([header, ...dirEntries, ...payloads]);
 }
 
 const sizes = [16, 32, 48, 64, 128, 180, 192, 256, 512];
+const renderedRgba = new Map();
 const renderedPngs = new Map();
 for (const size of sizes) {
   const rgba = renderIconRGBA(size);
+  renderedRgba.set(size, rgba);
   renderedPngs.set(size, encodePNG(size, size, rgba));
 }
 
@@ -227,14 +271,14 @@ writeFileSync(path.join(rootDir, "public", "icon-512.png"), renderedPngs.get(512
 writeFileSync(path.join(rootDir, "public", "apple-touch-icon.png"), renderedPngs.get(180));
 writeFileSync(
   path.join(rootDir, "public", "favicon.ico"),
-  encodeICO([16, 32, 48].map((size) => ({ size, png: renderedPngs.get(size) }))),
+  encodeICO([16, 32, 48].map((size) => ({ size, rgba: renderedRgba.get(size) }))),
 );
 
 // Windows Desktop (.exe / Electron / NSIS) icons
 writeFileSync(path.join(rootDir, "desktop", "icon.png"), renderedPngs.get(512));
 writeFileSync(
   path.join(rootDir, "desktop", "icon.ico"),
-  encodeICO([16, 32, 48, 64, 128, 256].map((size) => ({ size, png: renderedPngs.get(size) }))),
+  encodeICO([16, 32, 48, 64, 128, 256].map((size) => ({ size, rgba: renderedRgba.get(size) }))),
 );
 
 console.log("Generated web, desktop (.exe/.ico), and GitHub icons successfully.");
