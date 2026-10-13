@@ -1,6 +1,6 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
-const { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = require("node:fs");
+const { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, promises: fs } = require("node:fs");
 const path = require("node:path");
 
 const externalHosts = new Set(["developers.openai.com", "platform.openai.com", "code.claude.com", "console.anthropic.com", "antigravity.google", "aistudio.google.com"]);
@@ -95,7 +95,7 @@ async function createMainWindow() {
   });
   await mainWindow.loadURL(workbenchUrl);
   mainWindow.on("closed", () => { mainWindow = null; });
-  initializeAutoUpdates();
+  await initializeAutoUpdates();
 }
 
 function publishUpdateState(nextState) {
@@ -103,8 +103,9 @@ function publishUpdateState(nextState) {
   if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("opensybau:update:state", updateState);
 }
 
-function initializeAutoUpdates() {
+async function initializeAutoUpdates() {
   if (!app.isPackaged || process.platform !== "win32") return;
+  await cleanupInstalledUpdateCache();
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on("checking-for-update", () => publishUpdateState({ status: "checking" }));
@@ -112,6 +113,11 @@ function initializeAutoUpdates() {
   autoUpdater.on("update-not-available", () => publishUpdateState({ status: "not-available" }));
   autoUpdater.on("download-progress", (progress) => publishUpdateState({ status: "downloading", percent: Math.round(progress.percent || 0) }));
   autoUpdater.on("update-downloaded", async (info) => {
+    try {
+      writeFileSync(path.join(userData, "pending-update-install.json"), JSON.stringify({ version: info.version }), "utf8");
+    } catch (error) {
+      console.warn("Could not record downloaded update for post-install cleanup:", error);
+    }
     publishUpdateState({ status: "downloaded", version: info.version });
     if (!mainWindow || mainWindow.isDestroyed()) return;
     const choice = await dialog.showMessageBox(mainWindow, {
@@ -129,6 +135,28 @@ function initializeAutoUpdates() {
   void checkForAppUpdate();
   const timer = setInterval(() => { void checkForAppUpdate(); }, 6 * 60 * 60 * 1000);
   timer.unref();
+}
+
+async function cleanupInstalledUpdateCache() {
+  const markerPath = path.join(userData, "pending-update-install.json");
+  try {
+    const marker = JSON.parse(await fs.readFile(markerPath, "utf8"));
+    if (!marker?.version || marker.version !== app.getVersion()) return;
+
+    const updateConfig = await fs.readFile(path.join(process.resourcesPath, "app-update.yml"), "utf8");
+    const cacheName = updateConfig.match(/^updaterCacheDirName:\s*["']?([^\s"'#]+)["']?\s*$/m)?.[1];
+    if (!cacheName || !/^[a-z0-9_-]+$/i.test(cacheName)) return;
+
+    const baseCachePath = process.env.LOCALAPPDATA || path.join(app.getPath("home"), "AppData", "Local");
+    const appCachePath = path.resolve(baseCachePath, cacheName);
+    const pendingPath = path.resolve(appCachePath, "pending");
+    if (path.dirname(pendingPath) !== appCachePath) return;
+
+    await fs.rm(pendingPath, { recursive: true, force: true });
+    await fs.rm(markerPath, { force: true });
+  } catch (error) {
+    if (error?.code !== "ENOENT") console.warn("Could not clean the installed updater cache:", error);
+  }
 }
 
 async function checkForAppUpdate() {

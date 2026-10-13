@@ -151,8 +151,6 @@ button:disabled { cursor: not-allowed; }
 .wb-update-button:hover { border-color: #585b60; color: #f0f1f2; background: #3a3c3f; }
 .wb-update-button:disabled { cursor: wait; opacity: .75; }
 .wb-update-button.is-ready { border-color: #476b57; color: #b4e3c8; background: #26362d; }
-.wb-update-button.is-busy .wb-icon svg { animation: wb-update-spin 1s linear infinite; }
-@keyframes wb-update-spin { to { transform: rotate(360deg); } }
 .wb-language-toggle { min-width: 36px; height: 35px; display: inline-grid; place-items: center; padding: 0 8px; border: 1px solid #3d3f42; border-radius: 8px; color: #bfc9de; background: #292a2c; font-size: 10px; font-weight: 700; letter-spacing: .04em; cursor: pointer; transition: border-color .14s ease, background-color .14s ease, color .14s ease; }
 .wb-language-toggle:hover { border-color: #585b60; color: #fff; background: #3a3c3f; }
 .wb-language-toggle:active { background: #44474b; }

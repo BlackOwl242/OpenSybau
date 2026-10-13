@@ -27,7 +27,7 @@ export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
     : updateState?.status === "downloading"
       ? snapshot.language === "en" ? `Downloading ${updateState.percent || 0}%` : `Đang tải ${updateState.percent || 0}%`
       : updateBusy
-        ? snapshot.language === "en" ? "Checking…" : "Đang kiểm tra…"
+        ? snapshot.language === "en" ? "Checking..." : "Đang kiểm tra..."
         : snapshot.language === "en" ? "Check for updates" : "Kiểm tra cập nhật";
 
   return <header class="wb-topbar">
