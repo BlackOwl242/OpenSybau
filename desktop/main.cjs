@@ -51,9 +51,9 @@ function initializeUserConfig() {
   process.env.WORKBENCH_TLS_KEY = "";
   try {
     const savedCliPaths = JSON.parse(readFileSync(path.join(userData, "cli-paths.json"), "utf8"));
-    const savedPath = savedCliPaths.antigravityManual === true && savedCliPaths.antigravity;
+    const savedPath = savedCliPaths.antigravity;
     if (savedPath && existsSync(savedPath)) process.env.ANTIGRAVITY_CLI_PATH = savedPath;
-    const savedClaudePath = savedCliPaths.claudeManual === true && savedCliPaths.claude;
+    const savedClaudePath = savedCliPaths.claude;
     if (savedClaudePath && existsSync(savedClaudePath)) process.env.CLAUDE_CLI_PATH = savedClaudePath;
   } catch {}
   if (!process.env.ANTIGRAVITY_CLI_PATH) {

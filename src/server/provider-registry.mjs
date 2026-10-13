@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { resolve } from "node:path";
 
 const effortStandard = ["standard"];
@@ -11,23 +12,28 @@ function findExecutable(name) {
   return (result.stdout || "").split(/\r?\n/).map((item) => item.trim()).find((item) => item && !/\.(?:cmd|bat)$/i.test(item)) || "";
 }
 
-export function findClaudeCode() {
-  if (process.env.CLAUDE_CLI_PATH) {
-    const configured = process.env.CLAUDE_CLI_PATH;
+export function findClaudeCode({ env = process.env, platform = process.platform, home = homedir(), fileExists = existsSync } = {}) {
+  if (env.CLAUDE_CLI_PATH) {
+    const configured = env.CLAUDE_CLI_PATH;
     return configured.toLowerCase().endsWith(".js") ? { executable: process.execPath, prefixArgs: [resolve(configured)] } : { executable: configured, prefixArgs: [] };
   }
-  const native = findExecutable(process.platform === "win32" ? "claude.exe" : "claude");
-  if (native) return { executable: native, prefixArgs: [] };
-  if (process.platform === "win32") {
-    const appData = process.env.APPDATA || resolve(process.env.USERPROFILE || process.cwd(), "AppData/Roaming");
-    const localAppData = process.env.LOCALAPPDATA || resolve(process.env.USERPROFILE || process.cwd(), "AppData/Local");
+  if (platform === "win32") {
+    const profile = env.USERPROFILE || home;
+    const appData = env.APPDATA || resolve(profile, "AppData/Roaming");
+    const localAppData = env.LOCALAPPDATA || resolve(profile, "AppData/Local");
     const candidates = [
+      resolve(profile, ".local/bin/claude.exe"),
+      resolve(profile, ".claude/local/claude.exe"),
       resolve(appData, "npm/node_modules/@anthropic-ai/claude-code/cli.js"),
       resolve(localAppData, "npm/node_modules/@anthropic-ai/claude-code/cli.js"),
     ];
-    const entry = candidates.find(existsSync);
-    if (entry) return { executable: process.execPath, prefixArgs: [entry] };
+    const installed = candidates.find(fileExists);
+    if (installed) return installed.toLowerCase().endsWith(".js")
+      ? { executable: process.execPath, prefixArgs: [installed] }
+      : { executable: installed, prefixArgs: [] };
   }
+  const native = findExecutable(platform === "win32" ? "claude.exe" : "claude");
+  if (native) return { executable: native, prefixArgs: [] };
   return { executable: "", prefixArgs: [] };
 }
 

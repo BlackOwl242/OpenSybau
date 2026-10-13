@@ -75,15 +75,18 @@ function findCodex() {
 
 function findAntigravity() {
   const savedPaths = loadJson(cliPathsFile, {});
-  const manuallySelectedPath = savedPaths?.antigravityManual === true ? savedPaths.antigravity : "";
-  if (manuallySelectedPath && existsSync(manuallySelectedPath)) return manuallySelectedPath;
+  // A previously discovered path is already a verified install location. Use it
+  // before stale inherited PATH/.env values, whether it was chosen manually or
+  // cached by an earlier automatic scan.
+  const cachedPath = savedPaths?.antigravity;
+  if (cachedPath && existsSync(resolve(cachedPath))) return resolve(cachedPath);
   const inheritedPath = process.env.ANTIGRAVITY_CLI_PATH || "";
   const configuredPath = inheritedPath && existsSync(resolve(inheritedPath))
     ? inheritedPath
     : readRegisteredEnvironmentValue("ANTIGRAVITY_CLI_PATH") || inheritedPath;
   return findAntigravityCli({
     env: { ...process.env, ANTIGRAVITY_CLI_PATH: configuredPath },
-    cachedPath: loadJson(cliPathsFile, {})?.antigravity,
+    cachedPath,
     findOnPath,
   });
 }

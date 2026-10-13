@@ -28,6 +28,7 @@ try {
   assert.equal(parseWindowsRegisteredEnvironmentValue("ANTIGRAVITY_CLI_PATH REG_EXPAND_SZ %LOCALAPPDATA%\\agy\\bin\\agy.exe", "ANTIGRAVITY_CLI_PATH"), "%LOCALAPPDATA%\\agy\\bin\\agy.exe", "Expandable registry environment values must be recognized.");
   assert.equal(locate({ env: { LOCALAPPDATA: join(root, "outdated-profile") } }), officialPath, "Discovery must check the real profile even when inherited LOCALAPPDATA is stale.");
   assert.equal(locate({ cachedPath: customPath }), customPath, "A confirmed custom path survives restart without PATH or an environment override.");
+  assert.equal(locate({ env: { ANTIGRAVITY_CLI_PATH: join(root, "stale.exe") }, cachedPath: customPath }), customPath, "A valid cached Antigravity install must outrank a stale environment override.");
   assert.equal(locate({ env: { ANTIGRAVITY_CLI_PATH: join(root, "removed.exe") }, cachedPath: join(root, "removed.exe") }), officialPath, "Deleted cached/configured paths must fall back to the actual installation.");
   assert.equal(locate({ env: { ANTIGRAVITY_CLI_PATH: customPath } }), customPath, "An existing explicit path takes precedence.");
   const priorClaudePath = process.env.CLAUDE_CLI_PATH;
@@ -35,6 +36,8 @@ try {
   assert.deepEqual(findClaudeCode(), { executable: process.execPath, prefixArgs: [process.env.CLAUDE_CLI_PATH] }, "A manually selected Claude cli.js must run through the Node runtime.");
   if (priorClaudePath === undefined) delete process.env.CLAUDE_CLI_PATH;
   else process.env.CLAUDE_CLI_PATH = priorClaudePath;
+  const nativeClaude = join(home, ".local", "bin", "claude.exe");
+  assert.deepEqual(findClaudeCode({ env: { USERPROFILE: home }, platform: "win32", home, fileExists: (candidate) => candidate === nativeClaude }), { executable: nativeClaude, prefixArgs: [] }, "Windows native Claude installs must be discovered in the documented .local/bin folder.");
 
   const catalog = "Fetching available models...\n\u001b[32mgemini-3.8-flash-high\u001b[0m\tGemini Flash (High)\n";
   let modelCalls = 0;

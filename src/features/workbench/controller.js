@@ -564,7 +564,7 @@ function settingsPage() {
     const connector = view.connectors?.[agent.id];
     const status = cliConnectionStatus(connector);
     const chooseCli = window.opensybauDesktop?.isDesktop && ["antigravity", "claude"].includes(agent.id)
-      ? `<button class="button quiet small" type="button" data-action="choose-cli-path" data-id="${agent.id}">${agent.id === "antigravity" ? "Chọn agy.exe" : "Chọn claude.exe / cli.js"}</button>` : "";
+      ? `<button class="button quiet small" type="button" data-action="choose-cli-path" data-id="${agent.id}" title="Chỉ dùng nếu tự dò không thấy CLI">Chọn thủ công</button>` : "";
     const action = status.tone === "missing"
       ? `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
       : status.action === "refresh"
@@ -622,7 +622,7 @@ function showCliProviderModal() {
         : `<div class="cli-connect-login"><span>Cách đăng nhập</span><code>${esc(agent.loginCommand)}</code><small>${esc(agent.loginHelp)}</small></div>`;
     return `<article class="cli-connect-card ${status.tone}"><header><span class="cli-connect-mark">${icon("square-terminal", 17)}</span><div><h3>${esc(agent.name)}</h3><span class="cli-guide-status ${status.tone}">${esc(status.label)}</span></div></header><p>${esc(detail)}</p>${instructions}<footer>${primary}<a href="${docsUrl}" target="_blank" rel="noreferrer">Tài liệu chính thức</a></footer></article>`;
   }).join("");
-  const body = `<div class="cli-connect-intro"><span class="provider-connect-icon">${icon("workflow", 17)}</span><div><strong>OpenSybau tự dò CLI trên máy chủ</strong><p>CLI đã cài và đăng nhập sẽ tự xuất hiện trong danh sách nguồn AI, không cần thêm endpoint. Nếu chưa cài, mở hướng dẫn của hãng rồi quét lại; nếu chưa đăng nhập, bấm Bắt đầu đăng nhập để mở terminal.</p></div>${cliRefreshButton()}</div><div class="cli-connect-list">${rows}</div><p class="cli-connect-feedback" role="status" aria-live="polite" hidden></p><p class="form-note">CLI dùng tài khoản riêng, không cần API key. Nếu bạn dùng OpenSybau từ điện thoại, terminal sẽ mở trên máy chủ; hoàn tất đăng nhập tại máy đó rồi bấm Quét lại.</p>`;
+  const body = `<div class="cli-connect-intro"><span class="provider-connect-icon">${icon("workflow", 17)}</span><div><strong>OpenSybau tự dò CLI trên máy chủ</strong><p>CLI đã cài sẽ tự kết nối. Bấm Quét lại nếu vừa cài; chỉ dùng Chọn thủ công khi ứng dụng không tìm được file CLI trên máy.</p></div>${cliRefreshButton()}</div><div class="cli-connect-list">${rows}</div><p class="cli-connect-feedback" role="status" aria-live="polite" hidden></p><p class="form-note">CLI dùng tài khoản riêng, không cần API key. Nếu bạn dùng OpenSybau từ điện thoại, terminal sẽ mở trên máy chủ; hoàn tất đăng nhập tại máy đó rồi bấm Quét lại.</p>`;
   showModal("Thêm / kết nối CLI agent", body, "Xong", "dismiss");
   $(".modal-actions .button.quiet")?.remove();
 }
