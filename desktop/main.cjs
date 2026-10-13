@@ -81,30 +81,6 @@ async function createMainWindow() {
   workbenchUrl = `${server.protocol}://${server.host}:${server.port}`;
 
   ipcMain.handle("opensybau:open-config-folder", async () => shell.openPath(userData));
-  ipcMain.handle("opensybau:antigravity:choose-cli", async () => {
-    const suggestedPath = process.env.ANTIGRAVITY_CLI_PATH && existsSync(process.env.ANTIGRAVITY_CLI_PATH)
-      ? process.env.ANTIGRAVITY_CLI_PATH
-      : path.join(process.env.LOCALAPPDATA || path.join(app.getPath("home"), "AppData", "Local"), "agy", "bin");
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: "Chọn Antigravity CLI (agy.exe)",
-      defaultPath: suggestedPath,
-      properties: ["openFile"],
-      filters: [{ name: "Antigravity CLI", extensions: ["exe"] }],
-    });
-    return result.canceled ? "" : result.filePaths[0] || "";
-  });
-  ipcMain.handle("opensybau:claude:choose-cli", async () => {
-    const saved = (() => { try { return JSON.parse(readFileSync(path.join(userData, "cli-paths.json"), "utf8")).claude; } catch { return ""; } })();
-    const appData = process.env.APPDATA || path.join(app.getPath("home"), "AppData", "Roaming");
-    const suggestedPath = saved && existsSync(saved) ? saved : path.join(appData, "npm", "node_modules", "@anthropic-ai", "claude-code");
-    const result = await dialog.showOpenDialog(mainWindow, {
-      title: "Chọn Claude Code CLI (claude.exe hoặc cli.js)",
-      defaultPath: suggestedPath,
-      properties: ["openFile"],
-      filters: [{ name: "Claude Code CLI", extensions: ["exe", "js"] }],
-    });
-    return result.canceled ? "" : result.filePaths[0] || "";
-  });
   ipcMain.handle("opensybau:update:get-state", () => updateState);
   ipcMain.handle("opensybau:update:check", () => checkForAppUpdate());
   ipcMain.handle("opensybau:update:restart", () => {
@@ -117,7 +93,8 @@ async function createMainWindow() {
     height: 960,
     minWidth: 960,
     minHeight: 640,
-    backgroundColor: "#1b1c1d",
+    backgroundColor: process.platform === "win32" ? "#00000000" : "#1b1c1d",
+    ...(process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),

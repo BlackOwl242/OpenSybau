@@ -8,6 +8,7 @@ import { readBrowserRoute, syncBrowserRoute } from "../../shell/router.js";
 
 Object.assign(view, readBrowserRoute());
 document.documentElement.lang = view.language;
+if (window.opensybauDesktop?.isDesktop) document.documentElement.classList.add("desktop-glass");
 let browserRouteInitialized = false;
 let replaceBrowserRoute = false;
 let routeNeedsHydration = view.page === "knowledge" || view.page === "workspaces" && Boolean(view.selected);
@@ -470,11 +471,21 @@ const contentImportExtensions = new Set([
 ]);
 const markdownContentExtensions = new Set([".md", ".markdown", ".mdx", ".txt", ".text", ".rst", ".adoc"]);
 const contentImportAccept = [...contentImportExtensions].join(",");
+function composerAddMenu(target, taskId = "") {
+  const extra = taskId
+    ? `<button type="button" data-action="edit-task-goal" data-id="${esc(taskId)}">${icon("target", 16)}<span>Mục tiêu cuộc trò chuyện</span></button>`
+    : `<button type="button" data-home-mode="plan">${icon("list-checks", 16)}<span>Lập kế hoạch</span></button><button type="button" data-action="toggle-home-config">${icon("settings-2", 16)}<span>Agent và model</span></button>`;
+  return `<details class="composer-add"><summary aria-label="Thêm tệp và tính năng" title="Thêm tệp và tính năng">${icon("plus", 18)}</summary><div class="composer-add-menu" role="group" aria-label="Thêm vào cuộc trò chuyện"><strong>Thêm vào cuộc trò chuyện</strong><label>${icon("file", 16)}<span>Tệp văn bản, Markdown, mã nguồn</span><input type="file" accept="${contentImportAccept}" multiple data-content-file-import data-import-target="${target}"></label><label>${icon("folder-open", 16)}<span>Thư mục tệp văn bản</span><input type="file" webkitdirectory multiple data-content-file-import data-import-target="${target}"></label>${extra}<button type="button" data-page="skills">${icon("notebook-tabs", 16)}<span>Kỹ năng</span></button><small>Tệp được thêm vào nội dung gửi tới agent. Tối đa 20 tệp, 1 MB.</small></div></details>`;
+}
 function contentFileImportField(target) {
   return '<label class="content-file-import">Thêm tệp nội dung<input type="file" accept="' + contentImportAccept + '" multiple data-content-file-import data-import-target="' + esc(target) + '"><small data-content-file-status>Chọn nhiều tệp văn bản cùng lúc, gồm Markdown (.md), TXT, JSON, YAML, CSV, HTML và mã nguồn. Tệp được nối vào nội dung, không lưu riêng.</small></label>';
 }
 async function importContentFiles(input) {
-  const files = [...(input.files || [])];
+  const selected = [...(input.files || [])];
+  const files = input.hasAttribute("webkitdirectory")
+    ? selected.filter((file) => contentImportExtensions.has(file.name.toLowerCase().match(/\.[^.]+$/)?.[0] || "") && !/^\.env(?:\.|$)/i.test(file.name))
+    : selected;
+  if (selected.length && !files.length) { showToast("Thư mục không có tệp văn bản hoặc Markdown được hỗ trợ."); input.value = ""; return; }
   if (!files.length) return;
   input.disabled = true;
   const form = input.closest("form");
@@ -491,9 +502,10 @@ async function importContentFiles(input) {
       if (content.includes("\u0000")) throw new Error('Tệp "' + file.name + '" có vẻ là tệp nhị phân; chỉ nhập được nội dung văn bản.');
       if (!content.trim()) throw new Error('Tệp "' + file.name + '" đang trống.');
       const codeFence = String.fromCharCode(96).repeat(3);
+      const name = file.webkitRelativePath || file.name;
       return markdownContentExtensions.has(extension)
-        ? "### Nội dung từ tệp: " + file.name + "\n\n" + content.trim()
-        : "### Nội dung từ tệp: " + file.name + "\n\n" + codeFence + extension.slice(1) + "\n" + content.trim() + "\n" + codeFence;
+        ? "### Nội dung từ tệp: " + name + "\n\n" + content.trim()
+        : "### Nội dung từ tệp: " + name + "\n\n" + codeFence + extension.slice(1) + "\n" + content.trim() + "\n" + codeFence;
     }));
     const previous = target.value.trimEnd();
     const next = previous ? previous + "\n\n" + imported.join("\n\n") : imported.join("\n\n");
@@ -502,6 +514,7 @@ async function importContentFiles(input) {
     target.dispatchEvent(new Event("input", { bubbles: true }));
     if (status) status.textContent = "Đã nhập " + files.length + " tệp: " + files.slice(0, 4).map((file) => file.name).join(", ") + (files.length > 4 ? " và " + (files.length - 4) + " tệp khác" : "");
     showToast("Đã nhập " + files.length + " tệp vào nội dung.");
+    input.closest(".composer-add")?.removeAttribute("open");
   } catch (error) {
     showToast(error.message || "Không thể nhập tệp.");
   } finally {
@@ -563,8 +576,6 @@ function settingsPage() {
   const cliSetup = cliProviderGuides.map((agent) => {
     const connector = view.connectors?.[agent.id];
     const status = cliConnectionStatus(connector);
-    const chooseCli = window.opensybauDesktop?.isDesktop && ["antigravity", "claude"].includes(agent.id)
-      ? `<button class="button quiet small" type="button" data-action="choose-cli-path" data-id="${agent.id}" title="Chỉ dùng nếu tự dò không thấy CLI">Chọn thủ công</button>` : "";
     const action = status.tone === "missing"
       ? `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
       : status.action === "refresh"
@@ -573,7 +584,7 @@ function settingsPage() {
     const detail = status.tone === "ready"
       ? `${connector.models.length} model${connector.models.length === 1 ? "" : "s"}${connector.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
       : status.tone === "missing" ? connector?.error || agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
-    return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${status.tone}">${status.label}</span></strong><small>${esc(detail)}</small></div><div class="cli-guide-actions">${chooseCli}${action}</div></article>`;
+    return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${status.tone}">${status.label}</span></strong><small>${esc(detail)}</small></div><div class="cli-guide-actions">${action}</div></article>`;
   }).join("");
   const noReadyConnector = !Object.values(view.connectors || {}).some((connector) => connector?.available && connector.capabilities?.plan);
   return `<div class="page-head"><div><div class="eyebrow">PREFERENCES & MODELS</div><h1>Cài đặt</h1><p>Chọn model mặc định cho từng vai trò và kết nối nguồn AI dùng chung cho các task.</p></div></div>
@@ -622,7 +633,7 @@ function showCliProviderModal() {
         : `<div class="cli-connect-login"><span>Cách đăng nhập</span><code>${esc(agent.loginCommand)}</code><small>${esc(agent.loginHelp)}</small></div>`;
     return `<article class="cli-connect-card ${status.tone}"><header><span class="cli-connect-mark">${icon("square-terminal", 17)}</span><div><h3>${esc(agent.name)}</h3><span class="cli-guide-status ${status.tone}">${esc(status.label)}</span></div></header><p>${esc(detail)}</p>${instructions}<footer>${primary}<a href="${docsUrl}" target="_blank" rel="noreferrer">Tài liệu chính thức</a></footer></article>`;
   }).join("");
-  const body = `<div class="cli-connect-intro"><span class="provider-connect-icon">${icon("workflow", 17)}</span><div><strong>OpenSybau tự dò CLI trên máy chủ</strong><p>CLI đã cài sẽ tự kết nối. Bấm Quét lại nếu vừa cài; chỉ dùng Chọn thủ công khi ứng dụng không tìm được file CLI trên máy.</p></div>${cliRefreshButton()}</div><div class="cli-connect-list">${rows}</div><p class="cli-connect-feedback" role="status" aria-live="polite" hidden></p><p class="form-note">CLI dùng tài khoản riêng, không cần API key. Nếu bạn dùng OpenSybau từ điện thoại, terminal sẽ mở trên máy chủ; hoàn tất đăng nhập tại máy đó rồi bấm Quét lại.</p>`;
+  const body = `<div class="cli-connect-intro"><span class="provider-connect-icon">${icon("workflow", 17)}</span><div><strong>OpenSybau tự dò CLI trên máy chủ</strong><p>CLI đã cài sẽ tự kết nối. Bấm Quét lại nếu vừa cài hoặc đăng nhập.</p></div>${cliRefreshButton()}</div><div class="cli-connect-list">${rows}</div><p class="cli-connect-feedback" role="status" aria-live="polite" hidden></p><p class="form-note">CLI dùng tài khoản riêng, không cần API key. Nếu bạn dùng OpenSybau từ điện thoại, terminal sẽ mở trên máy chủ; hoàn tất đăng nhập tại máy đó rồi bấm Quét lại.</p>`;
   showModal("Thêm / kết nối CLI agent", body, "Xong", "dismiss");
   $(".modal-actions .button.quiet")?.remove();
 }
@@ -697,7 +708,7 @@ function chatPage() {
       <div class="home-mode-switch" role="tablist" aria-label="Chế độ làm việc"><button type="button" class="home-mode-tab ${view.homeMode === "chat" ? "active" : ""}" data-home-mode="chat">Chat</button><button type="button" class="home-mode-tab ${view.homeMode === "code" ? "active" : ""}" data-home-mode="code" ${pipelineReady ? "" : "disabled title=\"Cần agent có quyền làm việc trên workspace\""}>Code</button><button type="button" class="home-mode-tab ${view.homeMode === "plan" ? "active" : ""}" data-home-mode="plan" ${planReady ? "" : "disabled"}>Lập kế hoạch</button><button type="button" class="home-mode-link" data-page="tasks">${view.state.tasks.length} task</button></div>
       <form class="home-composer" data-modal data-form="home-task">
         <textarea name="prompt" data-home-prompt required minlength="6" maxlength="12000" rows="3" placeholder="${workflow === "chat-only" ? `Nhắn ${providerTitle(view.connectors, chatSelection.provider)}…` : workflow === "plan-only" ? "Mô tả vấn đề cần phân tích và lập kế hoạch…" : "Mô tả thay đổi cần triển khai trong workspace…"}">${esc(view.chatDraft)}</textarea>
-        <footer class="home-composer-controls"><span class="auto-skill-chip">${icon("notebook-tabs", 14)} Tự chọn skill · ${view.skills.length}</span><div class="home-composer-actions"><button type="button" class="home-composer-settings" data-action="toggle-home-config" aria-label="Cấu hình workspace, agent và model" aria-expanded="${view.homeConfigOpen}" title="Workspace, agent, model và mức suy nghĩ">${icon("settings-2", 15)}<span>${esc(homeConfigSummary)}</span>${icon("chevron-down", 14)}</button><button class="home-submit" type="submit" aria-label="${workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${workspaces.length && canRun ? "" : "disabled"}>${icon("arrow-up-right", 17)}</button></div></footer>
+        <footer class="home-composer-controls"><div class="composer-add-wrap">${composerAddMenu("prompt")}<span class="auto-skill-chip">${icon("notebook-tabs", 14)} Tự chọn skill · ${view.skills.length}</span></div><div class="home-composer-actions"><button type="button" class="home-composer-settings" data-action="toggle-home-config" aria-label="Cấu hình workspace, agent và model" aria-expanded="${view.homeConfigOpen}" title="Workspace, agent, model và mức suy nghĩ">${icon("settings-2", 15)}<span>${esc(homeConfigSummary)}</span>${icon("chevron-down", 14)}</button><button class="home-submit" type="submit" aria-label="${workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${workspaces.length && canRun ? "" : "disabled"}>${icon("arrow-up-right", 17)}</button></div></footer>
         <div class="composer-config-backdrop home-config-backdrop" ${view.homeConfigOpen ? "" : "hidden"}><section class="composer-config-dialog app-dialog-shell" role="dialog" aria-modal="true" aria-label="Cấu hình tác vụ"><header class="app-dialog-header"><div><small>OPENSYBAU</small><h2>Cấu hình tác vụ</h2></div><button type="button" class="icon-button" data-action="close-composer-config" aria-label="Đóng">${icon("x", 16)}</button></header><div class="app-dialog-content composer-config-content"><div class="composer-config-grid"><label>Workspace<select name="workspaceId" data-home-workspace required ${workspaces.length ? "" : "disabled"}>${workspaces.length ? workspaces.map((workspace) => `<option value="${workspace.id}" ${workspace.id === activeWorkspaceId ? "selected" : ""}>${esc(workspace.name)}</option>`).join("") : `<option value="">Thêm workspace để bắt đầu</option>`}</select></label><label>Luồng<select name="workflow" data-home-workflow>${workflowOptions}</select></label></div><div class="chat-agent-role" ${workflow === "chat-only" ? "" : "hidden"}>${chatAgentEditor({ provider: chatSelection.provider, model: chatSelection.model?.id, effort: chatSelection.effort })}</div><div class="agent-role-grid home-role-grid" ${workflow === "chat-only" ? "hidden" : ""}>${workflowRoles.map((role) => roleEditor(role.id, roleSelections[role.id])).join("")}</div></div><footer class="app-dialog-footer"><span>${icon("notebook-tabs", 14)} Skill tự chọn · ${view.skills.length} · Tối đa ${view.state.settings.maxConcurrent} task song song</span><button type="button" class="button primary" data-action="close-composer-config">Xong</button></footer></section></div>
       </form>
     </div>
@@ -759,7 +770,7 @@ function taskConversationPage() {
   return `<section class="task-conversation-page" aria-label="Cuộc trò chuyện">
       <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`} · ${task.permissionPreset === "read-only" ? "Chỉ đọc" : task.permissionPreset === "full-access" ? "Toàn quyền máy" : "Sửa workspace"}</small></div><span class="chat-pane-meta">${queueSummary ? `<span class="chat-queue-summary">${icon("list-checks", 13)}${esc(queueSummary)}</span>` : ""}<button type="button" class="button quiet small" data-action="task-permissions" data-id="${task.id}" aria-label="${view.language === "en" ? "Permissions" : "Quyền"}" title="${view.language === "en" ? "Permissions" : "Quyền"}">${icon("shield", 13)}<span>${view.language === "en" ? "Permissions" : "Quyền"}</span></button><button type="button" class="button quiet small chat-goal-button" data-action="edit-task-goal" data-id="${task.id}" aria-label="${view.language === "en" ? "Goal" : "Mục tiêu"}" title="${task.goal ? esc(task.goal) : (view.language === "en" ? "Add a long-term goal" : "Thêm mục tiêu dài hạn")}">${icon("target", 13)}<span>${view.language === "en" ? "Goal" : "Mục tiêu"}</span></button><span class="chat-message-count">${icon("book-open-text", 14)} ${formatNumber(transcript.length)} ${view.language === "en" ? "messages" : "tin nhắn"}</span></span></header>
       <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
-      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}"><textarea name="message" class="chat-input" maxlength="8000" rows="3" required placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(view.chatDraft)}</textarea><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><button type="button" class="chat-config-trigger" data-action="task-instruction" data-id="${task.id}" title="Đổi agent, model hoặc mức suy nghĩ">${icon("settings-2", 14)}<span>${esc(composerConfig)}</span></button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></footer></form>
+      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}"><textarea name="message" class="chat-input" maxlength="8000" rows="3" required placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(view.chatDraft)}</textarea><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}<button type="button" class="chat-config-trigger" data-action="task-instruction" data-id="${task.id}" title="Đổi agent, model hoặc mức suy nghĩ">${icon("settings-2", 14)}<span>${esc(composerConfig)}</span></button></div><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></footer></form>
     </section>
   </section>`;
 }
@@ -1248,21 +1259,6 @@ async function handleWorkbenchClick(event) {
     if (action === "provider-connect-cli") { showCliProviderModal(); return; }
     if (action === "provider-cli-refresh") {
       await scanCliProviders(button, { openModal: Boolean(button.closest("#overlay")) });
-      return;
-    }
-    if (action === "choose-cli-path" || action === "choose-antigravity-cli") {
-      const providerId = action === "choose-antigravity-cli" ? "antigravity" : id;
-      const executable = providerId === "claude"
-        ? await window.opensybauDesktop?.chooseClaudeCli?.()
-        : await window.opensybauDesktop?.chooseAntigravityCli?.();
-      if (!executable) return;
-      const result = await api(`/api/connectors/${providerId}/path`, { method: "POST", body: JSON.stringify({ path: executable }) });
-      view.connectors = { ...view.connectors, [providerId]: result.connector };
-      render();
-      const displayName = providerId === "claude" ? "Claude Code" : "Antigravity";
-      showToast(result.connector?.available
-        ? `Đã kết nối ${displayName} CLI ${result.connector.version}.`
-        : `Đã lưu đường dẫn ${displayName} CLI nhưng chưa tải được model: ${result.connector?.error || "không rõ lỗi"}`);
       return;
     }
     if (action === "provider-cli-login") {

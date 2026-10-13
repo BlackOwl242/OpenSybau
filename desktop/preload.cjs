@@ -4,8 +4,6 @@ contextBridge.exposeInMainWorld("opensybauDesktop", Object.freeze({
   isDesktop: true,
   supportsAutoUpdate: process.platform === "win32",
   openConfigFolder: () => ipcRenderer.invoke("opensybau:open-config-folder"),
-  chooseAntigravityCli: () => ipcRenderer.invoke("opensybau:antigravity:choose-cli"),
-  chooseClaudeCli: () => ipcRenderer.invoke("opensybau:claude:choose-cli"),
   getUpdateState: () => ipcRenderer.invoke("opensybau:update:get-state"),
   checkForUpdates: () => ipcRenderer.invoke("opensybau:update:check"),
   restartToUpdate: () => ipcRenderer.invoke("opensybau:update:restart"),

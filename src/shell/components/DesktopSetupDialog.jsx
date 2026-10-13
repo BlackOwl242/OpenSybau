@@ -16,19 +16,18 @@ export function DesktopSetupDialog({ connectors }) {
         <button class="wb-top-icon" type="button" data-action="dismiss-desktop-setup" aria-label="Đóng hướng dẫn">×</button>
       </header>
       <div class="app-dialog-content desktop-setup-content">
-      <p class="desktop-setup-intro">OpenSybau tự tìm và kết nối CLI đã cài trên máy. Nút chọn file chỉ là phương án dự phòng khi đường dẫn cài đặt nằm ngoài vị trí tự dò.</p>
+      <p class="desktop-setup-intro">OpenSybau tự tìm và kết nối CLI đã cài trên máy. Nếu vừa cài hoặc đăng nhập, bấm Quét lại để cập nhật trạng thái.</p>
       <div class="desktop-setup-agent-list">
         {cliProviderGuides.map((agent) => {
           const connector = connectors[agent.id];
           const status = cliConnectionStatus(connector);
-          const canChooseCliPath = ["antigravity", "claude"].includes(agent.id) && window.opensybauDesktop?.isDesktop;
           const detail = status.tone === "ready"
             ? `${connector.models.length} model${connector.models.length === 1 ? "" : "s"}${connector.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
             : status.tone === "missing" ? connector?.error || agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
           return <article class={`desktop-setup-agent ${status.tone === "ready" ? "is-ready" : "is-missing"}`} key={agent.id}>
             <span class="desktop-setup-agent-icon"><Icon name={status.tone === "ready" ? "check" : "square-terminal"} size={17} /></span>
             <div class="desktop-setup-agent-copy"><strong>{agent.name}</strong><span>{detail}</span>{status.tone !== "ready" && <small class={`cli-guide-status ${status.tone}`}>{status.label}</small>}</div>
-            {status.tone === "ready" ? <div class="desktop-setup-agent-actions">{canChooseCliPath && <button class="button quiet desktop-setup-install" type="button" data-action="choose-cli-path" data-id={agent.id}>Chọn thủ công</button>}<span class="desktop-setup-status">Sẵn sàng</span></div> : status.tone === "missing" ? <div class="desktop-setup-agent-actions">{canChooseCliPath && <button class="button quiet desktop-setup-install" type="button" data-action="choose-cli-path" data-id={agent.id}>Chọn thủ công</button>}<a class="button quiet desktop-setup-install" href={agent.url} target="_blank" rel="noreferrer">Hướng dẫn cài</a></div> : <div class="desktop-setup-agent-actions">{canChooseCliPath && <button class="button quiet desktop-setup-install" type="button" data-action="choose-cli-path" data-id={agent.id}>Chọn thủ công</button>}{status.action === "refresh" ? <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-refresh">Quét lại</button> : <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-login" data-id={agent.id}>Mở terminal đăng nhập</button>}</div>}
+            {status.tone === "ready" ? <span class="desktop-setup-status">Sẵn sàng</span> : status.tone === "missing" ? <a class="button quiet desktop-setup-install" href={agent.url} target="_blank" rel="noreferrer">Hướng dẫn cài</a> : <div class="desktop-setup-agent-actions">{status.action === "refresh" ? <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-refresh">Quét lại</button> : <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-login" data-id={agent.id}>Mở terminal đăng nhập</button>}</div>}
           </article>;
         })}
       </div>

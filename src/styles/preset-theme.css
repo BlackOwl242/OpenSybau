@@ -316,3 +316,45 @@ body .wb-app-shell select optgroup {
 .wb-page-content .modal-backdrop,
 .wb-page-content .detail-backdrop,
 #overlay .modal-backdrop { background: rgb(0 0 0 / 58%); }
+/* Desktop uses the native Windows acrylic backdrop. Web keeps its opaque theme. */
+html.desktop-glass {
+  --wb-rail: rgba(23, 24, 25, .93);
+  --wb-sidebar: rgba(32, 33, 34, .91);
+  --wb-main: rgba(36, 37, 38, .87);
+  --wb-surface: rgba(43, 44, 46, .91);
+  --wb-surface-soft: rgba(37, 38, 40, .91);
+  --wb-field: rgba(32, 33, 35, .9);
+  --wb-control: rgba(48, 50, 52, .92);
+}
+html.desktop-glass body,
+html.desktop-glass #root { background: transparent; }
+html.desktop-glass .wb-topbar { background: rgba(36, 37, 38, .91); }
+html.desktop-glass .wb-page-content .home-composer,
+html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { background: rgba(43, 44, 46, .93); }
+
+/* Shared add menu for both chat composers. */
+.composer-add-wrap { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.composer-add { position: relative; flex: 0 0 auto; }
+.composer-add > summary { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #484b50; border-radius: 50%; color: #e6e8eb; background: #35373a; cursor: pointer; list-style: none; transition: background .15s ease, border-color .15s ease; }
+.composer-add > summary::-webkit-details-marker { display: none; }
+.composer-add > summary:hover,
+.composer-add[open] > summary { border-color: #747980; background: #45484c; }
+.composer-add > summary:focus-visible { outline: 2px solid #83aaff; outline-offset: 2px; }
+.composer-add-menu { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 30; width: min(300px, calc(100vw - 38px)); display: grid; gap: 2px; padding: 7px; border: 1px solid #4b4d51; border-radius: 12px; color: #eef0f2; background: #2c2e30; box-shadow: 0 16px 36px #0009; }
+.composer-add-menu > strong { padding: 7px 9px 8px; color: #b6b9be; font-size: 11px; font-weight: 650; }
+.composer-add-menu > label,
+.composer-add-menu > button { min-height: 36px; display: flex; align-items: center; gap: 10px; padding: 6px 9px; border: 0; border-radius: 7px; color: #e3e5e8; background: transparent; text-align: left; font-size: 12px; cursor: pointer; }
+.composer-add-menu > label:hover,
+.composer-add-menu > button:hover,
+.composer-add-menu > label:focus-within,
+.composer-add-menu > button:focus-visible { color: #fff; background: #414448; }
+.composer-add-menu > label .wb-icon,
+.composer-add-menu > button .wb-icon { color: #b9bec6; }
+.composer-add-menu input[type="file"] { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.composer-add-menu > small { padding: 8px 9px 5px; border-top: 1px solid #42454a; color: #aeb2b8; font-size: 10px; line-height: 1.4; }
+.task-conversation-page .task-chat-pane { overflow: visible; }
+@media (max-width: 600px) {
+  .composer-add > summary { width: 40px; height: 40px; }
+  .composer-add-menu { bottom: calc(100% + 8px); }
+  .auto-skill-chip { display: none; }
+}
