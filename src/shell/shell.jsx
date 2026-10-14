@@ -82,10 +82,10 @@ function WindowChrome({ snapshot, sidebarCollapsed, onToggleSidebar }) {
 
   return <header class="wb-window-chrome" aria-label="Thanh tiêu đề cửa sổ">
     <div class="wb-window-chrome-left">
-      <button type="button" class="wb-chrome-icon" data-page="chat" title="Quay về màn hình chính" aria-label="Quay lại">
+      <button type="button" class="wb-chrome-icon" onClick={() => window.history.back()} title="Quay lại" aria-label="Quay lại">
         <Icon name="arrow-left" size={14} />
       </button>
-      <button type="button" class="wb-chrome-icon" data-page="tasks" title="Danh sách tác vụ" aria-label="Tiến tới">
+      <button type="button" class="wb-chrome-icon" onClick={() => window.history.forward()} title="Tiến tới" aria-label="Tiến tới">
         <Icon name="arrow-right" size={14} />
       </button>
       <button
@@ -95,17 +95,8 @@ function WindowChrome({ snapshot, sidebarCollapsed, onToggleSidebar }) {
         title="Đóng/mở thanh bên trái"
         aria-label="Đóng/mở thanh bên trái"
       >
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="4" width="18" height="16" rx="3" />
-          <line x1="9" y1="4" x2="9" y2="20" />
-        </svg>
+        <Icon name="sidebar-left" size={14} />
       </button>
-      <nav class="wb-chrome-menu" aria-label="Menu nhanh">
-        <button type="button" class="wb-chrome-menu-item" data-action="add-workspace">Dự án</button>
-        <button type="button" class="wb-chrome-menu-item" data-page="tasks">Tác vụ</button>
-        <button type="button" class="wb-chrome-menu-item" data-page="skills">Skills</button>
-        <button type="button" class="wb-chrome-menu-item" data-page="settings">Cài đặt</button>
-      </nav>
     </div>
     <div class="wb-window-chrome-right">
       <button class="wb-chrome-pill" type="button" data-action="toggle-language" title="Chuyển ngôn ngữ VI / EN">
