@@ -74,7 +74,7 @@ function TaskLink({ task, selected, archived = false, taskMenuId = "", menuKey =
         </span>
         <span class="wb-task-sub">
           <span class="wb-agent-chip">{agentLabel}</span>
-          {task.fanoutId ? <span class="wb-wt-badge is-arena" title="Đấu trường Agent">arena</span> : task.isolated ? <span class={`wb-wt-badge ${task.worktreeAppliedAt ? "is-merged" : ""}`} title={task.worktreeBranch || "Git Worktree"}>{task.worktreeAppliedAt ? "merged" : "wt"}</span> : null}
+          {task.fanoutId ? <span class="wb-wt-badge is-arena" title="Đa luồng Agent">đa luồng</span> : task.isolated ? <span class={`wb-wt-badge ${task.worktreeAppliedAt ? "is-merged" : ""}`} title={task.worktreeBranch || "Git Worktree"}>{task.worktreeAppliedAt ? "merged" : "wt"}</span> : null}
           {needsReview ? <span class="wb-wt-badge is-review" title="Worktree có thay đổi chờ gộp">review</span> : null}
           {snippet ? <span class="wb-task-snippet">{snippet}</span> : null}
         </span>
@@ -100,7 +100,35 @@ function ProjectMenu({ workspace }) {
   </div>;
 }
 
-function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, projectMenuId, taskMenuId }) {
+function FanoutFleetGroup({ fanoutId, tasks, selected, collapsedFanouts = [], taskMenuId }) {
+  const expanded = !collapsedFanouts.includes(fanoutId);
+  const first = tasks[0];
+  const rawTitle = String(first?.title || "Đa luồng Agent").replace(/\s*\[[^\]]+\]\s*$/, "");
+  const runningCount = tasks.filter((t) => ["running", "queued"].includes(t.status)).length;
+  const hasSelected = tasks.some((t) => t.id === selected);
+  const groupStatus = runningCount > 0 ? "running" : tasks.some((t) => t.status === "failed") ? "failed" : "done";
+
+  return <div class={`wb-fanout-group ${expanded ? "is-expanded" : ""} ${hasSelected ? "has-selected" : ""}`} key={`fanout:${fanoutId}`}>
+    <div class="wb-fanout-head">
+      <button type="button" class="wb-fanout-toggle" data-action="toggle-fanout-group" data-fanout-id={fanoutId} aria-expanded={expanded} title={`${rawTitle} · ${tasks.length} nhánh song song`}>
+        <span class={`wb-project-chevron ${expanded ? "is-expanded" : ""}`}><Icon name="chevron-right" size={12} /></span>
+        <span class={`wb-task-dot is-${groupStatus}`} aria-hidden="true" />
+        <strong class="wb-fanout-title">{rawTitle}</strong>
+        <span class="wb-fanout-count">{tasks.length} agents</span>
+      </button>
+      <div class="wb-fanout-actions">
+        <button type="button" class="wb-task-action" data-action="compare-fanout" data-fanout-id={fanoutId} title="So sánh Đa luồng & Chọn bản thắng" aria-label="So sánh Đa luồng">
+          <Icon name="list-checks" size={14} />
+        </button>
+      </div>
+    </div>
+    {expanded ? <div class="wb-fanout-children">
+      {tasks.map((task) => <TaskLink key={task.id} task={task} selected={selected} taskMenuId={taskMenuId} menuKey={`fanout:${task.id}`} />)}
+    </div> : null}
+  </div>;
+}
+
+function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, collapsedFanouts = [], projectMenuId, taskMenuId }) {
   const expanded = !collapsedWorkspaces.includes(workspace.id);
   const activeTasks = tasks.filter((task) => !task.archived);
   const runningCount = activeTasks.filter((task) => ["running", "queued"].includes(task.status)).length;
@@ -108,6 +136,21 @@ function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, proje
   const sourceFolders = workspace.sourceFolders?.length ? workspace.sourceFolders : [workspace.path];
   const menuOpen = projectMenuId === workspace.id;
   const gitBranch = workspace.runtime?.isGit ? (workspace.runtime.branch || "HEAD") : "";
+
+  const groupedEntries = [];
+  const seenFanouts = new Set();
+  for (const task of sortedTasks) {
+    if (task.fanoutId) {
+      if (seenFanouts.has(task.fanoutId)) continue;
+      seenFanouts.add(task.fanoutId);
+      const siblings = sortedTasks.filter((t) => t.fanoutId === task.fanoutId);
+      if (siblings.length > 1) {
+        groupedEntries.push({ type: "fanout", fanoutId: task.fanoutId, tasks: siblings });
+        continue;
+      }
+    }
+    groupedEntries.push({ type: "single", task });
+  }
 
   return <section class={`wb-project-group ${menuOpen ? "has-menu-open" : ""}`} key={workspace.id}>
     <div class="wb-project-row">
@@ -133,7 +176,10 @@ function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, proje
       <button data-action="edit-project" data-id={workspace.id}><Icon name="settings-2" size={13} />Sửa dự án</button>
     </div>
     {expanded ? <div class="wb-project-children">
-      {sortedTasks.length ? sortedTasks.map((task) => <TaskLink key={task.id} task={task} selected={selected} taskMenuId={taskMenuId} menuKey={`workspace:${task.id}`} />) : <button class="wb-project-new-chat" data-action="new-chat" data-workspace-id={workspace.id}><Icon name="square-terminal" size={14} /><span>Cuộc trò chuyện mới</span></button>}
+      {groupedEntries.length ? groupedEntries.map((entry) => entry.type === "fanout"
+        ? <FanoutFleetGroup key={`fanout:${entry.fanoutId}`} fanoutId={entry.fanoutId} tasks={entry.tasks} selected={selected} collapsedFanouts={collapsedFanouts} taskMenuId={taskMenuId} />
+        : <TaskLink key={entry.task.id} task={entry.task} selected={selected} taskMenuId={taskMenuId} menuKey={`workspace:${entry.task.id}`} />
+      ) : <button class="wb-project-new-chat" data-action="new-chat" data-workspace-id={workspace.id}><Icon name="square-terminal" size={14} /><span>Cuộc trò chuyện mới</span></button>}
     </div> : null}
   </section>;
 }
@@ -184,6 +230,7 @@ function SideContent({ snapshot }) {
         tasks={tasksByWorkspace.get(workspace.id) || []}
         selected={snapshot.selected}
         collapsedWorkspaces={collapsedWorkspaces}
+        collapsedFanouts={snapshot.collapsedFanouts || []}
         projectMenuId={snapshot.projectMenuId}
         taskMenuId={snapshot.taskMenuId}
       />) : <button type="button" class="wb-side-ghost-empty" data-action="add-workspace"><Icon name="folder-open" size={14} /><span>Thêm thư mục dự án…</span></button>}

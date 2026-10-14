@@ -5,6 +5,23 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.71] - 2026-10-14
+
+### Changed & Improved (Sidebar Phải Hợp Nhất 4 Tab kiểu ORCA/Codex, Kéo Giãn Chiều Rộng & Tối Giản Khung Chính Giữa)
+- **Hợp nhất thanh bên mở rộng thành 1 Sidebar Phải duy nhất toàn cục (`.orca-right-dock`)**:
+  - Đưa nút đóng/mở Sidebar phải (`◨` `sidebar-right`) lên **góc trên cùng bên phải của TopBar** (và góc trên bên phải của chính Sidebar phải khi đang mở), đồng bộ hoàn toàn với thiết kế ORCA / Codex.
+  - **Thanh 4 Icon Tab đa năng ở đỉnh Sidebar phải** (kèm vạch gạch chân trắng sắc nét dưới tab đang chọn):
+    1. **Cây thư mục & Tệp (`files`)**: Cây thư mục phân cấp đóng/mở (`> 📄 .github`, `v 📄 src`, `📄 package.json`) tự động thích ứng theo ngữ cảnh trang (Tệp dự án trên Chat/Dự án, Ghi chú Markdown trên Tri thức, Nhóm kỹ năng trên Kỹ năng, Phạm vi bộ nhớ trên Bộ nhớ, Mục lục cấu hình trên Cài đặt).
+    2. **Tìm kiếm nhanh (`search`)**: Lọc tức thì tệp dự án, ghi chú `#tag` hoặc kỹ năng.
+    3. **Source Control & Liên kết (`git-branch`)**: Hiển thị nút `Gộp Worktree vào dự án`, danh sách `CHANGES (N)` và các nhánh Worktree cô lập khi làm việc với dự án, hoặc **Liên kết hai chiều (`[[WikiLink]]`) & `#tags`** khi ở trang Tri thức.
+    4. **Checklist & Mục lục (`list-checks`)**: Quản lý Checklist mục tiêu của Task hoặc tự động trích xuất Mục lục (`# H1`, `## H2`) của tài liệu Markdown đang đọc.
+- **Tối giản hóa khung nội dung chính ở giữa (`#content`)**:
+  - Loại bỏ toàn bộ các sidebar lồng ghép dư thừa bên trong khung giữa của các trang Chat, Dự án, Tri thức, Kỹ năng, Bộ nhớ và Cài đặt để nhường trọn không gian cho nội dung chính (trình đọc/sửa tài liệu, hội thoại, hoặc đồ thị nơ-ron).
+- **Hỗ trợ kéo giãn chiều rộng Sidebar bên phải (`220px` – `620px`)**:
+  - Bổ sung thanh nắm kéo (`.orca-dock-resizer`) dọc mép trái của Sidebar phải (tự động lưu kích thước vào `localStorage`), đồng thời giữ cố định chiều rộng của Sidebar điều hướng bên trái theo đúng yêu cầu.
+
+---
+
 ## [0.2.70] - 2026-10-14
 
 ### Fixed & Improved (Sửa lỗi Dropdown bị cắt & Kiến trúc Tri thức 3 Ngăn kiểu Codex / ORCA)

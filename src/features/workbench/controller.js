@@ -365,13 +365,22 @@ function taskPage() {
 }
 function workspacePage() {
   const workspaces = view.state.workspaces;
-  if (view.selected) {
-    const workspace = workspaces.find((item) => item.id === view.selected);
-    if (workspace) return projectDetailPage(workspace);
+  if (!workspaces.length) {
+    return `<div class="page-head"><div><div class="eyebrow">PROJECT ROOTS</div><h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div>
+    <section class="workspace-list"><div class="empty-state"><strong>Chưa có dự án</strong><p>Thêm đường dẫn repository hoặc thư mục làm việc trên máy.</p><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div></section>`;
   }
+  const activeWs = workspaces.find((item) => item.id === view.selected) || workspaces[0];
+  if (activeWs && view.selected !== activeWs.id && !view.workspaceOverviewMode) {
+    view.selected = activeWs.id;
+    if (!view.workspaceEntries?.length && !view.workspaceLoadingId) {
+      view.workspaceLoadingId = activeWs.id;
+      void loadWorkspaceDir(activeWs.id, view.workspaceDir || "").finally(() => { view.workspaceLoadingId = ""; });
+    }
+  }
+  if (activeWs && !view.workspaceOverviewMode) return projectDetailPage(activeWs);
   const status = (w) => w.runtime ? `${w.runtime.isGit ? `Git · ${w.runtime.branch || "nhánh detached"}` : "Thư mục thường"}${w.runtime.head ? " · Có commit" : w.runtime.isGit ? " · Chưa có commit" : ""}${w.runtime.dirty ? " · Có thay đổi chưa commit" : ""}` : "Sẽ kiểm tra khi chạy task";
   return `<div class="page-head"><div><div class="eyebrow">PROJECT ROOTS</div><h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div>
-  <section class="workspace-list">${workspaces.length ? workspaces.map((w) => `<article class="workspace-card"><div class="workspace-card-icon">${icon("folder-code", 17)}</div><div class="workspace-card-main"><strong>${esc(w.name)}</strong><code>${esc(w.path)}</code><small>${esc(status(w))}</small></div><button class="button quiet small" data-action="open-workspace" data-id="${w.id}">Mở dự án ${icon("chevron-right", 14)}</button><button class="icon-button" data-action="remove-workspace" data-id="${w.id}" title="Gỡ workspace" aria-label="Gỡ workspace">${icon("x", 16)}</button></article>`).join("") : `<div class="empty-state"><strong>Chưa có dự án</strong><p>Thêm đường dẫn repository hoặc thư mục làm việc trên máy.</p><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div>`}</section>
+  <section class="workspace-list">${workspaces.map((w) => `<article class="workspace-card"><div class="workspace-card-icon">${icon("folder-code", 17)}</div><div class="workspace-card-main"><strong>${esc(w.name)}</strong><code>${esc(w.path)}</code><small>${esc(status(w))}</small></div><button class="button quiet small" data-action="open-workspace" data-id="${w.id}">Mở dự án ${icon("chevron-right", 14)}</button><button class="icon-button" data-action="remove-workspace" data-id="${w.id}" title="Gỡ workspace" aria-label="Gỡ workspace">${icon("x", 16)}</button></article>`).join("")}</section>
   <aside class="info-panel"><strong>Task chạy ở đâu?</strong><p>Chế độ thường sửa trực tiếp thư mục này và chỉ cho một task chạy trong cùng workspace tại một thời điểm. Chế độ Git worktree tạo nhánh riêng; cần repository đã có commit. Task trên các workspace khác nhau có thể chạy song song.</p></aside>`;
 }
 function breadcrumbButtons(path, action) {
@@ -853,122 +862,427 @@ function mountKnowledgeGraphCanvas() {
     canvas.removeEventListener("wheel", onWheel);
   };
 }
-function projectDetailPage(workspace) {
-  const dirs = view.workspaceDir.split("/").filter(Boolean);
-  return `<div class="page-head"><div><div class="eyebrow">PROJECT FILES</div><h1>${esc(workspace.name)}</h1><p>${esc(workspace.path)}</p></div><div class="page-head-actions"><button class="button quiet" data-action="back-projects">${icon("arrow-left", 15)} Danh sách dự án</button><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task</button></div></div>
-  <section class="file-workbench"><aside class="file-browser"><header><strong>Tệp dự án</strong><button class="icon-button" data-action="refresh-project-files" title="Tải lại tệp">${icon("refresh-cw", 15)}</button></header><label class="skill-search"><span>${icon("search", 15)}</span><input type="search" data-file-filter="workspace" placeholder="Lọc tệp trong thư mục này…" autocomplete="off"></label><nav class="file-breadcrumbs">${breadcrumbButtons(view.workspaceDir, "workspace-dir")}</nav><ul class="file-list">${view.workspaceDir ? `<li><button class="file-row parent" data-action="workspace-up"><span>${icon("chevron-right", 14)}</span><strong>Thư mục cha</strong></button></li>` : ""}${localFileRows(view.workspaceEntries, "workspace-file-action", view.fileFilter || "")}</ul>${view.workspaceEntries.length >= 500 ? `<p class="form-note">Đã giới hạn 500 mục; lọc tên hoặc mở thư mục con.</p>` : ""}</aside><section class="file-preview">${filePreviewMarkup(view.filePreview, "Chọn tệp code hoặc Markdown để xem nội dung")}</section></section>`;
+function buildDockFileTree(paths = []) {
+  const root = { folders: new Map(), files: [] };
+  for (const rawPath of paths) {
+    const norm = String(rawPath || "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+    if (!norm) continue;
+    const parts = norm.split("/");
+    let curr = root;
+    let accum = "";
+    for (let i = 0; i < parts.length - 1; i++) {
+      const seg = parts[i];
+      accum = accum ? `${accum}/${seg}` : seg;
+      if (!curr.folders.has(seg)) {
+        curr.folders.set(seg, { name: seg, path: accum, folders: new Map(), files: [] });
+      }
+      curr = curr.folders.get(seg);
+    }
+    const fileName = parts[parts.length - 1];
+    curr.files.push({ name: fileName, path: norm });
+  }
+  return root;
 }
-function knowledgeRightInspectorMarkup(mode, selectedNode, connectedNodes, activeFile) {
-  const graph = view.vaultGraph || { nodes: [], edges: [] };
-  const allTags = [...new Set((graph.nodes || []).flatMap((n) => n.tags || []))].slice(0, 18);
-  if (!selectedNode && !activeFile) {
-    const topNodes = [...(graph.nodes || [])].sort((a, b) => (b.degree || 0) - (a.degree || 0)).slice(0, 8);
-    return `<aside class="kb-sidebar-right" aria-label="Liên kết và ngữ cảnh tri thức">
-      <header class="kb-pane-head">
-        <div class="kb-pane-title">${icon("waypoints", 14)}<strong>Liên kết & Ngữ cảnh</strong></div>
-        <button type="button" class="icon-button" data-action="toggle-vault-right" title="Đóng ngăn ngữ cảnh">${icon("x", 14)}</button>
-      </header>
-      <div class="kb-inspector-scroll">
-        <section class="kb-inspector-section">
-          <small class="kb-section-label">Tổng quan Vault</small>
-          <div class="kb-stat-grid">
-            <div><strong>${graph.nodes?.length || 0}</strong><span>Ghi chú</span></div>
-            <div><strong>${graph.edges?.length || 0}</strong><span>Liên kết</span></div>
-          </div>
-        </section>
-        ${allTags.length ? `<section class="kb-inspector-section">
-          <small class="kb-section-label">Thẻ chủ đề (#tags)</small>
-          <div class="neural-tag-list">${allTags.map((t) => `<button type="button" class="kb-tag-chip" data-action="vault-filter-tag" data-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div>
-        </section>` : ""}
-        ${topNodes.length ? `<section class="kb-inspector-section">
-          <small class="kb-section-label">Nút tri thức nổi bật</small>
-          <ul class="neural-connection-list">${topNodes.map((n) => `<li><button type="button" data-action="vault-select-graph-node" data-path="${esc(n.path)}">${icon("file", 13)}<strong>${esc(n.title || n.name)}</strong><small>${n.degree || 0} liên kết</small></button></li>`).join("")}</ul>
-        </section>` : ""}
-      </div>
-    </aside>`;
+
+function renderDockTreeLevel(node, depth, { collapsedSet, activePath, fileAction, workspaceId = "", taskId = "", showMention = false, showVaultMenu = false }) {
+  const folders = [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  const files = [...node.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  let html = "";
+  const padLeft = 10 + depth * 14;
+  for (const folder of folders) {
+    const isCollapsed = collapsedSet.has(folder.path);
+    html += `<li class="orca-tree-item is-folder">
+      <button type="button" class="orca-tree-row" style="padding-left:${padLeft}px" data-action="toggle-dock-folder" data-folder="${esc(folder.path)}" title="${esc(folder.path)}">
+        <span class="orca-tree-caret ${isCollapsed ? "" : "is-open"}">${icon("chevron-right", 12)}</span>
+        <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+        <span class="orca-tree-label">${esc(folder.name)}</span>
+      </button>
+    </li>`;
+    if (!isCollapsed) {
+      html += renderDockTreeLevel(folder, depth + 1, { collapsedSet, activePath, fileAction, workspaceId, taskId, showMention, showVaultMenu });
+    }
+  }
+  for (const file of files) {
+    const isSelected = activePath && activePath === file.path;
+    html += `<li class="orca-tree-item is-file ${isSelected ? "is-selected" : ""}">
+      <button type="button" class="orca-tree-row ${isSelected ? "is-selected" : ""}" style="padding-left:${padLeft + 16}px" data-action="${esc(fileAction)}" ${workspaceId ? `data-workspace-id="${esc(workspaceId)}"` : ""} ${taskId ? `data-id="${esc(taskId)}"` : ""} data-path="${esc(file.path)}" title="${esc(file.path)}">
+        <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+        <span class="orca-tree-label">${esc(file.name)}</span>
+      </button>
+      ${showMention ? `<button type="button" class="orca-tree-quick" data-action="mention-drawer-file" data-path="${esc(file.path)}" title="Chèn @${esc(file.path)} vào khung chat">@</button>` : ""}
+      ${showVaultMenu ? vaultNoteOptionsMenu(file.path, { showRead: view.vaultViewMode === "graph", showGraph: view.vaultViewMode !== "graph", direction: "down" }) : ""}
+    </li>`;
+  }
+  return html;
+}
+
+function orcaRightDockMarkup() {
+  const page = view.page || "chat";
+  const tab = view.chatDrawerTab || "files";
+  const filter = (view.chatDrawerFilter || "").trim().toLowerCase();
+  const selectedTask = view.selected ? (view.state?.tasks || []).find((t) => t.id === view.selected) : null;
+  const activeWsId = (page === "workspaces" && view.selected)
+    ? view.selected
+    : selectedTask?.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+  const activeWs = (view.state?.workspaces || []).find((w) => w.id === activeWsId) || null;
+
+  if (!Array.isArray(view.collapsedDockFolders)) {
+    view.collapsedDockFolders = null;
   }
 
-  const noteTitle = selectedNode?.title || activeFile?.name?.replace(/\.(md|mdx|markdown)$/i, "") || selectedNode?.name || "Ghi chú";
-  const notePath = activeFile?.path || selectedNode?.path || "";
-  const noteTags = selectedNode?.tags || [];
-  const directLinks = connectedNodes.filter((c) => c.kind === "link");
-  const relatedLinks = connectedNodes.filter((c) => c.kind !== "link");
-  const outline = activeFile?.content ? extractMarkdownOutline(activeFile.content) : [];
-  const wordCount = activeFile?.content ? activeFile.content.trim().split(/\s+/).filter(Boolean).length : 0;
-  const lineCount = activeFile?.content ? activeFile.content.split(/\r?\n/).length : 0;
+  let subTitle = "Workspace";
+  let subTooltip = "";
+  let refreshAction = "refresh-dock-context";
+  let moreMenuHtml = "";
 
-  return `<aside class="kb-sidebar-right" aria-label="Liên kết và ngữ cảnh ghi chú">
-    <header class="kb-pane-head">
-      <div class="kb-pane-title" title="${esc(notePath)}">
-        ${icon("waypoints", 14)}
-        <strong>Liên kết & Ngữ cảnh</strong>
+  if (page === "knowledge") {
+    const vaultPath = view.state?.settings?.vaultPath || "";
+    subTitle = vaultPath ? (vaultPath.split(/[\\/]/).filter(Boolean).at(-1) || "Obsidian Vault") : "Obsidian Vault";
+    subTooltip = vaultPath;
+    refreshAction = "refresh-vault-files";
+    moreMenuHtml = `<details class="codex-pop-menu is-right is-down">
+      <summary class="icon-button orca-sub-btn" title="Tùy chọn Vault">${icon("ellipsis", 14)}</summary>
+      <div class="codex-pop-card">
+        <button type="button" class="codex-pop-item" data-action="vault-new-note"><span class="codex-pop-item-main">${icon("plus", 13)}<span>Ghi chú Markdown mới</span></span></button>
+        <button type="button" class="codex-pop-item" data-action="open-obsidian" data-path="${esc(view.vaultPreview?.path || "")}"><span class="codex-pop-item-main">${icon("arrow-up-right", 13)}<span>Mở trong Obsidian</span></span></button>
+        <button type="button" class="codex-pop-item" data-action="connect-vault"><span class="codex-pop-item-main">${icon("folder-open", 13)}<span>Đổi thư mục Vault…</span></span></button>
+        <div class="codex-pop-sep"></div>
+        <button type="button" class="codex-pop-item is-danger" data-action="disconnect-vault"><span class="codex-pop-item-main">${icon("x", 13)}<span>Ngắt kết nối Vault</span></span></button>
       </div>
-      <button type="button" class="icon-button" data-action="toggle-vault-right" title="Đóng ngăn ngữ cảnh">${icon("x", 14)}</button>
-    </header>
-    <div class="kb-inspector-scroll">
-      <section class="kb-inspector-card">
-        <div class="kb-inspector-note-head">
+    </details>`;
+  } else if (page === "skills") {
+    subTitle = `skills (${(view.skills || []).length})`;
+    subTooltip = "Thư viện Kỹ năng Agent";
+    refreshAction = "scan-skills";
+    moreMenuHtml = `<button type="button" class="icon-button orca-sub-btn" data-action="new-skill" title="Tạo skill mới">${icon("plus", 14)}</button>`;
+  } else if (page === "memory") {
+    subTitle = `memories (${(view.state?.memories || []).length})`;
+    subTooltip = "Bộ nhớ ngữ cảnh cục bộ";
+    refreshAction = "refresh";
+    moreMenuHtml = `<button type="button" class="icon-button orca-sub-btn" data-action="new-memory" title="Thêm ghi nhớ mới">${icon("plus", 14)}</button>`;
+  } else if (page === "settings") {
+    subTitle = "system-config";
+    subTooltip = "Cấu hình hệ thống & Agent";
+    refreshAction = "provider-cli-refresh";
+    moreMenuHtml = `<button type="button" class="icon-button orca-sub-btn" data-action="provider-add" title="Thêm nguồn AI">${icon("plus", 14)}</button>`;
+  } else if (activeWs) {
+    subTitle = activeWs.name;
+    subTooltip = activeWs.path;
+    refreshAction = "refresh-dock-context";
+    moreMenuHtml = `<details class="codex-pop-menu is-right is-down">
+      <summary class="icon-button orca-sub-btn" title="Tùy chọn dự án">${icon("ellipsis", 14)}</summary>
+      <div class="codex-pop-card">
+        <button type="button" class="codex-pop-item" data-action="open-project-folder" data-id="${esc(activeWs.id)}"><span class="codex-pop-item-main">${icon("folder-open", 13)}<span>Mở trong Explorer</span></span></button>
+        <button type="button" class="codex-pop-item" data-action="edit-project" data-id="${esc(activeWs.id)}"><span class="codex-pop-item-main">${icon("settings-2", 13)}<span>Sửa cấu hình dự án</span></span></button>
+        <button type="button" class="codex-pop-item" data-action="add-workspace"><span class="codex-pop-item-main">${icon("folder-plus", 13)}<span>Thêm dự án mới…</span></span></button>
+      </div>
+    </details>`;
+  }
+
+  let bodyHtml = "";
+
+  if (tab === "files") {
+    if (page === "knowledge") {
+      const vaultPath = view.state?.settings?.vaultPath || "";
+      if (!vaultPath) {
+        bodyHtml = `<div class="orca-dock-empty"><p>Chưa kết nối Obsidian Vault.</p><button type="button" class="button primary small" data-action="connect-vault">${icon("plus", 12)}<span>Kết nối Vault</span></button></div>`;
+      } else {
+        if (!view.vaultGraph && !view.vaultGraphLoading) {
+          void loadVaultGraph();
+        }
+        const graphNodes = view.vaultGraph?.nodes || [];
+        const paths = graphNodes.length
+          ? graphNodes.map((n) => n.path)
+          : (view.vaultEntries || []).filter((e) => e.type !== "directory").map((e) => e.path);
+        const tree = buildDockFileTree(paths);
+        if (view.collapsedDockFolders === null) {
+          view.collapsedDockFolders = [];
+        }
+        const collapsedSet = new Set(view.collapsedDockFolders);
+        const activePath = view.vaultPreview?.path || "";
+        const rows = renderDockTreeLevel(tree, 0, {
+          collapsedSet,
+          activePath,
+          fileAction: "vault-select-graph-node",
+          showVaultMenu: true,
+        });
+        bodyHtml = `<ul class="orca-tree-list">${rows || `<li class="orca-dock-empty">Chưa có ghi chú Markdown.</li>`}</ul>`;
+      }
+    } else if (page === "skills") {
+      const allSkills = view.skills || [];
+      const groups = [
+        ["personal", "Cá nhân", allSkills.filter((s) => s.editable)],
+        ["codex", "Codex CLI", allSkills.filter((s) => !s.editable && (s.providers?.includes("codex") || (s.sources || []).join(" ").toLowerCase().includes("codex")))],
+        ["antigravity", "Antigravity", allSkills.filter((s) => !s.editable && (s.providers?.includes("antigravity") || (s.sources || []).join(" ").toLowerCase().includes("antigravity")))],
+        ["claude", "Claude Code", allSkills.filter((s) => !s.editable && (s.providers?.includes("claude") || (s.sources || []).join(" ").toLowerCase().includes("claude")))],
+      ];
+      const collapsedSet = new Set(view.collapsedDockFolders || []);
+      bodyHtml = `<ul class="orca-tree-list">${groups.map(([key, label, items]) => {
+        const folderKey = `skill:${key}`;
+        const isCollapsed = collapsedSet.has(folderKey);
+        return `<li class="orca-tree-item is-folder">
+          <button type="button" class="orca-tree-row" style="padding-left:10px" data-action="toggle-dock-folder" data-folder="${esc(folderKey)}">
+            <span class="orca-tree-caret ${isCollapsed ? "" : "is-open"}">${icon("chevron-right", 12)}</span>
+            <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+            <span class="orca-tree-label">${esc(label)}</span>
+            <small class="orca-tree-badge">${items.length}</small>
+          </button>
+        </li>${isCollapsed ? "" : items.map((s) => `<li class="orca-tree-item is-file ${s.id === view.selectedSkillId ? "is-selected" : ""}">
+          <button type="button" class="orca-tree-row ${s.id === view.selectedSkillId ? "is-selected" : ""}" style="padding-left:38px" data-action="select-skill" data-id="${esc(s.id)}" title="${esc(s.description || s.name)}">
+            <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+            <span class="orca-tree-label">${esc(s.name)}</span>
+          </button>
+        </li>`).join("")}`;
+      }).join("")}</ul>`;
+    } else if (page === "memory") {
+      const notes = view.state?.memories || [];
+      const workspaces = view.state?.workspaces || [];
+      const scopeFilter = view.memoryWorkspaceFilter || "all";
+      bodyHtml = `<ul class="orca-tree-list">
+        <li class="orca-tree-item is-file ${scopeFilter === "all" ? "is-selected" : ""}">
+          <button type="button" class="orca-tree-row ${scopeFilter === "all" ? "is-selected" : ""}" style="padding-left:14px" data-action="memory-scope-filter" data-scope="all">
+            <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+            <span class="orca-tree-label">Tất cả ghi nhớ</span>
+            <small class="orca-tree-badge">${notes.length}</small>
+          </button>
+        </li>
+        <li class="orca-tree-item is-file ${scopeFilter === "global" ? "is-selected" : ""}">
+          <button type="button" class="orca-tree-row ${scopeFilter === "global" ? "is-selected" : ""}" style="padding-left:14px" data-action="memory-scope-filter" data-scope="global">
+            <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+            <span class="orca-tree-label">Dùng chung mọi dự án</span>
+            <small class="orca-tree-badge">${notes.filter((m) => m.workspaceId === "all").length}</small>
+          </button>
+        </li>
+        ${workspaces.map((ws) => {
+          const count = notes.filter((m) => m.workspaceId === ws.id).length;
+          return `<li class="orca-tree-item is-file ${scopeFilter === ws.id ? "is-selected" : ""}">
+            <button type="button" class="orca-tree-row ${scopeFilter === ws.id ? "is-selected" : ""}" style="padding-left:14px" data-action="memory-scope-filter" data-scope="${esc(ws.id)}">
+              <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+              <span class="orca-tree-label">${esc(ws.name)}</span>
+              <small class="orca-tree-badge">${count}</small>
+            </button>
+          </li>`;
+        }).join("")}
+      </ul>`;
+    } else if (page === "settings") {
+      const sections = [
+        ["settings-roles", "Định tuyến vai trò Agent"],
+        ["cli-setup", "Agent CLI cục bộ"],
+        ["settings-api", "Nguồn API & Model local"],
+        ["settings-concurrency", "Tác vụ chạy đồng thời"],
+      ];
+      bodyHtml = `<ul class="orca-tree-list">${sections.map(([secId, label]) => `<li class="orca-tree-item is-file">
+        <button type="button" class="orca-tree-row" style="padding-left:14px" data-action="settings-scroll-section" data-section="${esc(secId)}">
+          <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+          <span class="orca-tree-label">${esc(label)}</span>
+        </button>
+      </li>`).join("")}</ul>`;
+    } else if (activeWs) {
+      const allFiles = view.workspaceFileIndex?.[activeWs.id] || [];
+      if (!view.workspaceFileIndex?.[activeWs.id]) {
+        void ensureWorkspaceFileIndex(activeWs.id).then(() => render());
+      }
+      const tree = buildDockFileTree(allFiles);
+      if (view.collapsedDockFolders === null && allFiles.length > 0) {
+        const topFolders = [...tree.folders.values()].map((f) => f.path);
+        view.collapsedDockFolders = topFolders.filter((p) => p !== "src");
+      }
+      const collapsedSet = new Set(view.collapsedDockFolders || []);
+      const activePath = page === "workspaces" ? (view.filePreview?.path || "") : (view.chatDrawerPreview?.path || "");
+      const fileAction = page === "workspaces" ? "dock-open-workspace-file" : "preview-drawer-file";
+      const rows = renderDockTreeLevel(tree, 0, {
+        collapsedSet,
+        activePath,
+        fileAction,
+        workspaceId: activeWs.id,
+        taskId: selectedTask?.id || "",
+        showMention: page === "chat",
+      });
+      const preview = page !== "workspaces" ? view.chatDrawerPreview : null;
+      bodyHtml = `<ul class="orca-tree-list">${rows || `<li class="orca-dock-empty">Đang tải cây tệp dự án…</li>`}</ul>
+      ${preview ? `<section class="orca-dock-preview">
+        <header>
+          <strong title="${esc(preview.path)}">${esc(preview.name || preview.path)}</strong>
           <div>
-            <strong title="${esc(noteTitle)}">${esc(noteTitle)}</strong>
-            <small>${esc(notePath)}</small>
+            <button type="button" class="button quiet small" data-action="mention-drawer-file" data-path="${esc(preview.path)}">@file</button>
+            <button type="button" class="icon-button" data-action="close-drawer-preview">${icon("x", 13)}</button>
           </div>
-          ${vaultNoteOptionsMenu(notePath, { showRead: mode === "graph", showGraph: mode === "files", direction: "down" })}
-        </div>
-        <div class="kb-quick-actions">
-          ${mode === "graph"
-            ? `<button type="button" class="button primary small" data-action="vault-open-from-graph" data-path="${esc(notePath)}">${icon("book-open-text", 12)}<span>Đọc ghi chú</span></button>`
-            : `<button type="button" class="button quiet small" data-action="vault-focus-graph" data-path="${esc(notePath)}">${icon("waypoints", 12)}<span>Đồ thị</span></button>`}
-          <button type="button" class="button quiet small" data-action="vault-edit-note" data-path="${esc(notePath)}">${icon("square-pen", 12)}<span>Sửa</span></button>
-          <button type="button" class="button quiet small" data-action="open-obsidian" data-path="${esc(notePath)}" title="Mở trong Obsidian">${icon("arrow-up-right", 12)}<span>Obsidian</span></button>
-        </div>
-      </section>
-
-      <section class="kb-inspector-section">
-        <div class="kb-section-head">
-          <small class="kb-section-label">Liên kết hai chiều</small>
-          <span class="kb-section-badge">${directLinks.length}</span>
-        </div>
-        ${directLinks.length
-          ? `<ul class="neural-connection-list">${directLinks.map(({ node, direction, label }) => `<li><button type="button" data-action="vault-select-graph-node" data-path="${esc(node.path)}" title="${esc(node.path)}">${icon("file", 13)}<strong>${esc(node.title || node.name)}</strong><small>${direction === "out" ? "→ Đi" : "← Đến"}</small></button></li>`).join("")}</ul>`
-          : `<p class="neural-muted">Chưa có liên kết <code>[[WikiLink]]</code> trực tiếp.</p>`}
-      </section>
-
-      ${relatedLinks.length ? `<section class="kb-inspector-section">
-        <div class="kb-section-head">
-          <small class="kb-section-label">Liên quan (Thẻ & Thư mục)</small>
-          <span class="kb-section-badge">${relatedLinks.length}</span>
-        </div>
-        <ul class="neural-connection-list">${relatedLinks.map(({ node, label }) => `<li><button type="button" data-action="vault-select-graph-node" data-path="${esc(node.path)}" title="${esc(node.path)}">${icon("file", 13)}<strong>${esc(node.title || node.name)}</strong><small>${esc(label)}</small></button></li>`).join("")}</ul>
-      </section>` : ""}
-
-      ${noteTags.length ? `<section class="kb-inspector-section">
-        <small class="kb-section-label">Thẻ ghi chú (#tags)</small>
-        <div class="neural-tag-list">${noteTags.map((t) => `<button type="button" class="kb-tag-chip" data-action="vault-filter-tag" data-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div>
-      </section>` : ""}
-
-      ${mode === "files" ? `
-        <section class="kb-inspector-section">
-          <div class="kb-section-head">
-            <small class="kb-section-label">Mục lục (Outline)</small>
-            <span class="kb-section-badge">${outline.length}</span>
-          </div>
-          ${outline.length
-            ? `<ul class="kb-outline-list">${outline.map((item) => `<li><button type="button" class="kb-outline-item level-${item.level}" data-action="vault-scroll-heading" data-heading-index="${item.index}">${esc(item.text)}</button></li>`).join("")}</ul>`
-            : `<p class="neural-muted">Thêm tiêu đề <code># H1</code>, <code>## H2</code> để tạo mục lục tự động.</p>`}
-        </section>
-        <section class="kb-inspector-section kb-meta-footer">
-          <small class="kb-section-label">Thông tin tệp</small>
-          <div class="kb-stat-row"><span>Số từ</span><strong>${formatNumber(wordCount)} từ · ${formatNumber(lineCount)} dòng</strong></div>
-          ${activeFile ? `<div class="kb-stat-row"><span>Dung lượng</span><strong>${formatNumber(activeFile.size)} B · ${fmtDate(activeFile.modifiedAt)}</strong></div>` : ""}
-        </section>
-      ` : `
-        <section class="kb-inspector-section kb-preview-section">
-          <small class="kb-section-label">Xem trước nội dung</small>
-          <div class="kb-mini-markdown markdown-preview">${activeFile?.content ? renderKnowledgeMarkdown(activeFile.content) : `<p class="neural-muted">${esc(selectedNode?.excerpt || "Tệp Markdown đang trống.")}</p>`}</div>
-        </section>
-      `}
+        </header>
+        <pre><code>${esc(preview.content || "")}</code></pre>
+      </section>` : ""}`;
+    } else {
+      bodyHtml = `<div class="orca-dock-empty"><p>Chưa có dự án nào được chọn.</p><button type="button" class="button primary small" data-action="add-workspace">${icon("plus", 12)}<span>Thêm dự án</span></button></div>`;
+    }
+  } else if (tab === "search") {
+    let resultsHtml = "";
+    if (page === "knowledge") {
+      const nodes = view.vaultGraph?.nodes || [];
+      const matches = nodes.filter((n) => !filter || `${n.path} ${n.title || ""} ${(n.tags || []).join(" ")}`.toLowerCase().includes(filter)).slice(0, 80);
+      resultsHtml = matches.length
+        ? matches.map((n) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="vault-select-graph-node" data-path="${esc(n.path)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(n.title || n.name)}</span></button></li>`).join("")
+        : `<li class="orca-dock-empty">Không có ghi chú khớp từ khóa.</li>`;
+    } else if (page === "skills") {
+      const matches = (view.skills || []).filter((s) => !filter || `${s.name} ${s.description}`.toLowerCase().includes(filter)).slice(0, 80);
+      resultsHtml = matches.length
+        ? matches.map((s) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="select-skill" data-id="${esc(s.id)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(s.name)}</span></button></li>`).join("")
+        : `<li class="orca-dock-empty">Không có kỹ năng phù hợp.</li>`;
+    } else {
+      const allFiles = (activeWs && view.workspaceFileIndex?.[activeWs.id]) || [];
+      const matches = allFiles.filter((f) => !filter || f.toLowerCase().includes(filter)).slice(0, 100);
+      const fileAction = page === "workspaces" ? "dock-open-workspace-file" : "preview-drawer-file";
+      resultsHtml = matches.length
+        ? matches.map((f) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="${fileAction}" data-workspace-id="${esc(activeWs?.id || "")}" data-path="${esc(f)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(f)}</span></button>${page === "chat" ? `<button type="button" class="orca-tree-quick" data-action="mention-drawer-file" data-path="${esc(f)}" title="Chèn @${esc(f)}">@</button>` : ""}</li>`).join("")
+        : `<li class="orca-dock-empty">Không tìm thấy tệp phù hợp.</li>`;
+    }
+    bodyHtml = `<div class="orca-dock-search-wrap">
+      <label class="orca-dock-search">
+        ${icon("search", 13)}
+        <input type="search" data-chat-drawer-filter value="${esc(view.chatDrawerFilter || "")}" placeholder="Tìm nhanh tên tệp, ghi chú, #tag…" autocomplete="off">
+      </label>
     </div>
-  </aside>`;
+    <ul class="orca-tree-list">${resultsHtml}</ul>`;
+  } else if (tab === "git") {
+    if (page === "knowledge") {
+      const graph = view.vaultGraph || { nodes: [], edges: [] };
+      const activeFile = view.vaultPreview;
+      const selectedNode = (graph.nodes || []).find((n) => n.path === activeFile?.path) || null;
+      const connectedEdges = selectedNode ? (graph.edges || []).filter((e) => e.source === selectedNode.id || e.target === selectedNode.id) : [];
+      const connectedNodes = selectedNode
+        ? connectedEdges.map((e) => {
+            const isOut = e.source === selectedNode.id;
+            const otherId = isOut ? e.target : e.source;
+            const node = (graph.nodes || []).find((n) => n.id === otherId);
+            return node ? { node, kind: e.kind, direction: isOut ? "out" : "in" } : null;
+          }).filter(Boolean)
+        : [];
+      const allTags = [...new Set((graph.nodes || []).flatMap((n) => n.tags || []))].slice(0, 20);
+      bodyHtml = `<div class="orca-dock-pad">
+        <div class="orca-section-label">LIÊN KẾT HAI CHIỀU (${connectedNodes.length})</div>
+        ${connectedNodes.length
+          ? `<ul class="orca-tree-list">${connectedNodes.map(({ node, direction }) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-action="vault-select-graph-node" data-path="${esc(node.path)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(node.title || node.name)}</span><small class="orca-tree-badge">${direction === "out" ? "→" : "←"}</small></button></li>`).join("")}</ul>`
+          : `<p class="orca-muted-note">Chưa có liên kết <code>[[WikiLink]]</code> cho ghi chú này.</p>`}
+        ${allTags.length ? `<div class="orca-section-label" style="margin-top:14px">THẺ CHỦ ĐỀ (#TAGS)</div>
+        <div class="neural-tag-list">${allTags.map((t) => `<button type="button" class="kb-tag-chip" data-action="vault-filter-tag" data-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
+      </div>`;
+    } else {
+      const artifacts = selectedTask?.artifacts || [];
+      const canMergeWt = Boolean(selectedTask?.isolated && !["running", "queued"].includes(selectedTask.status) && !selectedTask.worktreeCleaned && !selectedTask.worktreeAppliedAt && artifacts.length > 0);
+      const isolatedTasks = (view.state?.tasks || []).filter((t) => t.workspaceId === activeWs?.id && t.isolated && !t.worktreeCleaned && !t.archived);
+      bodyHtml = `<div class="orca-dock-pad">
+        ${canMergeWt ? `<button type="button" class="button primary small orca-merge-btn" data-action="apply-worktree" data-id="${esc(selectedTask.id)}">${icon("git-branch", 13)}<span>Gộp Worktree vào dự án</span></button>` : ""}
+        <div class="orca-section-label">CHANGES (${artifacts.length})</div>
+        ${artifacts.length
+          ? `<ul class="orca-tree-list">${artifacts.map((filePath) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-action="open-diff-file" data-id="${esc(selectedTask.id)}" data-path="${esc(filePath)}" title="${esc(filePath)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(filePath)}</span><small class="orca-diff-dot">M</small></button></li>`).join("")}</ul>`
+          : `<p class="orca-muted-note">${selectedTask ? "Chưa có tệp thay đổi nào trong phiên này." : "Chọn một cuộc trò chuyện để xem danh sách tệp thay đổi (Changes)."}</p>`}
+        ${isolatedTasks.length ? `<div class="orca-section-label" style="margin-top:14px">WORKTREE CÔ LẬP (${isolatedTasks.length})</div>
+        <ul class="orca-tree-list">${isolatedTasks.slice(0, 10).map((t) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-task="${esc(t.id)}"><span class="orca-tree-icon">${icon("git-branch", 14)}</span><span class="orca-tree-label">${esc(t.title)}</span><small class="orca-tree-badge">${(t.artifacts || []).length}</small></button></li>`).join("")}</ul>` : ""}
+      </div>`;
+    }
+  } else if (tab === "tasks") {
+    if (page === "knowledge" && view.vaultPreview?.content) {
+      const outline = extractMarkdownOutline(view.vaultPreview.content);
+      bodyHtml = `<div class="orca-dock-pad">
+        <div class="orca-section-label">MỤC LỤC GHI CHÚ (${outline.length})</div>
+        ${outline.length
+          ? `<ul class="orca-tree-list">${outline.map((item) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:${8 + (item.level - 1) * 10}px" data-action="vault-scroll-heading" data-heading-index="${item.index}"><span class="orca-tree-label">${esc(item.text)}</span></button></li>`).join("")}</ul>`
+          : `<p class="orca-muted-note">Thêm tiêu đề <code># H1</code>, <code>## H2</code> để tạo mục lục tự động.</p>`}
+      </div>`;
+    } else if (selectedTask) {
+      const checklist = selectedTask.goalChecklist || [];
+      bodyHtml = `<div class="orca-dock-pad">
+        <div class="orca-section-head">
+          <span class="orca-section-label">MỤC TIÊU & CHECKLIST (${checklist.length})</span>
+          <button type="button" class="icon-button" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}" title="Sửa mục tiêu">${icon("square-pen", 13)}</button>
+        </div>
+        ${selectedTask.goal ? `<p class="orca-goal-text">${esc(selectedTask.goal)}</p>` : ""}
+        ${checklist.length
+          ? `<ul class="orca-checklist">${checklist.map((item) => `<li><label><input type="checkbox" data-action="toggle-goal-item" data-id="${esc(selectedTask.id)}" data-goal-id="${esc(item.id)}" ${item.done ? "checked" : ""}><span class="${item.done ? "is-done" : ""}">${esc(item.text)}</span></label></li>`).join("")}</ul>`
+          : `<p class="orca-muted-note">Chưa có checklist nghiệm thu.</p><button type="button" class="button quiet small" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}">${icon("plus", 12)}<span>Thêm checklist</span></button>`}
+      </div>`;
+    } else {
+      const activeTasks = (view.state?.tasks || []).filter((t) => !t.archived).slice(0, 12);
+      bodyHtml = `<div class="orca-dock-pad">
+        <div class="orca-section-label">TÁC VỤ GẦN ĐÂY (${activeTasks.length})</div>
+        ${activeTasks.length
+          ? `<ul class="orca-tree-list">${activeTasks.map((t) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-task="${esc(t.id)}"><span class="wb-task-dot is-${t.status || "done"}"></span><span class="orca-tree-label">${esc(t.title)}</span></button></li>`).join("")}</ul>`
+          : `<p class="orca-muted-note">Chưa có tác vụ nào.</p>`}
+      </div>`;
+    }
+  }
+
+  return `<div class="orca-dock-resizer" data-right-dock-resizer title="Kéo để thay đổi độ rộng thanh bên phải"></div>
+  <header class="orca-dock-topbar">
+    <div class="orca-dock-tabs" role="tablist" aria-label="Công cụ thanh bên phải">
+      <button type="button" class="orca-dock-tab ${tab === "files" ? "is-active" : ""}" data-action="right-dock-tab" data-tab="files" title="Cây thư mục & Tệp">${icon("files", 16)}</button>
+      <button type="button" class="orca-dock-tab ${tab === "search" ? "is-active" : ""}" data-action="right-dock-tab" data-tab="search" title="Tìm kiếm nhanh">${icon("search", 16)}</button>
+      <button type="button" class="orca-dock-tab ${tab === "git" ? "is-active" : ""}" data-action="right-dock-tab" data-tab="git" title="${page === "knowledge" ? "Liên kết hai chiều & Thẻ" : "Source Control & Changes"}">${icon("git-branch", 16)}</button>
+      <button type="button" class="orca-dock-tab ${tab === "tasks" ? "is-active" : ""}" data-action="right-dock-tab" data-tab="tasks" title="${page === "knowledge" ? "Mục lục (Outline)" : "Checklist & Tác vụ"}">${icon("list-checks", 16)}</button>
+    </div>
+    <button type="button" class="icon-button orca-dock-toggle" data-action="toggle-chat-drawer" title="Đóng thanh bên phải">${icon("sidebar-right", 16)}</button>
+  </header>
+  <div class="orca-dock-subheader">
+    <strong class="orca-dock-title" title="${esc(subTooltip || subTitle)}">${esc(subTitle)}</strong>
+    <div class="orca-dock-subactions">
+      <button type="button" class="icon-button orca-sub-btn" data-action="${refreshAction}" title="Làm mới">${icon("refresh-cw", 14)}</button>
+      ${moreMenuHtml}
+    </div>
+  </div>
+  <div class="orca-dock-body">
+    ${bodyHtml}
+  </div>`;
+}
+
+function projectDetailPage(workspace) {
+  const activeFile = view.filePreview || null;
+  const wsTasks = (view.state.tasks || []).filter((t) => t.workspaceId === workspace.id && !t.archived);
+  const gitBranch = workspace.runtime?.isGit ? (workspace.runtime.branch || "HEAD") : "Chưa khởi tạo Git";
+  if (!view.workspaceFileIndex?.[workspace.id]) {
+    void ensureWorkspaceFileIndex(workspace.id).then(() => render());
+  }
+
+  const centerBodyHtml = activeFile ? `<div class="kb-doc-scroll">
+    <div class="kb-doc-container">
+      <div class="kb-doc-context-bar">
+        <span class="kb-tag-chip">${esc(activeFile.path)}</span>
+        <span class="kb-tag-chip">${formatNumber(activeFile.size)} B · ${fmtDate(activeFile.modifiedAt)}</span>
+        <button type="button" class="kb-tag-chip" data-action="close-workspace-preview">Đóng xem tệp</button>
+      </div>
+      ${[".md", ".mdx", ".markdown"].includes(activeFile.extension)
+        ? `<article class="markdown-preview kb-markdown-doc">${renderMarkdown(activeFile.content)}</article>`
+        : `<pre class="code-preview"><code>${esc(activeFile.content)}</code></pre>`}
+    </div>
+  </div>` : `<div class="kb-doc-scroll">
+    <div class="kb-doc-container">
+      <section class="minimal-stage-hero">
+        <div class="minimal-stage-title">
+          <span class="minimal-stage-icon">${icon("folder-code", 20)}</span>
+          <div>
+            <h1>${esc(workspace.name)}</h1>
+            <p>${esc(workspace.path)} · Nhánh <code>${esc(gitBranch)}</code></p>
+          </div>
+        </div>
+        <div class="minimal-stage-actions">
+          <button type="button" class="button primary small" data-action="new-chat" data-workspace-id="${esc(workspace.id)}">${icon("square-pen", 13)}<span>Chat mới</span></button>
+          <button type="button" class="button quiet small" data-action="open-project-folder" data-id="${esc(workspace.id)}">${icon("folder-open", 13)}<span>Mở Explorer</span></button>
+          <button type="button" class="button quiet small" data-action="edit-project" data-id="${esc(workspace.id)}">${icon("settings-2", 13)}<span>Cấu hình</span></button>
+        </div>
+      </section>
+      ${wsTasks.length ? `<section class="minimal-section">
+        <header class="minimal-section-head"><strong>Phiên làm việc trong dự án (${wsTasks.length})</strong></header>
+        <div class="minimal-list">
+          ${wsTasks.slice(0, 12).map((t) => `<button type="button" class="minimal-list-row" data-task="${esc(t.id)}">
+            <span class="wb-task-dot is-${t.status || "done"}"></span>
+            <strong>${esc(t.title)}</strong>
+            <small>${esc(statuses[t.status] || t.status)} · ${fmtDate(t.updatedAt)}</small>
+          </button>`).join("")}
+        </div>
+      </section>` : `<section class="empty-state"><strong>Chọn tệp ở thanh bên phải để đọc mã nguồn</strong><p>Cây thư mục dự án, tìm kiếm tệp và quản lý nhánh Git Worktree nằm gọn trong thanh công cụ bên phải.</p></section>`}
+    </div>
+  </div>`;
+
+  return `<section class="minimal-center-stage" aria-label="Không gian Dự án">
+    ${centerBodyHtml}
+  </section>`;
 }
 
 function knowledgePage() {
@@ -976,63 +1290,13 @@ function knowledgePage() {
   if (!vaultPath) return `<div class="page-head"><div><div class="eyebrow">OBSIDIAN · LOCAL VAULT</div><h1>Tri thức</h1><p>Kết nối vault để duyệt, chỉnh sửa ghi chú Markdown và xem đồ thị liên kết tri thức trực tiếp trên máy.</p></div></div><section class="empty-state knowledge-empty"><strong>Chưa kết nối Obsidian vault</strong><p>OpenSybau chỉ đọc/ghi thư mục bạn chỉ định; nội dung không được đưa vào prompt tự động.</p><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></section>`;
 
   const mode = view.vaultViewMode || "files";
-  const leftOpen = view.vaultLeftOpen !== false;
-  const rightOpen = view.vaultRightOpen !== false;
   const vaultName = vaultPath.split(/[\\/]/).filter(Boolean).at(-1) || "Obsidian Vault";
   const graph = view.vaultGraph || { nodes: [], edges: [] };
   const nodes = graph.nodes || [];
-  const edges = graph.edges || [];
   const activeFile = view.vaultPreview || null;
   const selectedPath = activeFile?.path || "";
   const selectedNode = nodes.find((n) => n.path === selectedPath) || null;
-  const connectedEdges = selectedNode ? edges.filter((e) => e.source === selectedNode.id || e.target === selectedNode.id) : [];
-  const connectedNodes = selectedNode
-    ? connectedEdges.map((e) => {
-        const isOut = e.source === selectedNode.id;
-        const otherId = isOut ? e.target : e.source;
-        const node = nodes.find((n) => n.id === otherId);
-        return node ? { node, kind: e.kind, label: e.label, direction: isOut ? "out" : "in" } : null;
-      }).filter(Boolean)
-    : [];
   const isEditing = Boolean(mode === "files" && activeFile && view.vaultEditing && view.vaultEditingPath === activeFile.path);
-
-  const leftSidebarHtml = leftOpen ? `<aside class="kb-sidebar-left file-browser" aria-label="Cây ghi chú Vault">
-    <header class="kb-pane-head">
-      <div class="kb-vault-brand" title="${esc(vaultPath)}">
-        <span class="kb-vault-icon">${icon("book-open-text", 14)}</span>
-        <div class="kb-vault-meta">
-          <strong>${esc(vaultName)}</strong>
-          <small>${nodes.length} ghi chú · ${edges.length} liên kết</small>
-        </div>
-      </div>
-      <div class="kb-pane-actions">
-        <button type="button" class="icon-button" data-action="vault-new-note" title="Tạo ghi chú mới">${icon("plus", 14)}</button>
-        <button type="button" class="icon-button" data-action="refresh-vault-files" title="Làm mới dữ liệu Vault">${icon("refresh-cw", 14)}</button>
-        <details class="codex-pop-menu is-right is-down vault-head-menu">
-          <summary class="icon-button vault-more-btn" aria-label="Tùy chọn Vault" title="Tùy chọn Vault">${icon("ellipsis", 15)}</summary>
-          <div class="codex-pop-card vault-action-pop">
-            <button type="button" class="codex-pop-item" data-action="open-obsidian" data-path="${esc(selectedPath)}"><span class="codex-pop-item-main">${icon("arrow-up-right", 14)}<span>Mở trong Obsidian</span></span></button>
-            <button type="button" class="codex-pop-item" data-action="refresh-vault-files"><span class="codex-pop-item-main">${icon("refresh-cw", 14)}<span>Làm mới dữ liệu</span></span></button>
-            <button type="button" class="codex-pop-item" data-action="connect-vault"><span class="codex-pop-item-main">${icon("folder-open", 14)}<span>Đổi thư mục Vault…</span></span></button>
-            <div class="codex-pop-sep"></div>
-            <button type="button" class="codex-pop-item is-danger" data-action="disconnect-vault"><span class="codex-pop-item-main">${icon("x", 14)}<span>Ngắt kết nối Vault</span></span></button>
-          </div>
-        </details>
-      </div>
-    </header>
-    <label class="skill-search kb-search">
-      <span>${icon("search", 13)}</span>
-      <input type="search" data-file-filter="vault" value="${esc(view.vaultFilter || "")}" placeholder="Tìm ghi chú hoặc #tag…" autocomplete="off">
-    </label>
-    <nav class="file-breadcrumbs kb-breadcrumbs">${breadcrumbButtons(view.vaultDir, "vault-dir")}</nav>
-    <ul class="file-list kb-file-list">
-      ${view.vaultDir ? `<li><button class="file-row parent" data-action="vault-up"><span>${icon("chevron-right", 14)}</span><strong>Thư mục cha</strong></button></li>` : ""}
-      ${localFileRows(view.vaultEntries, "vault-file-action", view.vaultFilter || "")}
-    </ul>
-    <footer class="kb-sidebar-foot">
-      <button type="button" class="button quiet small kb-new-note-wide" data-action="vault-new-note">${icon("plus", 13)}<span>Ghi chú Markdown mới</span></button>
-    </footer>
-  </aside>` : "";
 
   let centerBodyHtml = "";
   if (mode === "graph") {
@@ -1065,13 +1329,9 @@ function knowledgePage() {
   } else if (activeFile) {
     const markdown = [".md", ".mdx", ".markdown"].includes(activeFile.extension);
     const noteTags = selectedNode?.tags || [];
-    const docMetaStrip = (noteTags.length || connectedNodes.length) ? `<div class="kb-doc-context-bar">
-      ${noteTags.map((t) => `<button type="button" class="kb-tag-chip" data-action="vault-filter-tag" data-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}
-      ${connectedNodes.length ? `<button type="button" class="kb-link-summary-chip" data-action="vault-mode" data-mode="graph" title="Xem mạng liên kết của ghi chú này trên đồ thị">${icon("waypoints", 12)}<span>${connectedNodes.length} liên kết nơ-ron</span></button>` : ""}
-    </div>` : "";
     centerBodyHtml = `<div class="kb-doc-scroll" id="kb-doc-scroll">
       <div class="kb-doc-container">
-        ${docMetaStrip}
+        ${noteTags.length ? `<div class="kb-doc-context-bar">${noteTags.map((t) => `<button type="button" class="kb-tag-chip" data-action="vault-filter-tag" data-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
         ${markdown
           ? `<article class="markdown-preview kb-markdown-doc">${renderKnowledgeMarkdown(activeFile.content)}</article>`
           : `<pre class="code-preview"><code>${esc(activeFile.content)}</code></pre>`}
@@ -1080,8 +1340,8 @@ function knowledgePage() {
   } else {
     centerBodyHtml = `<div class="file-preview-empty kb-empty-stage">
       ${icon("book-open-text", 20)}
-      <strong>Chọn một ghi chú từ thanh bên trái</strong>
-      <p>Duyệt tệp Markdown, tạo liên kết hai chiều <code>[[WikiLink]]</code> hoặc chuyển sang chế độ Đồ thị nơ-ron.</p>
+      <strong>Chọn ghi chú từ thanh bên phải</strong>
+      <p>Duyệt cây thư mục ghi chú, tìm kiếm <code>[[WikiLink]]</code> ở thanh bên phải hoặc xem mạng đồ thị nơ-ron.</p>
       <div class="file-preview-empty-actions">
         <button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)} Ghi chú mới</button>
         <button type="button" class="button quiet small" data-action="vault-mode" data-mode="graph">${icon("waypoints", 13)} Xem đồ thị</button>
@@ -1089,51 +1349,126 @@ function knowledgePage() {
     </div>`;
   }
 
-  return `<section class="knowledge-orca-shell ${leftOpen ? "has-left-pane" : "is-left-collapsed"} ${rightOpen ? "has-right-pane" : "is-right-collapsed"}" aria-label="Không gian Tri thức">
-    ${leftSidebarHtml}
-    <section class="kb-stage-center">
-      <header class="kb-stage-topbar">
-        <div class="kb-topbar-left">
-          <button type="button" class="icon-button kb-pane-toggle ${leftOpen ? "is-active" : ""}" data-action="toggle-vault-left" title="${leftOpen ? "Ẩn thanh ghi chú bên trái" : "Hiện thanh ghi chú bên trái"}">${icon("sidebar-left", 15)}</button>
-          <div class="kb-active-doc-info">
-            <strong>${esc(activeFile ? activeFile.name : vaultName)}</strong>
-            <small>${activeFile ? `${esc(activeFile.path)} · ${formatNumber(activeFile.size)} B · ${fmtDate(activeFile.modifiedAt)}` : esc(vaultPath)}</small>
-          </div>
+  return `<section class="minimal-center-stage" aria-label="Không gian Tri thức">
+    <header class="kb-stage-topbar">
+      <div class="kb-topbar-left">
+        <div class="kb-active-doc-info">
+          <strong>${esc(activeFile ? activeFile.name : vaultName)}</strong>
+          <small>${activeFile ? `${esc(activeFile.path)} · ${formatNumber(activeFile.size)} B` : `${nodes.length} ghi chú trong Vault`}</small>
         </div>
-        <div class="kb-topbar-right">
-          <div class="vault-mode-tabs" role="tablist" aria-label="Chế độ xem Tri thức">
-            <button type="button" class="vault-mode-tab ${mode === "files" ? "is-active" : ""}" data-action="vault-mode" data-mode="files">${icon("book-open-text", 13)}<span>Ghi chú</span></button>
-            <button type="button" class="vault-mode-tab ${mode === "graph" ? "is-active" : ""}" data-action="vault-mode" data-mode="graph">${icon("waypoints", 13)}<span>Đồ thị${nodes.length ? ` (${nodes.length})` : ""}</span></button>
-          </div>
-          ${isEditing && activeFile ? `
-            <button type="button" class="button quiet small" data-action="vault-cancel-edit">Hủy</button>
-            <button type="button" class="button primary small" data-action="vault-save-note" data-path="${esc(activeFile.path)}">${icon("check", 13)}<span>Lưu</span></button>
-          ` : activeFile ? `
-            <button type="button" class="button quiet small" data-action="vault-edit-note" data-path="${esc(activeFile.path)}" title="Chỉnh sửa ghi chú này">${icon("square-pen", 13)}<span>Sửa</span></button>
-            ${vaultNoteOptionsMenu(activeFile.path, { showRead: mode === "graph", showGraph: mode === "files", direction: "down" })}
-          ` : `<button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)}<span>Ghi chú mới</span></button>`}
-          <button type="button" class="button quiet small kb-inspector-toggle ${rightOpen ? "is-active" : ""}" data-action="toggle-vault-right" title="${rightOpen ? "Ẩn thanh bên Liên kết & Ngữ cảnh" : "Mở thanh bên Liên kết & Ngữ cảnh"}">
-            ${icon("waypoints", 13)}
-            <span>Liên kết${connectedNodes.length ? ` (${connectedNodes.length})` : ""}</span>
-          </button>
-        </div>
-      </header>
-      <div class="kb-stage-body">
-        ${centerBodyHtml}
       </div>
-    </section>
-    ${rightOpen ? knowledgeRightInspectorMarkup(mode, selectedNode, connectedNodes, activeFile) : ""}
+      <div class="kb-topbar-right">
+        <div class="vault-mode-tabs" role="tablist" aria-label="Chế độ xem Tri thức">
+          <button type="button" class="vault-mode-tab ${mode === "files" ? "is-active" : ""}" data-action="vault-mode" data-mode="files">${icon("book-open-text", 13)}<span>Ghi chú</span></button>
+          <button type="button" class="vault-mode-tab ${mode === "graph" ? "is-active" : ""}" data-action="vault-mode" data-mode="graph">${icon("waypoints", 13)}<span>Đồ thị${nodes.length ? ` (${nodes.length})` : ""}</span></button>
+        </div>
+        ${isEditing && activeFile ? `
+          <button type="button" class="button quiet small" data-action="vault-cancel-edit">Hủy</button>
+          <button type="button" class="button primary small" data-action="vault-save-note" data-path="${esc(activeFile.path)}">${icon("check", 13)}<span>Lưu</span></button>
+        ` : activeFile ? `
+          <button type="button" class="button quiet small" data-action="vault-edit-note" data-path="${esc(activeFile.path)}">${icon("square-pen", 13)}<span>Sửa</span></button>
+          ${vaultNoteOptionsMenu(activeFile.path, { showRead: mode === "graph", showGraph: mode === "files", direction: "down" })}
+        ` : `<button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)}<span>Ghi chú mới</span></button>`}
+      </div>
+    </header>
+    <div class="kb-stage-body">
+      ${centerBodyHtml}
+    </div>
   </section>`;
 }
+
+async function ensureSkillDetail(id) {
+  if (!id) return null;
+  view.skillDetailsCache ||= {};
+  if (view.skillDetailsCache[id]) return view.skillDetailsCache[id];
+  if (view.skillLoadingId === id) return null;
+  view.skillLoadingId = id;
+  try {
+    const { skill } = await api(`/api/skills/${encodeURIComponent(id)}`);
+    if (skill) {
+      view.skillDetailsCache[id] = skill;
+      if (view.page === "skills") render();
+    }
+    return skill;
+  } catch {
+    return null;
+  } finally {
+    if (view.skillLoadingId === id) view.skillLoadingId = "";
+  }
+}
+
 function skillPage() {
-  const sources = new Set(view.skills.flatMap((skill) => skill.sources || [skill.source])).size;
-  const entries = view.skills.map((skill) => {
-    const source = (skill.sources || [skill.source]).join(" · ");
-    const search = `${skill.id} ${skill.name} ${skill.description} ${source} ${(skill.providers || []).join(" ")}`.toLocaleLowerCase();
-    const action = skill.editable ? `<button class="button quiet small" data-action="edit-skill" data-id="${skill.id}">Sửa</button><button class="button danger small" data-action="delete-skill" data-id="${skill.id}">Xóa</button>` : `<button class="button quiet small" data-action="copy-skill" data-id="${skill.id}">Sao chép để sửa</button>`;
-    return `<article class="skill-manager-row" data-skill-entry data-skill-search="${esc(search)}"><div class="skill-manager-main"><strong>${esc(skill.name)}</strong><p title="${esc(skill.description)}">${esc(skill.description)}</p><small>${esc(source)} · ${skill.editable ? "Có thể chỉnh sửa" : "Chỉ đọc từ plugin/CLI"}</small></div><div class="skill-manager-actions"><button class="button small" data-action="view-skill" data-id="${skill.id}">Xem</button>${action}</div></article>`;
-  }).join("");
-  return `<div class="page-head"><div><div class="eyebrow">SKILL LIBRARY · LOCAL</div><h1>Kỹ năng</h1><p>Quản lý skill OpenSybau cho agent API/CLI và skill cài riêng cho từng CLI.</p></div><button class="button primary" data-action="new-skill">${icon("plus", 15)} Tạo skill</button></div><section class="settings-card skill-manager"><header><div><h2>${view.skills.length} skill · ${sources} nguồn</h2><p>Skill cá nhân cho phép sửa/xóa. Skill plugin và tích hợp sẵn có thể sao chép thành bản cá nhân.</p></div><button class="button" data-action="scan-skills">${icon("refresh-cw", 14)} Quét lại</button></header><label class="skill-search"><span>${icon("search", 15)}</span><input type="search" data-skill-filter="library" value="${esc(view.skillFilter)}" placeholder="Tìm theo tên, mô tả, ID, Codex, Claude hoặc Antigravity…" autocomplete="off"><small data-skill-result-count>${view.skills.length} skill</small></label><div class="skill-manager-list">${entries || `<p class="settings-empty">Chưa tìm thấy skill. Tạo skill OpenSybau hoặc cài skill cá nhân cho một CLI.</p>`}</div><p class="skill-filter-empty" hidden>Không tìm thấy skill khớp nội dung tìm kiếm.</p></section>`;
+  const allSkills = view.skills || [];
+  const activeSkillSummary = allSkills.find((s) => s.id === view.selectedSkillId) || allSkills[0] || null;
+  if (activeSkillSummary && view.selectedSkillId !== activeSkillSummary.id) {
+    view.selectedSkillId = activeSkillSummary.id;
+  }
+  const activeDetail = activeSkillSummary ? (view.skillDetailsCache?.[activeSkillSummary.id] || null) : null;
+  if (activeSkillSummary && !activeDetail) {
+    void ensureSkillDetail(activeSkillSummary.id);
+  }
+  const activeSkill = activeDetail || activeSkillSummary;
+  const isEditing = Boolean(activeSkill?.editable && view.skillEditing && view.skillEditingId === activeSkill.id);
+
+  let centerBodyHtml = "";
+  if (isEditing && activeSkill) {
+    centerBodyHtml = `<div class="vault-editor-wrap kb-editor-wrap">
+      <textarea class="vault-editor-textarea" data-skill-inline-editor spellcheck="false" placeholder="Nội dung SKILL.md…">${esc(view.skillDraft ?? activeDetail?.content ?? "")}</textarea>
+      <div class="vault-editor-foot">
+        <small>Chỉnh sửa trực tiếp <code>SKILL.md</code> cục bộ của skill <strong>${esc(activeSkill.name)}</strong>.</small>
+        <div class="kb-editor-foot-actions">
+          <button type="button" class="button quiet small" data-action="cancel-inline-skill-edit">Hủy</button>
+          <button type="button" class="button primary small" data-action="save-inline-skill" data-id="${esc(activeSkill.id)}">${icon("check", 13)}<span>Lưu SKILL.md</span></button>
+        </div>
+      </div>
+    </div>`;
+  } else if (activeSkill) {
+    const rawContent = activeDetail?.content || "";
+    const strippedBody = rawContent.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
+    centerBodyHtml = `<div class="kb-doc-scroll">
+      <div class="kb-doc-container">
+        <div class="kb-doc-context-bar">
+          <span class="kb-tag-chip">${esc((activeSkill.sources || [activeSkill.source]).join(" · "))}</span>
+          <span class="kb-tag-chip">${activeSkill.editable ? "Skill cá nhân · Có thể sửa" : "Plugin / CLI · Chỉ đọc"}</span>
+        </div>
+        <p class="kb-skill-lead">${esc(activeSkill.description || "")}</p>
+        ${rawContent
+          ? `<article class="markdown-preview kb-markdown-doc">${renderMarkdown(strippedBody || rawContent)}</article>`
+          : `<p class="neural-muted">Đang tải nội dung SKILL.md…</p>`}
+      </div>
+    </div>`;
+  } else {
+    centerBodyHtml = `<div class="file-preview-empty kb-empty-stage">
+      ${icon("notebook-tabs", 20)}
+      <strong>Chọn kỹ năng từ thanh bên phải</strong>
+      <p>Duyệt danh sách kỹ năng theo nhóm ở thanh bên phải để đọc hướng dẫn <code>SKILL.md</code> hoặc tạo kỹ năng mới.</p>
+      <button type="button" class="button primary small" data-action="new-skill">${icon("plus", 13)}<span>Tạo skill</span></button>
+    </div>`;
+  }
+
+  return `<section class="minimal-center-stage" aria-label="Không gian Kỹ năng">
+    <header class="kb-stage-topbar">
+      <div class="kb-topbar-left">
+        <div class="kb-active-doc-info">
+          <strong>${esc(activeSkill ? activeSkill.name : "Thư viện Kỹ năng")}</strong>
+          <small>${activeSkill ? esc((activeSkill.sources || [activeSkill.source]).join(" · ")) : `${allSkills.length} skill cục bộ`}</small>
+        </div>
+      </div>
+      <div class="kb-topbar-right">
+        ${activeSkill ? (isEditing
+          ? `<button type="button" class="button quiet small" data-action="cancel-inline-skill-edit">Hủy</button>
+             <button type="button" class="button primary small" data-action="save-inline-skill" data-id="${esc(activeSkill.id)}">${icon("check", 13)}<span>Lưu</span></button>`
+          : activeSkill.editable
+            ? `<button type="button" class="button quiet small" data-action="start-inline-skill-edit" data-id="${esc(activeSkill.id)}">${icon("square-pen", 13)}<span>Sửa</span></button>
+               <button type="button" class="button quiet small" data-action="delete-skill" data-id="${esc(activeSkill.id)}">${icon("delete", 13)}<span>Xóa</span></button>`
+            : `<button type="button" class="button quiet small" data-action="copy-skill" data-id="${esc(activeSkill.id)}">${icon("copy", 13)}<span>Sao chép để sửa</span></button>`) : ""}
+        <button type="button" class="button primary small" data-action="new-skill">${icon("plus", 13)}<span>Tạo skill</span></button>
+      </div>
+    </header>
+    <div class="kb-stage-body">
+      ${centerBodyHtml}
+    </div>
+  </section>`;
 }
 const contentImportExtensions = new Set([
   ".md", ".markdown", ".mdx", ".txt", ".text", ".rst", ".adoc", ".json", ".jsonc", ".yaml", ".yml", ".toml", ".csv", ".tsv", ".xml", ".html", ".htm", ".log", ".diff", ".patch",
@@ -1341,10 +1676,51 @@ function workflowPage() {
   return `<div class="page-head"><div><div class="eyebrow">TASK ORCHESTRATION</div><h1>Luồng</h1><p>Xem sơ đồ từng bước, log hoạt động và đầu ra được ghi nhận cho mỗi cuộc trò chuyện.</p></div><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task</button></div><div class="flow-summary"><div><small>Đang hoạt động</small><strong>${active.length}</strong></div><div><small>Có bản ghi</small><strong>${tasks.length}</strong></div><p>Chọn một luồng để xem chi tiết điều phối và đầu ra từng agent.</p></div>${tasks.length ? `<section class="workflow-board">${tasks.map((task) => `<article class="workflow-card"><header><button data-action="open-task-flow" data-id="${task.id}" class="workflow-task-title"><strong>${esc(task.title)}</strong><small>${esc(view.state.workspaces.find((workspace) => workspace.id === task.workspaceId)?.name || task.workspacePath)} · ${esc(taskProgress(task))}</small></button><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span></header><div class="workflow-lane">${workflowNodes(task)}</div><footer><span>${task.config.workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, task.config.chatProvider)}` : task.config.workflow === "plan-only" ? `${providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider)} · chỉ lập kế hoạch` : workflowSummary(task)}</span><button class="workflow-record-link" data-action="open-task-flow" data-id="${task.id}">${icon("workflow", 14)} Mở bản ghi</button><time>${fmtDate(task.updatedAt)}</time></footer></article>`).join("")}</section>` : `<section class="empty-state workflow-empty"><strong>Chưa có bản ghi luồng</strong><p>Bản ghi điều phối sẽ xuất hiện tại đây khi một cuộc trò chuyện hoặc task được tạo trong workspace.</p><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button></section>`}`;
 }
 function memoryPage() {
-  const notes = view.state.memories;
-  return `<div class="page-head"><div><div class="eyebrow">LOCAL MEMORY</div><h1>Bộ nhớ</h1><p>Ghi chú lưu trong máy này. Task chỉ nhận tối đa ba ghi chú có từ khóa phù hợp.</p></div><button class="button primary" data-action="new-memory">${icon("plus", 15)} Thêm ghi nhớ</button></div>
-  <section class="memory-list">${notes.length ? notes.map((m) => `<article class="memory-card"><div><strong>${esc(m.title)}</strong><small>${m.workspaceId === "all" ? "Dùng chung" : esc(view.state.workspaces.find((w) => w.id === m.workspaceId)?.name || "Workspace đã gỡ")} · ${fmtDate(m.createdAt)}</small></div><p>${esc(m.content)}</p><button class="icon-button" data-action="delete-memory" data-id="${m.id}" title="Xóa ghi nhớ" aria-label="Xóa ghi nhớ">${icon("x", 16)}</button></article>`).join("") : `<div class="empty-state"><div class="empty-symbol">${icon("brain", 18)}</div><strong>Chưa có ghi nhớ lưu</strong><p>Mọi ghi nhớ đều bắt đầu từ nội dung bạn tự lưu. OpenSybau không bịa dữ liệu hoặc tự lấy toàn bộ vault vào prompt.</p><button class="button primary" data-action="new-memory">${icon("plus", 15)} Thêm ghi nhớ</button></div>`}</section>`;
+  const notes = view.state.memories || [];
+  const workspaces = view.state.workspaces || [];
+  const scopeFilter = view.memoryWorkspaceFilter || "all";
+  const filteredNotes = notes.filter((m) => {
+    if (scopeFilter === "all") return true;
+    if (scopeFilter === "global") return m.workspaceId === "all";
+    return m.workspaceId === scopeFilter;
+  });
+
+  return `<section class="minimal-center-stage" aria-label="Không gian Bộ nhớ">
+    <header class="kb-stage-topbar">
+      <div class="kb-topbar-left">
+        <div class="kb-active-doc-info">
+          <strong>Bộ nhớ cục bộ</strong>
+          <small>${filteredNotes.length} ghi nhớ đang hiển thị · Tối đa 3 ghi nhớ được nạp tự động mỗi task</small>
+        </div>
+      </div>
+      <div class="kb-topbar-right">
+        <button type="button" class="button primary small" data-action="new-memory">${icon("plus", 13)}<span>Thêm ghi nhớ</span></button>
+      </div>
+    </header>
+    <div class="kb-stage-body">
+      <div class="kb-doc-scroll">
+        <div class="kb-doc-container">
+          <section class="memory-list">
+            ${filteredNotes.length ? filteredNotes.map((m) => `<article class="memory-card">
+              <div>
+                <strong>${esc(m.title)}</strong>
+                <small>${m.workspaceId === "all" ? "Dùng chung" : esc(workspaces.find((w) => w.id === m.workspaceId)?.name || "Workspace đã gỡ")} · ${fmtDate(m.createdAt)}</small>
+              </div>
+              <p>${esc(m.content)}</p>
+              <button class="icon-button" data-action="delete-memory" data-id="${m.id}" title="Xóa ghi nhớ" aria-label="Xóa ghi nhớ">${icon("x", 16)}</button>
+            </article>`).join("") : `<div class="empty-state">
+              <div class="empty-symbol">${icon("brain", 18)}</div>
+              <strong>Chưa có ghi nhớ lưu trong phạm vi này</strong>
+              <p>Mọi ghi nhớ đều bắt đầu từ nội dung bạn tự lưu. Chọn phạm vi dự án ở thanh bên phải hoặc tạo ghi nhớ mới.</p>
+              <button class="button primary" data-action="new-memory">${icon("plus", 15)} Thêm ghi nhớ</button>
+            </div>`}
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>`;
 }
+
 function settingsPage() {
   const defaults = view.state.settings.defaults || {};
   const canSaveRoles = workflowRoles.every((role) => providersForRole(view.connectors, role.id).length > 0);
@@ -1363,21 +1739,41 @@ function settingsPage() {
     return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${status.tone}">${status.label}</span></strong><small>${esc(detail)}</small></div><div class="cli-guide-actions">${action}</div></article>`;
   }).join("");
   const noReadyConnector = !Object.values(view.connectors || {}).some((connector) => connector?.available && connector.capabilities?.plan);
-  return `<div class="page-head"><div><div class="eyebrow">PREFERENCES & MODELS</div><h1>Cài đặt</h1><p>Chọn model mặc định cho từng vai trò và kết nối nguồn AI dùng chung cho các task.</p></div></div>
-  <form class="settings-form" data-modal data-form="settings">
-    <section class="settings-card"><header><div><h2>Ai ra lệnh, ai thực hiện</h2><p>Chọn model lập kế hoạch (ra lệnh), model triển khai (thực hiện) và model review. Mỗi task vẫn có thể dùng bộ model khác.</p></div></header>
-        ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và review.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API / model local</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI agent</button></div></div>` : ""}
-      <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
-      <div class="form-note">Khi chọn model API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới dịch vụ đó. Model CLI chạy cục bộ theo quyền của CLI.</div>
-      ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Model vẫn chọn theo từng task; hãy khởi động lại server để bật lưu model mặc định và gắn skill.</div>`}
-      <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu định tuyến mặc định</button></footer>
-    </section>
-    <section class="settings-card cli-setup-card" id="cli-setup"><header><div><h2>Agent CLI</h2><p>OpenSybau tự dò Codex, Antigravity và Claude Code trên máy. Nếu CLI đã cài nhưng chưa đăng nhập, mở terminal đăng nhập ngay tại đây.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div><p class="form-note">Terminal được mở trên máy đang chạy OpenSybau. Hoàn tất OAuth hoặc đăng nhập ở đó rồi chọn Quét lại; CLI không cần khai báo API key riêng.</p></section>
-    <section class="settings-card provider-setup-card"><header><div><h2>Nguồn API và model local</h2><p>Kết nối OpenAI/ChatGPT API, Google Gemini API, Claude API, Ollama, LM Studio hoặc endpoint tương thích.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa có API hoặc model local</strong><p>Chọn cấu hình nhanh để nhập API key và model, hoặc kết nối Ollama/LM Studio. Bạn không cần API nếu dùng CLI.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm API hoặc model local</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div><details class="provider-env-help"><summary>Hướng dẫn kết nối cloud và model local</summary><p><strong>OpenAI / ChatGPT API:</strong> chọn cấu hình sẵn, nhập API key OpenAI rồi tải model. <strong>Google Gemini API:</strong> chọn Google Gemini, nhập key Google AI Studio rồi tải model. <strong>Claude API:</strong> chọn Claude API, nhập Anthropic key và model.</p><p><strong>Ollama:</strong> dùng endpoint <code>http://localhost:11434/v1</code> và ID từ <code>ollama list</code>. <strong>LM Studio:</strong> dùng endpoint <code>http://localhost:1234/v1</code>. Thường không cần API key.</p><p>API key được lưu trong thư mục dữ liệu riêng của OpenSybau, không hiển thị lại trong giao diện. Chỉ nhập key qua localhost hoặc HTTPS; provider API không có quyền chạy lệnh trong workspace.</p></details></section>
-    <section class="settings-card concurrency-card"><header><div><h2>Tác vụ chạy đồng thời</h2><p>Giới hạn số task có thể chạy cùng lúc trên các workspace.</p></div></header>
-      <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${view.state.settings.maxConcurrent || 2}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
-    </section>
-  </form>`;
+
+  return `<section class="minimal-center-stage" aria-label="Không gian Cài đặt">
+    <header class="kb-stage-topbar">
+      <div class="kb-topbar-left">
+        <div class="kb-active-doc-info">
+          <strong>Cài đặt & Nguồn AI</strong>
+          <small>Định tuyến model mặc định cho từng vai trò và kết nối CLI / API</small>
+        </div>
+      </div>
+      <div class="kb-topbar-right">
+        ${cliRefreshButton()}
+        <button type="button" class="button primary small" data-action="provider-add">${icon("plus", 13)}<span>Thêm nguồn AI</span></button>
+      </div>
+    </header>
+    <div class="kb-stage-body">
+      <div class="kb-doc-scroll">
+        <div class="kb-doc-container">
+          <form class="settings-form" data-modal data-form="settings">
+            <section class="settings-card" id="settings-roles"><header><div><h2>Ai ra lệnh, ai thực hiện</h2><p>Chọn model lập kế hoạch (ra lệnh), model triển khai (thực hiện) và model review. Mỗi task vẫn có thể dùng bộ model khác.</p></div></header>
+                ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và review.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API / model local</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI agent</button></div></div>` : ""}
+              <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
+              <div class="form-note">Khi chọn model API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới dịch vụ đó. Model CLI chạy cục bộ theo quyền của CLI.</div>
+              ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Model vẫn chọn theo từng task; hãy khởi động lại server để bật lưu model mặc định và gắn skill.</div>`}
+              <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu định tuyến mặc định</button></footer>
+            </section>
+            <section class="settings-card cli-setup-card" id="cli-setup"><header><div><h2>Agent CLI</h2><p>OpenSybau tự dò Codex, Antigravity và Claude Code trên máy. Nếu CLI đã cài nhưng chưa đăng nhập, mở terminal đăng nhập ngay tại đây.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div><p class="form-note">Terminal được mở trên máy đang chạy OpenSybau. Hoàn tất OAuth hoặc đăng nhập ở đó rồi chọn Quét lại; CLI không cần khai báo API key riêng.</p></section>
+            <section class="settings-card provider-setup-card" id="settings-api"><header><div><h2>Nguồn API và model local</h2><p>Kết nối OpenAI/ChatGPT API, Google Gemini API, Claude API, Ollama, LM Studio hoặc endpoint tương thích.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa có API hoặc model local</strong><p>Chọn cấu hình nhanh để nhập API key và model, hoặc kết nối Ollama/LM Studio. Bạn không cần API nếu dùng CLI.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm API hoặc model local</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div><details class="provider-env-help"><summary>Hướng dẫn kết nối cloud và model local</summary><p><strong>OpenAI / ChatGPT API:</strong> chọn cấu hình sẵn, nhập API key OpenAI rồi tải model. <strong>Google Gemini API:</strong> chọn Google Gemini, nhập key Google AI Studio rồi tải model. <strong>Claude API:</strong> chọn Claude API, nhập Anthropic key và model.</p><p><strong>Ollama:</strong> dùng endpoint <code>http://localhost:11434/v1</code> và ID từ <code>ollama list</code>. <strong>LM Studio:</strong> dùng endpoint <code>http://localhost:1234/v1</code>. Thường không cần API key.</p><p>API key được lưu trong thư mục dữ liệu riêng của OpenSybau, không hiển thị lại trong giao diện. Chỉ nhập key qua localhost hoặc HTTPS; provider API không có quyền chạy lệnh trong workspace.</p></details></section>
+            <section class="settings-card concurrency-card" id="settings-concurrency"><header><div><h2>Tác vụ chạy đồng thời</h2><p>Giới hạn số task có thể chạy cùng lúc trên các workspace.</p></div></header>
+              <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${view.state.settings.maxConcurrent || 2}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
+            </section>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>`;
 }
 
 function showApiProviderModal(provider = null) {
@@ -1449,7 +1845,8 @@ function render() {
   const activeComposerName = activeComposerForm ? activeEl.name : "";
   const activeComposerSelection = activeComposerName && typeof activeEl.selectionStart === "number" ? [activeEl.selectionStart, activeEl.selectionEnd] : previousSelection;
   const pageMarkup = (pages[view.page] || taskPage)();
-  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen }, pageMarkup);
+  const rightDockMarkup = view.chatDrawerOpen ? orcaRightDockMarkup() : "";
+  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
   localizeDom(document.querySelector("#overlay"), view.language);
   const nextContent = $("#content");
@@ -1947,14 +2344,13 @@ function taskConversationPage() {
       </button>`);
     }
   }
-  return `<section class="task-conversation-page ${view.chatDrawerOpen ? "has-context-drawer" : ""}" aria-label="Cuộc trò chuyện">
-      <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`} · ${task.permissionPreset === "read-only" ? "Chỉ đọc" : task.permissionPreset === "full-access" ? "Toàn quyền máy" : "Sửa workspace"}</small></div><span class="chat-pane-meta">${queueSummary ? `<span class="chat-queue-summary">${icon("list-checks", 13)}${esc(queueSummary)}</span>` : ""}<button type="button" class="button quiet small ${view.chatDrawerOpen ? "is-active" : ""}" data-action="toggle-chat-drawer" data-id="${task.id}" title="Đóng/mở cây tệp dự án & tệp thay đổi">${icon("folder-open", 13)}<span>Tệp${(task.artifacts || []).length ? ` (${task.artifacts.length})` : ""}</span></button><button type="button" class="button quiet small" data-action="task-permissions" data-id="${task.id}" aria-label="${view.language === "en" ? "Permissions" : "Quyền"}" title="${view.language === "en" ? "Permissions" : "Quyền"}">${icon("shield", 13)}<span>${view.language === "en" ? "Permissions" : "Quyền"}</span></button><button type="button" class="button quiet small chat-goal-button" data-action="edit-task-goal" data-id="${task.id}" aria-label="${view.language === "en" ? "Goal" : "Mục tiêu"}" title="${task.goal ? esc(task.goal) : (view.language === "en" ? "Add a long-term goal" : "Thêm mục tiêu dài hạn")}">${icon("target", 13)}<span>${view.language === "en" ? "Goal" : "Mục tiêu"}</span></button><span class="chat-message-count">${icon("book-open-text", 14)} ${formatNumber(transcript.length)} ${view.language === "en" ? "messages" : "tin nhắn"}</span></span></header>
+  return `<section class="task-conversation-page" aria-label="Cuộc trò chuyện">
+      <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`} · ${task.permissionPreset === "read-only" ? "Chỉ đọc" : task.permissionPreset === "full-access" ? "Toàn quyền máy" : "Sửa workspace"}</small></div><span class="chat-pane-meta">${queueSummary ? `<span class="chat-queue-summary">${icon("list-checks", 13)}${esc(queueSummary)}</span>` : ""}<button type="button" class="button quiet small" data-action="task-permissions" data-id="${task.id}" aria-label="${view.language === "en" ? "Permissions" : "Quyền"}" title="${view.language === "en" ? "Permissions" : "Quyền"}">${icon("shield", 13)}<span>${view.language === "en" ? "Permissions" : "Quyền"}</span></button><button type="button" class="button quiet small chat-goal-button" data-action="edit-task-goal" data-id="${task.id}" aria-label="${view.language === "en" ? "Goal" : "Mục tiêu"}" title="${task.goal ? esc(task.goal) : (view.language === "en" ? "Add a long-term goal" : "Thêm mục tiêu dài hạn")}">${icon("target", 13)}<span>${view.language === "en" ? "Goal" : "Mục tiêu"}</span></button><span class="chat-message-count">${icon("book-open-text", 14)} ${formatNumber(transcript.length)} ${view.language === "en" ? "messages" : "tin nhắn"}</span></span></header>
       ${taskArenaBanner(task)}
       ${taskConversationPipelineStrip(task, busy)}
       <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${taskInlineToolStream(task)}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
       <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button type="button" class="codex-config-gear" data-action="task-instruction" data-id="${task.id}" title="Cấu hình nâng cao">${icon("settings-2", 14)}</button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
     </section>
-    ${chatContextDrawer(task)}
   </section>`;
 }
 function homeAgentCard(name, connector, ready) {
@@ -2945,9 +3341,108 @@ async function handleWorkbenchClick(event) {
       render();
       return;
     }
-    if (action === "chat-drawer-tab") {
+    if (action === "chat-drawer-tab" || action === "right-dock-tab") {
       view.chatDrawerTab = button.dataset.tab || "files";
       render();
+      return;
+    }
+    if (action === "toggle-dock-folder") {
+      const folderPath = button.dataset.folder || "";
+      if (folderPath) {
+        const set = new Set(view.collapsedDockFolders || []);
+        if (set.has(folderPath)) set.delete(folderPath);
+        else set.add(folderPath);
+        view.collapsedDockFolders = [...set];
+        render();
+      }
+      return;
+    }
+    if (action === "toggle-fanout-group") {
+      const fid = button.dataset.fanoutId || id || "";
+      if (fid) {
+        const set = new Set(view.collapsedFanouts || []);
+        if (set.has(fid)) set.delete(fid);
+        else set.add(fid);
+        view.collapsedFanouts = [...set];
+        try { localStorage.setItem("workbench.collapsed-fanouts", JSON.stringify(view.collapsedFanouts)); } catch {}
+        render();
+      }
+      return;
+    }
+    if (action === "dock-open-workspace-file") {
+      const wsId = button.dataset.workspaceId || view.selected || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id;
+      if (wsId && button.dataset.path) {
+        await loadWorkspacePreview(wsId, button.dataset.path);
+      }
+      return;
+    }
+    if (action === "close-workspace-preview") {
+      view.filePreview = null;
+      render();
+      return;
+    }
+    if (action === "refresh-dock-context") {
+      const selectedTask = view.selected ? (view.state?.tasks || []).find((t) => t.id === view.selected) : null;
+      const wsId = (view.page === "workspaces" && view.selected)
+        ? view.selected
+        : selectedTask?.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+      if (wsId) {
+        if (view.workspaceFileIndex) delete view.workspaceFileIndex[wsId];
+        await ensureWorkspaceFileIndex(wsId);
+        render();
+        showToast("Đã làm mới cây thư mục dự án.");
+      }
+      return;
+    }
+    if (action === "select-skill") {
+      view.selectedSkillId = id || "";
+      view.skillEditing = false;
+      view.skillEditingId = "";
+      if (view.selectedSkillId) void ensureSkillDetail(view.selectedSkillId);
+      render();
+      return;
+    }
+    if (action === "start-inline-skill-edit") {
+      const detail = await ensureSkillDetail(id);
+      if (detail) {
+        view.selectedSkillId = id;
+        view.skillEditing = true;
+        view.skillEditingId = id;
+        view.skillDraft = detail.content || "";
+        render();
+      }
+      return;
+    }
+    if (action === "cancel-inline-skill-edit") {
+      view.skillEditing = false;
+      view.skillEditingId = "";
+      view.skillDraft = "";
+      render();
+      return;
+    }
+    if (action === "save-inline-skill") {
+      const editorEl = document.querySelector("[data-skill-inline-editor]");
+      const content = editorEl ? editorEl.value : (view.skillDraft ?? "");
+      if (id && content.trim()) {
+        await api(`/api/skills/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ content }) });
+        if (view.skillDetailsCache) delete view.skillDetailsCache[id];
+        view.skillEditing = false;
+        view.skillEditingId = "";
+        await ensureSkillDetail(id);
+        render();
+        showToast("Đã lưu thay đổi SKILL.md.");
+      }
+      return;
+    }
+    if (action === "memory-scope-filter") {
+      view.memoryWorkspaceFilter = button.dataset.scope || "all";
+      render();
+      return;
+    }
+    if (action === "settings-scroll-section") {
+      const secId = button.dataset.section || "";
+      const secEl = secId ? document.getElementById(secId) : null;
+      secEl?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     if (action === "preview-drawer-file") {
@@ -3537,9 +4032,44 @@ events.addEventListener("reload", () => location.reload());
 events.addEventListener("open", () => { view.streamConnected = true; if (["tasks", "chat"].includes(view.page)) render(); scheduleRefresh(0); });
 events.addEventListener("error", () => { view.streamConnected = false; if (["tasks", "chat"].includes(view.page)) render(); });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) scheduleRefresh(80); });
+
+(() => {
+  try {
+    const savedWidth = Number(localStorage.getItem("opensybau.right-dock-width"));
+    if (savedWidth >= 220 && savedWidth <= 620) {
+      document.documentElement.style.setProperty("--right-dock-width", `${savedWidth}px`);
+    }
+  } catch {}
+
+  let resizingDock = false;
+  document.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest?.("[data-right-dock-resizer]");
+    if (!handle) return;
+    event.preventDefault();
+    resizingDock = true;
+    document.body.classList.add("is-resizing-dock");
+  });
+  window.addEventListener("pointermove", (event) => {
+    if (!resizingDock) return;
+    const nextWidth = Math.max(220, Math.min(620, Math.round(window.innerWidth - event.clientX)));
+    document.documentElement.style.setProperty("--right-dock-width", `${nextWidth}px`);
+  });
+  window.addEventListener("pointerup", () => {
+    if (!resizingDock) return;
+    resizingDock = false;
+    document.body.classList.remove("is-resizing-dock");
+    try {
+      const raw = document.documentElement.style.getPropertyValue("--right-dock-width");
+      const px = parseInt(raw, 10);
+      if (px >= 220 && px <= 620) localStorage.setItem("opensybau.right-dock-width", String(px));
+    } catch {}
+  });
+})();
+
 refresh({ configuration: true });
 setInterval(() => {
   if (document.hidden) return;
   scheduleRefresh(0);
   if (view.page === "settings" && Date.now() - lastConfigurationRefresh > 300_000) void refresh({ configuration: true });
 }, 30_000);
+

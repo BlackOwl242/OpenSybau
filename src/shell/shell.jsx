@@ -125,11 +125,13 @@ export function AppShell({ snapshot, pageMarkup }) {
   const home = page === "chat" && !snapshot.selected;
   const hasContextSidebar = pageLayouts[page]?.sidebar === "context" && !sidebarCollapsed;
   const hasPageSidebar = Boolean(snapshot.pageSidebarMarkup);
+  const hasRightDock = Boolean(snapshot.chatDrawerOpen && snapshot.rightDockMarkup);
   const shellClasses = [
     "wb-app-shell",
     hasContextSidebar && "has-context-sidebar",
     hasPageSidebar && "has-page-sidebar",
     hasContextSidebar && hasPageSidebar && "has-both-sidebars",
+    hasRightDock && "has-right-dock",
     sidebarCollapsed && "is-sidebar-collapsed",
   ].filter(Boolean).join(" ");
   useEffect(() => { setMobileSidebarOpen(false); }, [page, snapshot.selected]);
@@ -144,8 +146,19 @@ export function AppShell({ snapshot, pageMarkup }) {
     {mobileSidebarOpen ? <button class="wb-mobile-sidebar-backdrop" type="button" aria-label="Đóng danh sách workspace" onClick={() => setMobileSidebarOpen(false)} /> : null}
     {hasPageSidebar && <aside class="wb-page-sidebar" dangerouslySetInnerHTML={{ __html: snapshot.pageSidebarMarkup }} />}
     <main class={`wb-main ${home ? "is-home-stage" : ""}`}>
-      <TopBar snapshot={snapshot} onOpenNavigation={() => setMobileSidebarOpen(true)} />
-      <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${page === "chat" && snapshot.selected ? "is-task-detail" : ""} ${page === "knowledge" && snapshot.state?.settings?.vaultPath ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
+      <div class="wb-workspace-split">
+        <div class="wb-stage-column">
+          <TopBar snapshot={snapshot} onOpenNavigation={() => setMobileSidebarOpen(true)} />
+          <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${page === "chat" && snapshot.selected ? "is-task-detail" : ""} ${page === "knowledge" && snapshot.state?.settings?.vaultPath ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
+        </div>
+        {hasRightDock ? (
+          <aside
+            class="orca-right-dock"
+            aria-label="Thanh công cụ mở rộng bên phải"
+            dangerouslySetInnerHTML={{ __html: snapshot.rightDockMarkup }}
+          />
+        ) : null}
+      </div>
       <StatusBar snapshot={snapshot} />
     </main>
     <MobileNav page={page} />

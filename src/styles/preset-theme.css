@@ -4259,3 +4259,640 @@ summary:hover svg.lucide-animated .la-dot-3 {
   margin-top: 6px;
 }
 
+/* ==========================================================================
+   Unified Orca / Codex Right Sidebar Dock & Minimalist Center Stage (v0.2.71)
+   - Global Right Dock with 4-icon Topbar (Files, Search, Git, Checklist)
+     + Top-Right Sidebar Toggle Icon (`sidebar-right` ◨)
+   - Resizable Right Sidebar ONLY (--right-dock-width, 220px..620px)
+   - Collapsible Hierarchical Folder/File Tree matching reference screenshot
+   ========================================================================== */
+
+body.is-resizing-dock,
+body.is-resizing-dock * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.wb-main-surface {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wb-workspace-split {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.wb-workspace-split.has-right-dock {
+  grid-template-columns: minmax(0, 1fr) var(--right-dock-width, 288px);
+}
+
+.wb-stage-column {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wb-stage-column > #content {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.wb-home-dock-trigger {
+  position: absolute;
+  top: 7px;
+  right: 12px;
+  z-index: 25;
+}
+
+.wb-dock-toggle-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.wb-dock-toggle-btn:hover,
+.wb-dock-toggle-btn.is-active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+/* Global Right Sidebar Dock (.orca-right-dock) */
+.orca-right-dock {
+  position: relative;
+  width: var(--right-dock-width, 288px);
+  min-width: 220px;
+  max-width: 620px;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  background: #141518;
+  overflow: hidden;
+}
+
+.orca-dock-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 20;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.orca-dock-resizer:hover,
+body.is-resizing-dock .orca-dock-resizer {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* Top 4-Icon Bar + Right Sidebar Toggle Button (40px height aligned with .wb-topbar) */
+.orca-dock-topbar {
+  flex: 0 0 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: #141518;
+}
+
+.orca-dock-tabs {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  gap: 2px;
+}
+
+.orca-dock-tab {
+  position: relative;
+  width: 34px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.46);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.orca-dock-tab:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.orca-dock-tab.is-active {
+  color: #ffffff;
+}
+
+.orca-dock-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: #ffffff;
+}
+
+.orca-dock-toggle {
+  width: 28px !important;
+  height: 28px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.orca-dock-toggle:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+/* Subheader (`acme-web   🔄 •••`) */
+.orca-dock-subheader {
+  flex: 0 0 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.orca-dock-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: #f4f4f5;
+}
+
+.orca-dock-subactions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.orca-sub-btn {
+  width: 24px !important;
+  height: 24px !important;
+  border: 0 !important;
+  border-radius: 5px !important;
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+}
+
+.orca-sub-btn:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+/* Right Dock Scrollable Body & Collapsible Tree */
+.orca-dock-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0 10px;
+}
+
+.orca-tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.orca-tree-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.orca-tree-row {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 27px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 10px;
+  border: 0;
+  background: transparent;
+  color: rgba(228, 228, 231, 0.84);
+  font-size: 12.5px;
+  font-weight: 460;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.orca-tree-item:hover .orca-tree-row {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.orca-tree-row.is-selected {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-weight: 560;
+}
+
+.orca-tree-caret {
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  display: inline-grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.45);
+  transition: transform 120ms ease;
+}
+
+.orca-tree-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.orca-tree-icon {
+  flex: 0 0 14px;
+  display: inline-grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.orca-tree-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orca-tree-badge {
+  flex: 0 0 auto;
+  font-family: var(--wb-font-mono);
+  font-size: 10.5px !important;
+  color: rgba(255, 255, 255, 0.42) !important;
+}
+
+.orca-diff-dot {
+  flex: 0 0 auto;
+  font-family: var(--wb-font-mono);
+  font-size: 10px !important;
+  font-weight: 700;
+  color: #eab308 !important;
+}
+
+.orca-tree-quick {
+  position: absolute;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e4e4e7;
+  font-family: var(--wb-font-mono);
+  font-size: 11px;
+  display: none;
+  place-items: center;
+  cursor: pointer;
+}
+
+.orca-tree-item:hover .orca-tree-quick {
+  display: inline-grid;
+}
+
+.orca-tree-item .vault-note-menu {
+  position: absolute;
+  right: 6px;
+}
+
+.orca-dock-search-wrap {
+  padding: 6px 10px 8px;
+}
+
+.orca-dock-search {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.orca-dock-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0 !important;
+  background: transparent !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  outline: none !important;
+  padding: 0 !important;
+}
+
+.orca-dock-pad {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.orca-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.orca-section-label {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.45);
+  text-transform: uppercase;
+}
+
+.orca-merge-btn {
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.orca-muted-note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.44);
+}
+
+.orca-dock-empty {
+  padding: 18px 14px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.orca-dock-preview {
+  margin: 8px 8px 0;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  background: #101114;
+  display: flex;
+  flex-direction: column;
+  max-height: 240px;
+  overflow: hidden;
+}
+
+.orca-dock-preview > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 11px;
+}
+
+.orca-dock-preview > header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orca-dock-preview > header > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.orca-dock-preview pre {
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  font-family: var(--wb-font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: #d4d4d8;
+}
+
+/* Minimalist Single-Stage Center Content (.minimal-center-stage) */
+.minimal-center-stage {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.minimal-stage-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  margin-bottom: 16px;
+}
+
+.minimal-stage-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.minimal-stage-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  display: inline-grid;
+  place-items: center;
+  color: #f4f4f5;
+}
+
+.minimal-stage-title h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  color: #ffffff;
+}
+
+.minimal-stage-title p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.minimal-stage-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.minimal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.minimal-section-head strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.minimal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.minimal-list-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.02);
+  color: #e4e4e7;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.minimal-list-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.minimal-list-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 540;
+}
+
+.minimal-list-row small {
+  color: rgba(255, 255, 255, 0.44) !important;
+  font-size: 11px !important;
+}
+
+/* Left ContextSidebar Fanout Multi-Thread Tree (.wb-fanout-group) */
+.wb-fanout-group {
+  margin: 2px 0;
+}
+
+.wb-fanout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 4px 0 18px;
+  height: 26px;
+  border-radius: 6px;
+}
+
+.wb-fanout-head:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.wb-fanout-toggle {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 560;
+  cursor: pointer;
+  text-align: left;
+}
+
+.wb-fanout-caret {
+  display: inline-grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.45);
+  transition: transform 120ms ease;
+}
+
+.wb-fanout-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.wb-fanout-compare {
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.wb-fanout-compare:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.wb-fanout-children {
+  list-style: none;
+  margin: 0 0 0 24px;
+  padding: 0 0 0 6px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+

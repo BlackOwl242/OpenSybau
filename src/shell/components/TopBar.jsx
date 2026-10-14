@@ -4,7 +4,14 @@ import { Icon } from "../../shared/ui/Icon.jsx";
 
 export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
   const isHome = snapshot.page === "chat" && !snapshot.selected;
-  if (isHome) return null;
+  const dockOpen = Boolean(snapshot.chatDrawerOpen);
+  if (isHome) {
+    return !dockOpen ? <div class="wb-home-dock-trigger">
+      <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
+        <Icon name="sidebar-right" size={16} />
+      </button>
+    </div> : null;
+  }
 
   const title = pageTitles[snapshot.page] || "OpenSybau";
   const task = snapshot.page === "chat" && snapshot.selected
@@ -12,7 +19,9 @@ export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
     : null;
   const workspace = task
     ? snapshot.state?.workspaces?.find((item) => item.id === task.workspaceId)
-    : null;
+    : snapshot.page === "workspaces" && snapshot.selected
+      ? snapshot.state?.workspaces?.find((item) => item.id === snapshot.selected)
+      : null;
 
   const siblingTasks = task
     ? (task.fanoutId
@@ -34,7 +43,12 @@ export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
           {task.isolated ? <em class="wb-top-wt-pill">{task.worktreeBranch || "worktree"}</em> : workspace?.runtime?.branch ? <em class="wb-top-branch-pill">{workspace.runtime.branch}</em> : null}
         </span>
         <strong>{task.title}</strong>
-      </div> : <div class="wb-breadcrumb"><span>OpenSybau</span><Icon name="chevron-right" size={13} /><strong>{title}</strong></div>}
+      </div> : <div class="wb-breadcrumb">
+        <span>OpenSybau</span>
+        <Icon name="chevron-right" size={13} />
+        <strong>{title}</strong>
+        {workspace ? <><Icon name="chevron-right" size={13} /><span>{workspace.name}</span></> : null}
+      </div>}
       {task && siblingTasks.length > 1 ? <nav class="wb-topbar-tabs" aria-label="Phiên làm việc trong dự án">
         {siblingTasks.map((item) => {
           const badge = item.fanoutCompetitor?.name || item.config?.chatProvider || item.config?.roles?.plan?.provider || "agent";
@@ -54,10 +68,16 @@ export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
         </button>
       </nav> : null}
     </div>
-    {task ? <div class="wb-top-actions">
-      <button class={`wb-top-icon ${snapshot.chatDrawerOpen ? "is-active" : ""}`} data-action="toggle-chat-drawer" data-id={task.id} title="Cây tệp & Tệp thay đổi" aria-label="Đóng/mở ngăn tệp dự án"><Icon name="folder-open" size={16} /></button>
-      <button class="wb-top-icon" data-action="open-task-flow" data-id={task.id} title="Bản ghi điều phối" aria-label="Mở bản ghi điều phối"><Icon name="workflow" size={16} /></button>
-      <button class="wb-top-icon" data-action="open-folder" data-id={task.id} title="Mở thư mục workspace" aria-label="Mở thư mục workspace"><Icon name="folder-code" size={16} /></button>
-    </div> : null}
+    <div class="wb-top-actions">
+      {task ? <>
+        <button class="wb-top-icon" type="button" data-action="open-task-flow" data-id={task.id} title="Bản ghi điều phối" aria-label="Mở bản ghi điều phối"><Icon name="workflow" size={16} /></button>
+        <button class="wb-top-icon" type="button" data-action="open-folder" data-id={task.id} title="Mở thư mục workspace" aria-label="Mở thư mục workspace"><Icon name="folder-code" size={16} /></button>
+      </> : null}
+      {!dockOpen ? (
+        <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
+          <Icon name="sidebar-right" size={16} />
+        </button>
+      ) : null}
+    </div>
   </header>;
 }
