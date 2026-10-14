@@ -5,6 +5,18 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.70] - 2026-10-14
+
+### Fixed & Improved (Sửa lỗi Dropdown bị cắt & Kiến trúc Tri thức 3 Ngăn kiểu Codex / ORCA)
+- **Khắc phục triệt để lỗi menu Dropdown (`⋯`) bung ngược lên trên và bị cắt khuất**:
+  - Tách riêng hướng bung của menu ngữ cảnh (`.is-down`, `.vault-head-menu`, `.vault-action-menu`) để luôn mở **xuống dưới** (`top: calc(100% + 6px)`), tự động đảo chiều thông minh cho các dòng cuối danh sách và đặt `z-index: 260` để không bao giờ bị mép khung trên che khuất.
+- **Tái cấu trúc trang Tri thức theo bố cục 3 ngăn thông minh kiểu Codex / ORCA (`.knowledge-orca-shell`)**:
+  - **Sidebar Trái (`Cây ghi chú Vault` — bật/tắt linh hoạt ở cả 2 chế độ)**: Duyệt thư mục, tìm kiếm nhanh theo tên hoặc `#tag`, hiển thị huy hiệu số lượng liên kết trên từng tệp `.md` và giữ nguyên danh sách tệp ngay cả khi đang khám phá Đồ thị.
+  - **Khung Chính Giữa (`Ghi chú` / `Đồ thị` tràn viền)**: Thanh công cụ hợp nhất `44px` với nút đóng/mở 2 sidebar trái/phải, bộ chuyển chế độ `Ghi chú` | `Đồ thị`, trình đọc/soạn thảo Markdown tập trung ở chế độ Ghi chú và bảng Đồ thị nơ-ron kèm HUD nổi ở chế độ Đồ thị.
+  - **Sidebar Phải (`Liên kết & Ngữ cảnh` — hoạt động ở cả 2 chế độ)**: Hiển thị liên kết hai chiều (`→ Đi` / `← Đến`), các ghi chú liên quan theo `#tag` & thư mục, tự động trích xuất **Mục lục (Outline H1–H4)** kèm thống kê từ/dòng khi đọc ghi chú, hoặc hiển thị **Xem trước nội dung** trực tiếp khi đang duyệt Đồ thị.
+
+---
+
 ## [0.2.69] - 2026-10-14
 
 ### Changed & Improved (Bộ Icon Lucide-Animated, Menu 3 Chấm File `.md` & Tinh Gọn Giao Diện Tri Thức)

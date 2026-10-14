@@ -145,7 +145,7 @@ export function AppShell({ snapshot, pageMarkup }) {
     {hasPageSidebar && <aside class="wb-page-sidebar" dangerouslySetInnerHTML={{ __html: snapshot.pageSidebarMarkup }} />}
     <main class={`wb-main ${home ? "is-home-stage" : ""}`}>
       <TopBar snapshot={snapshot} onOpenNavigation={() => setMobileSidebarOpen(true)} />
-      <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${page === "chat" && snapshot.selected ? "is-task-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
+      <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${page === "chat" && snapshot.selected ? "is-task-detail" : ""} ${page === "knowledge" && snapshot.state?.settings?.vaultPath ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
       <StatusBar snapshot={snapshot} />
     </main>
     <MobileNav page={page} />

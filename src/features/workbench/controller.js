@@ -381,8 +381,8 @@ function breadcrumbButtons(path, action) {
   parts.forEach((part, index) => { current = current ? `${current}/${part}` : part; crumbs.push(`<span aria-hidden="true">/</span><button class="path-crumb" data-action="${action}" data-path="${esc(current)}" ${index === parts.length - 1 ? "aria-current=page" : ""}>${esc(part)}</button>`); });
   return crumbs.join("");
 }
-function vaultNoteOptionsMenu(filePath, { showRead = false, showGraph = false } = {}) {
-  return `<details class="codex-pop-menu is-right vault-action-menu">
+function vaultNoteOptionsMenu(filePath, { showRead = false, showGraph = false, direction = "down" } = {}) {
+  return `<details class="codex-pop-menu is-right is-${direction} vault-action-menu">
     <summary class="icon-button vault-more-btn" aria-label="Tùy chọn tệp" title="Tùy chọn tệp">${icon("ellipsis", 15)}</summary>
     <div class="codex-pop-card vault-action-pop">
       ${showRead ? `<button type="button" class="codex-pop-item" data-action="vault-open-from-graph" data-path="${esc(filePath)}"><span class="codex-pop-item-main">${icon("book-open-text", 14)}<span>Đọc ghi chú</span></span></button>` : ""}
@@ -396,13 +396,25 @@ function vaultNoteOptionsMenu(filePath, { showRead = false, showGraph = false } 
 }
 function localFileRows(entries, action, filter = "") {
   const query = filter.toLocaleLowerCase();
-  const visible = (entries || []).filter((entry) => !query || entry.name.toLocaleLowerCase().includes(query));
+  const visible = (entries || []).filter((entry) => {
+    if (!query) return true;
+    if (entry.name.toLocaleLowerCase().includes(query)) return true;
+    if (action === "vault-file-action" && entry.type === "file") {
+      const gNode = (view.vaultGraph?.nodes || []).find((n) => n.path === entry.path);
+      if (gNode && (gNode.tags || []).some((t) => `#${t}`.toLocaleLowerCase().includes(query))) return true;
+    }
+    return false;
+  });
   if (!visible.length) return `<li class="file-empty">${query ? "Không có tệp khớp bộ lọc." : "Thư mục trống."}</li>`;
   const isVault = action === "vault-file-action";
-  return visible.map((entry) => {
+  const graphNodes = isVault ? (view.vaultGraph?.nodes || []) : [];
+  return visible.map((entry, idx) => {
     const isSelected = isVault && entry.type === "file" && view.vaultPreview?.path === entry.path;
     if (isVault && entry.type === "file") {
-      return `<li data-file-entry class="vault-file-item ${isSelected ? "is-selected" : ""}"><button class="file-row file ${isSelected ? "is-selected" : ""}" data-action="${action}" data-path="${esc(entry.path)}" aria-label="Mở ${esc(entry.name)}"><span>${icon("file", 15)}</span><strong title="${esc(entry.name)}">${esc(entry.name)}</strong></button>${vaultNoteOptionsMenu(entry.path, { showGraph: true })}</li>`;
+      const gNode = graphNodes.find((n) => n.path === entry.path);
+      const degree = gNode?.degree || 0;
+      const popDir = visible.length > 4 && idx >= visible.length - 2 ? "up" : "down";
+      return `<li data-file-entry class="vault-file-item ${isSelected ? "is-selected" : ""}"><button class="file-row file ${isSelected ? "is-selected" : ""}" data-action="${action}" data-path="${esc(entry.path)}" aria-label="Mở ${esc(entry.name)}"><span>${icon("file", 14)}</span><strong title="${esc(entry.name)}">${esc(entry.name.replace(/\.(md|mdx|markdown)$/i, ""))}</strong>${degree > 0 ? `<small class="kb-degree-pill" title="${degree} liên kết">${degree}</small>` : ""}</button>${vaultNoteOptionsMenu(entry.path, { showGraph: view.vaultViewMode !== "graph", showRead: view.vaultViewMode === "graph", direction: popDir })}</li>`;
     }
     return `<li data-file-entry><button class="file-row ${entry.type === "directory" ? "directory" : "file"}" data-action="${action}" data-path="${esc(entry.path)}" ${entry.type === "file" ? `aria-label="Mở ${esc(entry.name)}"` : "aria-expanded=false"}><span>${entry.type === "directory" ? icon("folder-code", 15) : icon("file", 15)}</span><strong title="${esc(entry.name)}">${esc(entry.name)}</strong>${entry.type === "file" ? `<small>${formatNumber(entry.size || 0)} B</small>` : icon("chevron-right", 14)}</button></li>`;
   }).join("");
@@ -414,6 +426,7 @@ function renderMarkdown(source) {
   const inline = (text) => esc(text).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>").replace(/\[([^\]]+)\]\(((?:https?:\/\/|obsidian:\/\/|#)[^ ")<>']+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
   const flushParagraph = () => { if (paragraph.length) { html.push(`<p>${paragraph.map(inline).join("<br>")}</p>`); paragraph = []; } };
   const closeList = () => { if (listType) { html.push(`</${listType}>`); listType = ""; } };
+  let headingIdx = 0;
   for (const line of lines) {
     if (/^\s*```/.test(line)) { flushParagraph(); closeList(); if (inCode) { html.push(`<pre><code>${esc(codeLines.join("\n"))}</code></pre>`); codeLines = []; inCode = false; } else inCode = true; continue; }
     if (inCode) { codeLines.push(line); continue; }
@@ -421,7 +434,7 @@ function renderMarkdown(source) {
     const bullet = line.match(/^\s*[-*+]\s+(.+)$/);
     const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
     if (!line.trim()) { flushParagraph(); closeList(); continue; }
-    if (heading) { flushParagraph(); closeList(); const level = Math.min(heading[1].length, 4); html.push(`<h${level}>${inline(heading[2])}</h${level}>`); continue; }
+    if (heading) { flushParagraph(); closeList(); const level = Math.min(heading[1].length, 4); html.push(`<h${level} data-kb-heading="${headingIdx++}">${inline(heading[2])}</h${level}>`); continue; }
     if (bullet || ordered) { flushParagraph(); const nextType = bullet ? "ul" : "ol"; if (listType !== nextType) { closeList(); listType = nextType; html.push(`<${listType}>`); } html.push(`<li>${inline((bullet || ordered)[1])}</li>`); continue; }
     const quote = line.match(/^>\s?(.*)$/); if (quote) { flushParagraph(); closeList(); html.push(`<blockquote>${inline(quote[1])}</blockquote>`); continue; }
     closeList(); paragraph.push(line);
@@ -429,6 +442,21 @@ function renderMarkdown(source) {
   flushParagraph(); closeList();
   if (inCode) html.push(`<pre><code>${esc(codeLines.join("\n"))}</code></pre>`);
   return html.join("") || `<p class="file-empty">Tệp Markdown đang trống.</p>`;
+}
+function extractMarkdownOutline(source) {
+  const lines = String(source || "").split(/\r?\n/);
+  const outline = [];
+  let inCode = false;
+  let idx = 0;
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) { inCode = !inCode; continue; }
+    if (inCode) continue;
+    const m = line.match(/^(#{1,4})\s+(.+)$/);
+    if (m) {
+      outline.push({ index: idx++, level: m[1].length, text: m[2].replace(/[*_`~[\]]/g, "").trim() });
+    }
+  }
+  return outline;
 }
 function renderKnowledgeMarkdown(source) {
   const baseHtml = renderMarkdown(source);
@@ -439,18 +467,12 @@ function renderKnowledgeMarkdown(source) {
   });
 }
 function filePreviewMarkup(file, title = "Chọn một tệp để xem") {
-  if (!file) return `<div class="file-preview-empty">${icon("file", 18)}<p>${title}</p>${view.page === "knowledge" ? `<div class="file-preview-empty-actions"><button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)} Ghi chú mới</button><button type="button" class="button quiet small" data-action="vault-mode" data-mode="graph">${icon("waypoints", 13)} Xem đồ thị</button></div>` : ""}</div>`;
+  if (!file) return `<div class="file-preview-empty">${icon("file", 18)}<p>${title}</p></div>`;
   const markdown = [".md", ".mdx", ".markdown"].includes(file.extension);
-  if (view.page === "knowledge" && view.vaultEditing && view.vaultEditingPath === file.path) {
-    return `<header class="file-preview-head"><div><strong>${esc(file.name)}</strong><small>Đang chỉnh sửa · ${esc(file.path)}</small></div><span class="file-preview-actions"><button type="button" class="button quiet small" data-action="vault-cancel-edit">Hủy</button><button type="button" class="button primary small" data-action="vault-save-note" data-path="${esc(file.path)}">${icon("check", 13)} Lưu</button></span></header><div class="vault-editor-wrap"><textarea class="vault-editor-textarea" data-vault-editor spellcheck="false" placeholder="Nhập nội dung Markdown… Dùng [[Tên ghi chú]] để tạo liên kết và #tag để phân nhóm.">${esc(view.vaultDraft ?? file.content)}</textarea><div class="vault-editor-foot"><small>Dùng <code>[[Ghi chú khác]]</code> hoặc <code>#tag</code> để tạo liên kết · Nhấn <code>Ctrl+S</code> để lưu.</small></div></div>`;
-  }
   const body = markdown
-    ? `<article class="markdown-preview">${view.page === "knowledge" ? renderKnowledgeMarkdown(file.content) : renderMarkdown(file.content)}</article>`
+    ? `<article class="markdown-preview">${renderMarkdown(file.content)}</article>`
     : `<pre class="code-preview"><code>${esc(file.content)}</code></pre>`;
-  const knowledgeActions = view.page === "knowledge"
-    ? `<span class="file-preview-actions">${vaultNoteOptionsMenu(file.path, { showGraph: true })}</span>`
-    : "";
-  return `<header class="file-preview-head"><div><strong>${esc(file.name)}</strong><small>${markdown ? "Markdown" : file.extension || "Tệp văn bản"} · ${formatNumber(file.size)} B · ${fmtDate(file.modifiedAt)}</small></div>${knowledgeActions}</header>${body}`;
+  return `<header class="file-preview-head"><div><strong>${esc(file.name)}</strong><small>${markdown ? "Markdown" : file.extension || "Tệp văn bản"} · ${formatNumber(file.size)} B · ${fmtDate(file.modifiedAt)}</small></div></header>${body}`;
 }
 async function loadWorkspaceDir(workspaceId, path = "") {
   const workspace = view.state.workspaces.find((item) => item.id === workspaceId);
@@ -481,6 +503,18 @@ async function loadVaultDir(path = "", { keepPreview = false } = {}) {
   view.vaultDir = data.path;
   view.vaultEntries = data.entries || [];
   view.vaultGraph = graph;
+  if (!view.vaultPreview) {
+    const firstFile = view.vaultEntries.find((e) => e.type === "file") || graph?.nodes?.[0];
+    if (firstFile?.path) {
+      try {
+        const file = await api(`/api/vault/file?path=${encodeURIComponent(firstFile.path)}`);
+        if (view.page === "knowledge" && !view.vaultPreview) {
+          view.vaultPreview = file;
+          view.vaultDraft = file.content;
+        }
+      } catch {}
+    }
+  }
   render();
 }
 async function loadVaultPreview(path, { startEdit = false } = {}) {
@@ -505,68 +539,6 @@ function showNewVaultNoteModal() {
   showModal("Ghi chú tri thức mới", body, "Tạo ghi chú", "vault-note-create");
 }
 let neuralGraphCleanup = null;
-function knowledgeGraphPaneMarkup() {
-  const graph = view.vaultGraph || { nodes: [], edges: [] };
-  const nodes = graph.nodes || [];
-  const edges = graph.edges || [];
-  const selectedPath = view.vaultPreview?.path || "";
-  const selectedNode = nodes.find((n) => n.path === selectedPath) || null;
-  const connectedEdges = selectedNode ? edges.filter((e) => e.source === selectedNode.id || e.target === selectedNode.id) : [];
-  const connectedNodes = selectedNode
-    ? connectedEdges.map((e) => {
-        const otherId = e.source === selectedNode.id ? e.target : e.source;
-        const node = nodes.find((n) => n.id === otherId);
-        return node ? { node, kind: e.kind, label: e.label } : null;
-      }).filter(Boolean)
-    : [];
-  return `<section class="file-workbench knowledge-workbench neural-graph-shell">
-    <section class="neural-graph-stage">
-      <header class="file-preview-head neural-stage-head">
-        <div>
-          <strong>Đồ thị liên kết</strong>
-          <small>${nodes.length} ghi chú · ${edges.length} liên kết</small>
-        </div>
-        <span class="file-preview-actions">
-          <button type="button" class="icon-button" data-action="neural-graph-reset" title="Căn giữa đồ thị">${icon("target", 14)}</button>
-          <button type="button" class="icon-button" data-action="refresh-vault-graph" title="Làm mới đồ thị">${icon("refresh-cw", 14)}</button>
-        </span>
-      </header>
-      <div class="neural-canvas-wrap">
-        <canvas id="vault-neural-canvas" class="neural-graph-canvas"></canvas>
-        ${nodes.length === 0 ? `<div class="neural-graph-empty"><strong>Chưa có ghi chú nào trong vault</strong><p>Tạo ghi chú Markdown mới và dùng <code>[[Tên ghi chú]]</code> hoặc <code>#tag</code> để liên kết tri thức.</p><button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)} Ghi chú mới</button></div>` : ""}
-      </div>
-    </section>
-    <aside class="neural-inspector">
-      ${selectedNode ? `
-        <header class="file-preview-head neural-inspector-head">
-          <div>
-            <strong title="${esc(selectedNode.title || selectedNode.name)}">${esc(selectedNode.title || selectedNode.name)}</strong>
-            <small>${esc(selectedNode.path)}</small>
-          </div>
-          <span class="file-preview-actions">
-            ${vaultNoteOptionsMenu(selectedNode.path, { showRead: true })}
-          </span>
-        </header>
-        <div class="neural-inspector-body">
-          ${selectedNode.tags?.length ? `<div class="neural-tag-list">${selectedNode.tags.map((t) => `<span>#${esc(t)}</span>`).join("")}</div>` : ""}
-          <div class="neural-connections-box">
-            <small class="neural-section-label">Liên kết (${connectedNodes.length})</small>
-            ${connectedNodes.length ? `<ul class="neural-connection-list">${connectedNodes.map(({ node, label }) => `<li><button type="button" data-action="vault-select-graph-node" data-path="${esc(node.path)}">${icon("file", 13)}<strong>${esc(node.title || node.name)}</strong><small>${esc(label)}</small></button></li>`).join("")}</ul>` : `<p class="neural-muted">Chưa có liên kết. Dùng <code>[[Tên ghi chú]]</code> để nối tới tệp khác.</p>`}
-          </div>
-          <div class="neural-excerpt-box">
-            <small class="neural-section-label">Nội dung</small>
-            <div class="markdown-preview">${view.vaultPreview?.content ? renderKnowledgeMarkdown(view.vaultPreview.content) : `<p class="neural-muted">${esc(selectedNode.excerpt || "Tệp Markdown đang trống.")}</p>`}</div>
-          </div>
-        </div>
-      ` : `
-        <div class="file-preview-empty">
-          ${icon("waypoints", 18)}
-          <p>Chọn một nút trên đồ thị để xem liên kết và nội dung</p>
-        </div>
-      `}
-    </aside>
-  </section>`;
-}
 function mountKnowledgeGraphCanvas() {
   if (neuralGraphCleanup) { neuralGraphCleanup(); neuralGraphCleanup = null; }
   if (view.page !== "knowledge" || view.vaultViewMode !== "graph") return;
@@ -886,38 +858,272 @@ function projectDetailPage(workspace) {
   return `<div class="page-head"><div><div class="eyebrow">PROJECT FILES</div><h1>${esc(workspace.name)}</h1><p>${esc(workspace.path)}</p></div><div class="page-head-actions"><button class="button quiet" data-action="back-projects">${icon("arrow-left", 15)} Danh sách dự án</button><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task</button></div></div>
   <section class="file-workbench"><aside class="file-browser"><header><strong>Tệp dự án</strong><button class="icon-button" data-action="refresh-project-files" title="Tải lại tệp">${icon("refresh-cw", 15)}</button></header><label class="skill-search"><span>${icon("search", 15)}</span><input type="search" data-file-filter="workspace" placeholder="Lọc tệp trong thư mục này…" autocomplete="off"></label><nav class="file-breadcrumbs">${breadcrumbButtons(view.workspaceDir, "workspace-dir")}</nav><ul class="file-list">${view.workspaceDir ? `<li><button class="file-row parent" data-action="workspace-up"><span>${icon("chevron-right", 14)}</span><strong>Thư mục cha</strong></button></li>` : ""}${localFileRows(view.workspaceEntries, "workspace-file-action", view.fileFilter || "")}</ul>${view.workspaceEntries.length >= 500 ? `<p class="form-note">Đã giới hạn 500 mục; lọc tên hoặc mở thư mục con.</p>` : ""}</aside><section class="file-preview">${filePreviewMarkup(view.filePreview, "Chọn tệp code hoặc Markdown để xem nội dung")}</section></section>`;
 }
+function knowledgeRightInspectorMarkup(mode, selectedNode, connectedNodes, activeFile) {
+  const graph = view.vaultGraph || { nodes: [], edges: [] };
+  const allTags = [...new Set((graph.nodes || []).flatMap((n) => n.tags || []))].slice(0, 18);
+  if (!selectedNode && !activeFile) {
+    const topNodes = [...(graph.nodes || [])].sort((a, b) => (b.degree || 0) - (a.degree || 0)).slice(0, 8);
+    return `<aside class="kb-sidebar-right" aria-label="Liên kết và ngữ cảnh tri thức">
+      <header class="kb-pane-head">
+        <div class="kb-pane-title">${icon("waypoints", 14)}<strong>Liên kết & Ngữ cảnh</strong></div>
+        <button type="button" class="icon-button" data-action="toggle-vault-right" title="Đóng ngăn ngữ cảnh">${icon("x", 14)}</button>
+      </header>
+      <div class="kb-inspector-scroll">
+        <section class="kb-inspector-section">
+          <small class="kb-section-label">Tổng quan Vault</small>
+          <div class="kb-stat-grid">
+            <div><strong>${graph.nodes?.length || 0}</strong><span>Ghi chú</span></div>
+            <div><strong>${graph.edges?.length || 0}</strong><span>Liên kết</span></div>
+          </div>
+        </section>
+        ${allTags.length ? `<section class="kb-inspector-section">
+          <small class="kb-section-label">Thẻ chủ đề (#tags)</small>
+          <div class="neural-tag-list">${allTags.map((t) => `<button type="button" class="kb-tag-chip" data-action="vault-filter-tag" data-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div>
+        </section>` : ""}
+        ${topNodes.length ? `<section class="kb-inspector-section">
+          <small class="kb-section-label">Nút tri thức nổi bật</small>
+          <ul class="neural-connection-list">${topNodes.map((n) => `<li><button type="button" data-action="vault-select-graph-node" data-path="${esc(n.path)}">${icon("file", 13)}<strong>${esc(n.title || n.name)}</strong><small>${n.degree || 0} liên kết</small></button></li>`).join("")}</ul>
+        </section>` : ""}
+      </div>
+    </aside>`;
+  }
+
+  const noteTitle = selectedNode?.title || activeFile?.name?.replace(/\.(md|mdx|markdown)$/i, "") || selectedNode?.name || "Ghi chú";
+  const notePath = activeFile?.path || selectedNode?.path || "";
+  const noteTags = selectedNode?.tags || [];
+  const directLinks = connectedNodes.filter((c) => c.kind === "link");
+  const relatedLinks = connectedNodes.filter((c) => c.kind !== "link");
+  const outline = activeFile?.content ? extractMarkdownOutline(activeFile.content) : [];
+  const wordCount = activeFile?.content ? activeFile.content.trim().split(/\s+/).filter(Boolean).length : 0;
+  const lineCount = activeFile?.content ? activeFile.content.split(/\r?\n/).length : 0;
+
+  return `<aside class="kb-sidebar-right" aria-label="Liên kết và ngữ cảnh ghi chú">
+    <header class="kb-pane-head">
+      <div class="kb-pane-title" title="${esc(notePath)}">
+        ${icon("waypoints", 14)}
+        <strong>Liên kết & Ngữ cảnh</strong>
+      </div>
+      <button type="button" class="icon-button" data-action="toggle-vault-right" title="Đóng ngăn ngữ cảnh">${icon("x", 14)}</button>
+    </header>
+    <div class="kb-inspector-scroll">
+      <section class="kb-inspector-card">
+        <div class="kb-inspector-note-head">
+          <div>
+            <strong title="${esc(noteTitle)}">${esc(noteTitle)}</strong>
+            <small>${esc(notePath)}</small>
+          </div>
+          ${vaultNoteOptionsMenu(notePath, { showRead: mode === "graph", showGraph: mode === "files", direction: "down" })}
+        </div>
+        <div class="kb-quick-actions">
+          ${mode === "graph"
+            ? `<button type="button" class="button primary small" data-action="vault-open-from-graph" data-path="${esc(notePath)}">${icon("book-open-text", 12)}<span>Đọc ghi chú</span></button>`
+            : `<button type="button" class="button quiet small" data-action="vault-focus-graph" data-path="${esc(notePath)}">${icon("waypoints", 12)}<span>Đồ thị</span></button>`}
+          <button type="button" class="button quiet small" data-action="vault-edit-note" data-path="${esc(notePath)}">${icon("square-pen", 12)}<span>Sửa</span></button>
+          <button type="button" class="button quiet small" data-action="open-obsidian" data-path="${esc(notePath)}" title="Mở trong Obsidian">${icon("arrow-up-right", 12)}<span>Obsidian</span></button>
+        </div>
+      </section>
+
+      <section class="kb-inspector-section">
+        <div class="kb-section-head">
+          <small class="kb-section-label">Liên kết hai chiều</small>
+          <span class="kb-section-badge">${directLinks.length}</span>
+        </div>
+        ${directLinks.length
+          ? `<ul class="neural-connection-list">${directLinks.map(({ node, direction, label }) => `<li><button type="button" data-action="vault-select-graph-node" data-path="${esc(node.path)}" title="${esc(node.path)}">${icon("file", 13)}<strong>${esc(node.title || node.name)}</strong><small>${direction === "out" ? "→ Đi" : "← Đến"}</small></button></li>`).join("")}</ul>`
+          : `<p class="neural-muted">Chưa có liên kết <code>[[WikiLink]]</code> trực tiếp.</p>`}
+      </section>
+
+      ${relatedLinks.length ? `<section class="kb-inspector-section">
+        <div class="kb-section-head">
+          <small class="kb-section-label">Liên quan (Thẻ & Thư mục)</small>
+          <span class="kb-section-badge">${relatedLinks.length}</span>
+        </div>
+        <ul class="neural-connection-list">${relatedLinks.map(({ node, label }) => `<li><button type="button" data-action="vault-select-graph-node" data-path="${esc(node.path)}" title="${esc(node.path)}">${icon("file", 13)}<strong>${esc(node.title || node.name)}</strong><small>${esc(label)}</small></button></li>`).join("")}</ul>
+      </section>` : ""}
+
+      ${noteTags.length ? `<section class="kb-inspector-section">
+        <small class="kb-section-label">Thẻ ghi chú (#tags)</small>
+        <div class="neural-tag-list">${noteTags.map((t) => `<button type="button" class="kb-tag-chip" data-action="vault-filter-tag" data-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div>
+      </section>` : ""}
+
+      ${mode === "files" ? `
+        <section class="kb-inspector-section">
+          <div class="kb-section-head">
+            <small class="kb-section-label">Mục lục (Outline)</small>
+            <span class="kb-section-badge">${outline.length}</span>
+          </div>
+          ${outline.length
+            ? `<ul class="kb-outline-list">${outline.map((item) => `<li><button type="button" class="kb-outline-item level-${item.level}" data-action="vault-scroll-heading" data-heading-index="${item.index}">${esc(item.text)}</button></li>`).join("")}</ul>`
+            : `<p class="neural-muted">Thêm tiêu đề <code># H1</code>, <code>## H2</code> để tạo mục lục tự động.</p>`}
+        </section>
+        <section class="kb-inspector-section kb-meta-footer">
+          <small class="kb-section-label">Thông tin tệp</small>
+          <div class="kb-stat-row"><span>Số từ</span><strong>${formatNumber(wordCount)} từ · ${formatNumber(lineCount)} dòng</strong></div>
+          ${activeFile ? `<div class="kb-stat-row"><span>Dung lượng</span><strong>${formatNumber(activeFile.size)} B · ${fmtDate(activeFile.modifiedAt)}</strong></div>` : ""}
+        </section>
+      ` : `
+        <section class="kb-inspector-section kb-preview-section">
+          <small class="kb-section-label">Xem trước nội dung</small>
+          <div class="kb-mini-markdown markdown-preview">${activeFile?.content ? renderKnowledgeMarkdown(activeFile.content) : `<p class="neural-muted">${esc(selectedNode?.excerpt || "Tệp Markdown đang trống.")}</p>`}</div>
+        </section>
+      `}
+    </div>
+  </aside>`;
+}
+
 function knowledgePage() {
   const vaultPath = view.state.settings.vaultPath || "";
   if (!vaultPath) return `<div class="page-head"><div><div class="eyebrow">OBSIDIAN · LOCAL VAULT</div><h1>Tri thức</h1><p>Kết nối vault để duyệt, chỉnh sửa ghi chú Markdown và xem đồ thị liên kết tri thức trực tiếp trên máy.</p></div></div><section class="empty-state knowledge-empty"><strong>Chưa kết nối Obsidian vault</strong><p>OpenSybau chỉ đọc/ghi thư mục bạn chỉ định; nội dung không được đưa vào prompt tự động.</p><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></section>`;
+
   const mode = view.vaultViewMode || "files";
-  const graphCount = view.vaultGraph?.nodes?.length || 0;
-  return `<div class="page-head knowledge-page-head">
-    <div>
-      <div class="eyebrow">OBSIDIAN · LOCAL VAULT</div>
-      <h1>Tri thức</h1>
-      <p title="${esc(vaultPath)}">${esc(vaultPath)}</p>
-    </div>
-    <div class="page-head-actions vault-head-toolbar">
-      <div class="vault-mode-tabs" role="tablist" aria-label="Chế độ xem Tri thức">
-        <button type="button" class="vault-mode-tab ${mode === "files" ? "is-active" : ""}" data-action="vault-mode" data-mode="files">${icon("book-open-text", 13)}<span>Ghi chú</span></button>
-        <button type="button" class="vault-mode-tab ${mode === "graph" ? "is-active" : ""}" data-action="vault-mode" data-mode="graph">${icon("waypoints", 13)}<span>Đồ thị${graphCount ? ` (${graphCount})` : ""}</span></button>
-      </div>
-      <button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)}<span>Ghi chú mới</span></button>
-      <details class="codex-pop-menu is-right vault-head-menu">
-        <summary class="button quiet small vault-head-more" aria-label="Tùy chọn Vault" title="Tùy chọn Vault">${icon("ellipsis", 15)}</summary>
-        <div class="codex-pop-card vault-action-pop">
-          <button type="button" class="codex-pop-item" data-action="open-obsidian" data-path="${esc(view.vaultPreview?.path || "")}"><span class="codex-pop-item-main">${icon("arrow-up-right", 14)}<span>Mở trong Obsidian</span></span></button>
-          <button type="button" class="codex-pop-item" data-action="refresh-vault-files"><span class="codex-pop-item-main">${icon("refresh-cw", 14)}<span>Làm mới dữ liệu</span></span></button>
-          <button type="button" class="codex-pop-item" data-action="connect-vault"><span class="codex-pop-item-main">${icon("folder-open", 14)}<span>Đổi thư mục Vault…</span></span></button>
-          <div class="codex-pop-sep"></div>
-          <button type="button" class="codex-pop-item is-danger" data-action="disconnect-vault"><span class="codex-pop-item-main">${icon("x", 14)}<span>Ngắt kết nối Vault</span></span></button>
+  const leftOpen = view.vaultLeftOpen !== false;
+  const rightOpen = view.vaultRightOpen !== false;
+  const vaultName = vaultPath.split(/[\\/]/).filter(Boolean).at(-1) || "Obsidian Vault";
+  const graph = view.vaultGraph || { nodes: [], edges: [] };
+  const nodes = graph.nodes || [];
+  const edges = graph.edges || [];
+  const activeFile = view.vaultPreview || null;
+  const selectedPath = activeFile?.path || "";
+  const selectedNode = nodes.find((n) => n.path === selectedPath) || null;
+  const connectedEdges = selectedNode ? edges.filter((e) => e.source === selectedNode.id || e.target === selectedNode.id) : [];
+  const connectedNodes = selectedNode
+    ? connectedEdges.map((e) => {
+        const isOut = e.source === selectedNode.id;
+        const otherId = isOut ? e.target : e.source;
+        const node = nodes.find((n) => n.id === otherId);
+        return node ? { node, kind: e.kind, label: e.label, direction: isOut ? "out" : "in" } : null;
+      }).filter(Boolean)
+    : [];
+  const isEditing = Boolean(mode === "files" && activeFile && view.vaultEditing && view.vaultEditingPath === activeFile.path);
+
+  const leftSidebarHtml = leftOpen ? `<aside class="kb-sidebar-left file-browser" aria-label="Cây ghi chú Vault">
+    <header class="kb-pane-head">
+      <div class="kb-vault-brand" title="${esc(vaultPath)}">
+        <span class="kb-vault-icon">${icon("book-open-text", 14)}</span>
+        <div class="kb-vault-meta">
+          <strong>${esc(vaultName)}</strong>
+          <small>${nodes.length} ghi chú · ${edges.length} liên kết</small>
         </div>
-      </details>
-    </div>
-  </div>
-  ${mode === "graph"
-    ? knowledgeGraphPaneMarkup()
-    : `<section class="file-workbench knowledge-workbench"><aside class="file-browser"><header><strong>Ghi chú</strong><span class="file-browser-head-actions"><button class="icon-button" data-action="vault-new-note" title="Tạo ghi chú mới">${icon("plus", 14)}</button><button class="icon-button" data-action="refresh-vault-files" title="Tải lại ghi chú">${icon("refresh-cw", 14)}</button></span></header><label class="skill-search"><span>${icon("search", 14)}</span><input type="search" data-file-filter="vault" placeholder="Tìm ghi chú…" autocomplete="off"></label><nav class="file-breadcrumbs">${breadcrumbButtons(view.vaultDir, "vault-dir")}</nav><ul class="file-list">${view.vaultDir ? `<li><button class="file-row parent" data-action="vault-up"><span>${icon("chevron-right", 14)}</span><strong>Thư mục cha</strong></button></li>` : ""}${localFileRows(view.vaultEntries, "vault-file-action", view.vaultFilter || "")}</ul></aside><section class="file-preview">${filePreviewMarkup(view.vaultPreview, "Chọn ghi chú để đọc hoặc chỉnh sửa · không nạp tự động vào AI")}</section></section>`}`;
+      </div>
+      <div class="kb-pane-actions">
+        <button type="button" class="icon-button" data-action="vault-new-note" title="Tạo ghi chú mới">${icon("plus", 14)}</button>
+        <button type="button" class="icon-button" data-action="refresh-vault-files" title="Làm mới dữ liệu Vault">${icon("refresh-cw", 14)}</button>
+        <details class="codex-pop-menu is-right is-down vault-head-menu">
+          <summary class="icon-button vault-more-btn" aria-label="Tùy chọn Vault" title="Tùy chọn Vault">${icon("ellipsis", 15)}</summary>
+          <div class="codex-pop-card vault-action-pop">
+            <button type="button" class="codex-pop-item" data-action="open-obsidian" data-path="${esc(selectedPath)}"><span class="codex-pop-item-main">${icon("arrow-up-right", 14)}<span>Mở trong Obsidian</span></span></button>
+            <button type="button" class="codex-pop-item" data-action="refresh-vault-files"><span class="codex-pop-item-main">${icon("refresh-cw", 14)}<span>Làm mới dữ liệu</span></span></button>
+            <button type="button" class="codex-pop-item" data-action="connect-vault"><span class="codex-pop-item-main">${icon("folder-open", 14)}<span>Đổi thư mục Vault…</span></span></button>
+            <div class="codex-pop-sep"></div>
+            <button type="button" class="codex-pop-item is-danger" data-action="disconnect-vault"><span class="codex-pop-item-main">${icon("x", 14)}<span>Ngắt kết nối Vault</span></span></button>
+          </div>
+        </details>
+      </div>
+    </header>
+    <label class="skill-search kb-search">
+      <span>${icon("search", 13)}</span>
+      <input type="search" data-file-filter="vault" value="${esc(view.vaultFilter || "")}" placeholder="Tìm ghi chú hoặc #tag…" autocomplete="off">
+    </label>
+    <nav class="file-breadcrumbs kb-breadcrumbs">${breadcrumbButtons(view.vaultDir, "vault-dir")}</nav>
+    <ul class="file-list kb-file-list">
+      ${view.vaultDir ? `<li><button class="file-row parent" data-action="vault-up"><span>${icon("chevron-right", 14)}</span><strong>Thư mục cha</strong></button></li>` : ""}
+      ${localFileRows(view.vaultEntries, "vault-file-action", view.vaultFilter || "")}
+    </ul>
+    <footer class="kb-sidebar-foot">
+      <button type="button" class="button quiet small kb-new-note-wide" data-action="vault-new-note">${icon("plus", 13)}<span>Ghi chú Markdown mới</span></button>
+    </footer>
+  </aside>` : "";
+
+  let centerBodyHtml = "";
+  if (mode === "graph") {
+    centerBodyHtml = `<div class="neural-canvas-wrap kb-graph-stage">
+      <canvas id="vault-neural-canvas" class="neural-graph-canvas"></canvas>
+      <div class="kb-graph-hud">
+        <div class="kb-graph-legend">
+          <span><i class="kb-dot is-selected"></i>Đang chọn</span>
+          <span><i class="kb-dot is-hub"></i>Nút liên kết</span>
+          <small>Kéo để xoay · Cuộn để thu phóng · Nhấp đúp để đọc</small>
+        </div>
+        <div class="kb-graph-controls">
+          <button type="button" class="icon-button" data-action="neural-graph-reset" title="Căn giữa đồ thị">${icon("target", 14)}</button>
+          <button type="button" class="icon-button" data-action="refresh-vault-graph" title="Làm mới đồ thị">${icon("refresh-cw", 14)}</button>
+        </div>
+      </div>
+      ${nodes.length === 0 ? `<div class="neural-graph-empty"><strong>Chưa có ghi chú nào trong vault</strong><p>Tạo ghi chú Markdown mới và dùng <code>[[Tên ghi chú]]</code> hoặc <code>#tag</code> để xây dựng mạng tri thức.</p><button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)} Ghi chú mới</button></div>` : ""}
+    </div>`;
+  } else if (isEditing && activeFile) {
+    centerBodyHtml = `<div class="vault-editor-wrap kb-editor-wrap">
+      <textarea class="vault-editor-textarea" data-vault-editor spellcheck="false" placeholder="Nhập nội dung Markdown… Dùng [[Tên ghi chú]] để tạo liên kết và #tag để phân nhóm.">${esc(view.vaultDraft ?? activeFile.content)}</textarea>
+      <div class="vault-editor-foot">
+        <small>Hỗ trợ <code>[[Tên ghi chú]]</code> và <code>#tag</code> · Nhấn <code>Ctrl+S</code> để lưu nhanh.</small>
+        <div class="kb-editor-foot-actions">
+          <button type="button" class="button quiet small" data-action="vault-cancel-edit">Hủy</button>
+          <button type="button" class="button primary small" data-action="vault-save-note" data-path="${esc(activeFile.path)}">${icon("check", 13)}<span>Lưu thay đổi</span></button>
+        </div>
+      </div>
+    </div>`;
+  } else if (activeFile) {
+    const markdown = [".md", ".mdx", ".markdown"].includes(activeFile.extension);
+    const noteTags = selectedNode?.tags || [];
+    const docMetaStrip = (noteTags.length || connectedNodes.length) ? `<div class="kb-doc-context-bar">
+      ${noteTags.map((t) => `<button type="button" class="kb-tag-chip" data-action="vault-filter-tag" data-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}
+      ${connectedNodes.length ? `<button type="button" class="kb-link-summary-chip" data-action="vault-mode" data-mode="graph" title="Xem mạng liên kết của ghi chú này trên đồ thị">${icon("waypoints", 12)}<span>${connectedNodes.length} liên kết nơ-ron</span></button>` : ""}
+    </div>` : "";
+    centerBodyHtml = `<div class="kb-doc-scroll" id="kb-doc-scroll">
+      <div class="kb-doc-container">
+        ${docMetaStrip}
+        ${markdown
+          ? `<article class="markdown-preview kb-markdown-doc">${renderKnowledgeMarkdown(activeFile.content)}</article>`
+          : `<pre class="code-preview"><code>${esc(activeFile.content)}</code></pre>`}
+      </div>
+    </div>`;
+  } else {
+    centerBodyHtml = `<div class="file-preview-empty kb-empty-stage">
+      ${icon("book-open-text", 20)}
+      <strong>Chọn một ghi chú từ thanh bên trái</strong>
+      <p>Duyệt tệp Markdown, tạo liên kết hai chiều <code>[[WikiLink]]</code> hoặc chuyển sang chế độ Đồ thị nơ-ron.</p>
+      <div class="file-preview-empty-actions">
+        <button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)} Ghi chú mới</button>
+        <button type="button" class="button quiet small" data-action="vault-mode" data-mode="graph">${icon("waypoints", 13)} Xem đồ thị</button>
+      </div>
+    </div>`;
+  }
+
+  return `<section class="knowledge-orca-shell ${leftOpen ? "has-left-pane" : "is-left-collapsed"} ${rightOpen ? "has-right-pane" : "is-right-collapsed"}" aria-label="Không gian Tri thức">
+    ${leftSidebarHtml}
+    <section class="kb-stage-center">
+      <header class="kb-stage-topbar">
+        <div class="kb-topbar-left">
+          <button type="button" class="icon-button kb-pane-toggle ${leftOpen ? "is-active" : ""}" data-action="toggle-vault-left" title="${leftOpen ? "Ẩn thanh ghi chú bên trái" : "Hiện thanh ghi chú bên trái"}">${icon("sidebar-left", 15)}</button>
+          <div class="kb-active-doc-info">
+            <strong>${esc(activeFile ? activeFile.name : vaultName)}</strong>
+            <small>${activeFile ? `${esc(activeFile.path)} · ${formatNumber(activeFile.size)} B · ${fmtDate(activeFile.modifiedAt)}` : esc(vaultPath)}</small>
+          </div>
+        </div>
+        <div class="kb-topbar-right">
+          <div class="vault-mode-tabs" role="tablist" aria-label="Chế độ xem Tri thức">
+            <button type="button" class="vault-mode-tab ${mode === "files" ? "is-active" : ""}" data-action="vault-mode" data-mode="files">${icon("book-open-text", 13)}<span>Ghi chú</span></button>
+            <button type="button" class="vault-mode-tab ${mode === "graph" ? "is-active" : ""}" data-action="vault-mode" data-mode="graph">${icon("waypoints", 13)}<span>Đồ thị${nodes.length ? ` (${nodes.length})` : ""}</span></button>
+          </div>
+          ${isEditing && activeFile ? `
+            <button type="button" class="button quiet small" data-action="vault-cancel-edit">Hủy</button>
+            <button type="button" class="button primary small" data-action="vault-save-note" data-path="${esc(activeFile.path)}">${icon("check", 13)}<span>Lưu</span></button>
+          ` : activeFile ? `
+            <button type="button" class="button quiet small" data-action="vault-edit-note" data-path="${esc(activeFile.path)}" title="Chỉnh sửa ghi chú này">${icon("square-pen", 13)}<span>Sửa</span></button>
+            ${vaultNoteOptionsMenu(activeFile.path, { showRead: mode === "graph", showGraph: mode === "files", direction: "down" })}
+          ` : `<button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)}<span>Ghi chú mới</span></button>`}
+          <button type="button" class="button quiet small kb-inspector-toggle ${rightOpen ? "is-active" : ""}" data-action="toggle-vault-right" title="${rightOpen ? "Ẩn thanh bên Liên kết & Ngữ cảnh" : "Mở thanh bên Liên kết & Ngữ cảnh"}">
+            ${icon("waypoints", 13)}
+            <span>Liên kết${connectedNodes.length ? ` (${connectedNodes.length})` : ""}</span>
+          </button>
+        </div>
+      </header>
+      <div class="kb-stage-body">
+        ${centerBodyHtml}
+      </div>
+    </section>
+    ${rightOpen ? knowledgeRightInspectorMarkup(mode, selectedNode, connectedNodes, activeFile) : ""}
+  </section>`;
 }
 function skillPage() {
   const sources = new Set(view.skills.flatMap((skill) => skill.sources || [skill.source])).size;
@@ -2863,6 +3069,29 @@ async function handleWorkbenchClick(event) {
       else if (entry) await loadVaultPreview(entry.path);
     }
     if (action === "refresh-vault-files") await loadVaultDir(view.vaultDir, { keepPreview: true });
+    if (action === "toggle-vault-left") {
+      view.vaultLeftOpen = view.vaultLeftOpen === false ? true : false;
+      render();
+      return;
+    }
+    if (action === "toggle-vault-right") {
+      view.vaultRightOpen = view.vaultRightOpen === false ? true : false;
+      render();
+      return;
+    }
+    if (action === "vault-filter-tag") {
+      const tag = button.dataset.tag || "";
+      view.vaultFilter = view.vaultFilter === tag ? "" : tag;
+      if (view.vaultLeftOpen === false) view.vaultLeftOpen = true;
+      render();
+      return;
+    }
+    if (action === "vault-scroll-heading") {
+      const idx = button.dataset.headingIndex;
+      const headingEl = document.querySelector(`[data-kb-heading="${CSS.escape(String(idx))}"]`);
+      headingEl?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     if (action === "vault-mode") {
       view.vaultViewMode = button.dataset.mode || "files";
       if (view.vaultViewMode === "graph" && !view.vaultGraph) await loadVaultGraph();
@@ -3090,6 +3319,7 @@ document.addEventListener("input", (event) => {
   }
   const fileInput = event.target.closest("[data-file-filter]");
   if (fileInput) {
+    if (fileInput.dataset.fileFilter === "vault") view.vaultFilter = fileInput.value;
     const query = fileInput.value.trim().toLocaleLowerCase();
     const list = fileInput.closest(".file-browser")?.querySelector(".file-list");
     list?.querySelectorAll("[data-file-entry]").forEach((entry) => { entry.hidden = !entry.textContent.toLocaleLowerCase().includes(query); });
