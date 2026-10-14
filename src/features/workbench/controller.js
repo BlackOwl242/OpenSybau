@@ -428,6 +428,17 @@ function localFileRows(entries, action, filter = "") {
     return `<li data-file-entry><button class="file-row ${entry.type === "directory" ? "directory" : "file"}" data-action="${action}" data-path="${esc(entry.path)}" ${entry.type === "file" ? `aria-label="Mở ${esc(entry.name)}"` : "aria-expanded=false"}><span>${entry.type === "directory" ? icon("folder-code", 15) : icon("file", 15)}</span><strong title="${esc(entry.name)}">${esc(entry.name)}</strong>${entry.type === "file" ? `<small>${formatNumber(entry.size || 0)} B</small>` : icon("chevron-right", 14)}</button></li>`;
   }).join("");
 }
+function splitMarkdownTableRow(line) {
+  const trimmed = String(line || "").trim().replace(/^\|/, "").replace(/\|$/, "");
+  return trimmed.split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, "|").trim());
+}
+function isMarkdownTableDelimiter(line) {
+  if (!line || !line.includes("-")) return false;
+  const trimmed = String(line).trim();
+  if (!trimmed.includes("|")) return false;
+  const cells = splitMarkdownTableRow(trimmed);
+  return cells.length >= 1 && cells.every((c) => /^:?-{2,}:?$/.test(c));
+}
 function renderMarkdown(source) {
   const lines = String(source || "").split(/\r?\n/);
   const html = [];
@@ -436,13 +447,33 @@ function renderMarkdown(source) {
   const flushParagraph = () => { if (paragraph.length) { html.push(`<p>${paragraph.map(inline).join("<br>")}</p>`); paragraph = []; } };
   const closeList = () => { if (listType) { html.push(`</${listType}>`); listType = ""; } };
   let headingIdx = 0;
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     if (/^\s*```/.test(line)) { flushParagraph(); closeList(); if (inCode) { html.push(`<pre><code>${esc(codeLines.join("\n"))}</code></pre>`); codeLines = []; inCode = false; } else inCode = true; continue; }
     if (inCode) { codeLines.push(line); continue; }
+    if (!line.trim()) { flushParagraph(); closeList(); continue; }
+    if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { flushParagraph(); closeList(); html.push("<hr>"); continue; }
+    if (line.includes("|") && i + 1 < lines.length && isMarkdownTableDelimiter(lines[i + 1])) {
+      flushParagraph(); closeList();
+      const headers = splitMarkdownTableRow(line);
+      const aligns = splitMarkdownTableRow(lines[i + 1]).map((c) => (c.startsWith(":") && c.endsWith(":")) ? "center" : c.endsWith(":") ? "right" : "left");
+      i += 2;
+      const bodyRows = [];
+      while (i < lines.length && lines[i].trim() && lines[i].includes("|") && !/^\s*```/.test(lines[i]) && !/^(#{1,6})\s+/.test(lines[i])) {
+        bodyRows.push(splitMarkdownTableRow(lines[i]));
+        i++;
+      }
+      i--;
+      const theadHtml = `<thead><tr>${headers.map((h, colIdx) => `<th${aligns[colIdx] && aligns[colIdx] !== "left" ? ` style="text-align:${aligns[colIdx]}"` : ""}>${inline(h)}</th>`).join("")}</tr></thead>`;
+      const tbodyHtml = bodyRows.length
+        ? `<tbody>${bodyRows.map((row) => `<tr>${headers.map((_, colIdx) => `<td${aligns[colIdx] && aligns[colIdx] !== "left" ? ` style="text-align:${aligns[colIdx]}"` : ""}>${inline(row[colIdx] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody>`
+        : "";
+      html.push(`<div class="md-table-wrap"><table class="md-table">${theadHtml}${tbodyHtml}</table></div>`);
+      continue;
+    }
     const heading = line.match(/^(#{1,6})\s+(.+)$/);
     const bullet = line.match(/^\s*[-*+]\s+(.+)$/);
     const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
-    if (!line.trim()) { flushParagraph(); closeList(); continue; }
     if (heading) { flushParagraph(); closeList(); const level = Math.min(heading[1].length, 4); html.push(`<h${level} data-kb-heading="${headingIdx++}">${inline(heading[2])}</h${level}>`); continue; }
     if (bullet || ordered) { flushParagraph(); const nextType = bullet ? "ul" : "ol"; if (listType !== nextType) { closeList(); listType = nextType; html.push(`<${listType}>`); } html.push(`<li>${inline((bullet || ordered)[1])}</li>`); continue; }
     const quote = line.match(/^>\s?(.*)$/); if (quote) { flushParagraph(); closeList(); html.push(`<blockquote>${inline(quote[1])}</blockquote>`); continue; }
@@ -2440,9 +2471,6 @@ function chatPage() {
                   </div>
                 </details>
               </div>` : `<button type="button" class="codex-footer-btn" data-action="toggle-home-config">${esc(compactAgentLabel)} ${icon("chevron-down", 12)}</button>`}
-              <button type="button" class="codex-config-gear" data-action="toggle-home-config" aria-label="Cấu hình nâng cao" aria-expanded="${view.homeConfigOpen}" title="Cấu hình Pipeline & Nâng cao">
-                ${icon("settings-2", 14)}
-              </button>
               <button class="home-submit" type="submit" aria-label="${isArena ? "Khởi chạy Đa luồng" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${isArena ? "Khởi chạy Đa luồng" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${canRun || !workspaces.length ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>
             </div>
           </footer>
@@ -2515,6 +2543,18 @@ function taskArenaBanner(task) {
     </div>
   </section>`;
 }
+function cleanToolCommandText(raw) {
+  let text = String(raw || "").trim();
+  if (!text) return "";
+  text = text
+    .replace(/^(?:"[^"]*(?:powershell|pwsh)(?:\.exe)?"|\S*(?:powershell|pwsh)(?:\.exe)?)\s+(?:-[a-zA-Z]+\s+)*-Command\s+/i, "")
+    .replace(/^(?:"[^"]*cmd(?:\.exe)?"|\S*cmd(?:\.exe)?)\s+(?:\/[a-zA-Z]\s+)*\/c\s+/i, "")
+    .trim();
+  if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+    text = text.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\").trim();
+  }
+  return text.replace(/\s+/g, " ");
+}
 function taskInlineToolStream(task) {
   const events = (task.events || []).filter((e) => ["tool", "stage", "handoff", "error"].includes(e.kind));
   const artifacts = task.artifacts || [];
@@ -2524,28 +2564,37 @@ function taskInlineToolStream(task) {
   return `<details class="chat-tool-stream" ${running ? "open" : ""}>
     <summary class="chat-tool-stream-summary">
       <span class="chat-tool-stream-title">
-        ${icon("square-terminal", 14)}
-        <strong>Hoạt động công cụ & Tệp thay đổi</strong>
-        <small>${events.length} bước thực thi${artifacts.length ? ` · ${artifacts.length} tệp sửa đổi` : ""}</small>
+        ${icon("square-terminal", 13)}
+        <strong>Hoạt động công cụ</strong>
+        <span class="chat-tool-stream-meta">${events.length} bước thực thi${artifacts.length ? ` · ${artifacts.length} tệp thay đổi` : ""}</span>
       </span>
-      <span class="chat-tool-stream-hint">Nhấn để đóng/mở</span>
+      <span class="chat-tool-stream-chevron">${icon("chevron-right", 14)}</span>
     </summary>
     <div class="chat-tool-stream-body">
-      ${recentTools.map((ev) => {
-        const isErr = ev.kind === "error" || ev.status === "failed";
-        const iconName = ev.filePath ? "file" : ev.kind === "stage" || ev.kind === "handoff" ? "workflow" : "square-terminal";
-        const badge = ev.toolName || (ev.kind === "stage" ? "STAGE" : ev.kind === "handoff" ? "HANDOFF" : "TOOL");
-        return `<div class="chat-tool-card ${isErr ? "is-error" : ""}">
-          <span class="chat-tool-icon">${icon(iconName, 13)}</span>
-          <span class="chat-tool-badge">${esc(badge)}</span>
-          <code class="chat-tool-text">${esc(ev.command || ev.filePath || ev.text || "")}</code>
-          ${ev.exitCode !== undefined && ev.exitCode !== null ? `<span class="chat-tool-exit ${ev.exitCode === 0 ? "is-ok" : "is-fail"}">exit ${ev.exitCode}</span>` : ""}
-        </div>`;
-      }).join("")}
+      <div class="chat-tool-list">
+        ${recentTools.map((ev) => {
+          const isErr = ev.kind === "error" || ev.status === "failed";
+          const iconName = ev.filePath ? "file-text" : ev.kind === "stage" || ev.kind === "handoff" ? "workflow" : "square-terminal";
+          const badge = ev.toolName || (ev.kind === "stage" ? "stage" : ev.kind === "handoff" ? "handoff" : "terminal");
+          const rawText = ev.command || ev.filePath || ev.text || "";
+          const displayCmd = cleanToolCommandText(rawText) || rawText;
+          return `<div class="chat-tool-card ${isErr ? "is-error" : ""}">
+            <span class="chat-tool-icon">${icon(iconName, 12)}</span>
+            <span class="chat-tool-badge">${esc(badge)}</span>
+            <code class="chat-tool-text" title="${esc(rawText)}">${esc(displayCmd)}</code>
+            ${ev.exitCode !== undefined && ev.exitCode !== null ? `<span class="chat-tool-exit ${ev.exitCode === 0 ? "is-ok" : "is-fail"}">${ev.exitCode === 0 ? "✓" : `exit ${ev.exitCode}`}</span>` : ""}
+          </div>`;
+        }).join("")}
+      </div>
       ${artifacts.length ? `<div class="chat-tool-artifacts">
-        <small>Tệp thay đổi (nhấn để mở Diff Review Studio):</small>
+        <span class="chat-tool-artifacts-label">${icon("files", 12)}<span>Tệp sửa đổi</span></span>
         <div class="chat-tool-artifact-list">
-          ${artifacts.slice(0, 24).map((filePath) => `<button type="button" class="chat-artifact-pill" data-action="open-diff-file" data-id="${esc(task.id)}" data-path="${esc(filePath)}">${icon("file", 12)}<span>${esc(filePath)}</span></button>`).join("")}
+          ${artifacts.slice(0, 24).map((filePath) => {
+            const norm = String(filePath || "").replaceAll("\\", "/");
+            const base = norm.split("/").at(-1) || norm;
+            const dir = norm.includes("/") ? norm.slice(0, norm.lastIndexOf("/")) : "";
+            return `<button type="button" class="chat-artifact-pill" data-action="open-diff-file" data-id="${esc(task.id)}" data-path="${esc(filePath)}" title="Mở tệp ${esc(norm)}">${icon(dockFileIconName(base), 12)}<strong>${esc(base)}</strong>${dir ? `<small>${esc(dir)}</small>` : ""}</button>`;
+          }).join("")}
         </div>
       </div>` : ""}
     </div>
@@ -2632,10 +2681,18 @@ function taskConversationPage() {
     const queuePosition = message.status === "queued" ? queuedTurns.findIndex((turn) => turn.messageId === message.id) : -1;
     const pending = message.status === "queued" ? queuePosition >= 0 ? (view.language === "en" ? `Queued · ${queuePosition + 1}/${queuedTurns.length}` : `Trong hàng đợi · ${queuePosition + 1}/${queuedTurns.length}`) : (view.language === "en" ? "Queued" : "Đang chờ") : message.status === "running" ? (view.language === "en" ? "Agent is replying" : "Đang xử lý") : message.status === "failed" ? (view.language === "en" ? "Failed" : "Lỗi") : "";
     const content = message.content ? renderMarkdown(message.content) : "";
-    const forkButton = isUser && message.id && (!message.status || message.status === "done") ? `<button type="button" class="chat-fork-button" data-action="fork-chat" data-id="${task.id}" data-message-id="${esc(message.id)}" title="Tạo nhánh hội thoại từ đây; workspace vẫn dùng chung">${icon("git-branch", 12)} Fork</button>` : "";
+    const forkButton = isUser && message.id && (!message.status || message.status === "done") ? `<button type="button" class="chat-fork-button" data-action="fork-chat" data-id="${task.id}" data-message-id="${esc(message.id)}" title="Tạo nhánh hội thoại từ đây; workspace vẫn dùng chung">${icon("git-branch", 12)}<span>Tạo nhánh</span></button>` : "";
     const messageError = message.status === "failed" ? `<button type="button" class="chat-message-error" data-action="view-error-details" data-error="${esc(message.error || "Không nhận được phản hồi từ agent.")}">Xem nguyên nhân lỗi</button>` : "";
     const messageAttachments = message.attachments?.length ? `<div class="chat-message-attachments">${message.attachments.map((file) => `<span class="chat-message-attachment">${icon("file", 14)}<span title="${esc(file.name)}">${esc(file.name)}</span></span>`).join("")}</div>` : "";
-    return `<article class="chat-message ${isUser ? "from-user" : "from-agent"}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small>${forkButton}</header><div class="chat-message-content ${isUser ? "user-message-content" : "agent-message-content"}">${content}${messageAttachments}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}</div></article>`;
+    if (isUser) {
+      return `<article class="chat-message from-user">
+        <div class="user-bubble-card">
+          <div class="chat-message-content user-message-content">${content}${messageAttachments}</div>
+        </div>
+        ${(forkButton || pending || messageError) ? `<div class="user-message-meta ${pending || messageError ? "is-visible" : ""}">${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}${forkButton}</div>` : ""}
+      </article>`;
+    }
+    return `<article class="chat-message from-agent"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small></header><div class="chat-message-content agent-message-content">${content}${messageAttachments}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}</div></article>`;
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
   const effortDisplay = { low: "Low", medium: "Medium", high: "High", minimal: "Min", standard: "Std", max: "Max" };
   const activeEfforts = model?.efforts?.length ? model.efforts : ["low", "medium", "high"];
@@ -2666,7 +2723,7 @@ function taskConversationPage() {
             ${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}
           </div>
         </div>
-        <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button type="button" class="codex-config-gear" data-action="task-instruction" data-id="${task.id}" title="Cấu hình nâng cao">${icon("settings-2", 14)}</button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
+        <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
       </section>
   </section>`;
 }

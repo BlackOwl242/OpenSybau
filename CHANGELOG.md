@@ -5,6 +5,23 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.79] - 2026-10-15
+
+### Fixed & Improved (Hiển Thị Bảng Markdown Trên Chat, Đồng Bộ Khối Hoạt Động Công Cụ, Tối Ưu Bong Bóng Chat Người Dùng, Bỏ Nút Cài Đặt Khung Chat & Thêm Vạch Ngăn Cách Sidebar Trái)
+- **Hỗ trợ hiển thị bảng Markdown (`GFM Table`) trong khung Chat & trang Tri thức**:
+  - Nâng cấp bộ phân tích `renderMarkdown` (`splitMarkdownTableRow`, `isMarkdownTableDelimiter`) để chuyển đổi cú pháp bảng `| Cột 1 | Cột 2 |` + `|---|---|` thành bảng HTML `.md-table` có khung bo góc, tiêu đề cột rõ ràng và định dạng `code`/`bold` bên trong từng ô.
+- **Thiết kế lại khối `Hoạt động công cụ` (`.chat-tool-stream`) đồng bộ tông tối Zinc**:
+  - Tự động lọc bỏ chuỗi đường dẫn vỏ `powershell.exe -Command` / `cmd.exe /c` rườm rà để hiển thị nội dung câu lệnh thực thi ngắn gọn, dễ đọc.
+  - Thay chữ `"Nhấn để đóng/mở"` bằng biểu tượng mũi tên xoay gọn gàng; thiết kế lại danh sách `Tệp sửa đổi` thành các nhãn đơn dòng (`Tên tệp` + `thư mục`) mở trực tiếp trong trình xem tab.
+- **Tối ưu bong bóng tin nhắn người dùng gửi (`.chat-message.from-user`)**:
+  - Loại bỏ phần tiêu đề cồng kềnh (`Bạn · model · Fork`) bên trong bong bóng; đưa nội dung tin nhắn vào khung bo tròn gọn gàng `.user-bubble-card` và chỉ hiện nút `Tạo nhánh` nhỏ gọn bên dưới khi di chuột qua.
+- **Loại bỏ nút biểu tượng bánh răng cài đặt (`⚙️ .codex-config-gear`) ở góc dưới khung nhập Chat**:
+  - Giữ thanh công cụ dưới khung nhập tinh gọn vì bộ chọn Agent/Model và mức suy luận (`Low`/`Medium`/`High`) đã nằm trực tiếp ngay bên cạnh nút gửi.
+- **Bổ sung vạch ngăn cách mờ trên thanh điều hướng bên trái (`.wb-rail`)**:
+  - Thêm đường kẻ ngang mảnh tinh tế (`rgba(255, 255, 255, 0.12)`) ngăn cách dưới biểu tượng thương hiệu và giữa các cụm nút chức năng (`Làm việc`, `Thư viện`, `Hệ thống`).
+
+---
+
 ## [0.2.78] - 2026-10-15
 
 ### Fixed & Improved (Tối Ưu Sidebar Phải Theo Từng Trang & Đồng Bộ Triệt Để Font Chữ Hệ Thống)
