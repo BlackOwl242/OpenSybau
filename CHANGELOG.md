@@ -5,6 +5,15 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.75] - 2026-10-15
+
+### Fixed & Improved (Đồng Bộ Hóa Font Chữ Toàn Hệ Thống `Nunito Sans Variable`)
+- **Đồng bộ hóa hoàn toàn font chữ giao diện (`--wb-font-sans`)**:
+  - Chuyển toàn bộ thanh trạng thái dưới đáy (`.wb-statusbar`: tên dự án tiếng Việt có dấu, trạng thái chạy, thống kê token `5h` / `7d`), nhãn thời gian tương đối cạnh cuộc trò chuyện ở Sidebar trái (`.wb-task-time`: `7g`, `12p`), các huy hiệu số lượng/nhánh trong Sidebar phải (`.orca-tree-badge`, `.kb-degree-pill`, `.kb-section-badge`), thanh địa chỉ tệp (`.orca-address-path`), danh sách tệp Diff và các thẻ công cụ sang dùng chung font hệ thống **`Nunito Sans Variable`** kết hợp `font-variant-numeric: tabular-nums` để chữ tiếng Việt sắc nét và số liệu vẫn thẳng hàng.
+  - Chỉ giữ font đơn cách (`--wb-font-mono`) cho nội dung mã nguồn, dòng Diff code và khung soạn thảo Markdown.
+
+---
+
 ## [0.2.74] - 2026-10-14
 
 ### Added & Improved (Đa Cửa Sổ Tab Kiểu ORCA, Trình Xem Tệp Đa Định Dạng Tức Thì & Chế Độ Chia Đôi Màn Hình Split View)

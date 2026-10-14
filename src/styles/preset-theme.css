@@ -457,7 +457,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   color: var(--foreground);
 }
 .chat-pipeline-step small {
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   color: var(--muted-foreground);
 }
@@ -527,7 +528,7 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   border-radius: 999px;
   background: #1f2023;
   color: #9da3ae;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
   font-size: 9.5px;
   line-height: 1.35;
   overflow: hidden;
@@ -583,8 +584,9 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
 .wb-task-time {
   flex: 0 0 auto;
   color: #82868e;
-  font-size: 9.5px;
-  font-family: var(--wb-font-mono);
+  font-size: 11px;
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .wb-task-sub {
   display: flex;
@@ -613,7 +615,7 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   background: rgba(138, 180, 248, 0.12);
   border: 1px solid rgba(138, 180, 248, 0.3);
   color: #a8c7fa;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
   font-size: 9px;
   line-height: 1.4;
 }
@@ -649,7 +651,7 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   align-items: center;
   padding: 1px 6px;
   border-radius: 999px;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
   font-size: 9.5px;
   background: #2b2d31;
   border: 1px solid #41444a;
@@ -706,7 +708,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
 .wb-topbar-tab small {
   color: #8b9099;
   font-size: 9.5px;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .wb-top-icon.is-active {
   border-color: #8ab4f8;
@@ -726,8 +729,9 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   border-top: 1px solid #2e3034;
   background: #18191b;
   color: #9aa0a8;
-  font-size: 11px;
-  font-family: var(--wb-font-mono);
+  font-size: 11.5px;
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
   user-select: none;
   z-index: 4;
 }
@@ -849,7 +853,7 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
 }
 .arena-competitor-pill small {
   color: #8f959e;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
   font-size: 10px;
 }
 
@@ -906,7 +910,7 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
 }
 .arena-competitor-card small {
   color: #9aa0a9;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
   font-size: 10px;
 }
 .arena-compare-modal {
@@ -943,7 +947,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   flex-wrap: wrap;
   gap: 8px;
   color: #9ba1aa;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
 }
 .arena-compare-output {
@@ -989,7 +994,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
 .chat-tool-stream-summary small {
   margin-left: auto;
   color: #8f959f;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px;
 }
 .chat-tool-stream-body {
@@ -1009,8 +1015,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   padding: 4px 7px;
   border-radius: 6px;
   background: #202226;
-  font-family: var(--wb-font-mono);
-  font-size: 11px;
+  font-family: var(--wb-font-sans);
+  font-size: 11.5px;
 }
 .chat-tool-badge {
   flex: 0 0 auto;
@@ -1070,8 +1076,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   border-radius: 5px;
   background: #23262a;
   color: #a8c7fa;
-  font-family: var(--wb-font-mono);
-  font-size: 10px;
+  font-family: var(--wb-font-sans);
+  font-size: 11px;
   cursor: pointer;
 }
 .chat-artifact-pill:hover {
@@ -1168,8 +1174,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   border: 0;
   background: transparent;
   color: #cfd3da;
-  font-family: var(--wb-font-mono);
-  font-size: 11px;
+  font-family: var(--wb-font-sans);
+  font-size: 11.5px;
   text-align: left;
   cursor: pointer;
 }
@@ -1188,8 +1194,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   border-radius: 4px;
   background: #222428;
   color: #a8c7fa;
-  font-family: var(--wb-font-mono);
-  font-size: 10px;
+  font-family: var(--wb-font-sans);
+  font-size: 10.5px;
   cursor: pointer;
   opacity: 0;
 }
@@ -1214,8 +1220,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   gap: 8px;
   padding: 6px 10px;
   border-bottom: 1px solid #2a2d31;
-  font-family: var(--wb-font-mono);
-  font-size: 10.5px;
+  font-family: var(--wb-font-sans);
+  font-size: 11px;
 }
 .chat-drawer-preview pre {
   margin: 0;
@@ -1284,8 +1290,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   border-radius: 6px;
   background: transparent;
   color: #dce0e6;
-  font-family: var(--wb-font-mono);
-  font-size: 11.5px;
+  font-family: var(--wb-font-sans);
+  font-size: 12px;
   text-align: left;
   cursor: pointer;
 }
@@ -1321,8 +1327,9 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: var(--wb-font-mono);
-  font-size: 11.5px;
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
 }
 .diff-stat-add {
   color: #9ad5b5;
@@ -1366,8 +1373,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   border-radius: 7px;
   background: transparent;
   color: #c5c9d1;
-  font-family: var(--wb-font-mono);
-  font-size: 11px;
+  font-family: var(--wb-font-sans);
+  font-size: 12px;
   text-align: left;
   cursor: pointer;
 }
@@ -1439,8 +1446,8 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
   padding: 7px 12px;
   border-bottom: 1px solid #2b2e34;
   background: #1e2024;
-  font-family: var(--wb-font-mono);
-  font-size: 11.5px;
+  font-family: var(--wb-font-sans);
+  font-size: 12px;
 }
 .diff-Viewer-head small,
 .diff-viewer-head small {
@@ -2734,7 +2741,8 @@ body .wb-top-icon:hover {
   border-radius: 5px;
   background: rgba(255, 255, 255, 0.08);
   color: #d4d4d8;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   font-weight: 650;
 }
@@ -2749,8 +2757,8 @@ body .wb-top-icon:hover {
   font-size: 11.5px !important;
 }
 .arena-slot-select.is-model {
-  font-family: var(--wb-font-mono) !important;
-  font-size: 11px !important;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 11.5px !important;
 }
 .arena-slot-icon {
   width: 26px;
@@ -3614,7 +3622,8 @@ summary:hover svg.lucide-animated .la-dot-3 {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.07);
   color: rgba(255, 255, 255, 0.55) !important;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 10px !important;
   display: inline-grid;
   place-items: center;
@@ -4048,8 +4057,8 @@ summary:hover svg.lucide-animated .la-dot-3 {
 }
 
 .kb-inspector-note-head small {
-  font-family: var(--wb-font-mono);
-  font-size: 10.5px !important;
+  font-family: var(--wb-font-sans);
+  font-size: 11px !important;
   color: rgba(255, 255, 255, 0.45) !important;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4099,7 +4108,8 @@ summary:hover svg.lucide-animated .la-dot-3 {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.07);
   color: #d4d4d8;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 10px;
   display: inline-grid;
   place-items: center;
@@ -4569,14 +4579,15 @@ body.is-resizing-dock .orca-dock-resizer {
 
 .orca-tree-badge {
   flex: 0 0 auto;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
   font-size: 10.5px !important;
   color: rgba(255, 255, 255, 0.42) !important;
 }
 
 .orca-diff-dot {
   flex: 0 0 auto;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
   font-size: 10px !important;
   font-weight: 700;
   color: #eab308 !important;
@@ -4591,7 +4602,7 @@ body.is-resizing-dock .orca-dock-resizer {
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.08);
   color: #e4e4e7;
-  font-family: var(--wb-font-mono);
+  font-family: var(--wb-font-sans);
   font-size: 11px;
   display: none;
   place-items: center;
@@ -5340,8 +5351,8 @@ body.is-resizing-dock .orca-dock-resizer {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--mono);
-  font-size: 11.5px;
+  font-family: var(--wb-font-sans);
+  font-size: 12px;
   color: #d4d4d8;
   background: transparent !important;
   padding: 0 !important;
@@ -5610,7 +5621,7 @@ body.is-resizing-dock .orca-dock-resizer {
   display: flex;
   flex-direction: column;
   padding: 6px 0 28px;
-  font-family: var(--mono);
+  font-family: var(--wb-font-mono);
   font-size: 12.5px;
   line-height: 1.55;
 }
@@ -5646,7 +5657,7 @@ body.is-resizing-dock .orca-dock-resizer {
 
 .orca-code-row .diff-comment-trigger {
   opacity: 0;
-  font-family: var(--sans);
+  font-family: var(--wb-font-sans);
   font-size: 11px;
   color: #a1a1aa;
   padding: 1px 6px;
@@ -5687,7 +5698,8 @@ body.is-resizing-dock .orca-dock-resizer {
   width: 44px;
   text-align: right;
   color: #71717a;
-  font-family: var(--mono);
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .orca-viewer-empty {
@@ -5713,4 +5725,39 @@ body.is-resizing-dock .orca-dock-resizer {
   gap: 8px;
   margin-top: 8px;
 }
+
+/* ==========================================================================
+   System-Wide UI Font Synchronization (v0.2.75)
+   Ensure all UI labels, timestamps, status bars, badges, and metadata use
+   the primary system sans-serif font (--wb-font-sans) with tabular numerals.
+   ========================================================================== */
+.wb-statusbar,
+.wb-statusbar *,
+.wb-task-time,
+.wb-context-sidebar,
+.wb-context-sidebar *:not(code):not(pre),
+.orca-right-dock,
+.orca-right-dock *:not(code):not(pre),
+.orca-tabbar,
+.orca-tabbar *,
+.orca-viewer-toolbar,
+.orca-viewer-toolbar *,
+.detail-id,
+.event-row time,
+.activity-item time,
+.workflow-node-mark,
+.conversation-task-id,
+.orchestration-node-details time,
+.orchestration-event time {
+  font-family: var(--wb-font-sans) !important;
+}
+
+.wb-statusbar,
+.wb-task-time,
+.orca-tree-badge,
+.kb-degree-pill,
+.kb-section-badge {
+  font-variant-numeric: tabular-nums;
+}
+
 

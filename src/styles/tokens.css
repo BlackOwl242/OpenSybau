@@ -37,6 +37,8 @@
   --wb-amber: #fbbf24;
   --wb-font-mono: "SF Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
   --wb-font-sans: "Nunito Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --sans: var(--wb-font-sans);
+  --mono: var(--wb-font-mono);
 
   /* Semantic tokens aligned with Orca main.css */
   --background: var(--wb-main);
