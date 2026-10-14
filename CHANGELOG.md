@@ -5,6 +5,19 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.69] - 2026-10-14
+
+### Changed & Improved (Bộ Icon Lucide-Animated, Menu 3 Chấm File `.md` & Tinh Gọn Giao Diện Tri Thức)
+- **Thay thế bộ icon bằng chuẩn Lucide-Animated (`https://lucide-animated.com`)**:
+  - Chuyển toàn bộ hệ thống icon từ Hugeicons sang hình học chuẩn Lucide 24×24 sắc nét kèm hiệu ứng chuyển động vi mô (micro-animations) mượt mà trên từng thành phần SVG khi di chuột, đồng thời căn chỉnh lại huy hiệu số lượng (`.wb-rail-count`) ở thanh điều hướng trái để không đè lên nét icon.
+- **Menu 3 chấm (`⋯`) mở rộng tùy chọn cho tệp `.md`**:
+  - Gộp các thao tác (`Chỉnh sửa ghi chú`, `Xem trên đồ thị`, `Mở trong Obsidian`, `Xóa ghi chú`) vào menu 3 chấm (`⋯`) gọn gàng cả ở từng dòng tệp `.md` trong danh sách bên trái lẫn trên thanh tiêu đề khung xem và bảng chi tiết đồ thị.
+- **Làm lại thanh công cụ phía trên và thu gọn bố cục trang Tri thức**:
+  - Tinh giản thanh công cụ đầu trang Tri thức chỉ còn 3 cụm đồng bộ chiều cao: Bộ chuyển chế độ (`Ghi chú` / `Đồ thị`), nút `+ Ghi chú mới` và menu `⋯` quản lý Vault (`Mở trong Obsidian`, `Làm mới dữ liệu`, `Đổi thư mục Vault…`, `Ngắt kết nối Vault`).
+  - Thu gọn chiều cao khung làm việc Tri thức & Đồ thị vừa khít khung nhìn, loại bỏ các huy hiệu nổi rườm rà và đồng bộ bảng Đồ thị theo đúng chuẩn thiết kế tối giản của hệ thống.
+
+---
+
 ## [0.2.68] - 2026-10-14
 
 ### Changed (Tinh chỉnh thuật ngữ giao diện: Đổi "Đấu trường" thành "Đa luồng")

@@ -1,116 +1,54 @@
-import Add01Icon from "@hugeicons/core-free-icons/Add01Icon";
-import Archive01Icon from "@hugeicons/core-free-icons/Archive01Icon";
-import ArchiveRestoreIcon from "@hugeicons/core-free-icons/ArchiveRestoreIcon";
-import ArrowLeft01Icon from "@hugeicons/core-free-icons/ArrowLeft01Icon";
-import ArrowUpRight01Icon from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
-import BookOpenTextIcon from "@hugeicons/core-free-icons/BookOpenTextIcon";
-import BookCheckIcon from "@hugeicons/core-free-icons/BookCheckIcon";
-import BrainIcon from "@hugeicons/core-free-icons/BrainIcon";
-import Cancel01Icon from "@hugeicons/core-free-icons/Cancel01Icon";
-import CheckIcon from "@hugeicons/core-free-icons/CheckIcon";
-import CheckListIcon from "@hugeicons/core-free-icons/CheckListIcon";
-import ChevronDownIcon from "@hugeicons/core-free-icons/ChevronDownIcon";
-import ChevronRightIcon from "@hugeicons/core-free-icons/ChevronRightIcon";
-import CodeFolderIcon from "@hugeicons/core-free-icons/CodeFolderIcon";
-import CommandLineIcon from "@hugeicons/core-free-icons/CommandLineIcon";
-import Copy01Icon from "@hugeicons/core-free-icons/Copy01Icon";
-import Delete02Icon from "@hugeicons/core-free-icons/Delete02Icon";
-import Download01Icon from "@hugeicons/core-free-icons/Download01Icon";
-import File01Icon from "@hugeicons/core-free-icons/File01Icon";
-import Folder01Icon from "@hugeicons/core-free-icons/Folder01Icon";
-import FolderAddIcon from "@hugeicons/core-free-icons/FolderAddIcon";
-import FolderOpenIcon from "@hugeicons/core-free-icons/FolderOpenIcon";
-import GitBranchIcon from "@hugeicons/core-free-icons/GitBranchIcon";
-import HelpCircleIcon from "@hugeicons/core-free-icons/HelpCircleIcon";
-import ListIcon from "@hugeicons/core-free-icons/ListIcon";
-import MessageCircleIcon from "@hugeicons/core-free-icons/MessageCircleIcon";
-import MoreHorizontalIcon from "@hugeicons/core-free-icons/MoreHorizontalIcon";
-import NotebookTabsIcon from "@hugeicons/core-free-icons/NotebookTabsIcon";
-import PinIcon from "@hugeicons/core-free-icons/PinIcon";
-import PlugZapIcon from "@hugeicons/core-free-icons/PlugZapIcon";
-import RefreshCwIcon from "@hugeicons/core-free-icons/RefreshCwIcon";
-import RotateCwIcon from "@hugeicons/core-free-icons/RotateCwIcon";
-import Search01Icon from "@hugeicons/core-free-icons/Search01Icon";
-import Settings01Icon from "@hugeicons/core-free-icons/Settings01Icon";
-import Shield01Icon from "@hugeicons/core-free-icons/Shield01Icon";
-import Square01Icon from "@hugeicons/core-free-icons/Square01Icon";
-import SquarePenIcon from "@hugeicons/core-free-icons/SquarePenIcon";
-import Target01Icon from "@hugeicons/core-free-icons/Target01Icon";
-import WorkflowSquare01Icon from "@hugeicons/core-free-icons/WorkflowSquare01Icon";
-
-const iconData = {
-  archive: Archive01Icon,
-  "archive-restore": ArchiveRestoreIcon,
-  "arrow-left": ArrowLeft01Icon,
-  "arrow-right": [
-    ["path", { d: "M9 6C9 6 15 10.4189 15 12C15 13.5812 9 18 9 18", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }],
-  ],
-  "arrow-up-right": ArrowUpRight01Icon,
-  "book-open-text": BookOpenTextIcon,
-  "book-check": BookCheckIcon,
-  brain: BrainIcon,
-  check: CheckIcon,
-  "chevron-down": ChevronDownIcon,
-  "chevron-right": ChevronRightIcon,
-  copy: Copy01Icon,
-  delete: Delete02Icon,
-  "download-cloud": Download01Icon,
-  ellipsis: MoreHorizontalIcon,
-  file: File01Icon,
-  folder: Folder01Icon,
-  "folder-code": CodeFolderIcon,
-  "folder-open": FolderOpenIcon,
-  "folder-plus": FolderAddIcon,
-  "git-branch": GitBranchIcon,
-  "circle-question-mark": HelpCircleIcon,
-  laptop: [
-    ["rect", { x: "3", y: "4", width: "18", height: "12", rx: "2", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }],
-    ["path", { d: "M2 20H22", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round" }],
-  ],
-  list: ListIcon,
-  "list-checks": CheckListIcon,
-  "message-circle": MessageCircleIcon,
-  "notebook-tabs": NotebookTabsIcon,
-  pin: PinIcon,
-  "plug-zap": PlugZapIcon,
-  plus: Add01Icon,
-  "refresh-cw": RefreshCwIcon,
-  "rotate-cw": RotateCwIcon,
-  search: Search01Icon,
-  "settings-2": Settings01Icon,
-  shield: Shield01Icon,
-  "sidebar-left": [
-    ["rect", { x: "3", y: "4", width: "18", height: "16", rx: "3", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }],
-    ["path", { d: "M9 4V20", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round" }],
-  ],
-  square: Square01Icon,
-  "square-pen": SquarePenIcon,
-  "square-plus": [
-    ["rect", { x: "3.5", y: "3.5", width: "17", height: "17", rx: "4", stroke: "currentColor", strokeWidth: "1.75", strokeLinecap: "round", strokeLinejoin: "round" }],
-    ["path", { d: "M12 8.5V15.5M8.5 12H15.5", stroke: "currentColor", strokeWidth: "1.75", strokeLinecap: "round" }],
-  ],
-  "square-terminal": CommandLineIcon,
-  target: Target01Icon,
-  workflow: WorkflowSquare01Icon,
-  x: Cancel01Icon,
+// Official Lucide 24x24 SVG geometry with Lucide-Animated (https://lucide-animated.com) part classes.
+const lucideIcons = {
+  archive: `<rect width="20" height="5" x="2" y="3" rx="1" class="la-lid"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4" class="la-slot"/>`,
+  "archive-restore": `<rect width="20" height="5" x="2" y="3" rx="1" class="la-lid"/><path d="M4 8v11a2 2 0 0 0 2 2h2"/><path d="M20 8v11a2 2 0 0 1-2 2h-2"/><path d="m9 15 3-3 3 3" class="la-arrow-u"/><path d="M12 12v9" class="la-arrow-u"/>`,
+  "arrow-left": `<path d="m12 19-7-7 7-7" class="la-arrow-l"/><path d="M19 12H5" class="la-arrow-l"/>`,
+  "arrow-right": `<path d="M5 12h14" class="la-arrow-r"/><path d="m12 5 7 7-7 7" class="la-arrow-r"/>`,
+  "arrow-up-right": `<g class="la-arrow-ur"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></g>`,
+  "book-open-text": `<path d="M12 7v14"/><path d="M16 12h2" class="la-line"/><path d="M16 8h2" class="la-line"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" class="la-book"/><path d="M6 12h2" class="la-line"/><path d="M6 8h2" class="la-line"/>`,
+  "book-check": `<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/><path d="m9 9.5 2 2 4-4" class="la-check"/>`,
+  brain: `<g class="la-brain"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/><path d="M17.599 6.5a3 3 0 0 0 .399-1.375"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M19.938 10.5a4 4 0 0 1 .585.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M19.967 17.484A4 4 0 0 1 18 18"/></g>`,
+  check: `<path d="M20 6 9 17l-5-5" class="la-check"/>`,
+  "chevron-down": `<path d="m6 9 6 6 6-6" class="la-chev-d"/>`,
+  "chevron-right": `<path d="m9 18 6-6-6-6" class="la-chev-r"/>`,
+  copy: `<rect width="14" height="14" x="8" y="8" rx="2" ry="2" class="la-copy-front"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>`,
+  delete: `<path d="M3 6h18" class="la-lid"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" class="la-lid"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>`,
+  "download-cloud": `<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><g class="la-arrow-d"><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></g>`,
+  ellipsis: `<circle cx="12" cy="12" r="1.2" class="la-dot-2"/><circle cx="19" cy="12" r="1.2" class="la-dot-3"/><circle cx="5" cy="12" r="1.2" class="la-dot-1"/>`,
+  file: `<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4" class="la-fold"/>`,
+  folder: `<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" class="la-folder"/>`,
+  "folder-code": `<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="m10 10.5-2 2.5 2 2.5" class="la-code-l"/><path d="m14 10.5 2 2.5-2 2.5" class="la-code-r"/>`,
+  "folder-open": `<path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" class="la-folder"/>`,
+  "folder-plus": `<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><g class="la-plus"><path d="M12 10v6"/><path d="M9 13h6"/></g>`,
+  "git-branch": `<line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3" class="la-node"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9" class="la-branch"/>`,
+  "circle-question-mark": `<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" class="la-q"/><path d="M12 17h.01"/>`,
+  laptop: `<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>`,
+  list: `<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13" class="la-line"/><path d="M8 18h13" class="la-line"/><path d="M8 6h13" class="la-line"/>`,
+  "list-checks": `<path d="m3 17 2 2 4-4" class="la-check"/><path d="m3 7 2 2 4-4" class="la-check"/><path d="M13 6h8" class="la-line"/><path d="M13 12h8" class="la-line"/><path d="M13 18h8" class="la-line"/>`,
+  "message-circle": `<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" class="la-bubble"/>`,
+  "notebook-tabs": `<path d="M12 2L2 7l10 5 10-5-10-5Z" class="la-layer-top"/><path d="m2 17 10 5 10-5" class="la-layer-bot"/><path d="m2 12 10 5 10-5" class="la-layer-mid"/>`,
+  pin: `<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" class="la-pin"/>`,
+  "plug-zap": `<path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"/><path d="m2 22 3-3"/><path d="M7.5 13.5 10 11"/><path d="M10.5 16.5 13 14"/><path d="m18 3-4 4h6l-4 4" class="la-bolt"/>`,
+  plus: `<g class="la-plus"><path d="M5 12h14"/><path d="M12 5v14"/></g>`,
+  "refresh-cw": `<g class="la-spin"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></g>`,
+  "rotate-cw": `<g class="la-spin"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></g>`,
+  search: `<g class="la-lens"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></g>`,
+  "settings-2": `<g class="la-gear"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></g>`,
+  shield: `<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" class="la-shield"/>`,
+  "sidebar-left": `<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18" class="la-divider"/>`,
+  square: `<rect width="16" height="16" x="4" y="4" rx="2"/>`,
+  "square-pen": `<path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z" class="la-pen"/>`,
+  "square-plus": `<rect width="18" height="18" x="3" y="3" rx="2"/><g class="la-plus"><path d="M8 12h8"/><path d="M12 8v8"/></g>`,
+  "square-terminal": `<path d="m7 11 2-2-2-2" class="la-chevron"/><path d="M11 13h4" class="la-cursor"/><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>`,
+  target: `<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6" class="la-ring"/><circle cx="12" cy="12" r="2" class="la-bull"/>`,
+  waypoints: `<circle cx="12" cy="4.5" r="2.5" class="la-node"/><path d="m10.2 6.3-3.9 3.9" class="la-branch"/><circle cx="4.5" cy="12" r="2.5"/><path d="M7 12h10" class="la-branch"/><circle cx="19.5" cy="12" r="2.5" class="la-node"/><path d="m13.8 17.7 3.9-3.9" class="la-branch"/><circle cx="12" cy="19.5" r="2.5"/>`,
+  workflow: `<rect width="8" height="8" x="3" y="3" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4" class="la-branch"/><rect width="8" height="8" x="13" y="13" rx="2" class="la-node"/>`,
+  x: `<g class="la-close"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></g>`,
 };
 
-function escapeAttribute(value) {
-  return String(value).replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  })[character]);
-}
-
 export function iconSvg(name, size = 16) {
-  const data = iconData[name];
-  if (!data) return "";
-  const paths = data.map(([tag, attributes]) => {
-    const serialized = Object.entries(attributes)
-      .filter(([key]) => key !== "key")
-      .map(([key, value]) => `${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}="${escapeAttribute(value)}"`)
-      .join(" ");
-    return `<${tag} ${serialized}/>`;
-  }).join("");
+  const paths = lucideIcons[name];
+  if (!paths) return "";
   const dimension = Math.max(1, Number(size) || 16);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${dimension}" height="${dimension}" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">${paths}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${dimension}" height="${dimension}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" class="lucide-animated lucide-${name}" aria-hidden="true" focusable="false">${paths}</svg>`;
 }

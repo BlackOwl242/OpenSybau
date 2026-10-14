@@ -3253,55 +3253,205 @@ body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.12) !important;
 }
 
-/* ============================================================================
-   10. KNOWLEDGE VAULT EDITOR, WIKILINKS & NEURAL KNOWLEDGE GRAPH
+/* /* ============================================================================
+   10. LUCIDE-ANIMATED ICONS, KNOWLEDGE VAULT & GRAPH WORKBENCH
    ============================================================================ */
 
-.file-browser-head-actions,
-.file-preview-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+/* Fix NavRail count badge so it never overlaps the icon stroke */
+.wb-rail-link {
+  position: relative;
 }
 
-.file-preview-empty-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
+.wb-rail-count {
+  position: absolute !important;
+  top: 3px !important;
+  right: 2px !important;
+  bottom: auto !important;
+  min-width: 15px !important;
+  height: 14px !important;
+  padding: 0 3.5px !important;
+  border: 1.5px solid #151618 !important;
+  border-radius: 999px !important;
+  background: #27272a !important;
+  color: #e4e4e7 !important;
+  font-size: 8.5px !important;
+  font-weight: 650 !important;
+  line-height: 11px !important;
+  letter-spacing: -0.02em !important;
+  pointer-events: none;
 }
 
-/* Mode Switcher Pill in Page Header */
+/* Lucide-Animated (https://lucide-animated.com) Micro-Animations on Hover */
+svg.lucide-animated,
+svg.lucide-animated * {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+}
+
+button:hover svg.lucide-animated .la-gear,
+summary:hover svg.lucide-animated .la-gear {
+  transform: rotate(45deg);
+}
+
+button:hover svg.lucide-animated .la-spin,
+summary:hover svg.lucide-animated .la-spin {
+  transform: rotate(180deg);
+}
+
+button:hover svg.lucide-animated .la-plus,
+summary:hover svg.lucide-animated .la-plus {
+  transform: rotate(90deg);
+}
+
+button:hover svg.lucide-animated .la-arrow-ur,
+summary:hover svg.lucide-animated .la-arrow-ur,
+a:hover svg.lucide-animated .la-arrow-ur {
+  transform: translate(1.5px, -1.5px);
+}
+
+button:hover svg.lucide-animated .la-arrow-r,
+button:hover svg.lucide-animated .la-chev-r {
+  transform: translateX(1.5px);
+}
+
+button:hover svg.lucide-animated .la-arrow-l {
+  transform: translateX(-1.5px);
+}
+
+button:hover svg.lucide-animated .la-chev-d,
+summary:hover svg.lucide-animated .la-chev-d,
+button:hover svg.lucide-animated .la-arrow-d {
+  transform: translateY(1.2px);
+}
+
+button:hover svg.lucide-animated .la-chevron {
+  transform: translateX(1.2px);
+}
+
+button:hover svg.lucide-animated .la-cursor {
+  transform: translateX(1.5px) scaleX(1.1);
+}
+
+button:hover svg.lucide-animated .la-lid {
+  transform: translateY(-1.5px) rotate(-6deg);
+}
+
+button:hover svg.lucide-animated .la-pen {
+  transform: translate(1px, -1px) rotate(-8deg);
+}
+
+button:hover svg.lucide-animated .la-copy-front {
+  transform: translate(1px, -1px);
+}
+
+button:hover svg.lucide-animated .la-node {
+  transform: scale(1.14);
+}
+
+button:hover svg.lucide-animated .la-layer-top {
+  transform: translateY(-1.2px);
+}
+
+button:hover svg.lucide-animated .la-layer-bot {
+  transform: translateY(1.2px);
+}
+
+button:hover svg.lucide-animated .la-code-l {
+  transform: translateX(-1px);
+}
+
+button:hover svg.lucide-animated .la-code-r {
+  transform: translateX(1px);
+}
+
+button:hover svg.lucide-animated .la-check {
+  transform: scale(1.12);
+}
+
+button:hover svg.lucide-animated .la-brain,
+button:hover svg.lucide-animated .la-shield,
+button:hover svg.lucide-animated .la-book {
+  transform: scale(1.06);
+}
+
+button:hover svg.lucide-animated .la-lens {
+  transform: scale(1.07) rotate(-6deg);
+}
+
+button:hover svg.lucide-animated .la-dot-1,
+summary:hover svg.lucide-animated .la-dot-1 {
+  transform: translateY(-1px);
+}
+
+button:hover svg.lucide-animated .la-dot-2,
+summary:hover svg.lucide-animated .la-dot-2 {
+  transform: translateY(1px);
+}
+
+button:hover svg.lucide-animated .la-dot-3,
+summary:hover svg.lucide-animated .la-dot-3 {
+  transform: translateY(-1px);
+}
+
+/* Knowledge Page Top Header & Clean Toolbar */
+.wb-page-content .knowledge-page-head {
+  margin-bottom: 12px !important;
+  align-items: center !important;
+}
+
+.vault-head-toolbar {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+}
+
+.vault-head-menu > summary.vault-head-more {
+  list-style: none;
+  width: 30px !important;
+  min-width: 30px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+}
+
+.vault-head-menu > summary.vault-head-more::-webkit-details-marker {
+  display: none;
+}
+
+/* Mode Switcher Segmented Control */
 .vault-mode-tabs {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 10px;
-  background: rgba(18, 19, 23, 0.85);
+  gap: 2px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(18, 19, 23, 0.9);
 }
 
 .vault-mode-tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 10px;
+  gap: 5px;
+  height: 22px;
+  padding: 0 9px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
   color: rgba(255, 255, 255, 0.56);
-  font-size: 12px;
-  font-weight: 550;
+  font-size: 11.5px;
+  font-weight: 560;
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
 }
 
 .vault-mode-tab:hover {
   color: #f4f4f5;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .vault-mode-tab.is-active {
@@ -3310,39 +3460,224 @@ body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
   font-weight: 620;
 }
 
-/* Inline Markdown Editor */
+/* Compact Knowledge Workbench Height & Anti-Slop System Cards */
+.wb-page-content .knowledge-workbench {
+  grid-template-columns: 265px minmax(0, 1fr) !important;
+  gap: 12px !important;
+  height: clamp(360px, calc(100dvh - 250px), 470px) !important;
+  min-height: 360px !important;
+  max-height: 470px !important;
+}
+
+.wb-page-content .knowledge-workbench.neural-graph-shell {
+  grid-template-columns: minmax(0, 1fr) 290px !important;
+}
+
+@media (max-width: 920px) {
+  .wb-page-content .knowledge-workbench,
+  .wb-page-content .knowledge-workbench.neural-graph-shell {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+}
+
+.wb-page-content .knowledge-workbench .file-browser,
+.wb-page-content .knowledge-workbench .file-preview,
+.wb-page-content .knowledge-workbench .neural-graph-stage,
+.wb-page-content .knowledge-workbench .neural-inspector {
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 12px !important;
+  background: rgba(22, 23, 27, 0.78) !important;
+  overflow: visible !important;
+}
+
+.wb-page-content .knowledge-workbench .file-browser > header,
+.wb-page-content .knowledge-workbench .file-preview-head {
+  height: 42px !important;
+  min-height: 42px !important;
+  flex: 0 0 42px !important;
+  padding: 0 12px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 12px 12px 0 0 !important;
+  background: rgba(27, 28, 33, 0.85) !important;
+}
+
+.wb-page-content .knowledge-workbench .file-preview-head > div {
+  min-width: 0;
+  display: flex !important;
+  align-items: baseline !important;
+  gap: 8px !important;
+  overflow: hidden;
+}
+
+.wb-page-content .knowledge-workbench .file-preview-head strong {
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  color: #f4f4f5 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wb-page-content .knowledge-workbench .file-preview-head small {
+  font-size: 11px !important;
+  color: rgba(255, 255, 255, 0.45) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-browser-head-actions,
+.file-preview-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex: 0 0 auto !important;
+}
+
+.file-preview-empty-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+/* Vault File List Row + 3-Dot Action Menu */
+.wb-page-content .knowledge-workbench .file-list {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding: 4px 6px !important;
+}
+
+.vault-file-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px;
+  border-radius: 7px;
+  padding-right: 2px;
+  transition: background-color 120ms ease;
+}
+
+.vault-file-item:hover,
+.vault-file-item.is-selected {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.vault-file-item .file-row {
+  background: transparent !important;
+  min-height: 32px !important;
+  padding: 4px 7px !important;
+  grid-template-columns: 16px minmax(0, 1fr) !important;
+}
+
+.vault-file-item.is-selected .file-row strong {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+.vault-action-menu {
+  position: relative;
+}
+
+.vault-action-menu > summary {
+  list-style: none;
+}
+
+.vault-action-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.vault-file-item .vault-action-menu > summary.vault-more-btn {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  opacity: 0;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+.vault-file-item:hover .vault-action-menu > summary.vault-more-btn,
+.vault-file-item.is-selected .vault-action-menu > summary.vault-more-btn,
+.vault-action-menu[open] > summary.vault-more-btn {
+  opacity: 1;
+}
+
+.vault-action-pop {
+  min-width: 175px !important;
+  z-index: 80 !important;
+}
+
+/* Scrollable Markdown Preview & Inline Editor inside Compact Frame */
+.wb-page-content .knowledge-workbench .file-preview > .markdown-preview,
+.wb-page-content .knowledge-workbench .file-preview > .code-preview {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  padding: 18px 22px !important;
+  font-size: 13.5px !important;
+  line-height: 1.68 !important;
+}
+
+.wb-page-content .knowledge-workbench .markdown-preview h1 {
+  font-size: 19px !important;
+  margin-top: 0 !important;
+}
+
+.wb-page-content .knowledge-workbench .markdown-preview h2 {
+  font-size: 16px !important;
+}
+
+.wb-page-content .knowledge-workbench .markdown-preview h3 {
+  font-size: 14.5px !important;
+}
+
 .vault-editor-wrap {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
-  padding: 12px 14px;
-  gap: 8px;
+  padding: 10px 12px;
+  gap: 6px;
 }
 
 .vault-editor-textarea {
   flex: 1 1 auto;
   width: 100%;
-  min-height: 380px !important;
-  padding: 12px 14px !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  padding: 10px 12px !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 10px !important;
+  border-radius: 8px !important;
   background: rgba(14, 15, 18, 0.92) !important;
   color: #f4f4f5 !important;
   font-family: var(--wb-font-mono) !important;
-  font-size: 13px !important;
-  line-height: 1.65 !important;
+  font-size: 12.5px !important;
+  line-height: 1.6 !important;
   resize: none !important;
 }
 
 .vault-editor-textarea:focus {
   outline: none !important;
-  border-color: rgba(255, 255, 255, 0.26) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
 }
 
 .vault-editor-foot small {
-  color: rgba(255, 255, 255, 0.48);
-  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
 }
 
 /* Interactive [[WikiLink]] Chips */
@@ -3351,133 +3686,40 @@ body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
   align-items: center;
   gap: 4px;
   margin: 0 2px;
-  padding: 1px 7px;
+  padding: 1px 6px;
   border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.05);
   color: #f4f4f5;
   font-size: 0.92em;
-  font-weight: 560;
+  font-weight: 550;
   cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease;
 }
 
 .vault-wikilink:hover {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
 }
 
-/* Neural Knowledge Graph Layout */
-.neural-graph-shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 14px;
-  min-height: 540px;
-  height: calc(100dvh - 175px);
-}
-
-@media (max-width: 960px) {
-  .neural-graph-shell {
-    grid-template-columns: 1fr;
-    height: auto;
-  }
-}
-
-.neural-graph-stage {
+/* Graph Stage & Right Inspector */
+.neural-canvas-wrap {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 460px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  background:
-    radial-gradient(circle at 50% 50%, rgba(38, 40, 48, 0.42) 0%, rgba(15, 16, 20, 0.92) 78%),
-    rgba(16, 17, 21, 0.9);
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 0 0 12px 12px;
+  background-color: #141518;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 20px 20px;
   overflow: hidden;
-}
-
-.neural-graph-toolbar {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
-  z-index: 2;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  pointer-events: none;
-}
-
-.neural-graph-stats,
-.neural-graph-controls {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  pointer-events: auto;
-}
-
-.neural-stat-pill,
-.neural-legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 9px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  background: rgba(20, 21, 25, 0.82);
-  backdrop-filter: blur(8px);
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 11.5px;
-}
-
-.neural-stat-pill strong {
-  color: #ffffff;
-  font-weight: 640;
-}
-
-.neural-legend i {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  display: inline-block;
-}
-
-.neural-legend i.is-link {
-  background: #ffffff;
-}
-
-.neural-legend i.is-tag {
-  background: #a78bfa;
-}
-
-.neural-legend i.is-folder {
-  background: #64748b;
 }
 
 .neural-graph-canvas {
   width: 100%;
   height: 100%;
-  flex: 1 1 auto;
   display: block;
   cursor: grab;
-}
-
-.neural-graph-hint {
-  position: absolute;
-  bottom: 10px;
-  left: 14px;
-  right: 14px;
-  z-index: 2;
-  pointer-events: none;
-  color: rgba(255, 255, 255, 0.42);
-  font-size: 11px;
-  text-align: center;
 }
 
 .neural-graph-empty {
@@ -3488,80 +3730,52 @@ body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 24px;
+  padding: 20px;
   text-align: center;
 }
 
-/* Neural Inspector Right Panel */
-.neural-inspector {
+.neural-inspector-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  background: rgba(22, 23, 27, 0.85);
-  overflow-y: auto;
-}
-
-.neural-inspector-head small {
-  display: block;
-  margin-bottom: 3px;
-  color: rgba(255, 255, 255, 0.42);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-}
-
-.neural-inspector-head strong {
-  display: block;
-  color: #fafafa;
-  font-size: 15px;
-  font-weight: 640;
-  line-height: 1.3;
-}
-
-.neural-inspector-head code {
-  display: block;
-  margin-top: 3px;
-  color: rgba(255, 255, 255, 0.48);
-  font-size: 11px;
-}
-
-.neural-inspector-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 
 .neural-tag-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
 }
 
 .neural-tag-list span {
-  padding: 2px 8px;
-  border: 1px solid rgba(167, 139, 250, 0.28);
-  border-radius: 999px;
-  background: rgba(167, 139, 250, 0.1);
-  color: #ddd6fe;
+  padding: 1px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #d4d4d8;
   font-size: 11px;
 }
 
 .neural-connections-box,
 .neural-excerpt-box {
   display: grid;
-  gap: 7px;
+  gap: 6px;
+}
+
+.neural-excerpt-box {
   padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.neural-connections-box > strong,
-.neural-excerpt-box > strong {
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 11.5px;
+.neural-section-label {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 10.5px;
   font-weight: 620;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .neural-connection-list {
@@ -3569,18 +3783,18 @@ body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .neural-connection-list button {
   width: 100%;
   display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) auto;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+  gap: 7px;
+  padding: 5px 8px;
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  border-radius: 7px;
   background: rgba(255, 255, 255, 0.03);
   color: #e4e4e7;
   text-align: left;
@@ -3589,8 +3803,8 @@ body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
 }
 
 .neural-connection-list button:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .neural-connection-list strong {
@@ -3598,62 +3812,24 @@ body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 540;
 }
 
 .neural-connection-list small {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(255, 255, 255, 0.42);
   font-size: 10.5px;
 }
 
-.conn-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-}
-
-.conn-dot.is-link {
-  background: #ffffff;
-}
-
-.conn-dot.is-tag {
-  background: #a78bfa;
-}
-
-.conn-dot.is-folder {
-  background: #64748b;
+.neural-excerpt-box .markdown-preview {
+  padding: 0 !important;
+  font-size: 12.5px !important;
+  line-height: 1.6 !important;
+  color: rgba(244, 244, 245, 0.82) !important;
 }
 
 .neural-muted {
   margin: 0;
-  color: rgba(255, 255, 255, 0.46);
+  color: rgba(255, 255, 255, 0.44);
   font-size: 12px;
   line-height: 1.45;
 }
-
-.neural-inspector-empty {
-  margin: auto 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 20px 12px;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.65);
-}
-
-.neural-inspector-empty strong {
-  color: #f4f4f5;
-  font-size: 14px;
-}
-
-.neural-inspector-empty p {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.48);
-}
-
-
-
-
