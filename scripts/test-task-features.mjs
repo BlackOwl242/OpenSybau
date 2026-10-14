@@ -208,12 +208,44 @@ try {
   const createdTask = await waitForTask(createdFromTemplate.body.task.id);
   assert.equal(createdTask.plan, "Fresh test plan 2");
 
+  const stateRes = await request("/api/state");
+  assert.equal(stateRes.status, 200);
+  assert.equal(typeof stateRes.body.telemetry?.runningCount, "number", "State payload must include live telemetry summary.");
+  assert.equal(typeof stateRes.body.telemetry?.tokens5h, "number", "Telemetry must include 5h token counter.");
+
+  const fileIndexRes = await request("/api/workspaces/workspace-test/file-index");
+  assert.equal(fileIndexRes.status, 200);
+  assert.equal(Array.isArray(fileIndexRes.body.files), true, "Workspace file-index endpoint must return a flat files array.");
+  assert.equal(fileIndexRes.body.files.includes("server.mjs"), true, "Workspace file-index must include root project files.");
+
+  const diffRes = await request("/api/tasks/task-feature-test/diff");
+  assert.equal(diffRes.status, 200);
+  assert.equal(Array.isArray(diffRes.body.files), true, "Diff endpoint must return structured per-file hunks for Diff Review Studio.");
+
+  const fanoutRes = await request("/api/tasks/fanout", "POST", {
+    workspaceId: "workspace-test",
+    prompt: "Compare two parallel solutions",
+    competitors: [
+      { provider: "test-api", model: "test-model", effort: "standard", label: "Test A" },
+      { provider: "test-api", model: "test-model", effort: "standard", label: "Test B" },
+    ],
+  });
+  assert.equal(fanoutRes.status, 201);
+  assert.ok(fanoutRes.body.fanoutId, "Fanout endpoint must return a shared fanoutId.");
+  assert.equal(fanoutRes.body.tasks.length, 2, "Fanout endpoint must spawn one task per competitor.");
+  assert.equal(fanoutRes.body.tasks[0].fanoutId, fanoutRes.body.fanoutId);
+  assert.equal(fanoutRes.body.tasks[0].isolated, true, "Arena fanout tasks must be isolated in Git worktrees.");
+  await waitForTask(fanoutRes.body.tasks[0].id);
+  await waitForTask(fanoutRes.body.tasks[1].id);
+  await request(`/api/tasks/${fanoutRes.body.tasks[0].id}/discard-worktree`, "POST", {});
+  await request(`/api/tasks/${fanoutRes.body.tasks[1].id}/discard-worktree`, "POST", {});
+
   const persisted = JSON.parse(await readFile(path.join(dataDir, "state.json"), "utf8"));
-  assert.equal(persisted.tasks.length, 4);
+  assert.equal(persisted.tasks.length, 6);
   assert.equal(persisted.tasks.some((task) => task.forkedFromMessageId === userTwo.id), true);
   assert.equal(persisted.tasks.find((task) => task.id === createdTask.id).presetRef.version, 2);
   assert.equal(persisted.settings.taskPresets[0].versions.length, 2);
-  process.stdout.write("Task feature integration checks passed: goal/checklist, permissions, archived chat deletion, forks, stage reruns with history, versioned task presets, and persistence.\n");
+  process.stdout.write("Task feature integration checks passed: goal/checklist, permissions, archived chat deletion, forks, stage reruns with history, versioned task presets, telemetry, file-index, diff studio parser, parallel arena fanout, and persistence.\n");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

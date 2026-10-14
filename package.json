@@ -7,7 +7,7 @@
     "url": "https://github.com/BlackOwl242/OpenSybau.git"
   },
   "private": true,
-  "version": "0.2.53",
+  "version": "0.2.54",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {

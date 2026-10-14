@@ -268,8 +268,8 @@ function schedulePublish(type = "task", delayMs = 120) {
   }, delayMs);
   publishTimer.unref?.();
 }
-function record(task, text, kind = "info") {
-  const line = { at: new Date().toISOString(), text: String(text).slice(0, 8000), kind };
+function record(task, text, kind = "info", meta = null) {
+  const line = { at: new Date().toISOString(), text: String(text).slice(0, 8000), kind, ...(meta && typeof meta === "object" ? meta : {}) };
   task.events = [...(task.events || []), line].slice(-250);
   task.updatedAt = line.at;
   if (kind === "output" || kind === "tool") {
@@ -817,6 +817,39 @@ async function createSkillFiles(name, description, instructions, scope) {
   }
   return { name: safeName, sources: (await skillRoots(scope)).map((item) => item.source || ({ codex: "Codex · cá nhân", antigravity: "Antigravity · cá nhân", claude: "Claude Code · cá nhân" })[item.provider]) };
 }
+function countUsageTokens(usage) {
+  if (!usage || typeof usage !== "object") return 0;
+  return Number(usage.total_tokens ?? ((usage.input_tokens || usage.prompt_tokens || 0) + (usage.output_tokens || usage.completion_tokens || 0))) || 0;
+}
+function buildTelemetrySummary() {
+  const now = Date.now();
+  const fiveHoursAgo = now - 5 * 3600_000;
+  const sevenDaysAgo = now - 7 * 24 * 3600_000;
+  let tokens5h = 0;
+  let tokens7d = 0;
+  let worktreeCount = 0;
+  const byProvider = {};
+  for (const task of state.tasks) {
+    if (task.isolated && task.worktreePath && !task.worktreeCleaned) worktreeCount++;
+    if (!task.usage || typeof task.usage !== "object") continue;
+    const ts = Date.parse(task.updatedAt || task.createdAt || "") || 0;
+    for (const [provider, u] of Object.entries(task.usage)) {
+      const tok = countUsageTokens(u);
+      if (!tok) continue;
+      byProvider[provider] = (byProvider[provider] || 0) + tok;
+      if (ts >= fiveHoursAgo) tokens5h += tok;
+      if (ts >= sevenDaysAgo) tokens7d += tok;
+    }
+  }
+  return {
+    runningCount: running.size,
+    queuedCount: state.tasks.filter((t) => t.status === "queued").length,
+    worktreeCount,
+    tokens5h,
+    tokens7d,
+    byProvider,
+  };
+}
 function publicState() {
   return {
     frontendVersion: "preact-vite",
@@ -825,6 +858,7 @@ function publicState() {
     tasks: state.tasks.map((task) => ({ ...task, processRunning: running.has(task.id) })),
     memories,
     memoryCount: memories.length,
+    telemetry: buildTelemetrySummary(),
     serverTime: new Date().toISOString(),
   };
 }
@@ -1163,13 +1197,19 @@ function parseCodexEvent(line, task, outputParts) {
   let event;
   try { event = JSON.parse(line); } catch { return; }
   const item = event.item || {};
-  if (event.type === "item.started" && ["command_execution", "mcp_tool_call", "collab_tool_call", "tool_call"].includes(item.type)) {
-    const tool = item.name || item.tool || item.server_label || (item.type === "command_execution" ? "terminal" : item.type === "collab_tool_call" ? "subagent" : item.type);
-    record(task, `Codex gọi công cụ · ${String(tool).slice(0, 120)}`, "tool");
+  if (event.type === "item.started" && ["command_execution", "mcp_tool_call", "collab_tool_call", "tool_call", "file_change"].includes(item.type)) {
+    const tool = item.name || item.tool || item.server_label || (item.type === "command_execution" ? "terminal" : item.type === "file_change" ? "edit" : item.type === "collab_tool_call" ? "subagent" : item.type);
+    const cmd = item.command ? (Array.isArray(item.command) ? item.command.join(" ") : String(item.command)).slice(0, 240) : "";
+    const filePath = item.changes?.[0]?.path || item.path || "";
+    record(task, `Codex gọi công cụ · ${String(tool).slice(0, 120)}${cmd ? ` · ${cmd.slice(0, 80)}` : filePath ? ` · ${filePath}` : ""}`, "tool", { toolName: String(tool).slice(0, 120), command: cmd || undefined, filePath: filePath || undefined, status: "running" });
   }
-  if (event.type === "item.completed" && ["command_execution", "mcp_tool_call", "collab_tool_call", "tool_call"].includes(item.type)) {
-    const tool = item.name || item.tool || item.server_label || (item.type === "command_execution" ? "terminal" : item.type === "collab_tool_call" ? "subagent" : item.type);
-    record(task, `Codex hoàn tất công cụ · ${String(tool).slice(0, 120)}`, "tool");
+  if (event.type === "item.completed" && ["command_execution", "mcp_tool_call", "collab_tool_call", "tool_call", "file_change"].includes(item.type)) {
+    const tool = item.name || item.tool || item.server_label || (item.type === "command_execution" ? "terminal" : item.type === "file_change" ? "edit" : item.type === "collab_tool_call" ? "subagent" : item.type);
+    const cmd = item.command ? (Array.isArray(item.command) ? item.command.join(" ") : String(item.command)).slice(0, 240) : "";
+    const filePath = item.changes?.[0]?.path || item.path || "";
+    const exitCode = item.exit_code ?? null;
+    const detail = String(item.aggregated_output || item.output || "").trim().slice(0, 600);
+    record(task, `Codex hoàn tất công cụ · ${String(tool).slice(0, 120)}${cmd ? ` · ${cmd.slice(0, 80)}` : filePath ? ` · ${filePath}` : ""}`, "tool", { toolName: String(tool).slice(0, 120), command: cmd || undefined, filePath: filePath || undefined, exitCode, detail: detail || undefined, status: "done" });
   }
   if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text) { outputParts.push(event.item.text); record(task, event.item.text.slice(-1500), "output"); }
   if (event.type === "item.completed" && event.item?.type === "agent_message" && /(?:shell tool failed to start|could(?:n't| not) read (?:the )?workspace|unable to read (?:the )?workspace|tool access.{0,40}workspace.{0,40}error|không thể đọc được tệp.{0,60}workspace.{0,60}lỗi)/i.test(event.item.text)) task.stageFailure = event.item.text;
@@ -1193,7 +1233,17 @@ function parseAgyEvent(line, task, outputParts) {
     if (event.result.status && event.result.status !== "SUCCESS") task.stageFailure = event.result.error || `Antigravity status: ${event.result.status}`;
   }
   const toolName = event.name || event.tool_name || event.tool?.name || update.tool_info?.name;
-  if (["tool_start", "tool_call", "tool.started", "tool_result", "tool.completed", "tool_use", "tool_result"].includes(type) || update.tool_info) record(task, `Antigravity · ${type || "tool"}${toolName ? ` · ${String(toolName).slice(0, 120)}` : ""}`, "tool");
+  const toolArgs = update.tool_info?.args || event.tool?.args || event.args || {};
+  const filePath = String(toolArgs?.path || toolArgs?.file || toolArgs?.TargetFile || toolArgs?.AbsolutePath || "").slice(0, 200);
+  const cmd = String(toolArgs?.command || toolArgs?.CommandLine || "").slice(0, 240);
+  if (["tool_start", "tool_call", "tool.started", "tool_result", "tool.completed", "tool_use", "tool_result"].includes(type) || update.tool_info) {
+    record(task, `Antigravity · ${type || "tool"}${toolName ? ` · ${String(toolName).slice(0, 120)}` : ""}${filePath ? ` · ${filePath}` : cmd ? ` · ${cmd.slice(0, 80)}` : ""}`, "tool", {
+      toolName: toolName ? String(toolName).slice(0, 120) : "tool",
+      filePath: filePath || undefined,
+      command: cmd || undefined,
+      status: type.includes("result") || type.includes("completed") ? "done" : "running",
+    });
+  }
 }
 async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride = null) {
   assertTaskActive(task);
@@ -1369,9 +1419,13 @@ async function executeTask(task) {
       const worktreeRoot = resolve(worktreeDir, `${task.id}-${attempt}`);
       const branchName = `workbench/${task.id.toLowerCase()}-${attempt}`;
       const repoRoot = info.gitRoot || info.path;
+      const baseHead = await git(repoRoot, ["rev-parse", "--verify", "HEAD"]);
       const add = await withGitRepoLock(repoRoot, () => git(repoRoot, ["worktree", "add", "-b", branchName, worktreeRoot, "HEAD"]));
       if (add.code !== 0) throw new Error(add.stderr.trim() || "Could not create isolated Git worktree");
       task.worktreePath = worktreeRoot;
+      task.worktreeBranch = branchName;
+      task.worktreeBaseHead = baseHead.code === 0 ? (baseHead.stdout || "").trim() : null;
+      task.worktreeCleaned = false;
       const selectedSubdirectory = relative(repoRoot, info.path);
       cwd = selectedSubdirectory ? resolve(worktreeRoot, selectedSubdirectory) : worktreeRoot;
       assertTaskActive(task);
@@ -1604,7 +1658,8 @@ async function checkDiff(task) {
   }
   const head = await git(cwd, ["rev-parse", "--verify", "HEAD"]);
   if (head.code !== 0) return "Git chưa có commit gốc. Task vẫn chạy trong thư mục thật, nhưng Git chưa thể tạo diff đối chiếu.";
-  const result = await git(cwd, ["diff", "--no-ext-diff", "--no-color"]);
+  const diffArgs = task.isolated && task.worktreeBaseHead ? ["diff", "--no-ext-diff", "--no-color", task.worktreeBaseHead] : ["diff", "--no-ext-diff", "--no-color"];
+  const result = await git(cwd, diffArgs);
   let diff = result.stdout || "";
   const untracked = await git(cwd, ["ls-files", "--others", "--exclude-standard"]);
   for (const rel of (untracked.stdout || "").split(/\r?\n/).filter(Boolean).slice(0, 30)) {
@@ -1613,10 +1668,123 @@ async function checkDiff(task) {
       const stat = await fs.stat(file);
       if (!stat.isFile() || stat.size > 200_000) continue;
       const content = await fs.readFile(file, "utf8");
-      diff += `\n--- /dev/null\n+++ b/${rel}\n` + content.split(/\r?\n/).map((line) => `+${line}`).join("\n") + "\n";
+      const contentLines = content.split(/\r?\n/);
+      diff += `\ndiff --git a/${rel} b/${rel}\n--- /dev/null\n+++ b/${rel}\n@@ -0,0 +1,${contentLines.length} @@\n` + contentLines.map((line) => `+${line}`).join("\n") + "\n";
     } catch { }
   }
   return diff.slice(0, 1_000_000);
+}
+function parseUnifiedDiffFiles(diffText) {
+  const raw = String(diffText || "");
+  if (!raw.trim() || (!raw.includes("---") && !raw.includes("diff --git"))) return [];
+  const lines = raw.split(/\r?\n/);
+  const files = [];
+  let current = null;
+  let hunk = null;
+  let oldLine = 1;
+  let newLine = 1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith("diff --git ")) {
+      if (current && (current.hunks.length || current.additions || current.deletions)) files.push(current);
+      const match = line.match(/^diff --git a\/(.+?) b\/(.+)$/);
+      current = { path: match?.[2] || "file", oldPath: match?.[1] || "", status: "modified", additions: 0, deletions: 0, hunks: [] };
+      hunk = null;
+      continue;
+    }
+    if (line.startsWith("--- ") && lines[i + 1]?.startsWith("+++ ")) {
+      const oldRaw = line.slice(4).trim().replace(/^a\//, "");
+      const newRaw = lines[i + 1].slice(4).trim().replace(/^b\//, "");
+      if (!current || current.hunks.length > 0) {
+        if (current) files.push(current);
+        current = { path: newRaw !== "/dev/null" ? newRaw : oldRaw, oldPath: oldRaw, status: "modified", additions: 0, deletions: 0, hunks: [] };
+      } else {
+        current.oldPath = oldRaw;
+        current.path = newRaw !== "/dev/null" ? newRaw : oldRaw;
+      }
+      current.status = oldRaw === "/dev/null" ? "added" : newRaw === "/dev/null" ? "deleted" : "modified";
+      hunk = null;
+      i += 1;
+      continue;
+    }
+    if (line.startsWith("@@ ")) {
+      const m = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/);
+      oldLine = m ? Number(m[1]) : 1;
+      newLine = m ? Number(m[2]) : 1;
+      if (!current) current = { path: "changes", oldPath: "changes", status: "modified", additions: 0, deletions: 0, hunks: [] };
+      hunk = { header: line, lines: [] };
+      current.hunks.push(hunk);
+      continue;
+    }
+    if (!hunk || !current) continue;
+    if (line.startsWith("\\ No newline")) continue;
+    if (line.startsWith("+")) {
+      hunk.lines.push({ type: "add", oldLine: null, newLine: newLine++, text: line.slice(1) });
+      current.additions += 1;
+    } else if (line.startsWith("-")) {
+      hunk.lines.push({ type: "del", oldLine: oldLine++, newLine: null, text: line.slice(1) });
+      current.deletions += 1;
+    } else if (line.startsWith(" ") || line === "") {
+      hunk.lines.push({ type: "ctx", oldLine: oldLine++, newLine: newLine++, text: line.startsWith(" ") ? line.slice(1) : "" });
+    }
+  }
+  if (current && (current.hunks.length || current.additions || current.deletions)) files.push(current);
+  return files.slice(0, 60);
+}
+async function applyTaskWorktree(task, { cleanup = false } = {}) {
+  if (!task.isolated || !task.worktreePath || task.worktreeCleaned || !existsSync(task.worktreePath)) {
+    throw new Error("Task này không có Git worktree cô lập đang hoạt động để áp dụng.");
+  }
+  if (running.has(task.id) || ["queued", "running"].includes(task.status)) {
+    throw new Error("Hãy đợi task kết thúc trước khi áp dụng worktree vào dự án chính.");
+  }
+  const workspace = state.workspaces.find((w) => w.id === task.workspaceId);
+  if (!workspace) throw new Error("Workspace của task không còn tồn tại.");
+  const info = await inspectWorkspace(workspace.path);
+  if (!info.isGit) throw new Error("Workspace chính không phải là Git repository.");
+  if (busyWorkspaces.has(info.path)) throw new Error("Workspace chính đang có task khác chạy; hãy đợi hoàn tất trước khi áp dụng worktree.");
+  const repoRoot = info.gitRoot || info.path;
+  const wtRoot = resolve(task.worktreePath);
+  await withGitRepoLock(repoRoot, async () => {
+    await git(wtRoot, ["add", "-A"]);
+    const baseRef = task.worktreeBaseHead || "HEAD";
+    const patchRes = await git(wtRoot, ["diff", "--cached", "--binary", "--full-index", baseRef]);
+    await git(wtRoot, ["reset"]).catch(() => {});
+    const patchContent = patchRes.stdout || "";
+    if (!patchContent.trim()) throw new Error("Worktree không có thay đổi nào để áp dụng vào dự án chính.");
+    await fs.mkdir(task.storagePath, { recursive: true });
+    const patchPath = resolve(task.storagePath, "apply-worktree.patch");
+    await fs.writeFile(patchPath, patchContent, "utf8");
+    let applyRes = await git(repoRoot, ["apply", "--3way", "--whitespace=nowarn", patchPath]);
+    if (applyRes.code !== 0) applyRes = await git(repoRoot, ["apply", "--whitespace=nowarn", patchPath]);
+    if (applyRes.code !== 0) {
+      throw new Error(`Không thể tự động áp dụng worktree (có xung đột Git): ${(applyRes.stderr || applyRes.stdout || "git apply failed").trim().slice(0, 400)}`);
+    }
+  });
+  task.worktreeAppliedAt = new Date().toISOString();
+  if (cleanup) {
+    await cleanupTaskWorktrees(task);
+    task.worktreeCleaned = true;
+    task.executionPath = task.workspacePath;
+  }
+  workspace.runtime = await inspectWorkspace(workspace.path).catch(() => workspace.runtime);
+  record(task, `Đã áp dụng thay đổi từ Git worktree (${task.worktreeBranch || basename(wtRoot)}) vào dự án chính.${cleanup ? " Đã dọn dẹp worktree." : ""}`, "success");
+  persist();
+  publish("tasks");
+}
+async function discardTaskWorktree(task) {
+  if (!task.isolated || !task.worktreePath || task.worktreeCleaned) {
+    throw new Error("Task này không còn Git worktree cô lập cần dọn dẹp.");
+  }
+  if (running.has(task.id) || ["queued", "running"].includes(task.status)) {
+    throw new Error("Hãy dừng hoặc đợi task kết thúc trước khi dọn worktree.");
+  }
+  await cleanupTaskWorktrees(task);
+  task.worktreeCleaned = true;
+  task.executionPath = task.workspacePath;
+  record(task, "Đã dọn dẹp Git worktree cô lập của task.", "info");
+  persist();
+  publish("tasks");
 }
 async function changedFilesSince(cwd, startTime) {
   const changed = [];
@@ -1881,13 +2049,14 @@ async function api(request, response, pathname) {
       publish("skills"); return json(response, 200, { ok: true, removedSources: editableFiles.length, readonlySourcesRemain: skill.files.some((file) => !file.managed) });
     }
   }
-  const workspaceFileMatch = pathname.match(/^\/api\/workspaces\/([^/]+)\/(files|file)$/);
+  const workspaceFileMatch = pathname.match(/^\/api\/workspaces\/([^/]+)\/(files|file|file-index)$/);
   if (workspaceFileMatch) {
     const workspace = state.workspaces.find((item) => item.id === decodeURIComponent(workspaceFileMatch[1]));
     if (!workspace) return json(response, 404, { error: "Workspace không tồn tại." });
     const params = new URL(request.url, `http://${host}:${port}`).searchParams;
     if (request.method === "GET" && workspaceFileMatch[2] === "files") return json(response, 200, await listLocalFiles(workspace.path, params.get("path") || ""));
     if (request.method === "GET" && workspaceFileMatch[2] === "file") return json(response, 200, await readLocalTextFile(workspace.path, params.get("path") || ""));
+    if (request.method === "GET" && workspaceFileMatch[2] === "file-index") return json(response, 200, { files: await listRemoteContextFiles(workspace.path) });
   }
   if (request.method === "GET" && pathname === "/api/vault/files") {
     if (!state.settings.vaultPath) return json(response, 404, { error: "Chưa kết nối Obsidian vault." });
@@ -2036,7 +2205,98 @@ async function api(request, response, pathname) {
     state.tasks.unshift(task); persist(); record(task, "Task được tạo từ giao diện và đưa vào hàng đợi thật.", "success"); pump();
     return json(response, 201, { task });
   }
-  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist))?$/);
+  if (request.method === "POST" && pathname === "/api/tasks/fanout") {
+    const body = await readBody(request);
+    const prompt = String(body.prompt || "").trim();
+    const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+    if (attachments.length > 20) return json(response, 400, { error: "Mỗi tin nhắn chỉ hỗ trợ tối đa 20 tệp đính kèm." });
+    const safeAttachments = [];
+    let attachmentBytes = 0;
+    for (const attachment of attachments) {
+      const name = String(attachment?.name || "").trim();
+      const content = String(attachment?.content || "");
+      attachmentBytes += Buffer.byteLength(content, "utf8");
+      if (!name || name.length > 300 || content.includes("\u0000")) return json(response, 400, { error: "Tệp đính kèm không hợp lệ hoặc không phải tệp văn bản." });
+      safeAttachments.push({ name, content });
+    }
+    if (attachmentBytes > 1_000_000) return json(response, 400, { error: "Tổng nội dung tệp đính kèm tối đa 1 MB." });
+    const workspace = state.workspaces.find((w) => w.id === body.workspaceId);
+    if (!workspace) return json(response, 400, { error: "Chọn workspace thật trước khi chạy Đấu trường Agent." });
+    if ((prompt.length < 6 && !safeAttachments.length) || prompt.length > 50000) return json(response, 400, { error: "Nhập ít nhất 6 ký tự hoặc đính kèm tệp." });
+    const info = await inspectWorkspace(workspace.path);
+    if (!info.isGit || !info.head) return json(response, 400, { error: "Đấu trường Agent cần Git repository có ít nhất 1 commit để tách Git worktree cô lập cho từng đối thủ." });
+    const competitors = Array.isArray(body.competitors) ? body.competitors : [];
+    if (competitors.length < 2 || competitors.length > 4) return json(response, 400, { error: "Chọn từ 2 đến 4 agent để chạy song song trên các Git worktree." });
+    const connectors = await loadModels();
+    const workflow = ["chat-only", "plan-only", "codex-antigravity"].includes(body.workflow) ? body.workflow : "chat-only";
+    const permissionPreset = body.permissionPreset === undefined ? "full-access" : body.permissionPreset;
+    if (!["read-only", "workspace-write", "full-access"].includes(permissionPreset)) return json(response, 400, { error: "Preset quyền không hợp lệ." });
+    const normalizedCompetitors = [];
+    for (const entry of competitors) {
+      const provider = String(entry?.provider || "").trim();
+      const connector = connectors[provider];
+      if (!connector?.available) return json(response, 400, { error: `${publicProviderName(provider || "Agent")} chưa sẵn sàng.` });
+      const model = String(entry?.model || connector.models?.[0]?.id || "").trim();
+      const modelInfo = connector.models?.find((item) => item.id === model);
+      const effort = String(entry?.effort || modelInfo?.efforts?.find((item) => item === "medium") || modelInfo?.efforts?.[0] || "").trim();
+      const requiredCap = workflow === "chat-only" ? "chat" : "plan";
+      const validationError = validateAgentSelection({ provider, model, effort }, requiredCap, connectors);
+      if (validationError) return json(response, 400, { error: validationError });
+      normalizedCompetitors.push({ provider, model, effort });
+    }
+    const fanoutId = `fanout-${randomUUID().slice(0, 8)}`;
+    const baseTitle = String(body.title || prompt.split(/\r?\n/)[0]).trim().slice(0, 96) || safeAttachments[0]?.name || "Đấu trường Agent";
+    const createdTasks = [];
+    for (const comp of normalizedCompetitors) {
+      const id = `task-${randomUUID().slice(0, 8)}`;
+      const singleRole = { provider: comp.provider, model: comp.model, effort: comp.effort };
+      const config = {
+        roles: { plan: { ...singleRole }, build: { ...singleRole }, review: { ...singleRole } },
+        codexModel: comp.provider === "codex" ? comp.model : String(state.settings.defaults?.codexModel || ""),
+        codexEffort: comp.provider === "codex" ? comp.effort : String(state.settings.defaults?.codexEffort || "medium"),
+        agyModel: comp.provider === "antigravity" ? comp.model : String(state.settings.defaults?.agyModel || ""),
+        agyEffort: comp.provider === "antigravity" ? comp.effort : String(state.settings.defaults?.agyEffort || "medium"),
+        chatProvider: comp.provider, chatModel: comp.model, chatEffort: comp.effort, workflow,
+      };
+      const now = new Date().toISOString();
+      const task = {
+        id,
+        title: `[${publicProviderName(comp.provider)}] ${baseTitle}`.slice(0, 120),
+        prompt,
+        attachments: safeAttachments,
+        workspaceId: workspace.id,
+        workspacePath: info.path,
+        status: "queued",
+        phase: "queued",
+        isolated: true,
+        fanoutId,
+        fanoutProvider: comp.provider,
+        fanoutModel: comp.model,
+        fanoutLabel: `${publicProviderName(comp.provider)} · ${comp.model}`,
+        config,
+        permissionPreset,
+        goal: String(body.goal || "").trim().slice(0, 2000),
+        goalChecklist: [],
+        createdAt: now,
+        updatedAt: now,
+        events: [{ at: now, kind: "success", text: `Khởi tạo trong Đấu trường Song song (${fanoutId}) trên Git worktree riêng.` }],
+        skillSelectionMode: "auto",
+        skillSelectionCompleted: false,
+        skillIds: [],
+        skills: [],
+        memoryUsed: [],
+        storagePath: resolve(taskDir, id),
+      };
+      createdTasks.push(task);
+    }
+    for (const task of [...createdTasks].reverse()) state.tasks.unshift(task);
+    if ((Number(state.settings.maxConcurrent) || 2) < normalizedCompetitors.length) {
+      state.settings.maxConcurrent = Math.min(8, normalizedCompetitors.length);
+    }
+    persist(); publish("tasks"); pump();
+    return json(response, 201, { fanoutId, tasks: createdTasks });
+  }
+  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist|apply-worktree|discard-worktree))?$/);
   if (match) {
     const id = decodeURIComponent(match[1]);
     const action = match[2] || "";
@@ -2218,7 +2478,39 @@ async function api(request, response, pathname) {
       task.status = "cancelled"; task.phase = "cancelled"; task.completedAt = new Date().toISOString();
       record(task, `Đã gửi yêu cầu dừng tới tiến trình CLI.${abandoned ? ` Đã hủy ${abandoned} tin nhắn đang chờ.` : ""}`, "warning"); return json(response, 202, { task });
     }
-    if (request.method === "GET" && action === "diff") return json(response, 200, { diff: await checkDiff(task), path: task.executionPath || task.workspacePath });
+    if (request.method === "POST" && action === "apply-worktree") {
+      const body = await readBody(request);
+      try {
+        await applyTaskWorktree(task, { cleanup: Boolean(body.cleanup) });
+        return json(response, 200, { ok: true, task });
+      } catch (error) {
+        return json(response, 409, { error: safeError(error) });
+      }
+    }
+    if (request.method === "POST" && action === "discard-worktree") {
+      try {
+        await discardTaskWorktree(task);
+        return json(response, 200, { ok: true, task });
+      } catch (error) {
+        return json(response, 409, { error: safeError(error) });
+      }
+    }
+    if (request.method === "GET" && action === "diff") {
+      const diff = await checkDiff(task);
+      const files = parseUnifiedDiffFiles(diff);
+      return json(response, 200, {
+        diff,
+        path: task.executionPath || task.workspacePath,
+        files,
+        worktree: {
+          isolated: Boolean(task.isolated),
+          worktreePath: task.worktreePath || null,
+          branch: task.worktreeBranch || null,
+          appliedAt: task.worktreeAppliedAt || null,
+          cleaned: Boolean(task.worktreeCleaned),
+        },
+      });
+    }
     if (request.method === "POST" && action === "open") {
       const path = task.executionPath || task.workspacePath;
       if (!path || !existsSync(path)) return json(response, 404, { error: "Không tìm thấy thư mục workspace để mở." });

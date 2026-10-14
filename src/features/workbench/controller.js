@@ -705,7 +705,7 @@ function render() {
   const previousSelection = activeComposer === "message" ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
   const selectedTask = view.selected && view.state.tasks.some((task) => task.id === view.selected);
   const pageMarkup = (pages[view.page] || taskPage)();
-  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId }, pageMarkup);
+  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
   localizeDom(document.querySelector("#overlay"), view.language);
   const nextContent = $("#content");
@@ -725,6 +725,35 @@ function render() {
   }
   syncWorkflow();
 }
+async function ensureWorkspaceFileIndex(workspaceId) {
+  if (!workspaceId) return [];
+  if (Array.isArray(view.workspaceFileIndex?.[workspaceId])) return view.workspaceFileIndex[workspaceId];
+  try {
+    const res = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/file-index`);
+    view.workspaceFileIndex ||= {};
+    view.workspaceFileIndex[workspaceId] = res.files || [];
+    return view.workspaceFileIndex[workspaceId];
+  } catch {
+    return [];
+  }
+}
+function availableArenaCompetitors() {
+  const entries = Object.entries(view.connectors || {}).filter(([, connector]) => connector?.available && (connector.capabilities?.build || connector.capabilities?.chat || connector.capabilities?.plan));
+  if (!entries.length) {
+    return ["codex", "antigravity", "claude"].map((id) => ({
+      provider: id,
+      name: providerTitle(view.connectors, id),
+      model: view.connectors?.[id]?.models?.[0]?.id || "",
+      effort: "medium",
+      available: Boolean(view.connectors?.[id]?.available),
+    }));
+  }
+  return entries.map(([id, connector]) => {
+    const model = connector.models?.[0]?.id || "";
+    const effort = connector.models?.[0]?.efforts?.includes("medium") ? "medium" : (connector.models?.[0]?.efforts?.[0] || "");
+    return { provider: id, name: connector.name || providerTitle(view.connectors, id), model, effort, available: true };
+  });
+}
 function chatPage() {
   if (view.selected && view.state.tasks.some((task) => task.id === view.selected)) return taskConversationPage();
   const workspaces = view.state.workspaces;
@@ -737,23 +766,37 @@ function chatPage() {
   view.homeChatProvider = chatSelection.provider;
   view.homeChatModel = chatSelection.model?.id || "";
   view.homeChatEffort = chatSelection.effort;
-  const canRun = workflow === "chat-only" ? Boolean(chatSelection.connector?.available) : workflow === "plan-only" ? planReady : pipelineReady;
-  const workflowOptions = `<option value="chat-only" ${workflow === "chat-only" ? "selected" : ""}>Chat · một agent</option><option value="codex-antigravity" ${workflow === "codex-antigravity" ? "selected" : ""} ${pipelineReady ? "" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${workflow === "plan-only" ? "selected" : ""} ${planReady ? "" : "disabled"}>Chỉ lập kế hoạch</option>`;
-  const pipelineLabel = workflowRoles.map((role) => providerTitle(view.connectors, roleSelections[role.id].provider)).join(" → ");
-  const workflowLabel = workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, chatSelection.provider)}` : workflow === "plan-only" ? `${providerTitle(view.connectors, roleSelections.plan.provider)} · lập kế hoạch` : pipelineLabel;
   const activeWorkspaceId = workspaces.some((workspace) => workspace.id === view.homeWorkspaceId) ? view.homeWorkspaceId : workspaces[0]?.id || "";
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
+  const canIsolateHome = Boolean(activeWorkspace?.runtime?.isGit && activeWorkspace?.runtime?.head);
+  const arenaCandidates = availableArenaCompetitors();
+  const selectedArenaIds = (view.homeArenaProviders || []).filter((id) => arenaCandidates.some((c) => c.provider === id));
+  const effectiveArenaIds = selectedArenaIds.length >= 2 ? selectedArenaIds : arenaCandidates.slice(0, Math.min(3, arenaCandidates.length)).map((c) => c.provider);
+  const isArena = view.homeMode === "arena";
+  const canRun = isArena
+    ? Boolean(canIsolateHome && effectiveArenaIds.length >= 2)
+    : workflow === "chat-only" ? Boolean(chatSelection.connector?.available) : workflow === "plan-only" ? planReady : pipelineReady;
+  const workflowOptions = `<option value="chat-only" ${workflow === "chat-only" ? "selected" : ""}>Chat · một agent</option><option value="codex-antigravity" ${workflow === "codex-antigravity" ? "selected" : ""} ${pipelineReady ? "" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${workflow === "plan-only" ? "selected" : ""} ${planReady ? "" : "disabled"}>Chỉ lập kế hoạch</option>`;
+  const pipelineLabel = workflowRoles.map((role) => providerTitle(view.connectors, roleSelections[role.id].provider)).join(" → ");
+  const workflowLabel = isArena ? `Đấu trường · ${effectiveArenaIds.length} Worktree` : workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, chatSelection.provider)}` : workflow === "plan-only" ? `${providerTitle(view.connectors, roleSelections.plan.provider)} · lập kế hoạch` : pipelineLabel;
   const chatProviders = Object.entries(view.connectors || {}).filter(([, connector]) => connectorSupports(connector, "chat"));
-  const homeModelSummary = workflow === "chat-only" ? chatSelection.model?.name || "Chưa có model" : workflow === "plan-only" ? roleSelections.plan.model || "Chưa có model" : workflowRoles.map((role) => roleSelections[role.id].model || "Chưa có model").join(" · ");
-  const canIsolateHome = Boolean(activeWorkspace?.runtime?.isGit && activeWorkspace?.runtime?.head); const homeIsolated = Boolean(view.homeIsolated && canIsolateHome); const homePermissionPreset = view.homePermissionPreset || "full-access"; const homeConfigSummary = `${activeWorkspace?.name || "Chọn workspace"} · ${workflowLabel} · ${homeModelSummary}${homeIsolated ? " · Worktree" : ""}`;
+  const homeModelSummary = isArena ? effectiveArenaIds.map((id) => providerTitle(view.connectors, id)).join(" vs ") : workflow === "chat-only" ? chatSelection.model?.name || "Chưa có model" : workflow === "plan-only" ? roleSelections.plan.model || "Chưa có model" : workflowRoles.map((role) => roleSelections[role.id].model || "Chưa có model").join(" · ");
+  const homeIsolated = Boolean((isArena || view.homeIsolated) && canIsolateHome);
+  const homePermissionPreset = view.homePermissionPreset || "full-access";
+  const homeConfigSummary = `${activeWorkspace?.name || "Chọn workspace"} · ${workflowLabel} · ${homeModelSummary}${homeIsolated && !isArena ? " · Worktree" : ""}`;
+  const arenaStrip = isArena ? `<div class="home-arena-strip"><div class="home-arena-head"><strong>${icon("git-branch", 14)} Đấu trường Agent (Parallel Worktree Fan-Out)</strong><small>${canIsolateHome ? "Chọn 2–4 agent để chạy song song trên các nhánh Git worktree cô lập rồi so sánh diff." : "Workspace cần là Git repository đã có ít nhất 1 commit để bật Đấu trường."}</small></div><div class="home-arena-competitors">${arenaCandidates.map((comp) => `<label class="arena-competitor-pill ${effectiveArenaIds.includes(comp.provider) ? "is-checked" : ""}"><input type="checkbox" data-arena-provider="${esc(comp.provider)}" ${effectiveArenaIds.includes(comp.provider) ? "checked" : ""}><span><strong>${esc(comp.name)}</strong>${comp.model ? `<small>${esc(comp.model)}</small>` : ""}</span></label>`).join("")}</div></div>` : "";
   return `<section class="command-home">
-    <div class="command-stage"><div class="home-welcome"><p class="home-kicker">OPENSYBAU · ${esc(activeWorkspace?.name || "CHỌN WORKSPACE")}</p><h1>${activeWorkspace ? `Bạn muốn làm gì trong ${esc(activeWorkspace.name)}?` : "Bạn muốn làm gì?"}</h1><p class="home-subtitle">Bắt đầu một cuộc trò chuyện hoặc giao việc cho các agent đang chạy trên máy.</p></div>
+    <div class="command-stage"><div class="home-welcome"><p class="home-kicker">OPENSYBAU · ${esc(activeWorkspace?.name || "CHỌN WORKSPACE")}</p><h1>${activeWorkspace ? `Bạn muốn làm gì trong ${esc(activeWorkspace.name)}?` : "Bạn muốn làm gì?"}</h1><p class="home-subtitle">Bắt đầu một cuộc trò chuyện hoặc giao việc cho các agent đang chạy trên máy. Gõ <code>@tên-tệp</code> để chèn nhanh đường dẫn tệp trong dự án.</p></div>
       ${chatProviders.length ? "" : `<div class="provider-connect-callout home-provider-empty"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa có agent sẵn sàng</strong><p>Kết nối API/model local hoặc cài và đăng nhập Codex, Claude Code hay Antigravity để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="desktop-open-settings">Mở cài đặt</button><button class="button quiet small" type="button" data-action="open-setup-assistant">Hướng dẫn</button></div></div>`}
-      <div class="home-mode-switch" role="tablist" aria-label="Chế độ làm việc"><button type="button" class="home-mode-tab ${view.homeMode === "chat" ? "active" : ""}" data-home-mode="chat">Chat</button><button type="button" class="home-mode-tab ${view.homeMode === "code" ? "active" : ""}" data-home-mode="code" ${pipelineReady ? "" : "disabled title=\"Cần agent có quyền làm việc trên workspace\""}>Code</button><button type="button" class="home-mode-tab ${view.homeMode === "plan" ? "active" : ""}" data-home-mode="plan" ${planReady ? "" : "disabled"}>Lập kế hoạch</button><button type="button" class="home-mode-link" data-page="tasks">${view.state.tasks.length} task</button></div>
+      <div class="home-mode-switch" role="tablist" aria-label="Chế độ làm việc"><button type="button" class="home-mode-tab ${view.homeMode === "chat" ? "active" : ""}" data-home-mode="chat">Chat</button><button type="button" class="home-mode-tab ${view.homeMode === "code" ? "active" : ""}" data-home-mode="code" ${pipelineReady ? "" : "disabled title=\"Cần agent có quyền làm việc trên workspace\""}>Code</button><button type="button" class="home-mode-tab ${view.homeMode === "plan" ? "active" : ""}" data-home-mode="plan" ${planReady ? "" : "disabled"}>Lập kế hoạch</button><button type="button" class="home-mode-tab ${view.homeMode === "arena" ? "active" : ""}" data-home-mode="arena" title="Chạy song song nhiều agent trên các Git worktree riêng">${icon("git-branch", 13)} Đấu trường</button><button type="button" class="home-mode-link" data-page="tasks">${view.state.tasks.length} task</button></div>
       <form class="home-composer" data-modal data-form="home-task">
+        ${arenaStrip}
         ${composerAttachmentsMarkup("home")}
-        <textarea name="prompt" data-home-prompt maxlength="50000" rows="3" placeholder="${workflow === "chat-only" ? `Nhắn ${providerTitle(view.connectors, chatSelection.provider)}…` : workflow === "plan-only" ? "Mô tả vấn đề cần phân tích và lập kế hoạch…" : "Mô tả thay đổi cần triển khai trong workspace…"}">${esc(view.chatDraft)}</textarea>
-        <footer class="home-composer-controls"><div class="composer-add-wrap">${composerAddMenu("prompt")}<span class="auto-skill-chip">${icon("notebook-tabs", 14)} Tự chọn skill · ${view.skills.length}</span></div><div class="home-composer-actions"><button type="button" class="home-composer-settings" data-action="toggle-home-config" aria-label="Cấu hình workspace, agent và model" aria-expanded="${view.homeConfigOpen}" title="Workspace, agent, model và mức suy nghĩ">${icon("settings-2", 15)}<span>${esc(homeConfigSummary)}</span>${icon("chevron-down", 14)}</button><button class="home-submit" type="submit" aria-label="${workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${workspaces.length && canRun ? "" : "disabled"}>${icon("arrow-up-right", 17)}</button></div></footer>
+        <div class="composer-input-wrap">
+          <textarea name="prompt" data-home-prompt maxlength="50000" rows="3" placeholder="${isArena ? "Nhập yêu cầu chung để các agent thi đấu song song trên các Git worktree riêng (hỗ trợ @file)…" : workflow === "chat-only" ? `Nhắn ${providerTitle(view.connectors, chatSelection.provider)} (gõ @ để chọn tệp)…` : workflow === "plan-only" ? "Mô tả vấn đề cần phân tích và lập kế hoạch…" : "Mô tả thay đổi cần triển khai trong workspace…"}">${esc(view.chatDraft)}</textarea>
+          <div class="mention-popover" data-mention-popover hidden></div>
+        </div>
+        <footer class="home-composer-controls"><div class="composer-add-wrap">${composerAddMenu("prompt")}<span class="auto-skill-chip">${icon("notebook-tabs", 14)} Tự chọn skill · ${view.skills.length}</span></div><div class="home-composer-actions"><button type="button" class="home-composer-settings" data-action="toggle-home-config" aria-label="Cấu hình workspace, agent và model" aria-expanded="${view.homeConfigOpen}" title="Workspace, agent, model và mức suy nghĩ">${icon("settings-2", 15)}<span>${esc(homeConfigSummary)}</span>${icon("chevron-down", 14)}</button><button class="home-submit" type="submit" aria-label="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${workspaces.length && canRun ? "" : "disabled"}>${icon("arrow-up-right", 17)}</button></div></footer>
         <div class="composer-config-backdrop home-config-backdrop" ${view.homeConfigOpen ? "" : "hidden"}><section class="composer-config-dialog app-dialog-shell" role="dialog" aria-modal="true" aria-label="Cấu hình tác vụ"><header class="app-dialog-header"><div><small>OPENSYBAU</small><h2>Cấu hình tác vụ</h2></div><button type="button" class="icon-button" data-action="close-composer-config" aria-label="Đóng">${icon("x", 16)}</button></header><div class="app-dialog-content composer-config-content"><div class="composer-config-grid"><label>Workspace<select name="workspaceId" data-home-workspace required ${workspaces.length ? "" : "disabled"}>${workspaces.length ? workspaces.map((workspace) => `<option value="${workspace.id}" ${workspace.id === activeWorkspaceId ? "selected" : ""}>${esc(workspace.name)}</option>`).join("") : `<option value="">Thêm workspace để bắt đầu</option>`}</select></label><label>Luồng<select name="workflow" data-home-workflow>${workflowOptions}</select></label></div><div class="composer-config-grid"><label>Quyền truy cập<select name="permissionPreset" data-home-permission><option value="full-access" ${homePermissionPreset === "full-access" ? "selected" : ""}>Toàn quyền trên máy</option><option value="workspace-write" ${homePermissionPreset === "workspace-write" ? "selected" : ""}>Đọc và sửa workspace</option><option value="read-only" ${homePermissionPreset === "read-only" ? "selected" : ""}>Chỉ đọc workspace</option></select></label><label class="check-row home-isolation-row"><input type="checkbox" name="isolated" data-home-isolated ${homeIsolated ? "checked" : ""} ${canIsolateHome ? "" : "disabled"}><span><strong>Tách Git worktree riêng</strong><small>${canIsolateHome ? `Nhánh ${esc(activeWorkspace?.runtime?.branch || "HEAD")} · chạy song song an toàn` : "Cần Git repo có ít nhất 1 commit"}</small></span></label></div><div class="chat-agent-role" ${workflow === "chat-only" ? "" : "hidden"}>${chatAgentEditor({ provider: chatSelection.provider, model: chatSelection.model?.id, effort: chatSelection.effort })}</div><div class="agent-role-grid home-role-grid" ${workflow === "chat-only" ? "hidden" : ""}>${workflowRoles.map((role) => roleEditor(role.id, roleSelections[role.id])).join("")}</div></div><footer class="app-dialog-footer"><span>${icon("notebook-tabs", 14)} Skill tự chọn · ${view.skills.length} · Tối đa ${view.state.settings.maxConcurrent} task song song</span><button type="button" class="button primary" data-action="close-composer-config">Xong</button></footer></section></div>
       </form>
     </div>
@@ -776,14 +819,133 @@ function taskConversationPipelineStrip(task, busy) {
   const workflow = task.config?.workflow || "codex-antigravity";
   const artifactsCount = (task.artifacts || []).length;
   const lastEvent = (task.events || []).filter((e) => e.kind !== "output").at(-1) || (task.events || []).at(-1);
-  if (workflow === "chat-only" && !busy && !artifactsCount && !task.isolated) return "";
+  if (workflow === "chat-only" && !busy && !artifactsCount && !task.isolated && !task.fanoutId) return "";
   const stages = workflow === "chat-only" ? "" : (workflow === "plan-only" ? [{ id: "plan", label: "Kế hoạch", done: Boolean(task.plan) }] : [{ id: "plan", label: "Kế hoạch", done: Boolean(task.plan) }, { id: "build", label: "Triển khai", done: Boolean(task.implementation) }, { id: "review", label: "Review", done: Boolean(task.review) }]).map((stage) => `<span class="chat-stage-chip ${stage.done ? "is-done" : (busy && task.phase === stage.id ? "is-active" : "is-pending")}"><i></i>${stage.label}</span>`).join(`<span class="chat-stage-arrow">→</span>`);
-  const worktreeChip = task.isolated ? `<span class="chat-worktree-chip" title="${esc(task.worktreePath || task.executionPath || "")}">${icon("git-branch", 12)} Worktree cô lập</span>` : "";
+  const worktreeChip = task.isolated
+    ? `<span class="chat-worktree-chip ${task.worktreeAppliedAt ? "is-merged" : ""}" title="${esc(task.worktreePath || task.executionPath || "")}">${icon(task.worktreeAppliedAt ? "check" : "git-branch", 12)} ${task.worktreeAppliedAt ? "Đã gộp vào dự án" : task.worktreeCleaned ? "Worktree đã dọn" : (task.worktreeBranch || "Worktree cô lập")}</span>`
+    : "";
   const activityText = busy && lastEvent?.text ? `<span class="chat-live-event" title="${esc(lastEvent.text)}"><i class="pulse-dot"></i>${esc(String(lastEvent.text).slice(0, 110))}</span>` : "";
-  const diffBtn = task.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${task.id}">${icon("file", 13)}<span>Diff${artifactsCount ? ` (${artifactsCount})` : ""}</span></button>` : "";
+  const canManageWorktree = Boolean(task.isolated && !busy && !task.worktreeCleaned && !task.worktreeAppliedAt);
+  const applyWtBtn = canManageWorktree && artifactsCount > 0
+    ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${task.id}" title="Áp dụng thay đổi từ worktree cô lập này vào nhánh chính của dự án">${icon("check", 13)}<span>Gộp vào dự án</span></button>`
+    : "";
+  const discardWtBtn = canManageWorktree
+    ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${task.id}" title="Hủy bỏ và xóa nhánh Git worktree cô lập này">${icon("delete", 13)}<span>Hủy worktree</span></button>`
+    : "";
+  const diffBtn = task.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${task.id}">${icon("file", 13)}<span>Diff & Review${artifactsCount ? ` (${artifactsCount})` : ""}</span></button>` : "";
   const flowBtn = `<button type="button" class="button quiet small" data-action="open-task-flow" data-id="${task.id}">${icon("workflow", 13)}<span>Luồng</span></button>`;
   const stopBtn = busy ? `<button type="button" class="button danger small" data-action="stop-task" data-id="${task.id}">${icon("square", 12)}<span>Dừng</span></button>` : "";
-  return `<div class="chat-pipeline-strip ${busy ? "is-running" : ""}"><div class="chat-pipeline-stages">${stages}${worktreeChip}${activityText}</div><div class="chat-pipeline-actions">${diffBtn}${flowBtn}${stopBtn}</div></div>`;
+  return `<div class="chat-pipeline-strip ${busy ? "is-running" : ""}"><div class="chat-pipeline-stages">${stages}${worktreeChip}${activityText}</div><div class="chat-pipeline-actions">${applyWtBtn}${discardWtBtn}${diffBtn}${flowBtn}${stopBtn}</div></div>`;
+}
+function taskArenaBanner(task) {
+  if (!task.fanoutId) return "";
+  const siblings = (view.state?.tasks || []).filter((item) => item.fanoutId === task.fanoutId && !item.archived);
+  if (siblings.length < 2) return "";
+  return `<section class="arena-banner" aria-label="Đấu trường Agent">
+    <header class="arena-banner-head">
+      <div>
+        <span class="arena-badge">${icon("git-branch", 12)} ĐẤU TRƯỜNG WORKTREE</span>
+        <strong>${siblings.length} agent đang giải cùng yêu cầu trên nhánh cô lập</strong>
+      </div>
+      <button type="button" class="button primary small" data-action="compare-fanout" data-fanout-id="${esc(task.fanoutId)}">${icon("list-checks", 13)}<span>So sánh & Chọn bản thắng</span></button>
+    </header>
+    <div class="arena-competitor-tabs">
+      ${siblings.map((item) => {
+        const compName = item.fanoutCompetitor?.name || providerTitle(view.connectors, item.config?.roles?.build?.provider || item.config?.chatProvider || "codex");
+        const filesCount = (item.artifacts || []).length;
+        const tok = Object.values(item.usage || {}).reduce((s, u) => s + tokenCount(u), 0);
+        return `<button type="button" class="arena-competitor-card ${item.id === task.id ? "is-active" : ""}" data-task="${esc(item.id)}">
+          <span class="wb-task-dot is-${item.status || "done"}"></span>
+          <div class="arena-competitor-info">
+            <strong>${esc(compName)}${item.worktreeAppliedAt ? " · ĐÃ CHỌN" : ""}</strong>
+            <small>${esc(statuses[item.status] || item.status)} · ${filesCount} tệp sửa${tok ? ` · ${formatNumber(tok)} tok` : ""}</small>
+          </div>
+        </button>`;
+      }).join("")}
+    </div>
+  </section>`;
+}
+function taskInlineToolStream(task) {
+  const events = (task.events || []).filter((e) => ["tool", "stage", "handoff", "error"].includes(e.kind));
+  const artifacts = task.artifacts || [];
+  if (!events.length && !artifacts.length) return "";
+  const recentTools = events.slice(-16);
+  const running = task.status === "running";
+  return `<details class="chat-tool-stream" ${running ? "open" : ""}>
+    <summary class="chat-tool-stream-summary">
+      <span class="chat-tool-stream-title">
+        ${icon("square-terminal", 14)}
+        <strong>Hoạt động công cụ & Tệp thay đổi</strong>
+        <small>${events.length} bước thực thi${artifacts.length ? ` · ${artifacts.length} tệp sửa đổi` : ""}</small>
+      </span>
+      <span class="chat-tool-stream-hint">Nhấn để đóng/mở</span>
+    </summary>
+    <div class="chat-tool-stream-body">
+      ${recentTools.map((ev) => {
+        const isErr = ev.kind === "error" || ev.status === "failed";
+        const iconName = ev.filePath ? "file" : ev.kind === "stage" || ev.kind === "handoff" ? "workflow" : "square-terminal";
+        const badge = ev.toolName || (ev.kind === "stage" ? "STAGE" : ev.kind === "handoff" ? "HANDOFF" : "TOOL");
+        return `<div class="chat-tool-card ${isErr ? "is-error" : ""}">
+          <span class="chat-tool-icon">${icon(iconName, 13)}</span>
+          <span class="chat-tool-badge">${esc(badge)}</span>
+          <code class="chat-tool-text">${esc(ev.command || ev.filePath || ev.text || "")}</code>
+          ${ev.exitCode !== undefined && ev.exitCode !== null ? `<span class="chat-tool-exit ${ev.exitCode === 0 ? "is-ok" : "is-fail"}">exit ${ev.exitCode}</span>` : ""}
+        </div>`;
+      }).join("")}
+      ${artifacts.length ? `<div class="chat-tool-artifacts">
+        <small>Tệp thay đổi (nhấn để mở Diff Review Studio):</small>
+        <div class="chat-tool-artifact-list">
+          ${artifacts.slice(0, 24).map((filePath) => `<button type="button" class="chat-artifact-pill" data-action="open-diff-file" data-id="${esc(task.id)}" data-path="${esc(filePath)}">${icon("file", 12)}<span>${esc(filePath)}</span></button>`).join("")}
+        </div>
+      </div>` : ""}
+    </div>
+  </details>`;
+}
+function chatContextDrawer(task) {
+  if (!view.chatDrawerOpen) return "";
+  const allFiles = view.workspaceFileIndex?.[task.workspaceId] || [];
+  if (!view.workspaceFileIndex?.[task.workspaceId]) {
+    void ensureWorkspaceFileIndex(task.workspaceId).then(() => render());
+  }
+  const artifacts = task.artifacts || [];
+  const activeTab = view.chatDrawerTab || (artifacts.length ? "changed" : "files");
+  const filter = (view.chatDrawerFilter || "").trim().toLowerCase();
+  const visibleFiles = (activeTab === "changed" ? artifacts : allFiles)
+    .filter((f) => !filter || f.toLowerCase().includes(filter))
+    .slice(0, 180);
+  const preview = view.chatDrawerPreview;
+  return `<aside class="chat-context-drawer" aria-label="Cây thư mục và Tệp thay đổi">
+    <header class="chat-drawer-head">
+      <div class="chat-drawer-tabs">
+        <button type="button" class="chat-drawer-tab ${activeTab === "changed" ? "is-active" : ""}" data-action="chat-drawer-tab" data-tab="changed">Tệp sửa (${artifacts.length})</button>
+        <button type="button" class="chat-drawer-tab ${activeTab === "files" ? "is-active" : ""}" data-action="chat-drawer-tab" data-tab="files">Dự án (${allFiles.length})</button>
+      </div>
+      <button type="button" class="icon-button" data-action="toggle-chat-drawer" title="Đóng ngăn tệp">${icon("x", 15)}</button>
+    </header>
+    <label class="chat-drawer-search">
+      ${icon("search", 14)}
+      <input type="search" data-chat-drawer-filter value="${esc(view.chatDrawerFilter || "")}" placeholder="Lọc nhanh tên tệp…" autocomplete="off">
+    </label>
+    <ul class="chat-drawer-list">
+      ${visibleFiles.length ? visibleFiles.map((filePath) => `<li class="chat-drawer-item">
+        <button type="button" class="chat-drawer-file" data-action="${activeTab === "changed" ? "open-diff-file" : "preview-drawer-file"}" data-id="${esc(task.id)}" data-workspace-id="${esc(task.workspaceId)}" data-path="${esc(filePath)}" title="${esc(filePath)}">
+          ${icon("file", 13)}
+          <span>${esc(filePath)}</span>
+        </button>
+        <button type="button" class="chat-drawer-mention" data-action="mention-drawer-file" data-path="${esc(filePath)}" title="Chèn @${esc(filePath)} vào khung chat">@</button>
+      </li>`).join("") : `<li class="chat-drawer-empty">${activeTab === "changed" ? "Chưa có tệp thay đổi nào trong task này." : "Không tìm thấy tệp phù hợp."}</li>`}
+    </ul>
+    ${preview ? `<section class="chat-drawer-preview">
+      <header>
+        <strong title="${esc(preview.path)}">${esc(preview.name || preview.path)}</strong>
+        <div>
+          <button type="button" class="button quiet small" data-action="mention-drawer-file" data-path="${esc(preview.path)}">Chèn @file</button>
+          <button type="button" class="icon-button" data-action="close-drawer-preview">${icon("x", 13)}</button>
+        </div>
+      </header>
+      <pre><code>${esc(preview.content || "")}</code></pre>
+    </section>` : ""}
+  </aside>`;
 }
 function taskConversationPage() {
   const task = view.state.tasks.find((item) => item.id === view.selected);
@@ -826,12 +988,14 @@ function taskConversationPage() {
     return `<article class="chat-message ${isUser ? "from-user" : "from-agent"}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small>${forkButton}</header><div class="chat-message-content ${isUser ? "user-message-content" : "agent-message-content"}">${content}${messageAttachments}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}</div></article>`;
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
   const composerConfig = `${providerTitle(view.connectors, provider)}${model?.name ? ` · ${model.name}` : ""}${effort ? ` · ${effort}` : ""}`;
-  return `<section class="task-conversation-page" aria-label="Cuộc trò chuyện">
-      <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`} · ${task.permissionPreset === "read-only" ? "Chỉ đọc" : task.permissionPreset === "full-access" ? "Toàn quyền máy" : "Sửa workspace"}</small></div><span class="chat-pane-meta">${queueSummary ? `<span class="chat-queue-summary">${icon("list-checks", 13)}${esc(queueSummary)}</span>` : ""}<button type="button" class="button quiet small" data-action="task-permissions" data-id="${task.id}" aria-label="${view.language === "en" ? "Permissions" : "Quyền"}" title="${view.language === "en" ? "Permissions" : "Quyền"}">${icon("shield", 13)}<span>${view.language === "en" ? "Permissions" : "Quyền"}</span></button><button type="button" class="button quiet small chat-goal-button" data-action="edit-task-goal" data-id="${task.id}" aria-label="${view.language === "en" ? "Goal" : "Mục tiêu"}" title="${task.goal ? esc(task.goal) : (view.language === "en" ? "Add a long-term goal" : "Thêm mục tiêu dài hạn")}">${icon("target", 13)}<span>${view.language === "en" ? "Goal" : "Mục tiêu"}</span></button><span class="chat-message-count">${icon("book-open-text", 14)} ${formatNumber(transcript.length)} ${view.language === "en" ? "messages" : "tin nhắn"}</span></span></header>
+  return `<section class="task-conversation-page ${view.chatDrawerOpen ? "has-context-drawer" : ""}" aria-label="Cuộc trò chuyện">
+      <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`} · ${task.permissionPreset === "read-only" ? "Chỉ đọc" : task.permissionPreset === "full-access" ? "Toàn quyền máy" : "Sửa workspace"}</small></div><span class="chat-pane-meta">${queueSummary ? `<span class="chat-queue-summary">${icon("list-checks", 13)}${esc(queueSummary)}</span>` : ""}<button type="button" class="button quiet small ${view.chatDrawerOpen ? "is-active" : ""}" data-action="toggle-chat-drawer" data-id="${task.id}" title="Đóng/mở cây tệp dự án & tệp thay đổi">${icon("folder-open", 13)}<span>Tệp${(task.artifacts || []).length ? ` (${task.artifacts.length})` : ""}</span></button><button type="button" class="button quiet small" data-action="task-permissions" data-id="${task.id}" aria-label="${view.language === "en" ? "Permissions" : "Quyền"}" title="${view.language === "en" ? "Permissions" : "Quyền"}">${icon("shield", 13)}<span>${view.language === "en" ? "Permissions" : "Quyền"}</span></button><button type="button" class="button quiet small chat-goal-button" data-action="edit-task-goal" data-id="${task.id}" aria-label="${view.language === "en" ? "Goal" : "Mục tiêu"}" title="${task.goal ? esc(task.goal) : (view.language === "en" ? "Add a long-term goal" : "Thêm mục tiêu dài hạn")}">${icon("target", 13)}<span>${view.language === "en" ? "Goal" : "Mục tiêu"}</span></button><span class="chat-message-count">${icon("book-open-text", 14)} ${formatNumber(transcript.length)} ${view.language === "en" ? "messages" : "tin nhắn"}</span></span></header>
+      ${taskArenaBanner(task)}
       ${taskConversationPipelineStrip(task, busy)}
-      <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
-      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<textarea name="message" class="chat-input" maxlength="50000" rows="3" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(view.chatDraft)}</textarea><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}<button type="button" class="chat-config-trigger" data-action="task-instruction" data-id="${task.id}" title="Đổi agent, model hoặc mức suy nghĩ">${icon("settings-2", 14)}<span>${esc(composerConfig)}</span></button></div><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></footer></form>
+      <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${taskInlineToolStream(task)}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
+      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="3" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}<button type="button" class="chat-config-trigger" data-action="task-instruction" data-id="${task.id}" title="Đổi agent, model hoặc mức suy nghĩ">${icon("settings-2", 14)}<span>${esc(composerConfig)}</span></button></div><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></footer></form>
     </section>
+    ${chatContextDrawer(task)}
   </section>`;
 }
 function homeAgentCard(name, connector, ready) {
@@ -1051,16 +1215,154 @@ function showMemoryModal() {
   const body = '<label>Tên ghi nhớ<input name="title" maxlength="120" required placeholder="Ví dụ: Cách chạy kiểm thử dự án"></label>' + contentFileImportField("content") + '<label>Nội dung<textarea name="content" maxlength="5000" rows="4" required placeholder="Một ghi chú đã kiểm chứng, hữu ích cho các task sau"></textarea></label><label>Phạm vi<select name="workspaceId">' + options + '</select></label><div class="form-note">Mỗi task chỉ nạp tối đa 3 ghi chú có từ khóa khớp yêu cầu.</div>';
   showModal("Ghi nhớ mới", body, "Lưu ghi nhớ");
 }
-function showDiffModal(data) {
-  const rawDiff = String(data.diff || "Không có thay đổi được Git theo dõi.");
-  const formattedLines = rawDiff.split(/\r?\n/).map((line) => {
-    const cls = line.startsWith("+++") || line.startsWith("---") || line.startsWith("diff ") || line.startsWith("index ") ? "diff-line diff-line-meta" : line.startsWith("@@") ? "diff-line diff-line-hunk" : line.startsWith("+") ? "diff-line diff-line-add" : line.startsWith("-") ? "diff-line diff-line-del" : "diff-line";
-    return `<span class="${cls}">${esc(line) || " "}</span>`;
-  }).join("\n");
-  const body = `<div class="diff-location"><small>THƯ MỤC</small><code>${esc(data.path || "")}</code></div><pre class="diff-content">${formattedLines}</pre>`;
-  showModal("Diff của task", body, "Đóng");
-  $(".modal [data-action=close-modal]")?.addEventListener("click", closeOverlay, { once: true });
-  $(".modal-actions .primary").addEventListener("click", (event) => { event.preventDefault(); closeOverlay(); }, { once: true });
+function renderDiffStudioModal() {
+  const data = view.diffStudioData;
+  if (!data) return;
+  const taskId = view.diffStudioTaskId || view.selected || "";
+  const files = data.files || [];
+  const annotations = view.diffAnnotations?.[taskId] || [];
+  const totalAdd = files.reduce((sum, f) => sum + (f.additions || 0), 0);
+  const totalDel = files.reduce((sum, f) => sum + (f.deletions || 0), 0);
+  const selectedFile = files.find((f) => f.path === view.diffSelectedFile) || files[0] || null;
+  if (selectedFile && view.diffSelectedFile !== selectedFile.path) view.diffSelectedFile = selectedFile.path;
+  const wt = data.worktree;
+  const canApplyWt = Boolean(wt && !wt.cleaned && !wt.appliedAt && files.length > 0 && taskId);
+  const canDiscardWt = Boolean(wt && !wt.cleaned && !wt.appliedAt && taskId);
+
+  const toolbarHtml = `<div class="diff-studio-toolbar">
+    <div class="diff-location">
+      <small>${wt ? `WORKTREE · ${esc(wt.branch || "isolated")}` : "THƯ MỤC"}</small>
+      <code>${esc(data.path || "")}</code>
+      ${files.length ? `<span class="diff-totals"><em class="is-add">+${totalAdd}</em><em class="is-del">-${totalDel}</em> · ${files.length} tệp</span>` : ""}
+    </div>
+    <div class="diff-studio-actions">
+      ${wt?.appliedAt ? `<span class="chat-worktree-chip is-merged">${icon("check", 12)} Đã gộp vào nhánh chính</span>` : ""}
+      ${canApplyWt ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(taskId)}">${icon("check", 13)}<span>Gộp Worktree vào dự án</span></button>` : ""}
+      ${canDiscardWt ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${esc(taskId)}">${icon("delete", 13)}<span>Hủy Worktree</span></button>` : ""}
+    </div>
+  </div>`;
+
+  let contentHtml = "";
+  if (!files.length) {
+    const rawDiff = String(data.diff || "Không có thay đổi được Git theo dõi.");
+    const formattedLines = rawDiff.split(/\r?\n/).map((line) => {
+      const cls = line.startsWith("+++") || line.startsWith("---") || line.startsWith("diff ") || line.startsWith("index ") ? "diff-line diff-line-meta" : line.startsWith("@@") ? "diff-line diff-line-hunk" : line.startsWith("+") ? "diff-line diff-line-add" : line.startsWith("-") ? "diff-line diff-line-del" : "diff-line";
+      return `<span class="${cls}">${esc(line) || " "}</span>`;
+    }).join("\n");
+    contentHtml = `<pre class="diff-content">${formattedLines}</pre>`;
+  } else {
+    const sidebarHtml = files.map((file) => {
+      const fileComments = annotations.filter((a) => a.path === file.path).length;
+      const statusChar = file.status === "added" ? "A" : file.status === "deleted" ? "D" : file.status === "renamed" ? "R" : "M";
+      return `<button type="button" class="diff-file-item ${file.path === selectedFile?.path ? "is-active" : ""}" data-action="select-diff-file" data-path="${esc(file.path)}" title="${esc(file.path)}">
+        <span class="diff-file-status is-${esc(file.status || "modified")}">${statusChar}</span>
+        <span class="diff-file-name">${esc(file.path)}</span>
+        ${fileComments ? `<span class="diff-file-comment-count">${fileComments}</span>` : ""}
+        <span class="diff-file-stats"><em class="is-add">+${file.additions}</em><em class="is-del">-${file.deletions}</em></span>
+      </button>`;
+    }).join("");
+
+    const hunksHtml = (selectedFile?.hunks || []).map((hunk) => {
+      const linesHtml = (hunk.lines || []).map((line, idx) => {
+        const lineNo = line.newLine ?? line.oldLine ?? (idx + 1);
+        const lineKey = `${selectedFile.path}:${lineNo}:${line.type}`;
+        const lineAnns = annotations.filter((a) => a.path === selectedFile.path && String(a.line) === String(lineNo));
+        const isEditing = view.diffAnnotationTarget && view.diffAnnotationTarget.key === lineKey;
+        const cls = line.type === "add" ? "diff-row-add" : line.type === "del" ? "diff-row-del" : "diff-row-ctx";
+        const prefix = line.type === "add" ? "+" : line.type === "del" ? "-" : " ";
+        return `<div class="diff-row-group">
+          <div class="diff-row ${cls} diff-line-annotatable" data-action="open-diff-comment" data-key="${esc(lineKey)}" data-path="${esc(selectedFile.path)}" data-line="${esc(lineNo)}" data-code="${esc(line.text)}" title="Nhấn để thêm nhận xét review tại dòng ${lineNo}">
+            <span class="diff-ln">${line.oldLine ?? ""}</span>
+            <span class="diff-ln">${line.newLine ?? ""}</span>
+            <span class="diff-sign">${prefix}<i class="diff-add-comment-icon">+</i></span>
+            <code class="diff-code">${esc(line.text) || " "}</code>
+          </div>
+          ${lineAnns.map((ann) => `<div class="diff-inline-annotation">
+            <div class="diff-annotation-head"><strong>Nhận xét dòng ${esc(ann.line)}</strong><button type="button" class="icon-button" data-action="remove-diff-comment" data-comment-id="${esc(ann.id)}" title="Xóa nhận xét">${icon("x", 13)}</button></div>
+            <p>${esc(ann.comment)}</p>
+          </div>`).join("")}
+          ${isEditing ? `<div class="diff-inline-editor">
+            <textarea data-diff-comment-input rows="2" placeholder="Nhập yêu cầu chỉnh sửa hoặc nhận xét cho dòng ${lineNo}…"></textarea>
+            <div class="diff-inline-editor-actions">
+              <button type="button" class="button quiet small" data-action="cancel-diff-comment">Hủy</button>
+              <button type="button" class="button primary small" data-action="save-diff-comment">Lưu nhận xét</button>
+            </div>
+          </div>` : ""}
+        </div>`;
+      }).join("");
+      return `<div class="diff-hunk-block"><div class="diff-hunk-header">${esc(hunk.header)}</div>${linesHtml}</div>`;
+    }).join("");
+
+    contentHtml = `<div class="diff-studio-layout">
+      <aside class="diff-file-list" aria-label="Danh sách tệp thay đổi">${sidebarHtml}</aside>
+      <section class="diff-viewer-pane">
+        <header class="diff-viewer-head">
+          <strong>${esc(selectedFile?.path || "")}</strong>
+          <small>Nhấn vào dòng bất kỳ để gắn nhận xét cho Agent sửa</small>
+        </header>
+        <div class="diff-hunk-list">${hunksHtml || `<p class="diff-empty-file">Tệp nhị phân hoặc không có dòng thay đổi văn bản.</p>`}</div>
+      </section>
+    </div>`;
+  }
+
+  const body = `${toolbarHtml}${contentHtml}`;
+  showModal("Diff Review Studio", body, "Đóng", "dismiss");
+  const modal = $("#overlay .modal");
+  modal?.classList.add("diff-studio-modal");
+  if (annotations.length && taskId) {
+    const footer = $("#overlay .modal-actions");
+    footer?.insertAdjacentHTML("afterbegin", `<button type="button" class="button primary" data-action="submit-diff-review" data-id="${esc(taskId)}">${icon("arrow-up-right", 14)} Gửi ${annotations.length} nhận xét cho Agent sửa</button>`);
+  }
+  $("[data-diff-comment-input]")?.focus();
+}
+function showDiffModal(data, taskId = view.selected, preferredFile = "") {
+  view.diffStudioData = data;
+  view.diffStudioTaskId = taskId || view.selected || "";
+  const files = data?.files || [];
+  view.diffSelectedFile = preferredFile && files.some((f) => f.path === preferredFile) ? preferredFile : (files[0]?.path || "");
+  view.diffAnnotationTarget = null;
+  renderDiffStudioModal();
+}
+async function openArenaCompareModal(fanoutId) {
+  const siblings = (view.state?.tasks || []).filter((item) => item.fanoutId === fanoutId && !item.archived);
+  if (!siblings.length) return;
+  showModal("Đấu trường Agent · Đang tải Diff…", `<p class="form-note">Đang thu thập kết quả và diff từ ${siblings.length} Git worktree…</p>`, "Đóng", "dismiss");
+  const diffs = await Promise.all(siblings.map((t) => api(`/api/tasks/${encodeURIComponent(t.id)}/diff`).catch(() => ({ files: [], diff: "" }))));
+  const cardsHtml = siblings.map((item, idx) => {
+    const diffData = diffs[idx] || { files: [] };
+    const files = diffData.files || [];
+    const adds = files.reduce((s, f) => s + (f.additions || 0), 0);
+    const dels = files.reduce((s, f) => s + (f.deletions || 0), 0);
+    const compName = item.fanoutCompetitor?.name || providerTitle(view.connectors, item.config?.roles?.build?.provider || item.config?.chatProvider || "codex");
+    const tok = Object.values(item.usage || {}).reduce((s, u) => s + tokenCount(u), 0);
+    const summaryText = String(item.implementation || item.review || item.plan || item.chatMessages?.filter((m) => m.role === "assistant").at(-1)?.content || "Đang thực thi hoặc chưa có đầu ra.").slice(0, 420);
+    const canPick = Boolean(item.isolated && !["running", "queued"].includes(item.status) && !item.worktreeCleaned && !item.worktreeAppliedAt && files.length > 0);
+    return `<article class="arena-compare-card ${item.worktreeAppliedAt ? "is-winner" : ""}">
+      <header>
+        <div>
+          <span class="wb-task-dot is-${item.status || "done"}"></span>
+          <strong>${esc(compName)}</strong>
+          ${item.fanoutCompetitor?.model ? `<small>${esc(item.fanoutCompetitor.model)}</small>` : ""}
+        </div>
+        <span class="pill status-${item.status}">${esc(statuses[item.status] || item.status)}</span>
+      </header>
+      <div class="arena-compare-stats">
+        <span><strong>${files.length}</strong> tệp sửa</span>
+        <span class="is-add">+${adds}</span>
+        <span class="is-del">-${dels}</span>
+        <span>${formatNumber(tok)} tokens</span>
+      </div>
+      <pre class="arena-compare-excerpt">${esc(summaryText)}</pre>
+      ${files.length ? `<div class="arena-compare-files">${files.slice(0, 8).map((f) => `<code>${esc(f.path)} (+${f.additions}/-${f.deletions})</code>`).join("")}</div>` : `<p class="form-note">Chưa có tệp thay đổi.</p>`}
+      <footer>
+        <button type="button" class="button quiet small" data-action="show-diff" data-id="${esc(item.id)}">${icon("file", 13)} Xem Diff</button>
+        <button type="button" class="button quiet small" data-task="${esc(item.id)}">Mở Chat</button>
+        ${item.worktreeAppliedAt ? `<span class="chat-worktree-chip is-merged">${icon("check", 12)} Bản thắng đã gộp</span>` : canPick ? `<button type="button" class="button primary small" data-action="pick-arena-winner" data-id="${esc(item.id)}">${icon("check", 13)} Chọn & Gộp vào dự án</button>` : ""}
+      </footer>
+    </article>`;
+  }).join("");
+  showModal("So sánh Đấu trường Agent (Worktree Fan-Out)", `<div class="arena-compare-grid">${cardsHtml}</div>`, "Đóng", "dismiss");
+  $("#overlay .modal")?.classList.add("arena-compare-modal");
 }
 function closeOverlay() { $("#overlay").innerHTML = ""; }
 function showToast(message) {
@@ -1137,10 +1439,36 @@ async function handleSubmit(event) {
       const task = await api("/api/tasks", { method: "POST", body: JSON.stringify({ ...taskInput, ...(presetRef ? { presetRef } : {}), isolated: data.has("isolated") }) });
       view.selected = task.task.id; view.page = "chat"; view.chatProvider = task.task.config.chatProvider || task.task.config.roles?.plan?.provider || "codex"; view.chatModel = task.task.config.workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = task.task.config.workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; showToast("Task thật đã vào hàng đợi.");
     } else if (form.dataset.form === "home-task") {
-      const workflow = object.workflow || "chat-only";
-      const payload = { ...object, prompt: String(object.prompt || "").trim(), workflow, isolated: data.has("isolated") || Boolean(view.homeIsolated), permissionPreset: object.permissionPreset || view.homePermissionPreset || "full-access" };
-      const task = await api("/api/tasks", { method: "POST", body: JSON.stringify(payload) });
-      view.selected = task.task.id; view.page = "chat"; view.chatProvider = workflow === "chat-only" ? task.task.config.chatProvider : task.task.config.roles?.plan?.provider || "codex"; view.chatModel = workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; clearComposerAttachments(form); showToast(workflow === "chat-only" ? "Đã gửi tin nhắn cho agent." : "Task thật đã vào hàng đợi.");
+      if (view.homeMode === "arena") {
+        const candidates = availableArenaCompetitors();
+        const chosenIds = (view.homeArenaProviders || []).filter((id) => candidates.some((c) => c.provider === id));
+        const activeIds = chosenIds.length >= 2 ? chosenIds : candidates.slice(0, Math.min(3, candidates.length)).map((c) => c.provider);
+        const competitors = activeIds.map((id) => candidates.find((c) => c.provider === id) || { provider: id, name: providerTitle(view.connectors, id) });
+        const result = await api("/api/tasks/fanout", {
+          method: "POST",
+          body: JSON.stringify({
+            workspaceId: object.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id,
+            prompt: String(object.prompt || "").trim(),
+            attachments: object.attachments,
+            permissionPreset: object.permissionPreset || view.homePermissionPreset || "full-access",
+            workflow: "codex-antigravity",
+            competitors,
+          }),
+        });
+        const firstTask = result.tasks?.[0];
+        if (firstTask) {
+          view.selected = firstTask.id;
+          view.page = "chat";
+          view.chatDraft = "";
+          clearComposerAttachments(form);
+        }
+        showToast(`Đã khởi chạy Đấu trường với ${result.tasks?.length || competitors.length} Git worktree song song!`);
+      } else {
+        const workflow = object.workflow || "chat-only";
+        const payload = { ...object, prompt: String(object.prompt || "").trim(), workflow, isolated: data.has("isolated") || Boolean(view.homeIsolated), permissionPreset: object.permissionPreset || view.homePermissionPreset || "full-access" };
+        const task = await api("/api/tasks", { method: "POST", body: JSON.stringify(payload) });
+        view.selected = task.task.id; view.page = "chat"; view.chatProvider = workflow === "chat-only" ? task.task.config.chatProvider : task.task.config.roles?.plan?.provider || "codex"; view.chatModel = workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; clearComposerAttachments(form); showToast(workflow === "chat-only" ? "Đã gửi tin nhắn cho agent." : "Task thật đã vào hàng đợi.");
+      }
     } else if (form.dataset.form === "settings") {
       const roles = Object.fromEntries(workflowRoles.map((role) => [role.id, { provider: object[`${role.id}Provider`], model: object[`${role.id}Model`], effort: object[`${role.id}Effort`] }]));
       await api("/api/settings", { method: "POST", body: JSON.stringify({ defaults: { roles } }) });
@@ -1423,7 +1751,143 @@ async function handleWorkbenchClick(event) {
       showToast(view.language === "en" ? "Task queued from the selected stage." : "Task đã vào hàng đợi từ giai đoạn đã chọn.");
       await refresh();
     }
-    if (action === "show-diff") { const data = await api(`/api/tasks/${encodeURIComponent(id)}/diff`); showDiffModal(data); }
+    if (action === "show-diff") { const data = await api(`/api/tasks/${encodeURIComponent(id)}/diff`); showDiffModal(data, id); return; }
+    if (action === "open-diff-file") { const data = await api(`/api/tasks/${encodeURIComponent(id)}/diff`); showDiffModal(data, id, button.dataset.path || ""); return; }
+    if (action === "select-diff-file") { view.diffSelectedFile = button.dataset.path || ""; view.diffAnnotationTarget = null; renderDiffStudioModal(); return; }
+    if (action === "open-diff-comment") {
+      view.diffAnnotationTarget = { key: button.dataset.key, path: button.dataset.path, line: button.dataset.line, code: button.dataset.code || "" };
+      renderDiffStudioModal();
+      return;
+    }
+    if (action === "cancel-diff-comment") { view.diffAnnotationTarget = null; renderDiffStudioModal(); return; }
+    if (action === "save-diff-comment") {
+      const comment = String($("[data-diff-comment-input]")?.value || "").trim();
+      const target = view.diffAnnotationTarget;
+      const tId = view.diffStudioTaskId || view.selected || "";
+      if (!comment || !target || !tId) { showToast("Nhập nội dung nhận xét trước khi lưu."); return; }
+      view.diffAnnotations ||= {};
+      view.diffAnnotations[tId] ||= [];
+      view.diffAnnotations[tId].push({ id: crypto.randomUUID(), path: target.path, line: target.line, code: target.code, comment });
+      view.diffAnnotationTarget = null;
+      renderDiffStudioModal();
+      return;
+    }
+    if (action === "remove-diff-comment") {
+      const tId = view.diffStudioTaskId || view.selected || "";
+      if (view.diffAnnotations?.[tId]) {
+        view.diffAnnotations[tId] = view.diffAnnotations[tId].filter((a) => a.id !== button.dataset.commentId);
+      }
+      renderDiffStudioModal();
+      return;
+    }
+    if (action === "submit-diff-review") {
+      const anns = view.diffAnnotations?.[id] || [];
+      if (!anns.length) return;
+      const task = view.state.tasks.find((item) => item.id === id);
+      const wf = task?.config?.workflow || "codex-antigravity";
+      const provider = view.chatProvider || (wf === "chat-only" ? task?.config?.chatProvider : roleConfig(task?.config, "build")?.provider || roleConfig(task?.config, "plan")?.provider) || "codex";
+      const models = view.connectors?.[provider]?.models || [];
+      const model = view.chatModel || models[0]?.id || "";
+      const effort = view.chatEffort || "medium";
+      const reviewLines = [
+        "Hãy chỉnh sửa mã nguồn theo các nhận xét review trên diff dưới đây:",
+        "",
+        ...anns.map((ann, idx) => `${idx + 1}. **Tệp \`${ann.path}\` (Dòng ${ann.line})**:\n   - Dòng hiện tại: \`${String(ann.code || "").trim()}\`\n   - Yêu cầu sửa: ${ann.comment}`),
+      ].join("\n");
+      await api(`/api/tasks/${encodeURIComponent(id)}/chat`, {
+        method: "POST",
+        body: JSON.stringify({ message: reviewLines, provider, model, effort }),
+      });
+      delete view.diffAnnotations[id];
+      closeOverlay();
+      view.selected = id;
+      view.page = "chat";
+      await refresh();
+      showToast(`Đã gửi ${anns.length} nhận xét diff cho Agent xử lý!`);
+      return;
+    }
+    if (action === "apply-worktree" || action === "pick-arena-winner") {
+      const task = view.state.tasks.find((item) => item.id === id);
+      if (!confirm(`Áp dụng toàn bộ thay đổi từ nhánh worktree của “${task?.title || id}” vào thư mục dự án chính?`)) return;
+      const res = await api(`/api/tasks/${encodeURIComponent(id)}/apply-worktree`, { method: "POST", body: JSON.stringify({ cleanup: false }) });
+      closeOverlay();
+      view.selected = id;
+      view.page = "chat";
+      await refresh();
+      showToast(`Đã gộp ${res.appliedFiles?.length || 0} tệp từ worktree vào dự án chính!`);
+      return;
+    }
+    if (action === "discard-worktree") {
+      const task = view.state.tasks.find((item) => item.id === id);
+      if (!confirm(`Hủy bỏ và xóa thư mục Git worktree cô lập của “${task?.title || id}”? Lịch sử trò chuyện vẫn được giữ lại.`)) return;
+      await api(`/api/tasks/${encodeURIComponent(id)}/discard-worktree`, { method: "POST" });
+      closeOverlay();
+      await refresh();
+      showToast("Đã dọn dẹp Git worktree cô lập.");
+      return;
+    }
+    if (action === "compare-fanout") {
+      await openArenaCompareModal(button.dataset.fanoutId || "");
+      return;
+    }
+    if (action === "toggle-chat-drawer") {
+      view.chatDrawerOpen = !view.chatDrawerOpen;
+      const task = view.state.tasks.find((item) => item.id === (id || view.selected));
+      if (view.chatDrawerOpen && task?.workspaceId) {
+        void ensureWorkspaceFileIndex(task.workspaceId).then(() => render());
+      }
+      render();
+      return;
+    }
+    if (action === "chat-drawer-tab") {
+      view.chatDrawerTab = button.dataset.tab || "files";
+      render();
+      return;
+    }
+    if (action === "preview-drawer-file") {
+      const wsId = button.dataset.workspaceId || view.state.tasks.find((item) => item.id === view.selected)?.workspaceId;
+      if (wsId && button.dataset.path) {
+        const file = await api(`/api/workspaces/${encodeURIComponent(wsId)}/file?path=${encodeURIComponent(button.dataset.path)}`);
+        view.chatDrawerPreview = file;
+        render();
+      }
+      return;
+    }
+    if (action === "close-drawer-preview") {
+      view.chatDrawerPreview = null;
+      render();
+      return;
+    }
+    if (action === "mention-drawer-file") {
+      const path = button.dataset.path || "";
+      if (!path) return;
+      const textarea = $(".chat-input") || $("[data-home-prompt]");
+      if (textarea) {
+        const prefix = textarea.value && !/\s$/.test(textarea.value) ? " " : "";
+        textarea.value = `${textarea.value}${prefix}@${path} `;
+        view.chatDraft = textarea.value;
+        textarea.focus();
+      }
+      return;
+    }
+    if (action === "insert-file-mention") {
+      const path = button.dataset.path || "";
+      const menu = view.mentionMenu;
+      const textarea = $(".chat-input") || $("[data-home-prompt]");
+      if (textarea && path && menu) {
+        const before = textarea.value.slice(0, menu.startPos);
+        const after = textarea.value.slice(menu.endPos);
+        textarea.value = `${before}@${path} ${after}`;
+        view.chatDraft = textarea.value;
+        view.mentionMenu = null;
+        const pop = textarea.closest(".composer-input-wrap")?.querySelector("[data-mention-popover]");
+        if (pop) { pop.hidden = true; pop.innerHTML = ""; }
+        textarea.focus();
+        const cursor = before.length + path.length + 2;
+        textarea.setSelectionRange?.(cursor, cursor);
+      }
+      return;
+    }
     if (action === "open-folder") { await api(`/api/tasks/${encodeURIComponent(id)}/open`, { method: "POST" }); showToast("Đã mở thư mục dự án trong Explorer."); }
     if (action === "open-project-folder") { await api(`/api/workspaces/${encodeURIComponent(id)}/open`, { method: "POST" }); showToast("Đã mở thư mục dự án trong Explorer."); }
     if (action === "toggle-project-pin") {
@@ -1482,7 +1946,6 @@ async function handleWorkbenchClick(event) {
     if (action === "back-flows") { view.selected = null; view.page = "flows"; render(); }
     if (action === "back-chat") { view.selected = id; view.page = "chat"; render(); }
     if (action === "open-workspace") await loadWorkspaceDir(id, "");
-    if (action === "open-workspace") await loadWorkspaceDir(id, "");
     if (action === "back-projects") { view.selected = null; view.page = "workspaces"; render(); }
     if (action === "workspace-dir") await loadWorkspaceDir(view.selected, button.dataset.path || "");
     if (action === "workspace-up") { const parent = view.workspaceDir.split("/").filter(Boolean).slice(0, -1).join("/"); await loadWorkspaceDir(view.selected, parent); }
@@ -1531,14 +1994,43 @@ async function handleWorkbenchClick(event) {
     if (action === "delete-memory") { if (confirm("Xóa ghi nhớ này?")) { await api(`/api/memory/${encodeURIComponent(id)}`, { method: "DELETE" }); await refresh(); } }
   } catch (error) { showToast(error.message); }
 }
+async function updateComposerMentionMenu(textarea) {
+  const wrap = textarea.closest(".composer-input-wrap");
+  const pop = wrap?.querySelector("[data-mention-popover]");
+  if (!pop) return;
+  const cursor = textarea.selectionStart ?? textarea.value.length;
+  const before = textarea.value.slice(0, cursor);
+  const match = before.match(/(?:^|\s)@([^\s@]*)$/);
+  if (!match) {
+    view.mentionMenu = null;
+    pop.hidden = true;
+    pop.innerHTML = "";
+    return;
+  }
+  const query = match[1].toLowerCase();
+  const startPos = cursor - match[1].length - 1;
+  const task = view.selected ? view.state?.tasks?.find((t) => t.id === view.selected) : null;
+  const wsId = task?.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+  const files = await ensureWorkspaceFileIndex(wsId);
+  const matches = files.filter((f) => !query || f.toLowerCase().includes(query)).slice(0, 8);
+  if (!matches.length) {
+    view.mentionMenu = null;
+    pop.hidden = true;
+    pop.innerHTML = "";
+    return;
+  }
+  view.mentionMenu = { query, items: matches, startPos, endPos: cursor };
+  pop.innerHTML = `<div class="mention-popover-head">Chèn tệp dự án (@file)</div>${matches.map((f, idx) => `<button type="button" class="mention-option ${idx === 0 ? "is-active" : ""}" data-action="insert-file-mention" data-path="${esc(f)}">${icon("file", 13)}<span>${esc(f)}</span></button>`).join("")}`;
+  pop.hidden = false;
+}
 const activeButtonActions = new WeakSet();
 const lastButtonActionAt = new WeakMap();
 document.addEventListener("click", async (event) => {
-  const button = event.target.closest?.("button");
+  const button = event.target.closest?.("button, [data-action='open-diff-comment']");
   if (!button) return handleWorkbenchClick(event);
   const now = Date.now();
   const lastActionAt = lastButtonActionAt.get(button) || 0;
-  if (activeButtonActions.has(button) || now - lastActionAt < 400) {
+  if (activeButtonActions.has(button) || now - lastActionAt < 250) {
     event.preventDefault();
     event.stopPropagation();
     return;
@@ -1573,9 +2065,19 @@ document.addEventListener("drop", (event) => {
 });
 document.addEventListener("input", (event) => {
   const chatInput = event.target.closest(".chat-input");
-  if (chatInput) { view.chatDraft = chatInput.value; return; }
+  if (chatInput) { view.chatDraft = chatInput.value; void updateComposerMentionMenu(chatInput); return; }
   const homePrompt = event.target.closest("[data-home-prompt]");
-  if (homePrompt) { view.chatDraft = homePrompt.value; return; }
+  if (homePrompt) { view.chatDraft = homePrompt.value; void updateComposerMentionMenu(homePrompt); return; }
+  const drawerFilter = event.target.closest("[data-chat-drawer-filter]");
+  if (drawerFilter) {
+    view.chatDrawerFilter = drawerFilter.value;
+    const pos = drawerFilter.selectionStart;
+    render();
+    const nextFilter = $("[data-chat-drawer-filter]");
+    nextFilter?.focus();
+    if (typeof pos === "number") nextFilter?.setSelectionRange(pos, pos);
+    return;
+  }
   const homeSearch = event.target.closest("[data-home-search]");
   if (homeSearch) {
     view.searchQuery = homeSearch.value;
@@ -1596,6 +2098,16 @@ document.addEventListener("input", (event) => {
   applySkillFilter(input);
 });
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-arena-provider]")) {
+    const id = event.target.dataset.arenaProvider;
+    const set = new Set(view.homeArenaProviders || []);
+    if (event.target.checked) set.add(id);
+    else if (set.size > 2) set.delete(id);
+    else { event.target.checked = true; showToast("Đấu trường cần tối thiểu 2 agent để so sánh song song."); return; }
+    view.homeArenaProviders = [...set];
+    render();
+    return;
+  }
   if (event.target.matches("[data-content-file-import]")) { void importContentFiles(event.target); return; }
   if (event.target.matches("[data-task-preset-version]")) syncTaskPresetControls(event.target.closest("form"));
   if (event.target.matches("select[name=workflow], select[name=workspaceId]")) { syncWorkflow(); syncIsolation(); }
@@ -1670,6 +2182,17 @@ document.addEventListener("change", (event) => {
 document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault(); view.page = "chat"; view.selected = null; view.chatDraft = ""; render(); $(`[data-home-prompt]`)?.focus({ preventScroll: true }); return;
+  }
+  const activePopover = event.target.closest?.(".composer-input-wrap")?.querySelector("[data-mention-popover]:not([hidden])");
+  if (activePopover && (event.key === "Tab" || event.key === "Enter") && !event.shiftKey) {
+    const firstBtn = activePopover.querySelector("[data-action='insert-file-mention']");
+    if (firstBtn) { event.preventDefault(); firstBtn.click(); return; }
+  }
+  if (activePopover && event.key === "Escape") {
+    event.preventDefault();
+    activePopover.hidden = true;
+    view.mentionMenu = null;
+    return;
   }
   const search = event.target.matches?.("[data-home-search]") ? event.target : null;
   if (search && event.key === "Enter") {
