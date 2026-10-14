@@ -2436,21 +2436,21 @@ async function api(request, response, pathname) {
   let box = null;
 
   function ensureBox() {
-    if (box && document.body?.contains(box)) return box;
+    if (box && (document.body || document.documentElement)?.contains(box)) return box;
     box = document.createElement("div");
     box.id = "__orca_inspect_box__";
-    box.setAttribute(" data-orca-ignore", "1");
+    box.setAttribute("data-orca-ignore", "1");
     Object.assign(box.style, {
       position: "fixed",
       pointerEvents: "none",
       zIndex: "2147483646",
       display: "none",
       boxSizing: "border-box",
-      border: "1.5px solid rgba(24, 24, 27, 0.82)",
+      border: "1.5px solid rgba(24, 24, 27, 0.85)",
       borderRadius: "8px",
-      background: "rgba(24, 24, 27, 0.015)",
-      boxShadow: "0 0 0 1px rgba(255, 255, 255, 0.85), 0 4px 14px rgba(0, 0, 0, 0.14)",
-      transition: "top 45ms ease-out, left 45ms ease-out, width 45ms ease-out, height 45ms ease-out",
+      background: "rgba(16, 185, 129, 0.04)",
+      boxShadow: "0 0 0 1px rgba(255, 255, 255, 0.88), 0 4px 14px rgba(0, 0, 0, 0.16)",
+      transition: "top 40ms ease-out, left 40ms ease-out, width 40ms ease-out, height 40ms ease-out",
     });
     (document.body || document.documentElement).appendChild(box);
     return box;
@@ -2616,12 +2616,15 @@ async function api(request, response, pathname) {
     }
   });
 
-  window.addEventListener("DOMContentLoaded", () => {
+  function notifyReady() {
     window.parent?.postMessage({ type: "orca-inspect:ready" }, "*");
-  });
-  window.addEventListener("load", () => {
-    window.parent?.postMessage({ type: "orca-inspect:ready" }, "*");
-  });
+  }
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", notifyReady);
+  } else {
+    notifyReady();
+  }
+  window.addEventListener("load", notifyReady);
 })();
 </script>`;
           const htmlStr = buf.toString("utf8");

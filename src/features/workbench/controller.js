@@ -1153,6 +1153,172 @@ function renderHtmlElementCommentPopoverMarkup(tab) {
   </div>`;
 }
 
+function ensureIframeInspectorBridge(iframe) {
+  if (!iframe) return;
+  try {
+    const win = iframe.contentWindow;
+    const doc = iframe.contentDocument || win?.document;
+    if (!win || !doc) return;
+    if (typeof win.__orcaSetInspectMode === "function") return;
+    let active = false;
+    let hoveredEl = null;
+    let lockedEl = null;
+    let box = null;
+
+    function ensureBox() {
+      if (box && (doc.body || doc.documentElement)?.contains(box)) return box;
+      box = doc.createElement("div");
+      box.id = "__orca_inspect_box__";
+      box.setAttribute("data-orca-ignore", "1");
+      Object.assign(box.style, {
+        position: "fixed",
+        pointerEvents: "none",
+        zIndex: "2147483646",
+        display: "none",
+        boxSizing: "border-box",
+        border: "1.5px solid rgba(24, 24, 27, 0.85)",
+        borderRadius: "8px",
+        background: "rgba(16, 185, 129, 0.04)",
+        boxShadow: "0 0 0 1px rgba(255, 255, 255, 0.88), 0 4px 14px rgba(0, 0, 0, 0.16)",
+        transition: "top 40ms ease-out, left 40ms ease-out, width 40ms ease-out, height 40ms ease-out",
+      });
+      (doc.body || doc.documentElement).appendChild(box);
+      return box;
+    }
+
+    function updateBoxFor(el) {
+      const overlay = ensureBox();
+      if (!el || !active) {
+        overlay.style.display = "none";
+        return;
+      }
+      const r = el.getBoundingClientRect();
+      if (!r || (r.width === 0 && r.height === 0)) {
+        overlay.style.display = "none";
+        return;
+      }
+      const pad = 4;
+      overlay.style.display = "block";
+      overlay.style.top = Math.max(0, r.top - pad) + "px";
+      overlay.style.left = Math.max(0, r.left - pad) + "px";
+      overlay.style.width = (r.width + pad * 2) + "px";
+      overlay.style.height = (r.height + pad * 2) + "px";
+    }
+
+    function cssSelectorFor(el) {
+      if (!el || el.nodeType !== 1) return "";
+      if (el.id) return el.tagName.toLowerCase() + "#" + el.id;
+      const parts = [];
+      let cur = el;
+      while (cur && cur.nodeType === 1 && cur !== doc.body && cur !== doc.documentElement && parts.length < 4) {
+        let part = cur.tagName.toLowerCase();
+        if (cur.id) {
+          parts.unshift(part + "#" + cur.id);
+          break;
+        }
+        const cls = typeof cur.className === "string"
+          ? cur.className.trim().split(/\s+/).filter((c) => c && !c.startsWith("__orca")).slice(0, 2)
+          : [];
+        if (cls.length) part += "." + cls.join(".");
+        parts.unshift(part);
+        cur = cur.parentElement;
+      }
+      return parts.join(" > ");
+    }
+
+    function describeElement(el) {
+      if (!el || el.nodeType !== 1) return null;
+      const tag = el.tagName.toLowerCase();
+      const selector = cssSelectorFor(el);
+      const val = typeof el.value === "string" ? el.value.trim() : "";
+      const placeholder = el.getAttribute?.("placeholder") || "";
+      const aria = el.getAttribute?.("aria-label") || "";
+      const text = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 120);
+      const labelText = [aria, text, val, placeholder].filter(Boolean)[0] || selector || ("<" + tag + ">");
+      const clone = el.cloneNode(true);
+      const outerHTML = (clone.outerHTML || "").replace(/\s+/g, " ").trim().slice(0, 320);
+      const r = el.getBoundingClientRect();
+      return {
+        tagName: tag,
+        selector,
+        label: labelText.slice(0, 90),
+        text: text.slice(0, 120),
+        value: val.slice(0, 80),
+        outerHTML,
+        rect: {
+          top: Math.round(r.top),
+          left: Math.round(r.left),
+          width: Math.round(r.width),
+          height: Math.round(r.height),
+          bottom: Math.round(r.bottom),
+          right: Math.round(r.right),
+          viewportWidth: win.innerWidth,
+          viewportHeight: win.innerHeight,
+        },
+      };
+    }
+
+    function resolveInspectTarget(rawTarget) {
+      if (!rawTarget || rawTarget.nodeType !== 1) return null;
+      if (rawTarget.id === "__orca_inspect_box__" || rawTarget === doc.documentElement || rawTarget === doc.body) return null;
+      if (["INPUT", "SELECT", "TEXTAREA"].includes(rawTarget.tagName)) {
+        const parent = rawTarget.parentElement;
+        if (parent && parent !== doc.body && parent.children.length <= 3) {
+          const pr = parent.getBoundingClientRect();
+          if (pr.height > 0 && pr.height <= 120 && pr.width <= 520) return parent;
+        }
+      }
+      return rawTarget;
+    }
+
+    win.__orcaSetInspectMode = (nextActive, clearLocked = true) => {
+      active = Boolean(nextActive);
+      if (clearLocked || !active) lockedEl = null;
+      hoveredEl = null;
+      if (doc.documentElement) doc.documentElement.style.cursor = active ? "crosshair" : "";
+      updateBoxFor(lockedEl || hoveredEl);
+    };
+
+    win.addEventListener("mousemove", (e) => {
+      if (!active || lockedEl) return;
+      const target = resolveInspectTarget(e.target);
+      if (target !== hoveredEl) {
+        hoveredEl = target;
+        updateBoxFor(hoveredEl);
+      }
+    }, true);
+
+    win.addEventListener("scroll", () => {
+      if (active && (lockedEl || hoveredEl)) updateBoxFor(lockedEl || hoveredEl);
+    }, true);
+
+    win.addEventListener("resize", () => {
+      if (active && (lockedEl || hoveredEl)) updateBoxFor(lockedEl || hoveredEl);
+    }, true);
+
+    win.addEventListener("click", (e) => {
+      if (!active) return;
+      const target = resolveInspectTarget(e.target) || (e.target?.nodeType === 1 ? e.target : null);
+      if (!target || target === doc.body || target === doc.documentElement) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      lockedEl = target;
+      updateBoxFor(lockedEl);
+      const info = describeElement(lockedEl);
+      if (info) {
+        window.postMessage({ type: "orca-inspect:selected", element: info }, "*");
+      }
+    }, true);
+
+    win.addEventListener("keydown", (e) => {
+      if (active && e.key === "Escape") {
+        window.postMessage({ type: "orca-inspect:escape" }, "*");
+      }
+    }, true);
+  } catch {}
+}
+
 function syncHtmlInspectUi({ focusInput = false } = {}) {
   const active = Boolean(view.stageHtmlInspectActive);
   const selected = view.stageHtmlSelectedElement;
@@ -1186,8 +1352,14 @@ function syncHtmlInspectUi({ focusInput = false } = {}) {
     }
   }
   const iframe = document.querySelector(".orca-live-frame:not(.is-pdf)");
-  if (iframe?.contentWindow) {
-    iframe.contentWindow.postMessage({
+  if (iframe) {
+    ensureIframeInspectorBridge(iframe);
+    try {
+      if (typeof iframe.contentWindow?.__orcaSetInspectMode === "function") {
+        iframe.contentWindow.__orcaSetInspectMode(active, !selected);
+      }
+    } catch {}
+    iframe.contentWindow?.postMessage({
       type: "orca-inspect:set-mode",
       active,
       clearSelection: !selected,
@@ -1328,7 +1500,6 @@ function renderStageFileViewer(tab) {
       ${leftToolbarMarkup}
       <div class="orca-viewer-actions">
         ${isWebBrowser ? `
-          <button type="button" class="icon-button orca-viewer-icon orca-inspect-crosshair-btn ${view.stageHtmlInspectActive ? "is-active" : ""}" data-action="toggle-html-inspect" title="Chọn phần tử HTML trên trang">${icon("crosshair", 13)}</button>
           <button type="button" class="icon-button orca-viewer-icon orca-inspect-comment-btn ${view.stageHtmlInspectActive ? "is-active" : ""}" data-action="toggle-html-inspect" title="Nhấp vào phần tử để gửi nhận xét cho Agent">${icon("message-square-plus", 13)}</button>
         ` : ""}
         ${showModeSwitch ? `<div class="orca-mode-switch" role="tablist" aria-label="Chế độ xem tệp">
@@ -4759,6 +4930,11 @@ window.addEventListener("message", (event) => {
     }
   }
 });
+document.addEventListener("load", (event) => {
+  if (event.target?.matches?.(".orca-live-frame:not(.is-pdf)")) {
+    syncHtmlInspectUi();
+  }
+}, true);
 document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && view.page === "knowledge" && view.vaultEditing) {
     event.preventDefault();
