@@ -6854,24 +6854,52 @@ body .orca-right-dock .icon-button:hover:not(:disabled) {
   gap: 10px;
 }
 
+.wb-page-content .page-head > div:first-child {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+.wb-page-content .page-head p,
+.wb-page-content .settings-card > header > div:first-child,
+.wb-page-content .settings-card > header p {
+  max-width: none !important;
+}
+
 .wb-page-content .skill-stage-hero {
-  padding: 16px 20px !important;
+  width: 100% !important;
+  padding: 16px 22px !important;
   margin-bottom: 4px !important;
   border-radius: 12px !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   background: rgba(255, 255, 255, 0.025) !important;
+  box-sizing: border-box !important;
+}
+
+.wb-page-content .skill-stage-hero .minimal-stage-title {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  align-items: flex-start !important;
+  gap: 14px !important;
+}
+
+.wb-page-content .skill-stage-hero .skill-hero-copy {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
 }
 
 .wb-page-content .skill-hero-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
   flex-wrap: wrap;
 }
 
 .wb-page-content .skill-hero-title-row h1 {
-  margin: 0;
+  margin: 0 !important;
   font-size: 18px !important;
   font-weight: 650 !important;
   color: #fafafa !important;
@@ -6879,31 +6907,99 @@ body .orca-right-dock .icon-button:hover:not(:disabled) {
 
 .wb-page-content .skill-stage-hero p {
   margin: 6px 0 0 !important;
+  max-width: none !important;
   font-size: 13px !important;
-  line-height: 1.5 !important;
+  line-height: 1.55 !important;
   color: #a1a1aa !important;
 }
 
 .wb-page-content .skill-doc-card {
+  width: 100% !important;
   padding: 0 !important;
   overflow: hidden !important;
   border-radius: 12px !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   background: rgba(255, 255, 255, 0.02) !important;
+  box-sizing: border-box !important;
 }
 
-.wb-page-content .skill-doc-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 18px !important;
+.wb-page-content .skill-doc-card > header.skill-doc-card-head {
+  width: 100% !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  padding: 11px 22px !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
   background: rgba(255, 255, 255, 0.02) !important;
+  box-sizing: border-box !important;
 }
 
-.wb-page-content .skill-doc-card .kb-doc-body {
-  padding: 18px 22px 24px !important;
+.wb-page-content .skill-doc-card-title {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  min-width: 0 !important;
 }
 
+.wb-page-content .skill-doc-card .skill-doc-body {
+  padding: 20px 24px 26px !important;
+}
 
+/* 9. Clean Code Blocks (<pre><code>) & Refined Inline Code Badges */
+.wb-page-content .markdown-preview pre,
+.wb-page-content .kb-markdown-doc pre,
+.chat-message-content pre {
+  margin: 12px 0 16px !important;
+  padding: 14px 18px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: #111216 !important;
+  color: #e4e4e7 !important;
+  overflow-x: auto !important;
+  font-family: var(--wb-font-mono) !important;
+  font-size: 12.5px !important;
+  line-height: 1.65 !important;
+  font-variant-ligatures: none !important;
+  font-feature-settings: "liga" 0, "calt" 0 !important;
+}
+
+.wb-page-content pre > code,
+.wb-page-content .markdown-preview pre > code,
+.wb-page-content .kb-markdown-doc pre > code,
+.chat-message-content pre > code,
+pre > code {
+  display: block !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: inherit !important;
+  font-family: var(--wb-font-mono) !important;
+  font-size: 12.5px !important;
+  line-height: 1.65 !important;
+  white-space: pre !important;
+  font-variant-ligatures: none !important;
+  font-feature-settings: "liga" 0, "calt" 0 !important;
+}
+
+.wb-page-content .markdown-preview :not(pre) > code,
+.wb-page-content .kb-markdown-doc :not(pre) > code,
+.chat-message-content :not(pre) > code {
+  display: inline-block !important;
+  padding: 1px 6px !important;
+  margin: 0 1px !important;
+  border-radius: 5px !important;
+  border: 1px solid rgba(255, 255, 255, 0.085) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  color: #e4e4e7 !important;
+  font-family: var(--wb-font-mono) !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  vertical-align: baseline !important;
+  font-variant-ligatures: none !important;
+  font-feature-settings: "liga" 0, "calt" 0 !important;
+}

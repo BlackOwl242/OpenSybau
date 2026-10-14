@@ -442,16 +442,30 @@ function isMarkdownTableDelimiter(line) {
 function renderMarkdown(source) {
   const lines = String(source || "").split(/\r?\n/);
   const html = [];
-  let paragraph = [], listType = "", codeLines = [], inCode = false;
+  let paragraph = [], listType = "", codeLines = [], inCode = false, codeIndent = 0;
   const inline = (text) => esc(text).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>").replace(/\[([^\]]+)\]\(((?:https?:\/\/|obsidian:\/\/|#)[^ ")<>']+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
   const flushParagraph = () => { if (paragraph.length) { html.push(`<p>${paragraph.map(inline).join("<br>")}</p>`); paragraph = []; } };
   const closeList = () => { if (listType) { html.push(`</${listType}>`); listType = ""; } };
   let headingIdx = 0;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (/^\s*```/.test(line)) { flushParagraph(); closeList(); if (inCode) { html.push(`<pre><code>${esc(codeLines.join("\n"))}</code></pre>`); codeLines = []; inCode = false; } else inCode = true; continue; }
-    if (inCode) { codeLines.push(line); continue; }
-    if (!line.trim()) { flushParagraph(); closeList(); continue; }
+    const fenceMatch = line.match(/^(\s*)```/);
+    if (fenceMatch) {
+      flushParagraph(); closeList();
+      if (inCode) {
+        html.push(`<pre><code>${esc(codeLines.join("\n"))}</code></pre>`);
+        codeLines = []; inCode = false; codeIndent = 0;
+      } else {
+        inCode = true;
+        codeIndent = fenceMatch[1].length;
+      }
+      continue;
+    }
+    if (inCode) {
+      codeLines.push(codeIndent > 0 ? line.replace(new RegExp(`^ {0,${codeIndent}}`), "") : line);
+      continue;
+    }
+    if (!line.trim()) { flushParagraph(); continue; }
     if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { flushParagraph(); closeList(); html.push("<hr>"); continue; }
     if (line.includes("|") && i + 1 < lines.length && isMarkdownTableDelimiter(lines[i + 1])) {
       flushParagraph(); closeList();
@@ -473,9 +487,19 @@ function renderMarkdown(source) {
     }
     const heading = line.match(/^(#{1,6})\s+(.+)$/);
     const bullet = line.match(/^\s*[-*+]\s+(.+)$/);
-    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    const ordered = line.match(/^\s*(\d+)[.)]\s+(.+)$/);
     if (heading) { flushParagraph(); closeList(); const level = Math.min(heading[1].length, 4); html.push(`<h${level} data-kb-heading="${headingIdx++}">${inline(heading[2])}</h${level}>`); continue; }
-    if (bullet || ordered) { flushParagraph(); const nextType = bullet ? "ul" : "ol"; if (listType !== nextType) { closeList(); listType = nextType; html.push(`<${listType}>`); } html.push(`<li>${inline((bullet || ordered)[1])}</li>`); continue; }
+    if (bullet || ordered) {
+      flushParagraph();
+      const nextType = bullet ? "ul" : "ol";
+      if (listType !== nextType) { closeList(); listType = nextType; html.push(`<${listType}>`); }
+      if (ordered) {
+        html.push(`<li value="${Number(ordered[1])}">${inline(ordered[2])}</li>`);
+      } else {
+        html.push(`<li>${inline(bullet[1])}</li>`);
+      }
+      continue;
+    }
     const quote = line.match(/^>\s?(.*)$/); if (quote) { flushParagraph(); closeList(); html.push(`<blockquote>${inline(quote[1])}</blockquote>`); continue; }
     closeList(); paragraph.push(line);
   }
@@ -1764,7 +1788,7 @@ function skillPage() {
         <section class="minimal-stage-hero skill-stage-hero">
           <div class="minimal-stage-title">
             <span class="minimal-stage-icon">${icon("notebook-tabs", 18)}</span>
-            <div>
+            <div class="skill-hero-copy">
               <div class="skill-hero-title-row">
                 <h1>${esc(activeSkill.name)}</h1>
                 <span class="kb-tag-chip is-inline-badge">${activeSkill.editable ? "Cá nhân · Có thể sửa" : "Plugin / CLI · Chỉ đọc"}</span>
@@ -1781,9 +1805,11 @@ function skillPage() {
               ${skillSourceLabel ? `<small>${esc(skillSourceLabel)}</small>` : ""}
             </div>
           </header>
-          ${rawContent
-            ? `<article class="markdown-preview kb-markdown-doc">${renderMarkdown(strippedBody || rawContent)}</article>`
-            : `<p class="neural-muted">Đang tải nội dung SKILL.md…</p>`}
+          <div class="skill-doc-body">
+            ${rawContent
+              ? `<article class="markdown-preview kb-markdown-doc">${renderMarkdown(strippedBody || rawContent)}</article>`
+              : `<p class="neural-muted">Đang tải nội dung SKILL.md…</p>`}
+          </div>
         </section>
       </div>
     </div>`;
