@@ -7104,22 +7104,6 @@ pre > code {
   flex: 0 1 auto !important;
 }
 
-.orca-inspect-selected-chip {
-  display: inline-block !important;
-  max-width: 240px !important;
-  padding: 1px 8px !important;
-  border-radius: 5px !important;
-  background: rgba(255, 255, 255, 0.07) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  color: #ecfdf5 !important;
-  font-family: var(--wb-font-sans) !important;
-  font-size: 11px !important;
-  font-weight: 540 !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
-
 .orca-inspect-banner-close {
   height: 20px !important;
   padding: 0 7px !important;
@@ -7237,42 +7221,6 @@ pre > code {
   color: #ffffff !important;
 }
 
-.orca-el-pop-meta {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 8px !important;
-  min-width: 0 !important;
-}
-
-.orca-el-selector-chip {
-  flex: 0 1 auto !important;
-  min-width: 0 !important;
-  max-width: 215px !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  padding: 1px 7px !important;
-  border-radius: 5px !important;
-  background: rgba(255, 255, 255, 0.045) !important;
-  border: 1px solid rgba(255, 255, 255, 0.075) !important;
-  color: #a1a1aa !important;
-  font-family: var(--wb-font-mono) !important;
-  font-size: 11px !important;
-}
-
-.orca-el-file-chip {
-  flex: 0 0 auto !important;
-  max-width: 140px !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  color: #71717a !important;
-  font-family: var(--wb-font-sans) !important;
-  font-size: 11px !important;
-  font-weight: 520 !important;
-}
-
 .orca-el-comment-input {
   width: 100% !important;
   min-height: 62px !important;
@@ -7349,27 +7297,32 @@ pre > code {
 .orca-viewer-actions { gap: 6px !important; }
 .orca-mode-switch {
   gap: 2px !important;
-  padding: 2px !important;
+  height: 26px !important;
+  padding: 1px !important;
+  box-sizing: border-box !important;
   border-color: var(--wb-line) !important;
   border-radius: 7px !important;
-  background: var(--wb-surface-soft) !important;
+  background: transparent !important;
 }
 .orca-mode-btn {
-  min-width: 42px !important;
-  height: 26px !important;
+  width: 30px !important;
+  min-width: 30px !important;
+  height: 22px !important;
   justify-content: center !important;
-  padding: 0 9px !important;
+  padding: 0 !important;
   border-radius: 5px !important;
+  border: 1px solid transparent !important;
   color: var(--wb-muted) !important;
   font-family: var(--wb-font-sans) !important;
-  font-size: 12px !important;
   font-weight: 550 !important;
 }
+.orca-mode-btn svg { width: 15px !important; height: 15px !important; }
 .orca-mode-btn:hover:not(.is-active) { background: var(--wb-control-hover) !important; color: var(--wb-ink) !important; }
 .orca-mode-btn.is-active {
-  background: var(--wb-control-hover) !important;
+  background: #383b42 !important;
   color: var(--wb-ink-strong) !important;
-  box-shadow: inset 0 0 0 1px var(--wb-border-subtle) !important;
+  border-color: #555963 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06) !important;
 }
 .orca-inspect-comment-btn {
   width: 28px !important;
@@ -7399,14 +7352,6 @@ pre > code {
   font-weight: 500 !important;
 }
 .orca-inspect-banner-text { color: var(--wb-ink) !important; }
-.orca-inspect-selected-chip {
-  padding: 2px 8px !important;
-  border-color: var(--wb-border-subtle) !important;
-  border-radius: 6px !important;
-  color: var(--wb-ink) !important;
-  background: var(--wb-control) !important;
-  font-size: 11px !important;
-}
 .orca-inspect-banner-close {
   min-width: 36px !important;
   height: 26px !important;
@@ -7428,31 +7373,9 @@ pre > code {
 }
 .orca-el-pop-head,
 .orca-el-pop-title,
-.orca-el-pop-meta,
 .orca-el-pop-foot { min-width: 0 !important; box-sizing: border-box !important; }
-.orca-el-pop-meta {
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) minmax(0, auto) !important;
-  justify-content: initial !important;
-  gap: 8px !important;
-}
-.orca-el-selector-chip {
-  display: block !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  box-sizing: border-box !important;
-}
-.orca-el-file-chip {
-  display: block !important;
-  min-width: 0 !important;
-  max-width: min(140px, 34vw) !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-}
 .orca-el-tag,
-.orca-el-selector-chip {
+.orca-el-pop-title .orca-el-tag {
   border-color: var(--wb-border-subtle) !important;
   border-radius: 6px !important;
   color: var(--wb-ink) !important;
@@ -7509,6 +7432,12 @@ pre > code {
   box-shadow: 0 12px 28px rgba(0, 0, 0, .42) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  max-height: var(--orca-menu-max-height, min(68vh, 360px)) !important;
+}
+.orca-el-model-bar .codex-pop-scroll,
+.orca-el-model-bar .codex-pop-card.is-effort-list .codex-pop-scroll {
+  max-height: calc(var(--orca-menu-max-height, min(68vh, 360px)) - 42px) !important;
+  overflow-y: auto !important;
 }
 .orca-el-model-bar .codex-pop-head { color: var(--wb-muted) !important; }
 .orca-el-model-bar .codex-pop-item { border-radius: 6px !important; color: var(--wb-ink) !important; }
@@ -7537,10 +7466,13 @@ pre > code {
   .orca-inspect-banner-text { flex: 1 1 180px !important; }
   .orca-inspect-banner-right { flex: 0 0 auto !important; margin-left: auto !important; }
   .orca-element-comment-popover { width: min(384px, calc(100vw - 24px)) !important; }
-  .orca-el-pop-meta { grid-template-columns: minmax(0, 1fr) minmax(0, auto) !important; }
   .orca-el-pop-foot { grid-template-columns: minmax(0, 1fr) !important; align-items: stretch !important; }
   .orca-el-model-bar { width: 100% !important; }
   .orca-el-model-bar [data-pop-id="html-comment-model"] { flex: 1 1 auto !important; min-width: 0 !important; }
   .orca-el-model-bar [data-pop-id="html-comment-model"] > summary { width: 100% !important; justify-content: space-between !important; }
   .orca-el-pop-actions { width: 100% !important; justify-content: flex-end !important; }
 }
+button:hover svg.lucide-animated .la-eye-pupil,
+summary:hover svg.lucide-animated .la-eye-pupil { transform: scale(1.18); }
+button:hover svg.lucide-animated .la-eye-outline,
+summary:hover svg.lucide-animated .la-eye-outline { transform: scaleY(1.04); }

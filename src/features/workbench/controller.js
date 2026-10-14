@@ -1124,7 +1124,7 @@ function resolveHtmlCommentAgentSelection() {
   };
 }
 
-function renderHtmlElementCommentPopoverMarkup(tab) {
+function renderHtmlElementCommentPopoverMarkup() {
   const el = view.stageHtmlSelectedElement;
   if (!el) return "";
   const {
@@ -1146,7 +1146,6 @@ function renderHtmlElementCommentPopoverMarkup(tab) {
     top = Math.max(12, Math.min(top, Math.max(12, vh - popHeight - 12)));
   }
 
-  const fileName = tab?.name || (tab?.path ? tab.path.split("/").at(-1) : "index.html");
   const selectorDisplay = el.selector || `<${el.tagName || "element"}>`;
 
   return `<div class="orca-element-comment-popover" style="top:${Math.round(top)}px;left:${Math.round(left)}px;">
@@ -1157,10 +1156,6 @@ function renderHtmlElementCommentPopoverMarkup(tab) {
       </div>
       <button type="button" class="icon-button orca-el-pop-close" data-action="cancel-html-element-comment" title="Đóng khung nhận xét">${icon("x", 13)}</button>
     </header>
-    <div class="orca-el-pop-meta">
-      <code class="orca-el-selector-chip" title="${esc(selectorDisplay)}">${esc(selectorDisplay)}</code>
-      ${tab?.path ? `<span class="orca-el-file-chip" title="@${esc(tab.path)}">@${esc(fileName)}</span>` : ""}
-    </div>
     <textarea class="orca-el-comment-input" data-html-element-comment-input rows="2" placeholder="Nhập nhận xét hoặc yêu cầu chỉnh sửa phần tử này cho Agent…">${esc(view.stageHtmlCommentDraft || "")}</textarea>
     <footer class="orca-el-pop-foot">
       <div class="codex-inline-model-bar orca-el-model-bar">
@@ -1174,7 +1169,7 @@ function renderHtmlElementCommentPopoverMarkup(tab) {
             <div class="codex-pop-scroll">${agentItemsMarkup}</div>
           </div>
         </details>
-        <details class="codex-pop-menu is-up" data-pop-id="html-comment-effort">
+        <details class="codex-pop-menu is-up is-right" data-pop-id="html-comment-effort">
           <summary class="codex-inline-trigger is-effort" title="Mức suy luận">
             <span>${esc(activeEffortLabel)}</span>
             ${icon("chevron-down", 12)}
@@ -1191,6 +1186,22 @@ function renderHtmlElementCommentPopoverMarkup(tab) {
       </div>
     </footer>
   </div>`;
+}
+
+function positionHtmlCommentMenu(menu) {
+  if (!menu) return;
+  const rect = menu.getBoundingClientRect();
+  const itemCount = menu.querySelectorAll(".codex-pop-item").length;
+  const headingHeight = menu.querySelector(".codex-pop-head") ? 38 : 8;
+  const rowHeight = menu.matches("[data-pop-id='html-comment-effort']") ? 34 : 36;
+  const preferredHeight = Math.min(window.innerHeight * 0.68, headingHeight + itemCount * rowHeight + 14);
+  const spaceAbove = Math.max(0, rect.top - 10);
+  const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - 10);
+  const opensDown = spaceBelow >= preferredHeight || spaceBelow >= spaceAbove;
+  const availableHeight = (opensDown ? spaceBelow : spaceAbove) - 8;
+  menu.classList.toggle("is-down", opensDown);
+  menu.classList.toggle("is-up", !opensDown);
+  menu.style.setProperty("--orca-menu-max-height", `${Math.max(96, Math.min(window.innerHeight * 0.68, availableHeight))}px`);
 }
 
 function ensureIframeInspectorBridge(iframe) {
@@ -1362,25 +1373,18 @@ function ensureIframeInspectorBridge(iframe) {
 function syncHtmlInspectUi({ focusInput = false } = {}) {
   const active = Boolean(view.stageHtmlInspectActive);
   const selected = view.stageHtmlSelectedElement;
-  const activeTab = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId) || (view.stageSplit ? (view.stageTabs || []).at(-1) : null);
   document.querySelectorAll("[data-action='toggle-html-inspect']").forEach((btn) => {
     btn.classList.toggle("is-active", active);
   });
   const banner = document.querySelector("[data-html-inspect-banner]");
   if (banner) {
     banner.hidden = !active;
-    const chipWrap = banner.querySelector("[data-html-inspect-chip-slot]");
-    if (chipWrap) {
-      chipWrap.innerHTML = selected
-        ? `<code class="orca-inspect-selected-chip">&lt;${esc(selected.tagName)}&gt; ${esc(selected.label || selected.selector)}</code>`
-        : "";
-    }
   }
   const layer = document.querySelector("[data-html-comment-layer]");
   if (layer) {
     if (active && selected) {
       layer.hidden = false;
-      layer.innerHTML = renderHtmlElementCommentPopoverMarkup(activeTab);
+      layer.innerHTML = renderHtmlElementCommentPopoverMarkup();
       localizeDom(layer, view.language);
       if (focusInput) {
         const input = layer.querySelector("[data-html-element-comment-input]");
@@ -1444,7 +1448,7 @@ function renderStageFileViewer(tab) {
       bodyHtml = `<div class="orca-live-frame-wrap">
         <iframe class="orca-live-frame" src="${esc(rawUrl)}" title="Xem trực tiếp ${esc(tab.name)}" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
         <div class="orca-element-comment-layer" data-html-comment-layer ${hasPopover ? "" : "hidden"}>
-          ${hasPopover ? renderHtmlElementCommentPopoverMarkup(tab) : ""}
+          ${hasPopover ? renderHtmlElementCommentPopoverMarkup() : ""}
         </div>
       </div>`;
     } else if (ext === ".pdf" || kind === "pdf") {
@@ -1534,6 +1538,8 @@ function renderStageFileViewer(tab) {
       </div>`;
 
   const showModeSwitch = hasRichPreview && hasCodeView;
+  const previewModeLabel = view.language === "en" ? "Preview" : "Xem trước";
+  const codeModeLabel = view.language === "en" ? "Source code" : "Mã nguồn";
 
   return `<section class="orca-file-viewer" aria-label="Trình xem tệp ${esc(tab.name)}">
     <header class="orca-viewer-toolbar">
@@ -1543,15 +1549,14 @@ function renderStageFileViewer(tab) {
           <button type="button" class="icon-button orca-viewer-icon orca-inspect-comment-btn ${view.stageHtmlInspectActive ? "is-active" : ""}" data-action="toggle-html-inspect" title="Nhấp vào phần tử để gửi nhận xét cho Agent">${icon("message-square-plus", 13)}</button>
         ` : ""}
         ${showModeSwitch ? `<div class="orca-mode-switch" role="tablist" aria-label="Chế độ xem tệp">
-          <button type="button" class="orca-mode-btn ${mode === "preview" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview"><span>Xem</span></button>
-          <button type="button" class="orca-mode-btn ${mode === "code" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code"><span>Code</span></button>
+          <button type="button" role="tab" aria-selected="${mode === "preview"}" class="orca-mode-btn ${mode === "preview" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview" aria-label="${previewModeLabel}" title="${previewModeLabel}">${icon("eye", 15)}</button>
+          <button type="button" role="tab" aria-selected="${mode === "code"}" class="orca-mode-btn ${mode === "code" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code" aria-label="${codeModeLabel}" title="${codeModeLabel}">${icon("code-2", 15)}</button>
         </div>` : ""}
       </div>
     </header>
     ${isWebBrowser ? `<div class="orca-inspect-banner" data-html-inspect-banner ${view.stageHtmlInspectActive ? "" : "hidden"}>
       <span class="orca-inspect-banner-text" data-html-inspect-banner-text>Nhấp vào một phần tử trên trang để thêm nhận xét cho Agent.</span>
       <div class="orca-inspect-banner-right">
-        <span data-html-inspect-chip-slot>${view.stageHtmlSelectedElement ? `<code class="orca-inspect-selected-chip">&lt;${esc(view.stageHtmlSelectedElement.tagName)}&gt; ${esc(view.stageHtmlSelectedElement.label || view.stageHtmlSelectedElement.selector)}</code>` : ""}</span>
         <button type="button" class="orca-inspect-banner-close" data-action="close-html-inspect" title="Thoát chế độ chọn phần tử (Esc)">Esc</button>
       </div>
     </div>` : ""}
@@ -3665,6 +3670,8 @@ async function handleSubmit(event) {
 async function handleWorkbenchClick(event) {
   const clickedPop = event.target.closest?.(".codex-pop-menu, .composer-add");
   document.querySelectorAll(".codex-pop-menu[open], .composer-add[open]").forEach((menu) => { if (menu !== clickedPop) menu.open = false; });
+  const htmlCommentSummary = event.target.closest?.(".orca-el-model-bar .codex-pop-menu > summary");
+  if (htmlCommentSummary) positionHtmlCommentMenu(htmlCommentSummary.parentElement);
   if (event.target.matches?.(".home-config-backdrop")) { view.homeConfigOpen = false; render(); return; }
   if (event.target.matches?.(".task-chat-config-backdrop")) { view.chatConfigOpen = false; render(); return; }
   const page = event.target.closest("[data-page]");

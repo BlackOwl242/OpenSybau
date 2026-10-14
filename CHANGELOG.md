@@ -5,6 +5,15 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.80] - 2026-10-15
+
+### Cải thiện trình xem HTML và thao tác chọn phần tử
+- Bỏ selector và đường dẫn tệp dư thừa trong popup nhận xét; giữ nhãn phần tử HTML và tiêu đề để giao diện gọn, dễ đọc.
+- Dropdown chọn model và mức suy luận tự mở về phía có nhiều không gian hơn, giới hạn chiều cao theo vùng hiển thị và cuộn danh sách khi cần.
+- Thay nhãn chữ “Xem/Code” bằng icon Lucide mắt và mã nguồn có hiệu ứng hover; làm rõ trạng thái đang chọn và căn chiều cao với thanh địa chỉ.
+
+---
+
 ## [0.2.79] - 2026-10-15
 
 ### Fixed & Improved (Hiển Thị Bảng Markdown Trên Chat, Đồng Bộ Khối Hoạt Động Công Cụ, Tối Ưu Bong Bóng Chat Người Dùng, Bỏ Nút Cài Đặt Khung Chat & Thêm Vạch Ngăn Cách Sidebar Trái)

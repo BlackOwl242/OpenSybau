@@ -18,7 +18,7 @@ const lucideIcons = {
   delete: `<path d="M3 6h18" class="la-lid"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" class="la-lid"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>`,
   "download-cloud": `<path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><g class="la-arrow-d"><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></g>`,
   ellipsis: `<circle cx="12" cy="12" r="1.2" class="la-dot-2"/><circle cx="19" cy="12" r="1.2" class="la-dot-3"/><circle cx="5" cy="12" r="1.2" class="la-dot-1"/>`,
-  eye: `<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>`,
+  eye: `<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" class="la-eye-outline"/><circle cx="12" cy="12" r="3" class="la-eye-pupil"/>`,
   file: `<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4" class="la-fold"/>`,
   "file-text": `<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4" class="la-fold"/><path d="M10 9H8" class="la-line"/><path d="M16 13H8" class="la-line"/><path d="M16 17H8" class="la-line"/>`,
   files: `<path d="M20 7h-3a2 2 0 0 1-2-2V2" class="la-fold"/><path d="M9 18a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h7l4 4v10a2 2 0 0 1-2 2Z" class="la-copy-front"/><path d="M3 7.6v12.8A1.6 1.6 0 0 0 4.6 22h9.8"/>`,
