@@ -5,6 +5,23 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.78] - 2026-10-15
+
+### Fixed & Improved (Tối Ưu Sidebar Phải Theo Từng Trang & Đồng Bộ Triệt Để Font Chữ Hệ Thống)
+- **Tối ưu Sidebar phải thông minh theo từng trang (`pageSupportsRightDock` & `getRightDockTabsForPage`)**:
+  - **Ẩn hoàn toàn Sidebar phải & nút bật/tắt góc trên bên phải** trên các trang độc lập không cần khung phụ: **Cài đặt (`settings`)**, **Bộ nhớ (`memory`)**, **Công việc (`tasks`)**, **Luồng (`flows`)**, và **Tri thức (`knowledge`)** khi chưa kết nối kho lưu trữ.
+  - **Tích hợp thanh lọc phạm vi dự án (`.memory-scope-filters`) trực tiếp vào trang Bộ nhớ (`memory`)**: Cho phép lọc nhanh `Tất cả`, `Dùng chung`, hoặc từng dự án ngay trên trang mà không cần mở Sidebar phải.
+  - **Rút gọn các tab chức năng của Sidebar phải đúng với ngữ cảnh từng trang**:
+    - **Dự án (`workspaces`)** & **Tác vụ mới (`chat` trang chủ)**: Chỉ hiển thị 2 tab (`Tệp dự án`, `Tìm kiếm tệp`).
+    - **Phiên trò chuyện đang mở (`chat` có task)**: Hiển thị đầy đủ 4 tab (`Tệp dự án`, `Tìm kiếm tệp`, `Thay đổi Git & Worktree`, `Mục tiêu & Công cụ phiên`).
+    - **Kỹ năng (`skills`)**: Chỉ hiển thị 2 tab (`Danh mục Kỹ năng`, `Tìm kiếm kỹ năng`).
+    - **Tri thức (`knowledge` đã kết nối Vault)**: Hiển thị các tab chuyên biệt cho ghi chú (`Cây ghi chú`, `Tìm ghi chú & #tag`, `Liên kết hai chiều & #tag`, và `Mục lục ghi chú` khi đang mở bài viết).
+- **Đồng bộ triệt để font chữ `Nunito Sans Variable` trên toàn hệ thống**:
+  - Sửa lỗi hộp thoại **Thêm ghi nhớ (`memory`)** bị áp nhầm font monospace (`var(--mono)`) và chiều cao `340px` của trình sửa Skill trên `<textarea name="content">`.
+  - Xóa bỏ khai báo cứng `Segoe UI, Arial, sans-serif` trên `.chat-input` và ép đồng bộ `var(--wb-font-sans)` cho toàn bộ `input`, `textarea`, `select`, `::placeholder`, hộp thoại `.modal`, `.vault-editor-textarea`, và thẻ `<code>` nội dòng trên giao diện.
+
+---
+
 ## [0.2.77] - 2026-10-15
 
 ### Fixed & Improved (Tối Giản Thanh Công Cụ Trình Xem Tệp: Loại Bỏ `Diff` & `@Chèn`)

@@ -6032,4 +6032,85 @@ body.is-resizing-dock .orca-dock-resizer {
   max-width: min(260px, calc(100vw - 320px)) !important;
 }
 
+/* ============================================================================
+   v0.2.78 — GLOBAL TYPOGRAPHY UNIFICATION & PAGE-SCOPED MEMORY PILLS
+   ============================================================================ */
 
+/* Force Nunito Sans Variable across all inputs, textareas, selects, modals, and UI elements */
+input,
+textarea,
+select,
+button,
+option,
+input::placeholder,
+textarea::placeholder,
+.modal,
+.modal input,
+.modal textarea,
+.modal select,
+.modal textarea[name="content"],
+.modal label,
+.modal small,
+.modal p,
+.modal h3,
+.vault-editor-textarea,
+.chat-input,
+.orca-dock-search input,
+.orca-address-input,
+.diff-comment-editor input,
+.empty-symbol,
+.brand-symbol,
+.repo-mark,
+.workflow-node-mark {
+  font-family: var(--wb-font-sans) !important;
+}
+
+/* Fix Memory Modal textarea height (don't inherit 340px skill editor height) */
+.modal[data-form="memory"] textarea[name="content"] {
+  min-height: 110px !important;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+}
+
+/* Ensure inline <code> outside code blocks uses the clean system UI font */
+:not(pre) > code {
+  font-family: var(--wb-font-sans) !important;
+}
+
+/* Inline workspace scope filter pills on Memory page */
+.memory-scope-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+
+.memory-scope-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: #a1a1aa;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.memory-scope-pill:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #f4f4f5;
+}
+
+.memory-scope-pill.is-active {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fafafa;
+}

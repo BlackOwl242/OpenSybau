@@ -12,39 +12,41 @@ function tabIconName(ext = "") {
 }
 
 export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
+  const page = snapshot.page || "chat";
   const stageTabs = snapshot.stageTabs || [];
   const activeStageTabId = snapshot.activeStageTabId || "chat";
   const stageSplit = Boolean(snapshot.stageSplit && stageTabs.length > 0);
-  const isHome = snapshot.page === "chat" && !snapshot.selected;
-  const dockOpen = Boolean(snapshot.chatDrawerOpen);
+  const isHome = page === "chat" && !snapshot.selected;
+  const supportsDock = page === "chat" || page === "workspaces" || page === "skills" || (page === "knowledge" && Boolean(snapshot.state?.settings?.vaultPath));
+  const dockOpen = Boolean(supportsDock && snapshot.chatDrawerOpen && snapshot.rightDockMarkup);
 
   if (isHome && stageTabs.length === 0) {
-    return !dockOpen ? <div class="wb-home-dock-trigger">
+    return supportsDock && !dockOpen ? <div class="wb-home-dock-trigger">
       <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
         <Icon name="sidebar-right" size={16} />
       </button>
     </div> : null;
   }
 
-  const title = pageTitles[snapshot.page] || "OpenSybau";
-  const task = snapshot.page === "chat" && snapshot.selected
+  const title = pageTitles[page] || "OpenSybau";
+  const task = page === "chat" && snapshot.selected
     ? snapshot.state?.tasks?.find((item) => item.id === snapshot.selected)
     : null;
   const workspace = task
     ? snapshot.state?.workspaces?.find((item) => item.id === task.workspaceId)
-    : snapshot.page === "workspaces" && snapshot.selected
+    : page === "workspaces" && snapshot.selected
       ? snapshot.state?.workspaces?.find((item) => item.id === snapshot.selected)
       : snapshot.state?.workspaces?.find((item) => item.id === snapshot.homeWorkspaceId) || snapshot.state?.workspaces?.[0] || null;
 
-  const useOrcaTabs = snapshot.page === "chat" || snapshot.page === "workspaces" || stageTabs.length > 0;
+  const useOrcaTabs = page === "chat" || page === "workspaces";
 
   if (useOrcaTabs) {
     const primaryTitle = task
       ? task.title
-      : snapshot.page === "workspaces" && workspace
+      : page === "workspaces" && workspace
         ? workspace.name
         : "Cuộc trò chuyện mới";
-    const primaryIcon = snapshot.page === "workspaces" && !task ? "folder-code" : "message-circle";
+    const primaryIcon = page === "workspaces" && !task ? "folder-code" : "message-circle";
     const isPrimaryActive = activeStageTabId === "chat" && !stageSplit;
 
     return <header class="wb-topbar orca-tabbar" aria-label="Thanh tab đa cửa sổ">
@@ -109,7 +111,7 @@ export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
             <Icon name="columns-2" size={15} />
           </button>
         ) : null}
-        {!dockOpen ? (
+        {supportsDock && !dockOpen ? (
           <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
             <Icon name="sidebar-right" size={16} />
           </button>
@@ -125,11 +127,11 @@ export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
         <span>OpenSybau</span>
         <Icon name="chevron-right" size={13} />
         <strong>{title}</strong>
-        {workspace ? <><Icon name="chevron-right" size={13} /><span>{workspace.name}</span></> : null}
+        {workspace && ["tasks", "flows", "workspaces"].includes(page) ? <><Icon name="chevron-right" size={13} /><span>{workspace.name}</span></> : null}
       </div>
     </div>
     <div class="wb-top-actions">
-      {!dockOpen ? (
+      {supportsDock && !dockOpen ? (
         <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
           <Icon name="sidebar-right" size={16} />
         </button>

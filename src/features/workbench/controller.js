@@ -1198,11 +1198,58 @@ function renderDockTreeLevel(node, depth, { collapsedSet, activePath, fileAction
   return html;
 }
 
+function pageSupportsRightDock(page = view.page) {
+  if (page === "chat" || page === "workspaces" || page === "skills") return true;
+  if (page === "knowledge") return Boolean(view.state?.settings?.vaultPath);
+  return false;
+}
+
+function getRightDockTabsForPage(page = view.page, selectedTask = null) {
+  if (page === "knowledge") {
+    const tabs = [
+      { id: "files", icon: "files", title: "Cây ghi chú Vault" },
+      { id: "search", icon: "search", title: "Tìm ghi chú & #tag" },
+      { id: "git", icon: "waypoints", title: "Liên kết hai chiều & Thẻ #tag" },
+    ];
+    if (view.vaultPreview?.content) {
+      tabs.push({ id: "tasks", icon: "list-checks", title: "Mục lục ghi chú (Outline)" });
+    }
+    return tabs;
+  }
+  if (page === "skills") {
+    return [
+      { id: "files", icon: "files", title: "Danh mục Kỹ năng" },
+      { id: "search", icon: "search", title: "Tìm kiếm kỹ năng" },
+    ];
+  }
+  if (page === "workspaces") {
+    return [
+      { id: "files", icon: "files", title: "Cây thư mục dự án" },
+      { id: "search", icon: "search", title: "Tìm kiếm tệp trong dự án" },
+    ];
+  }
+  // page === "chat"
+  if (selectedTask) {
+    return [
+      { id: "files", icon: "files", title: "Cây thư mục & Tệp" },
+      { id: "search", icon: "search", title: "Tìm kiếm tệp" },
+      { id: "git", icon: "git-branch", title: "Thay đổi (Changes) & Worktree" },
+      { id: "tasks", icon: "list-checks", title: "Mục tiêu & Công cụ phiên" },
+    ];
+  }
+  return [
+    { id: "files", icon: "files", title: "Cây thư mục dự án" },
+    { id: "search", icon: "search", title: "Tìm kiếm tệp" },
+  ];
+}
+
 function orcaRightDockMarkup() {
   const page = view.page || "chat";
-  const tab = view.chatDrawerTab || "files";
+  if (!pageSupportsRightDock(page)) return "";
+  const selectedTask = (page === "chat" && view.selected) ? (view.state?.tasks || []).find((t) => t.id === view.selected) : null;
+  const availableTabs = getRightDockTabsForPage(page, selectedTask);
+  const tab = availableTabs.some((t) => t.id === view.chatDrawerTab) ? view.chatDrawerTab : (availableTabs[0]?.id || "files");
   const filter = (view.chatDrawerFilter || "").trim().toLowerCase();
-  const selectedTask = view.selected ? (view.state?.tasks || []).find((t) => t.id === view.selected) : null;
   const activeWsId = (page === "workspaces" && view.selected)
     ? view.selected
     : selectedTask?.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
@@ -1233,20 +1280,10 @@ function orcaRightDockMarkup() {
       </div>
     </details>`;
   } else if (page === "skills") {
-    subTitle = `skills (${(view.skills || []).length})`;
+    subTitle = `Kỹ năng (${(view.skills || []).length})`;
     subTooltip = "Thư viện Kỹ năng Agent";
     refreshAction = "scan-skills";
     moreMenuHtml = `<button type="button" class="icon-button orca-sub-btn" data-action="new-skill" title="Tạo skill mới">${icon("plus", 14)}</button>`;
-  } else if (page === "memory") {
-    subTitle = `memories (${(view.state?.memories || []).length})`;
-    subTooltip = "Bộ nhớ ngữ cảnh cục bộ";
-    refreshAction = "refresh";
-    moreMenuHtml = `<button type="button" class="icon-button orca-sub-btn" data-action="new-memory" title="Thêm ghi nhớ mới">${icon("plus", 14)}</button>`;
-  } else if (page === "settings") {
-    subTitle = "system-config";
-    subTooltip = "Cấu hình hệ thống & Agent";
-    refreshAction = "provider-cli-refresh";
-    moreMenuHtml = `<button type="button" class="icon-button orca-sub-btn" data-action="provider-add" title="Thêm nguồn AI">${icon("plus", 14)}</button>`;
   } else if (activeWs) {
     subTitle = activeWs.name;
     subTooltip = activeWs.path;
@@ -1317,7 +1354,7 @@ function orcaRightDockMarkup() {
         return `<li class="orca-tree-item is-folder">
           <button type="button" class="orca-tree-row" style="padding-left:10px" data-action="toggle-dock-folder" data-folder="${esc(folderKey)}">
             <span class="orca-tree-caret ${isCollapsed ? "" : "is-open"}">${icon("chevron-right", 12)}</span>
-            <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+            <span class="orca-tree-icon">${icon("folder", 14)}</span>
             <span class="orca-tree-label">${esc(label)}</span>
             <small class="orca-tree-badge">${items.length}</small>
           </button>
@@ -1328,49 +1365,6 @@ function orcaRightDockMarkup() {
           </button>
         </li>`).join("")}`;
       }).join("")}</ul>`;
-    } else if (page === "memory") {
-      const notes = view.state?.memories || [];
-      const workspaces = view.state?.workspaces || [];
-      const scopeFilter = view.memoryWorkspaceFilter || "all";
-      bodyHtml = `<ul class="orca-tree-list">
-        <li class="orca-tree-item is-file ${scopeFilter === "all" ? "is-selected" : ""}">
-          <button type="button" class="orca-tree-row ${scopeFilter === "all" ? "is-selected" : ""}" style="padding-left:14px" data-action="memory-scope-filter" data-scope="all">
-            <span class="orca-tree-icon">${icon("file-text", 14)}</span>
-            <span class="orca-tree-label">Tất cả ghi nhớ</span>
-            <small class="orca-tree-badge">${notes.length}</small>
-          </button>
-        </li>
-        <li class="orca-tree-item is-file ${scopeFilter === "global" ? "is-selected" : ""}">
-          <button type="button" class="orca-tree-row ${scopeFilter === "global" ? "is-selected" : ""}" style="padding-left:14px" data-action="memory-scope-filter" data-scope="global">
-            <span class="orca-tree-icon">${icon("file-text", 14)}</span>
-            <span class="orca-tree-label">Dùng chung mọi dự án</span>
-            <small class="orca-tree-badge">${notes.filter((m) => m.workspaceId === "all").length}</small>
-          </button>
-        </li>
-        ${workspaces.map((ws) => {
-          const count = notes.filter((m) => m.workspaceId === ws.id).length;
-          return `<li class="orca-tree-item is-file ${scopeFilter === ws.id ? "is-selected" : ""}">
-            <button type="button" class="orca-tree-row ${scopeFilter === ws.id ? "is-selected" : ""}" style="padding-left:14px" data-action="memory-scope-filter" data-scope="${esc(ws.id)}">
-              <span class="orca-tree-icon">${icon("file-text", 14)}</span>
-              <span class="orca-tree-label">${esc(ws.name)}</span>
-              <small class="orca-tree-badge">${count}</small>
-            </button>
-          </li>`;
-        }).join("")}
-      </ul>`;
-    } else if (page === "settings") {
-      const sections = [
-        ["settings-roles", "Định tuyến vai trò Agent"],
-        ["cli-setup", "Agent CLI cục bộ"],
-        ["settings-api", "Nguồn API & Model local"],
-        ["settings-concurrency", "Tác vụ chạy đồng thời"],
-      ];
-      bodyHtml = `<ul class="orca-tree-list">${sections.map(([secId, label]) => `<li class="orca-tree-item is-file">
-        <button type="button" class="orca-tree-row" style="padding-left:14px" data-action="settings-scroll-section" data-section="${esc(secId)}">
-          <span class="orca-tree-icon">${icon("file-text", 14)}</span>
-          <span class="orca-tree-label">${esc(label)}</span>
-        </button>
-      </li>`).join("")}</ul>`;
     } else if (activeWs) {
       const allFiles = view.workspaceFileIndex?.[activeWs.id] || [];
       if (!view.workspaceFileIndex?.[activeWs.id]) {
@@ -1399,6 +1393,11 @@ function orcaRightDockMarkup() {
     }
   } else if (tab === "search") {
     let resultsHtml = "";
+    const searchPlaceholder = page === "knowledge"
+      ? "Tìm ghi chú hoặc #tag…"
+      : page === "skills"
+        ? "Tìm tên hoặc mô tả kỹ năng…"
+        : "Tìm nhanh tên tệp trong dự án…";
     if (page === "knowledge") {
       const nodes = view.vaultGraph?.nodes || [];
       const matches = nodes.filter((n) => !filter || `${n.path} ${n.title || ""} ${(n.tags || []).join(" ")}`.toLowerCase().includes(filter)).slice(0, 80);
@@ -1421,7 +1420,7 @@ function orcaRightDockMarkup() {
     bodyHtml = `<div class="orca-dock-search-wrap">
       <label class="orca-dock-search">
         ${icon("search", 13)}
-        <input type="search" data-chat-drawer-filter value="${esc(view.chatDrawerFilter || "")}" placeholder="Tìm nhanh tên tệp, ghi chú, #tag…" autocomplete="off">
+        <input type="search" data-chat-drawer-filter value="${esc(view.chatDrawerFilter || "")}" placeholder="${esc(searchPlaceholder)}" autocomplete="off">
       </label>
     </div>
     <ul class="orca-tree-list">${resultsHtml}</ul>`;
@@ -1513,24 +1512,13 @@ function orcaRightDockMarkup() {
           ? `<ul class="orca-checklist">${checklist.map((item) => `<li><label><input type="checkbox" data-action="toggle-goal-item" data-id="${esc(selectedTask.id)}" data-goal-id="${esc(item.id)}" ${item.done ? "checked" : ""}><span class="${item.done ? "is-done" : ""}">${esc(item.text)}</span></label></li>`).join("")}</ul>`
           : `<p class="orca-muted-note">Chưa có checklist nghiệm thu.</p><button type="button" class="button quiet small" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}">${icon("plus", 12)}<span>Thêm checklist</span></button>`}
       </div>`;
-    } else {
-      const activeTasks = (view.state?.tasks || []).filter((t) => !t.archived).slice(0, 12);
-      bodyHtml = `<div class="orca-dock-pad">
-        <div class="orca-section-label">TÁC VỤ GẦN ĐÂY (${activeTasks.length})</div>
-        ${activeTasks.length
-          ? `<ul class="orca-tree-list">${activeTasks.map((t) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-task="${esc(t.id)}"><span class="wb-task-dot is-${t.status || "done"}"></span><span class="orca-tree-label">${esc(t.title)}</span></button></li>`).join("")}</ul>`
-          : `<p class="orca-muted-note">Chưa có tác vụ nào.</p>`}
-      </div>`;
     }
   }
 
   return `<div class="orca-dock-resizer" data-right-dock-resizer title="Kéo để thay đổi độ rộng thanh bên phải"></div>
   <header class="orca-dock-topbar">
     <div class="orca-dock-tabs" role="tablist" aria-label="Công cụ thanh bên phải">
-      <button type="button" class="orca-dock-tab ${tab === "files" ? "is-active" : ""}" data-action="right-dock-tab" data-tab="files" title="Cây thư mục & Tệp">${icon("files", 16)}</button>
-      <button type="button" class="orca-dock-tab ${tab === "search" ? "is-active" : ""}" data-action="right-dock-tab" data-tab="search" title="Tìm kiếm nhanh">${icon("search", 16)}</button>
-      <button type="button" class="orca-dock-tab ${tab === "git" ? "is-active" : ""}" data-action="right-dock-tab" data-tab="git" title="${page === "knowledge" ? "Liên kết hai chiều & Thẻ" : "Source Control & Changes"}">${icon("git-branch", 16)}</button>
-      <button type="button" class="orca-dock-tab ${tab === "tasks" ? "is-active" : ""}" data-action="right-dock-tab" data-tab="tasks" title="${page === "knowledge" ? "Mục lục (Outline)" : "Checklist & Tác vụ"}">${icon("list-checks", 16)}</button>
+      ${availableTabs.map((item) => `<button type="button" class="orca-dock-tab ${tab === item.id ? "is-active" : ""}" data-action="right-dock-tab" data-tab="${esc(item.id)}" title="${esc(item.title)}">${icon(item.icon, 16)}</button>`).join("")}
     </div>
     <button type="button" class="icon-button orca-dock-toggle" data-action="toggle-chat-drawer" title="Đóng thanh bên phải">${icon("sidebar-right", 16)}</button>
   </header>
@@ -1999,6 +1987,15 @@ function memoryPage() {
     return m.workspaceId === scopeFilter;
   });
 
+  const scopePillsHtml = `<div class="filters memory-scope-filters" role="tablist" aria-label="Phạm vi bộ nhớ" style="margin-bottom: 14px;">
+    <button type="button" class="filter ${scopeFilter === "all" ? "active" : ""}" data-action="memory-scope-filter" data-scope="all">Tất cả (${notes.length})</button>
+    <button type="button" class="filter ${scopeFilter === "global" ? "active" : ""}" data-action="memory-scope-filter" data-scope="global">Dùng chung (${notes.filter((m) => m.workspaceId === "all").length})</button>
+    ${workspaces.map((ws) => {
+      const count = notes.filter((m) => m.workspaceId === ws.id).length;
+      return `<button type="button" class="filter ${scopeFilter === ws.id ? "active" : ""}" data-action="memory-scope-filter" data-scope="${esc(ws.id)}">${esc(ws.name)} (${count})</button>`;
+    }).join("")}
+  </div>`;
+
   return `<section class="minimal-center-stage" aria-label="Không gian Bộ nhớ">
     <header class="kb-stage-topbar">
       <div class="kb-topbar-left">
@@ -2014,6 +2011,7 @@ function memoryPage() {
     <div class="kb-stage-body">
       <div class="kb-doc-scroll">
         <div class="kb-doc-container">
+          ${workspaces.length || notes.length ? scopePillsHtml : ""}
           <section class="memory-list">
             ${filteredNotes.length ? filteredNotes.map((m) => `<article class="memory-card">
               <div>
@@ -2025,7 +2023,7 @@ function memoryPage() {
             </article>`).join("") : `<div class="empty-state">
               <div class="empty-symbol">${icon("brain", 18)}</div>
               <strong>Chưa có ghi nhớ lưu trong phạm vi này</strong>
-              <p>Mọi ghi nhớ đều bắt đầu từ nội dung bạn tự lưu. Chọn phạm vi dự án ở thanh bên phải hoặc tạo ghi nhớ mới.</p>
+              <p>Mọi ghi nhớ đều bắt đầu từ nội dung bạn tự lưu. Chọn phạm vi dự án phía trên hoặc tạo ghi nhớ mới.</p>
               <button class="button primary" data-action="new-memory">${icon("plus", 15)} Thêm ghi nhớ</button>
             </div>`}
           </section>
