@@ -827,17 +827,19 @@ function chatPage() {
   };
   const currentPerm = permissionLabels[homePermissionPreset] || permissionLabels["full-access"];
   const quickAgentItems = [];
-  let activeAgentLabel = compactAgentLabel;
+  let activeAgentLabel = chatSelection.model?.name || chatSelection.model?.id || providerTitle(view.connectors, chatSelection.provider) || compactAgentLabel;
   for (const [provId, conn] of Object.entries(view.connectors || {})) {
     if (!conn?.available) continue;
-    const models = conn.models?.length ? conn.models : [{ id: "", name: conn.name || provId }];
+    const provName = providerTitle(view.connectors, provId);
+    const models = conn.models?.length ? conn.models : [{ id: "", name: conn.name || provName }];
+    quickAgentItems.push(`<div class="codex-pop-group-label">${esc(provName)}</div>`);
     for (const m of models) {
       const val = `${provId}::${m.id || ""}`;
       const isSelected = provId === chatSelection.provider && (m.id || "") === (chatSelection.model?.id || "");
-      const label = m.name || m.id ? `${providerTitle(view.connectors, provId)} · ${m.name || m.id}` : providerTitle(view.connectors, provId);
-      if (isSelected) activeAgentLabel = label;
+      const modelTitle = m.name || m.id || provName;
+      if (isSelected) activeAgentLabel = modelTitle;
       quickAgentItems.push(`<button type="button" class="codex-pop-item ${isSelected ? "is-selected" : ""}" data-action="pick-home-agent" data-agent="${esc(val)}">
-        <span class="codex-pop-item-main"><span>${esc(label)}</span></span>
+        <span class="codex-pop-item-main"><span>${esc(modelTitle)}</span></span>
         ${isSelected ? icon("check", 13) : ""}
       </button>`);
     }
@@ -1181,13 +1183,32 @@ function taskConversationPage() {
     const messageAttachments = message.attachments?.length ? `<div class="chat-message-attachments">${message.attachments.map((file) => `<span class="chat-message-attachment">${icon("file", 14)}<span title="${esc(file.name)}">${esc(file.name)}</span></span>`).join("")}</div>` : "";
     return `<article class="chat-message ${isUser ? "from-user" : "from-agent"}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small>${forkButton}</header><div class="chat-message-content ${isUser ? "user-message-content" : "agent-message-content"}">${content}${messageAttachments}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}</div></article>`;
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
-  const composerConfig = `${providerTitle(view.connectors, provider)}${model?.name ? ` · ${model.name}` : ""}${effort ? ` · ${effort}` : ""}`;
+  const effortDisplay = { low: "Low", medium: "Medium", high: "High", minimal: "Min", standard: "Std", max: "Max" };
+  const activeEfforts = model?.efforts?.length ? model.efforts : ["low", "medium", "high"];
+  const taskAgentItems = [];
+  let activeTaskModelLabel = model?.name || model?.id || providerTitle(view.connectors, provider);
+  for (const [provId, conn] of Object.entries(view.connectors || {})) {
+    if (!conn?.available || !conn?.capabilities?.chat) continue;
+    const provName = providerTitle(view.connectors, provId);
+    const provModels = conn.models?.length ? conn.models : [{ id: "", name: conn.name || provName }];
+    taskAgentItems.push(`<div class="codex-pop-group-label">${esc(provName)}</div>`);
+    for (const m of provModels) {
+      const val = `${provId}::${m.id || ""}`;
+      const isSelected = provId === provider && (m.id || "") === (model?.id || "");
+      const modelTitle = m.name || m.id || provName;
+      if (isSelected) activeTaskModelLabel = modelTitle;
+      taskAgentItems.push(`<button type="button" class="codex-pop-item ${isSelected ? "is-selected" : ""}" data-action="pick-task-chat-agent" data-agent="${esc(val)}">
+        <span class="codex-pop-item-main"><span>${esc(modelTitle)}</span></span>
+        ${isSelected ? icon("check", 13) : ""}
+      </button>`);
+    }
+  }
   return `<section class="task-conversation-page ${view.chatDrawerOpen ? "has-context-drawer" : ""}" aria-label="Cuộc trò chuyện">
       <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`} · ${task.permissionPreset === "read-only" ? "Chỉ đọc" : task.permissionPreset === "full-access" ? "Toàn quyền máy" : "Sửa workspace"}</small></div><span class="chat-pane-meta">${queueSummary ? `<span class="chat-queue-summary">${icon("list-checks", 13)}${esc(queueSummary)}</span>` : ""}<button type="button" class="button quiet small ${view.chatDrawerOpen ? "is-active" : ""}" data-action="toggle-chat-drawer" data-id="${task.id}" title="Đóng/mở cây tệp dự án & tệp thay đổi">${icon("folder-open", 13)}<span>Tệp${(task.artifacts || []).length ? ` (${task.artifacts.length})` : ""}</span></button><button type="button" class="button quiet small" data-action="task-permissions" data-id="${task.id}" aria-label="${view.language === "en" ? "Permissions" : "Quyền"}" title="${view.language === "en" ? "Permissions" : "Quyền"}">${icon("shield", 13)}<span>${view.language === "en" ? "Permissions" : "Quyền"}</span></button><button type="button" class="button quiet small chat-goal-button" data-action="edit-task-goal" data-id="${task.id}" aria-label="${view.language === "en" ? "Goal" : "Mục tiêu"}" title="${task.goal ? esc(task.goal) : (view.language === "en" ? "Add a long-term goal" : "Thêm mục tiêu dài hạn")}">${icon("target", 13)}<span>${view.language === "en" ? "Goal" : "Mục tiêu"}</span></button><span class="chat-message-count">${icon("book-open-text", 14)} ${formatNumber(transcript.length)} ${view.language === "en" ? "messages" : "tin nhắn"}</span></span></header>
       ${taskArenaBanner(task)}
       ${taskConversationPipelineStrip(task, busy)}
       <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${taskInlineToolStream(task)}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
-      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="3" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}<button type="button" class="chat-config-trigger" data-action="task-instruction" data-id="${task.id}" title="Đổi agent, model hoặc mức suy nghĩ">${icon("settings-2", 14)}<span>${esc(composerConfig)}</span></button></div><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></footer></form>
+      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button type="button" class="codex-config-gear" data-action="task-instruction" data-id="${task.id}" title="Cấu hình nâng cao">${icon("settings-2", 14)}</button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
     </section>
     ${chatContextDrawer(task)}
   </section>`;
@@ -1800,6 +1821,25 @@ async function handleWorkbenchClick(event) {
       if (view.homeRoles.plan) view.homeRoles.plan.effort = nextEffort;
       if (view.homeRoles.build) view.homeRoles.build.effort = nextEffort;
     }
+    render();
+    return;
+  }
+  if (action === "pick-task-chat-agent") {
+    const [prov, mod] = String(button.dataset.agent || "").split("::");
+    if (prov) {
+      view.chatProvider = prov;
+      view.chatModel = mod || "";
+      const conn = view.connectors?.[prov];
+      const modelObj = conn?.models?.find((m) => m.id === mod) || conn?.models?.[0];
+      view.chatEffort = modelObj?.efforts?.includes(view.chatEffort)
+        ? view.chatEffort
+        : (modelObj?.efforts?.includes("medium") ? "medium" : modelObj?.efforts?.[0] || "medium");
+      render();
+    }
+    return;
+  }
+  if (action === "pick-task-chat-effort") {
+    view.chatEffort = button.dataset.effort || "medium";
     render();
     return;
   }
