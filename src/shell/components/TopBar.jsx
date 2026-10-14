@@ -28,7 +28,6 @@ export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
       <button class="wb-mobile-menu-button" type="button" onClick={onOpenNavigation} aria-label="Mở workspace và cuộc trò chuyện" title="Workspace và chat" />
       {task ? <div class="wb-breadcrumb wb-chat-breadcrumb" title={task.title}>
         <span>{workspace?.name || task.workspacePath}</span>
-        {task.isolated ? <em class="wb-top-wt-pill">{task.worktreeBranch || "worktree"}</em> : workspace?.runtime?.branch ? <em class="wb-top-branch-pill">{workspace.runtime.branch}</em> : null}
         <Icon name="chevron-right" size={13} />
         <strong>{task.title}</strong>
       </div> : <div class="wb-breadcrumb">

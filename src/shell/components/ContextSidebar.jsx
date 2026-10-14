@@ -20,48 +20,9 @@ function fmtRelative(value) {
   return `${Math.floor(diffSec / 86400)}n`;
 }
 
-function shortProviderLabel(id = "") {
-  const clean = String(id || "").toLowerCase();
-  if (clean === "codex") return "Codex";
-  if (clean === "antigravity") return "Agy";
-  if (clean === "claude") return "Claude";
-  if (!clean) return "Agent";
-  return clean.slice(0, 8);
-}
-
-function taskAgentLabel(task) {
-  if (task.fanoutCompetitor?.name) return shortProviderLabel(task.fanoutCompetitor.provider || task.fanoutCompetitor.name);
-  const wf = task.config?.workflow;
-  if (wf === "chat-only") return shortProviderLabel(task.config?.chatProvider || "codex");
-  const roleKey = task.phase === "implementation" ? "build" : (task.phase || "plan");
-  const provider = task.config?.roles?.[roleKey]?.provider || task.config?.roles?.plan?.provider || "codex";
-  return shortProviderLabel(provider);
-}
-
-function taskLiveSnippet(task) {
-  if (task.status === "running") {
-    const lastTool = [...(task.events || [])].reverse().find((ev) => ev.kind === "tool" || ev.kind === "stage");
-    if (lastTool?.toolName) return `${lastTool.toolName}${lastTool.filePath ? ` · ${lastTool.filePath.split(/[\\/]/).pop()}` : ""}`;
-    if (lastTool?.text) return String(lastTool.text).slice(0, 42);
-    return "Đang thực thi…";
-  }
-  if (task.status === "queued") return "Đang chờ hàng đợi";
-  if (task.status === "failed") return "Có lỗi cần kiểm tra";
-  if (task.isolated && !task.worktreeCleaned && !task.worktreeAppliedAt && (task.artifacts?.length || 0) > 0) {
-    return `${task.artifacts.length} tệp chờ gộp`;
-  }
-  if ((task.artifacts?.length || 0) > 0) {
-    return `${task.artifacts.length} tệp thay đổi`;
-  }
-  return "";
-}
-
 function TaskLink({ task, selected, archived = false, taskMenuId = "", menuKey = task.id }) {
   const menuOpen = taskMenuId === menuKey;
-  const agentLabel = taskAgentLabel(task);
-  const snippet = taskLiveSnippet(task);
   const relTime = fmtRelative(task.updatedAt || task.createdAt);
-  const needsReview = Boolean(task.isolated && task.status === "done" && !task.worktreeAppliedAt && !task.worktreeCleaned && (task.artifacts?.length || 0) > 0);
 
   return <div class={`wb-task-item ${selected === task.id ? "is-selected" : ""} ${archived ? "is-archived" : ""} is-status-${task.status || "done"}`}>
     <button class="wb-task-link" data-task={task.id} title={task.title} aria-current={selected === task.id ? "page" : undefined}>
@@ -72,16 +33,9 @@ function TaskLink({ task, selected, archived = false, taskMenuId = "", menuKey =
           <strong>{task.title}</strong>
           {relTime ? <time class="wb-task-time">{relTime}</time> : null}
         </span>
-        <span class="wb-task-sub">
-          <span class="wb-agent-chip">{agentLabel}</span>
-          {task.fanoutId ? <span class="wb-wt-badge is-arena" title="Đa luồng Agent">đa luồng</span> : task.isolated ? <span class={`wb-wt-badge ${task.worktreeAppliedAt ? "is-merged" : ""}`} title={task.worktreeBranch || "Git Worktree"}>{task.worktreeAppliedAt ? "merged" : "wt"}</span> : null}
-          {needsReview ? <span class="wb-wt-badge is-review" title="Worktree có thay đổi chờ gộp">review</span> : null}
-          {snippet ? <span class="wb-task-snippet">{snippet}</span> : null}
-        </span>
       </span>
     </button>
     <div class="wb-task-actions">
-      {!archived ? <button class="wb-task-action" data-action="open-task-flow" data-id={task.id} title="Mở bản ghi điều phối" aria-label={`Mở bản ghi điều phối: ${task.title}`}><Icon name="workflow" size={16} /></button> : null}
       <button class="wb-task-action" data-action="toggle-task-menu" data-id={task.id} data-key={menuKey} aria-expanded={menuOpen} title="Thao tác chat" aria-label={`Thao tác chat ${task.title}`}><Icon name="ellipsis" size={16} /></button>
     </div>
     {menuOpen ? <TaskMenu task={task} archived={archived} /> : null}
@@ -114,7 +68,6 @@ function FanoutFleetGroup({ fanoutId, tasks, selected, collapsedFanouts = [], ta
         <span class={`wb-project-chevron ${expanded ? "is-expanded" : ""}`}><Icon name="chevron-right" size={12} /></span>
         <span class={`wb-task-dot is-${groupStatus}`} aria-hidden="true" />
         <strong class="wb-fanout-title">{rawTitle}</strong>
-        <span class="wb-fanout-count">{tasks.length} agents</span>
       </button>
       <div class="wb-fanout-actions">
         <button type="button" class="wb-task-action" data-action="compare-fanout" data-fanout-id={fanoutId} title="So sánh Đa luồng & Chọn bản thắng" aria-label="So sánh Đa luồng">
@@ -133,9 +86,7 @@ function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, colla
   const activeTasks = tasks.filter((task) => !task.archived);
   const runningCount = activeTasks.filter((task) => ["running", "queued"].includes(task.status)).length;
   const sortedTasks = [...activeTasks].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
-  const sourceFolders = workspace.sourceFolders?.length ? workspace.sourceFolders : [workspace.path];
   const menuOpen = projectMenuId === workspace.id;
-  const gitBranch = workspace.runtime?.isGit ? (workspace.runtime.branch || "HEAD") : "";
 
   const groupedEntries = [];
   const seenFanouts = new Set();
@@ -158,7 +109,6 @@ function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, colla
         <span class={`wb-project-chevron ${expanded ? "is-expanded" : ""}`}><Icon name="chevron-right" size={13} /></span>
         <Icon name="folder-code" size={15} />
         <strong>{workspace.name}</strong>
-        {gitBranch ? <span class="wb-project-branch" title={`Nhánh Git: ${gitBranch}`}>{gitBranch}</span> : null}
         {runningCount > 0 ? <span class="wb-project-active-count" title={`${runningCount} tác vụ đang chạy`}>{runningCount}</span> : null}
         {workspace.pinned ? <Icon name="pin" size={12} /> : null}
       </button>
@@ -169,12 +119,6 @@ function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, colla
       </div>
     </div>
     {menuOpen ? <ProjectMenu workspace={workspace} /> : null}
-    <div class="wb-project-preview">
-      <header><strong>{workspace.name}</strong>{workspace.pinned ? <Icon name="pin" size={13} /> : null}</header>
-      <div><Icon name="message-circle" size={13} />{activeTasks.length} chat{gitBranch ? ` · ${gitBranch}` : ""}</div>
-      <ul>{sourceFolders.map((path) => <li key={path}><Icon name="folder" size={13} /><span title={path}>{path}</span></li>)}</ul>
-      <button data-action="edit-project" data-id={workspace.id}><Icon name="settings-2" size={13} />Sửa dự án</button>
-    </div>
     {expanded ? <div class="wb-project-children">
       {groupedEntries.length ? groupedEntries.map((entry) => entry.type === "fanout"
         ? <FanoutFleetGroup key={`fanout:${entry.fanoutId}`} fanoutId={entry.fanoutId} tasks={entry.tasks} selected={selected} collapsedFanouts={collapsedFanouts} taskMenuId={taskMenuId} />

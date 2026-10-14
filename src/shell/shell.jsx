@@ -16,9 +16,6 @@ function StatusBar({ snapshot }) {
   const workspace = task
     ? state?.workspaces?.find((item) => item.id === task.workspaceId)
     : state?.workspaces?.find((item) => item.id === snapshot.homeWorkspaceId) || state?.workspaces?.[0] || null;
-  const branch = task?.isolated
-    ? (task.worktreeBranch || "worktree")
-    : workspace?.runtime?.isGit ? (workspace.runtime.branch || "HEAD") : "";
   const runningCount = Number(telemetry.runningCount || 0);
   const queuedCount = Number(telemetry.queuedCount || 0);
   const worktreeCount = Number(telemetry.worktreeCount || 0);
@@ -35,10 +32,6 @@ function StatusBar({ snapshot }) {
       {workspace ? <span class="wb-status-item" title={workspace.path}>
         <Icon name="folder-code" size={12} />
         <span>{workspace.name}</span>
-      </span> : null}
-      {branch ? <span class="wb-status-item wb-status-branch" title={`Nhánh Git: ${branch}`}>
-        <Icon name="git-branch" size={12} />
-        <span>{branch}</span>
       </span> : null}
     </div>
     <div class="wb-status-right">
@@ -146,7 +139,7 @@ export function AppShell({ snapshot, pageMarkup }) {
     {mobileSidebarOpen ? <button class="wb-mobile-sidebar-backdrop" type="button" aria-label="Đóng danh sách workspace" onClick={() => setMobileSidebarOpen(false)} /> : null}
     {hasPageSidebar && <aside class="wb-page-sidebar" dangerouslySetInnerHTML={{ __html: snapshot.pageSidebarMarkup }} />}
     <main class={`wb-main ${home ? "is-home-stage" : ""}`}>
-      <div class="wb-workspace-split">
+      <div class={`wb-workspace-split ${hasRightDock ? "has-right-dock" : ""}`}>
         <div class="wb-stage-column">
           <TopBar snapshot={snapshot} onOpenNavigation={() => setMobileSidebarOpen(true)} />
           <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${page === "chat" && snapshot.selected ? "is-task-detail" : ""} ${page === "knowledge" && snapshot.state?.settings?.vaultPath ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />

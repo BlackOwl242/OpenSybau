@@ -5,6 +5,18 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.73] - 2026-10-14
+
+### Fixed & Improved (Sửa Lỗi Bố Cục Sidebar Phải Bị Tràn Xuống Dưới & Loại Bỏ Hoàn Toàn Các Badge `main` / `Codex` Rườm Rà)
+- **Khắc phục lỗi bố cục Sidebar phải (`.orca-right-dock`) bị rớt xuống góc dưới bên trái**:
+  - Bổ sung class `has-right-dock` trực tiếp vào khung lưới `.wb-workspace-split` và khóa cứng `grid-template-columns: minmax(0, 1fr) var(--right-dock-width, 288px) !important` để Sidebar phải luôn neo chuẩn xác dọc theo cạnh phải của cửa sổ chính.
+  - Đồng bộ chiều cao thanh công cụ đỉnh Sidebar phải (`.orca-dock-topbar`, `44px`) khớp tuyệt đối với thanh `TopBar` của khung giữa.
+- **Loại bỏ toàn bộ các badge `main`, `Codex` và dòng phụ gây rối mắt trên giao diện**:
+  - Xóa hoàn toàn các nhãn nhánh `main` (`wb-project-branch`, `wb-top-branch-pill`, `(main)` ở nút chọn dự án màn hình chính và `StatusBar`).
+  - Tinh giản danh sách cuộc trò chuyện ở Sidebar trái thành **1 dòng duy nhất** gọn gàng (`[chấm trạng thái] [Tiêu đề] [thời gian]`), loại bỏ các badge `Codex`, `wt`, `3 tệp thay đổi` và popup preview đè lên danh sách dự án.
+
+---
+
 ## [0.2.72] - 2026-10-14
 
 ### Changed & Improved (Đồng Bộ Hóa Khung Trò Chuyện Không Viền & Đưa Các Nút Thao Tác Phiên Vào Sidebar Phải)

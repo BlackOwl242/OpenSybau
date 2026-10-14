@@ -4273,6 +4273,7 @@ body.is-resizing-dock * {
   user-select: none !important;
 }
 
+.wb-main,
 .wb-main-surface {
   display: flex !important;
   flex-direction: column !important;
@@ -4282,29 +4283,35 @@ body.is-resizing-dock * {
 }
 
 .wb-workspace-split {
-  flex: 1 1 auto;
+  flex: 1 1 auto !important;
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
   overflow: hidden;
 }
 
-.wb-workspace-split.has-right-dock {
-  grid-template-columns: minmax(0, 1fr) var(--right-dock-width, 288px);
+.wb-workspace-split.has-right-dock,
+.wb-app-shell.has-right-dock .wb-workspace-split {
+  grid-template-columns: minmax(0, 1fr) var(--right-dock-width, 288px) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
 }
 
 .wb-stage-column {
   position: relative;
   min-width: 0;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
+  height: 100%;
+  display: flex !important;
+  flex-direction: column !important;
   overflow: hidden;
 }
 
 .wb-stage-column > #content {
-  flex: 1 1 auto;
+  flex: 1 1 auto !important;
   min-width: 0;
   min-height: 0;
 }
@@ -4368,15 +4375,15 @@ body.is-resizing-dock .orca-dock-resizer {
   background: rgba(255, 255, 255, 0.24);
 }
 
-/* Top 4-Icon Bar + Right Sidebar Toggle Button (40px height aligned with .wb-topbar) */
+/* Top 4-Icon Bar + Right Sidebar Toggle Button (44px height aligned with .wb-topbar) */
 .orca-dock-topbar {
-  flex: 0 0 40px;
-  height: 40px;
+  flex: 0 0 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 8px 0 6px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   background: #141518;
 }
 
@@ -4390,7 +4397,7 @@ body.is-resizing-dock .orca-dock-resizer {
 .orca-dock-tab {
   position: relative;
   width: 34px;
-  height: 40px;
+  height: 44px;
   display: inline-grid;
   place-items: center;
   padding: 0;
@@ -4998,5 +5005,54 @@ body.is-resizing-dock .orca-dock-resizer {
   white-space: nowrap;
 }
 
+/* Clean Single-Line Left Sidebar Task & Project Rows (v0.2.73) */
+.wb-project-toggle {
+  min-height: 32px !important;
+  gap: 7px !important;
+  padding: 4px 6px 4px 8px !important;
+}
 
+.wb-project-toggle > strong {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 12.5px !important;
+  font-weight: 560 !important;
+  color: #e4e4e7 !important;
+}
 
+.wb-task-link {
+  min-height: 30px !important;
+  padding: 4px 8px !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+.wb-task-title-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+.wb-task-title-row > strong {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 12.5px !important;
+  font-weight: 470 !important;
+  line-height: 1.35 !important;
+}
+
+.wb-task-time {
+  flex: 0 0 auto !important;
+  color: rgba(255, 255, 255, 0.38) !important;
+  font-size: 11px !important;
+  font-weight: 450 !important;
+}

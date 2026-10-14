@@ -1300,7 +1300,7 @@ function projectDetailPage(workspace) {
           <span class="minimal-stage-icon">${icon("folder-code", 20)}</span>
           <div>
             <h1>${esc(workspace.name)}</h1>
-            <p>${esc(workspace.path)} · Nhánh <code>${esc(gitBranch)}</code></p>
+            <p>${esc(workspace.path)}</p>
           </div>
         </div>
         <div class="minimal-stage-actions">
@@ -2098,13 +2098,13 @@ function chatPage() {
               ${workspaces.length ? `<details class="codex-pop-menu is-up" data-pop-id="home-workspace">
                 <summary class="codex-rail-pill" title="Chọn dự án (Workspace)">
                   ${icon("folder", 14)}
-                  <span>${esc(activeWorkspace?.name || "Chọn dự án")}${activeWorkspace?.runtime?.branch ? ` (${esc(activeWorkspace.runtime.branch)})` : ""}</span>
+                  <span>${esc(activeWorkspace?.name || "Chọn dự án")}</span>
                   ${icon("chevron-down", 12)}
                 </summary>
                 <div class="codex-pop-card">
                   <div class="codex-pop-head">Dự án (Workspace)</div>
                   ${workspaces.map((ws) => `<button type="button" class="codex-pop-item ${ws.id === activeWorkspaceId ? "is-selected" : ""}" data-action="pick-home-workspace" data-id="${esc(ws.id)}">
-                    <span class="codex-pop-item-main">${icon("folder", 13)}<span>${esc(ws.name)}${ws.runtime?.branch ? ` <small>(${esc(ws.runtime.branch)})</small>` : ""}</span></span>
+                    <span class="codex-pop-item-main">${icon("folder", 13)}<span>${esc(ws.name)}</span></span>
                     ${ws.id === activeWorkspaceId ? icon("check", 13) : ""}
                   </button>`).join("")}
                   <div class="codex-pop-sep"></div>
