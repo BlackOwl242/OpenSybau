@@ -7,31 +7,47 @@ OpenSybau kết hợp **Codex CLI**, **Claude Code**, **Antigravity CLI** cùng 
 
 ---
 
+## 🖼️ Giao diện Hệ thống (System Screenshots)
+
+| Màn hình Chính & Khung nhập liệu 2 tầng | Trò chuyện, Bảng Markdown & Xem Mã nguồn Chia đôi |
+| :---: | :---: |
+| ![Màn hình Chính & Khung nhập liệu](docs/screenshots/home-composer-workbench.png) | ![Trò chuyện & Xem tệp chia đôi](docs/screenshots/chat-split-review.png) |
+| **Kho Tri thức Markdown & Đồ thị Liên kết (Neural Graph)** | **Thư viện Kỹ năng Agent & Sidebar Ngữ cảnh** |
+| ![Kho Tri thức & Đồ thị Liên kết](docs/screenshots/knowledge-vault.png) | ![Thư viện Kỹ năng Agent](docs/screenshots/skills-library.png) |
+
+---
+
 ## ✨ Điểm nổi bật mới nhất
 
 ### 1. Giao diện Kính mờ (Frosted-Glass) & Khung nhập liệu thông minh 2 tầng
-- **Khung ứng dụng Windows Mica / Kính mờ:** Thanh điều hướng bên trái hiệu ứng kính mờ trong suốt kết hợp cùng khung làm việc chính bo góc nổi tinh tế.
+- **Khung ứng dụng Windows Mica / Kính mờ:** Thanh điều hướng bên trái có đường kẻ phân nhóm tinh tế kết hợp cùng khung làm việc chính bo góc nổi đồng bộ.
 - **Khung nhập liệu 2 tầng bám sát cạnh dưới (Bottom-Docked Two-Tier Composer):**
   - **Thanh ngữ cảnh tầng trên:** Chọn nhanh **Dự án (Workspace)**, chuyển đổi môi trường thực thi giữa **Máy tính này** (chạy trực tiếp trên nhánh hiện tại) và **Git Worktree** (tách nhánh cô lập an toàn), cùng 4 chế độ làm việc: **Chat**, **Code**, **Kế hoạch**, **Đa luồng**.
-  - **Thanh điều khiển tầng dưới với Popover mở hướng lên:** Chọn nhanh **Agent & Model**, **Mức suy luận (Reasoning Effort)** (`Low` / `Medium` / `High` / `Max`), đính kèm tệp/ảnh (`+` hoặc gõ `@tên-tệp`), và **Popover Quyền thực thi của Agent**:
+  - **Thanh điều khiển tầng dưới với Popover mở hướng lên:** Chọn nhanh **Agent & Model**, **Mức suy luận (Reasoning Effort)** (`Low` / `Medium` / `High` / `Max`), đính kèm tệp/ảnh (`+`), và **Popover Quyền thực thi của Agent**:
     - 🛡️ **Chỉ đọc an toàn (`read-only`):** Chỉ phân tích mã nguồn và trả lời, không tự ý sửa tệp trong dự án.
-    - 🧑‍💻 **Đọc & sửa trong dự án (`workspace-write`):** Cho phép đọc, chỉnh sửa tệp và chạy công cụ trong phạm vi workspace.
-    - ⚡ **Toàn quyền thực thi (`full-access`):** Tự động chạy lệnh, cài gói và thao tác tệp trên máy không giới hạn.
+    - 🧑‍💻 **Đọc & sửa dự án (`workspace-write`):** Cho phép đọc, chỉnh sửa tệp và chạy công cụ trong phạm vi workspace.
+    - ⚡ **Toàn quyền (`full-access`):** Tự động chạy lệnh, cài gói và thao tác tệp trên máy không giới hạn.
 
-### 2. Thực thi Đa luồng Song song (`Đa luồng` / Parallel Worktree Execution)
-- **Chạy song song từ 2 đến 8 nhánh Git Worktree cô lập:** Giao cùng một yêu cầu cho nhiều nhánh Agent giải quyết đồng thời mà không bao giờ đụng độ mã nguồn.
-- **Hỗ trợ cả Cùng Model lẫn Đa Hãng:** Chạy **2× hoặc 3× bản của cùng một model** (ví dụ 3 nhánh cùng chạy một model để chọn ra lời giải tốt nhất) hoặc kết hợp nhiều hãng (**Codex**, **Claude Code**, **Antigravity**, **API**) chạy song song.
-- **Diff Review Studio & Gộp nhánh thắng chỉ với 1 cú nhấp:** So sánh trực tiếp số tệp thay đổi, lượng token tiêu thụ, nhật ký công cụ và bảng Diff của từng nhánh trước khi bấm **Gộp vào dự án**.
+### 2. Đa cửa sổ Tab Xem tệp, Chia đôi màn hình & Sidebar Phải theo ngữ cảnh
+- **Trình xem tệp đa cửa sổ kiểu Orca & Chia đôi màn hình (Split View):** Nhấp trực tiếp vào bất kỳ tệp nào ở cây thư mục bên phải hoặc chip tệp thay đổi trong đoạn chat để mở tab mới, hoặc bật **Chia đôi màn hình** để vừa đọc cuộc trò chuyện vừa kiểm tra mã nguồn.
+- **Hỗ trợ xem trước đa định dạng trực tiếp:**
+  - **HTML (`Xem trước` / `Mã nguồn`):** Khung chạy thử trực tiếp có thanh địa chỉ (`Quay lại`, `Tải lại`) hoặc chuyển sang xem mã nguồn có đánh số dòng.
+  - **Markdown & Tài liệu Word `.docx`:** Chuyển đổi mượt mà giữa bản trình bày hoàn chỉnh và mã nguồn.
+  - **PDF, Hình ảnh, Âm thanh, Video & Bảng tính CSV/TSV:** Hiển thị trực tiếp ngay trong tab mà không cần mở phần mềm bên ngoài.
+- **Sidebar bên phải thông minh theo từng trang:** Tự động hiển thị đúng công cụ cần thiết (`Tệp`, `Tìm`, `Nhánh Git`, `Mục lục` ở trang Chat; `Kho ghi chú`, `Tìm`, `Đồ thị`, `Mục lục` ở trang Tri thức; `Kỹ năng`, `Tìm` ở trang Kỹ năng) và tự động thu gọn ở các trang quản trị (Quy trình, Token, Bộ nhớ, Cài đặt).
 
-### 3. Định tuyến Pipeline Đa vai trò & Quản lý Hội thoại chuyên sâu
-- **Tách biệt vai trò Lập kế hoạch – Triển khai – Review:** Tự do phối hợp các hãng AI khác nhau cho từng bước (ví dụ: Claude lập kế hoạch → Codex viết code → Antigravity kiểm tra và review).
-- **Hàng đợi tin nhắn & Phân nhánh hội thoại (Fork):** Gửi liên tiếp nhiều tin nhắn vào hàng đợi khi Agent đang bận; tạo nhánh hội thoại mới (Fork) từ bất kỳ câu trả lời nào; gắn **Mục tiêu dài hạn & Checklist nghiệm thu**; lưu **Mẫu tác vụ (Task Templates)** có quản lý phiên bản.
-- **Chạy lại từng giai đoạn (Stage Rerun):** Chạy lại pipeline từ bước Kế hoạch, Triển khai hoặc Review bất kỳ lúc nào mà vẫn giữ nguyên lịch sử đầu ra của các lần chạy trước.
+### 3. Luồng Chat Đồng nhất, Bảng Markdown & Hoạt động Công cụ gọn gàng
+- **Hiển thị Bảng Markdown (GFM Tables) & Bong bóng chat tối ưu:** Hỗ trợ đầy đủ bảng dữ liệu Markdown, khối mã nguồn và bong bóng tin nhắn người dùng tinh gọn kèm nút `Tạo nhánh` (Fork) khi di chuột.
+- **Luồng Hoạt động Công cụ (`Hoạt động công cụ`):** Tự động lọc bỏ các tiền tố shell rườm rà (`powershell.exe -Command`, `cmd.exe /c`), hiển thị gọn gàng số bước đã chạy và danh sách tệp đã chạm tới.
+- **Thực thi Đa luồng Song song (`Đa luồng` / Parallel Worktree Arena):** Chạy song song từ 2 đến 8 nhánh Git Worktree cô lập cho cùng một yêu cầu (cùng model hoặc đa hãng) và gộp nhánh tốt nhất chỉ với 1 cú nhấp.
 
-### 4. Bảo mật Đa tầng & Kiến trúc Chống Lag
+### 4. Kho Tri thức Markdown, Đồ thị Neural & Thư viện Kỹ năng
+- **Kho Tri thức (`Tri thức`):** Kết nối trực tiếp thư mục Markdown hoặc Obsidian cục bộ, soạn thảo ghi chú với liên kết hai chiều `[[WikiLinks]]`, `#tags` và khám phá mạng lưới kiến thức qua **Đồ thị Liên kết (Neural Graph)**.
+- **Kỹ năng & Bộ nhớ (`Kỹ năng` & `Bộ nhớ`):** Duyệt toàn bộ kỹ năng CLI/IDE đã cài, tạo `SKILL.md` riêng cho dự án và lọc bộ nhớ dài hạn của Agent theo từng dự án.
+
+### 5. Bảo mật Đa tầng & Kiến trúc Chống Lag
 - **Local-First & Mặc định Loopback (`127.0.0.1`):** Chỉ cho phép kết nối qua mạng LAN/Internet khi chạy ở chế độ Production kèm danh sách `WORKBENCH_ALLOWED_HOSTS` tường minh và mật khẩu Basic Auth tối thiểu 16 ký tự.
-- **Lá chắn bảo mật API & Desktop:** Kiểm tra `Sec-Fetch-Site` + `Origin` chống CSRF, gắn header `Content-Security-Policy` (CSP) và `X-Frame-Options: DENY`, kiểm tra phần mở rộng tệp thực thi CLI, cô lập biến môi trường `ELECTRON_RUN_AS_NODE`, và chặn SSRF tới các dải IP nội bộ / link-local / cloud metadata.
-- **Tối ưu hóa tốc độ phản hồi (Zero-Lag):** Bộ nhớ đệm TTL 60 giây cho quá trình dò CLI và đọc Registry trên Windows (loại bỏ hoàn toàn hiện tượng khựng giao diện do tiến trình con), gom nhóm ghi đĩa bất đồng bộ (`schedulePersist`), quét cây thư mục song song, và giữ nguyên trạng thái menu đang mở cùng vị trí con trỏ khi nhận luồng sự kiện SSE thời gian thực.
+- **Lá chắn bảo mật API & Desktop:** Kiểm tra `Sec-Fetch-Site` + `Origin` chống CSRF, gắn header `Content-Security-Policy` (CSP), gọi CLI qua mảng tham số chống Command Injection và chặn SSRF.
 
 ---
 
@@ -39,7 +55,7 @@ OpenSybau kết hợp **Codex CLI**, **Claude Code**, **Antigravity CLI** cùng 
 
 - **Người dùng bộ cài Windows Desktop (`.exe`):** Không cần cài đặt Node.js hay npm (runtime đã được đóng gói sẵn).
 - **Chạy từ mã nguồn hoặc tự đóng gói bộ cài:** Node.js **20.19 trở lên** và npm.
-- **Git:** Dùng để kiểm tra trạng thái nhánh, xem Diff và tạo các nhánh Git worktree cô lập.
+- **Git:** Dùng để kiểm tra trạng thái nhánh và tạo các nhánh Git worktree cô lập.
 - **Agent (cài đặt bất kỳ công cụ nào bạn muốn sử dụng):**
   - CLI cục bộ: **Codex CLI**, **Claude Code**, hoặc **Antigravity CLI** (tự động nhận diện khi bật ứng dụng).
   - Nguồn API: **OpenAI**, **Anthropic Claude**, **Google Gemini**, **Ollama**, **LM Studio**, **LocalAI**, hoặc bất kỳ endpoint tương thích nào trong phần **Cài đặt**.
@@ -129,12 +145,13 @@ npm run desktop:dist
 
 ```text
 desktop/        Tiến trình chính Electron, preload bridge và biểu tượng ứng dụng
+docs/           Hình ảnh chụp màn hình hệ thống và tư liệu hướng dẫn
 src/
   domain/       Logic nghiệp vụ luồng công việc, định tuyến vai trò và mô hình dữ liệu
-  features/     Bộ điều khiển Workbench, Khung nhập liệu 2 tầng, Diff Studio và Đấu trường
+  features/     Bộ điều khiển Workbench, Khung nhập liệu 2 tầng, Trình xem tệp đa cửa sổ và Đấu trường
   server/       Bộ dò tìm CLI, quản lý API provider và tiện ích hệ thống
   shared/       Hệ thống biểu tượng, đa ngôn ngữ (Việt/Anh) và hàm bổ trợ
-  shell/        Khung ứng dụng kính mờ, thanh bên trái và điều hướng di động
+  shell/        Khung ứng dụng kính mờ, thanh điều hướng trái và sidebar ngữ cảnh
   styles/       Hệ thống biến thiết kế, giao diện kính mờ và CSS thành phần
 server.mjs      Máy chủ HTTP/SSE cục bộ, hàng đợi tác vụ, quản lý Git worktree và tiến trình CLI
 scripts/        Trình khởi chạy đa nền tảng và bộ kiểm thử tích hợp tự động

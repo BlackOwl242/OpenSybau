@@ -7,31 +7,47 @@ OpenSybau brings **Codex CLI**, **Claude Code**, **Antigravity CLI**, and **Anth
 
 ---
 
-## ✨ What's New & Core Highlights
+## 🖼️ System Overview
+
+| Home Workbench & Two-Tier Smart Composer | Unified Chat, Markdown Tables & Split Code Viewer |
+| :---: | :---: |
+| ![Home Workbench & Composer](docs/screenshots/home-composer-workbench.png) | ![Unified Chat & Split Viewer](docs/screenshots/chat-split-review.png) |
+| **Knowledge Vault & Neural Graph** | **Agent Skills Library & Page-Aware Sidebar** |
+| ![Knowledge Vault & Neural Graph](docs/screenshots/knowledge-vault.png) | ![Agent Skills Library](docs/screenshots/skills-library.png) |
+
+---
+
+## ✨ Core Highlights
 
 ### 1. Frosted-Glass Desktop Experience & Smart Two-Tier Composer
-- **Windows Mica / Frosted-Glass Shell:** Native translucent sidebar combined with a floating rounded main stage.
+- **Windows Mica / Frosted-Glass Shell:** Native translucent navigation rail with subtle section dividers and a floating rounded main stage.
 - **Two-Tier Bottom-Docked Composer:**
   - **Top Context Rail:** Switch workspaces (`Dự án`), toggle execution isolation between **Local Checkout (`Máy tính này`)** and **Isolated Git Worktree (`Git Worktree`)**, and switch work modes (**Chat**, **Code**, **Plan**, **Multi-Thread (`Đa luồng`)**).
-  - **Bottom Control Bar with Upward Popovers:** Custom upward-opening glass popovers for **Agent & Model**, **Reasoning Effort** (`Low` / `Medium` / `High` / `Max`), file/image attachments (`+` or `@file` mentions), and **Agent Execution Permissions**:
+  - **Bottom Control Bar with Upward Popovers:** Custom upward-opening glass popovers for **Agent & Model**, **Reasoning Effort** (`Low` / `Medium` / `High` / `Max`), file/image attachments (`+`), and **Agent Execution Permissions**:
     - 🛡️ **Safe Read-Only (`Chỉ đọc an toàn`):** Analyze code and reply without modifying workspace files.
-    - 🧑‍💻 **Read & Edit Project (`Đọc & sửa trong dự án`):** Read, edit files, and run tools scoped to the active workspace.
-    - ⚡ **Full Execution Access (`Toàn quyền thực thi`):** Unrestricted command execution, package installation, and file operations on your machine.
+    - 🧑‍💻 **Read & Edit Project (`Đọc & sửa dự án`):** Read, edit files, and run tools scoped to the active workspace.
+    - ⚡ **Full Execution Access (`Toàn quyền`):** Unrestricted command execution, package installation, and file operations on your machine.
 
-### 2. Multi-Thread Parallel Worktree Execution (`Đa luồng`)
-- **Run 2 to 8 Parallel Branches Simultaneously:** Spawn multiple isolated Git worktrees for the exact same prompt in one click.
-- **Same-Model or Multi-Vendor Execution:** Run **2× or 3× instances of the exact same model** (e.g., 3 parallel Codex or Claude runs to pick the best implementation) or run different providers/models concurrently.
-- **Side-by-Side Diff Review & One-Click Merge:** Inspect changed files, token usage, and live tool logs per branch in the **Diff Review Studio**, then apply the winning worktree directly back into your main checkout.
+### 2. Multi-Window File Tabs, Split Review & Page-Aware Right Sidebar
+- **Orca-Style Multi-Tab & Side-by-Side Split View:** Open any workspace file directly from the right file tree or from changed file pills inside a chat message. View Chat and File Preview side by side with a draggable splitter.
+- **Rich Native Format Previews:**
+  - **HTML (`Xem trước` / `Mã nguồn`):** Live sandboxed iframe with an address bar (`Back`, `Reload`, path badge) or numbered source code.
+  - **Markdown & `.docx` Word Documents:** Formatted preview or raw source toggle.
+  - **PDF, Images, Audio, Video & CSV/TSV Spreadsheets:** Native embedded media players and rendered tabular grids.
+- **Context-Aware Right Dock:** Automatically adapts its tabs per page (`Tệp`, `Tìm`, `Nhánh Git`, `Mục lục` in Chat/Workspace; `Kho ghi chú`, `Tìm`, `Đồ thị`, `Mục lục` in Knowledge Vault; `Kỹ năng`, `Tìm` in Skills; and auto-hides on standalone utility pages like Workflows, Token Usage, Memory, and Settings).
 
-### 3. Multi-Stage Agent Pipelines & Conversation Control
-- **Independent Role Routing:** Assign different providers, models, and reasoning efforts to **Plan**, **Build**, and **Review** (e.g., Claude plans → Codex implements → Antigravity reviews).
-- **Rich Session Management:** Queue follow-up messages while an agent is busy, fork any completed turn into a new conversation branch, pin/archive threads, attach long-term **Goals & Checklists**, and save versioned **Task Templates**.
-- **Rerun from Any Stage:** Re-execute completed or failed pipelines from Plan, Build, or Review while preserving previous stage outputs in history.
+### 3. Unified Chat Stream, GFM Tables & Tool Activity Accordion
+- **GFM Markdown Tables & Code Blocks:** Full GitHub-Flavored Markdown table parsing with horizontal scroll wrappers, inline code badges, and syntax-styled code blocks.
+- **Clean Tool Activity Stream (`Hoạt động công cụ`):** Collapsible Zinc-Dark tool stream that automatically strips noisy shell wrappers (`powershell.exe -Command`, `cmd.exe /c`) and displays clickable file artifact pills.
+- **Multi-Thread Parallel Worktree Arena (`Đa luồng`):** Spawn 2 to 8 isolated Git worktrees simultaneously for the same prompt (same model or multi-vendor) and merge the winning branch in one click.
 
-### 4. Hardened Security & Zero-Lag Runtime
+### 4. Knowledge Vault, Neural Graph & Agent Skills
+- **Local Markdown Knowledge Vault (`Tri thức`):** Connect any local Markdown or Obsidian folder, edit notes with `[[WikiLinks]]` and `#tags`, and explore connections via an interactive force-directed **Neural Graph**.
+- **Skills & Memory Management (`Kỹ năng` & `Bộ nhớ`):** Browse installed CLI/IDE skills, create custom project `SKILL.md` definitions, and filter persistent agent memories by workspace scope.
+
+### 5. Hardened Security & Zero-Lag Runtime
 - **Local-First & Loopback by Default:** Binds to `127.0.0.1` by default. Network/LAN mode requires production mode, an explicit `WORKBENCH_ALLOWED_HOSTS` allowlist, and a strong Basic Auth password (≥ 16 characters).
-- **Defense-in-Depth API Protection:** Strict `Sec-Fetch-Site` + `Origin` CSRF validation, `Content-Security-Policy` (CSP), `X-Frame-Options: DENY`, CLI executable extension validation, and SSRF protection (blocking private/loopback/link-local/cloud-metadata IPs for remote APIs).
-- **High-Speed Non-Blocking Engine:** 60-second TTL caching for CLI/PATH discovery, coalesced asynchronous disk persistence, parallelized Git workspace & file-tree indexing, and zero-overhead DOM updates that preserve open menus and cursor selection during live SSE streaming.
+- **Defense-in-Depth API Protection:** Strict `Sec-Fetch-Site` + `Origin` CSRF validation, `Content-Security-Policy` (CSP), `X-Frame-Options: DENY`, argument-array CLI invocation, and SSRF protection.
 
 ---
 
@@ -39,7 +55,7 @@ OpenSybau brings **Codex CLI**, **Claude Code**, **Antigravity CLI**, and **Anth
 
 - **Windows Desktop Installer users:** No need to install Node.js or npm (the runtime is bundled).
 - **Running from source / building the installer:** Node.js **20.19+** and npm.
-- **Git:** Required for workspace status inspection, Diff Studio, and isolated Git worktrees / Arena mode.
+- **Git:** Required for workspace status inspection and isolated Git worktrees / Arena mode.
 - **Agents (install any combination you use):**
   - Local CLIs: **Codex CLI**, **Claude Code**, or **Antigravity CLI** (auto-detected at startup).
   - API Providers: **OpenAI**, **Anthropic Claude**, **Google Gemini**, **Ollama**, **LM Studio**, **LocalAI**, or any OpenAI/Anthropic-compatible endpoint configured in **Settings**.
@@ -129,12 +145,13 @@ npm run desktop:dist
 
 ```text
 desktop/        Electron main process, preload bridge, and desktop icons
+docs/           System screenshots and documentation assets
 src/
   domain/       Workflow, role routing, and task domain models
-  features/     Workbench controller, Smart Composer, Diff Studio, and Arena UI
+  features/     Workbench controller, Smart Composer, File Tab Viewer, and Arena UI
   server/       CLI discovery, API provider registry, and runtime helpers
   shared/       Icons, i18n localization, and shared utilities
-  shell/        Frosted-glass app frame, sidebar, and responsive navigation
+  shell/        Frosted-glass app frame, navigation rail, and context sidebar
   styles/       Design tokens, glassmorphism theme, and component styles
 server.mjs      Local HTTP/SSE server, task queue, Git worktree manager, and CLI runner
 scripts/        Cross-platform launchers and automated integration test suites
