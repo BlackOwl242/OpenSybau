@@ -6,6 +6,7 @@ import { promises as fs } from "node:fs";
 import { basename, delimiter, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { inflateRawSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { completeWithApi, configuredApiProviders, findClaudeCode, listProviderModels, normalizeUserApiProvider, providerLabel } from "./src/server/provider-registry.mjs";
 import { cliIsInstalled } from "./src/server/cli-status.mjs";
@@ -776,7 +777,79 @@ async function resolveInside(rootPath, relativePath, mustBeFile = false) {
 }
 const ignoredFileDirectories = new Set([".git", ".obsidian", ".trash", "node_modules", ".runtime", "dist", "build", "release", "out", "target", "coverage", ".next", "vendor", "__pycache__", ".venv", "venv", ".cache", ".turbo", ".parcel-cache", ".gradle"]);
 const textExtensions = new Set([".md", ".mdx", ".markdown", ".txt", ".log", ".json", ".jsonc", ".yaml", ".yml", ".toml", ".xml", ".html", ".htm", ".css", ".scss", ".less", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue", ".svelte", ".astro", ".py", ".go", ".rs", ".java", ".kt", ".c", ".h", ".cpp", ".hpp", ".cs", ".php", ".rb", ".swift", ".sql", ".sh", ".ps1", ".bat", ".cmd", ".env.example", ".diff", ".patch", ".csv", ".tsv", ".ini", ".conf", ".cfg", ".svg", ".prisma", ".graphql", ".gql"]);
-const previewableBinaryExtensions = new Set([".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav"]);
+const previewableBinaryExtensions = new Set([".pdf", ".docx", ".doc", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav"]);
+function decodeXmlEntities(str = "") {
+  return String(str)
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(Number(dec) || 32))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16) || 32));
+}
+function extractZipEntryText(buf, targetEntry = "word/document.xml") {
+  let offset = 0;
+  while (offset + 30 <= buf.length) {
+    if (buf.readUInt32LE(offset) !== 0x04034b50) {
+      offset += 1;
+      continue;
+    }
+    const method = buf.readUInt16LE(offset + 8);
+    const compSize = buf.readUInt32LE(offset + 18);
+    const nameLen = buf.readUInt16LE(offset + 26);
+    const extraLen = buf.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + nameLen + extraLen;
+    const entryName = buf.subarray(nameStart, nameStart + nameLen).toString("utf8");
+    if (entryName === targetEntry && compSize > 0 && dataStart + compSize <= buf.length) {
+      const slice = buf.subarray(dataStart, dataStart + compSize);
+      const raw = method === 8 ? inflateRawSync(slice) : method === 0 ? slice : null;
+      return raw ? raw.toString("utf8") : "";
+    }
+    offset = dataStart + Math.max(1, compSize);
+  }
+  return "";
+}
+function extractOfficeDocumentText(buf, ext) {
+  if (ext === ".docx") {
+    try {
+      const xml = extractZipEntryText(buf, "word/document.xml");
+      if (xml) {
+        const paragraphs = [];
+        for (const pMatch of xml.matchAll(/<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g)) {
+          const pBody = pMatch[1] || "";
+          const runs = [];
+          for (const tMatch of pBody.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>|<w:tab\b[^>]*\/>|<w:br\b[^>]*\/>/g)) {
+            if (tMatch[0].startsWith("<w:tab")) runs.push("\t");
+            else if (tMatch[0].startsWith("<w:br")) runs.push("\n");
+            else runs.push(decodeXmlEntities(tMatch[1] || ""));
+          }
+          const line = runs.join("").trim();
+          if (line) paragraphs.push(line);
+        }
+        if (paragraphs.length) return paragraphs.join("\n\n");
+      }
+    } catch {}
+  }
+  const utf16Chunks = [];
+  let current = "";
+  for (let i = 0; i + 1 < buf.length; i += 2) {
+    const code = buf.readUInt16LE(i);
+    if (code === 0x000d || code === 0x000a || code === 0x0009 || (code >= 0x0020 && code <= 0x024f) || (code >= 0x1e00 && code <= 0x1eff) || (code >= 0x2000 && code <= 0x206f)) {
+      current += code === 0x000d ? "\n" : String.fromCharCode(code);
+    } else {
+      if (current.trim().length >= 24) utf16Chunks.push(current.trim());
+      current = "";
+    }
+  }
+  if (current.trim().length >= 24) utf16Chunks.push(current.trim());
+  if (utf16Chunks.join("\n").length > 80) return utf16Chunks.join("\n\n");
+
+  const utf8Str = buf.toString("utf8");
+  const utf8Matches = utf8Str.match(/[\p{L}\p{N}\p{P}\p{Zs}\r\n\t]{24,}/gu) || [];
+  return utf8Matches.map((s) => s.trim()).filter(Boolean).join("\n\n") || "Không tìm thấy nội dung văn bản thuần trong tệp tài liệu này.";
+}
 function allowedTextFile(name) {
   if (/^\.env(?:\.|$)/i.test(name) && !/^\.env\.example$/i.test(name)) return false;
   const ext = extname(name).toLowerCase();
@@ -808,12 +881,18 @@ async function readLocalTextFile(rootPath, relativePath, markdownOnly = false) {
   const { target, stat } = await resolveInside(rootPath, relativePath, true);
   const ext = extname(target).toLowerCase();
   const relClean = safeRelativePath(relativePath).split(sep).join("/");
+  if (!markdownOnly && (ext === ".docx" || ext === ".doc")) {
+    if (stat.size > 25_000_000) throw new Error("Tệp tài liệu lớn hơn 25 MB; hãy mở bằng Word trên máy.");
+    const buf = await fs.readFile(target);
+    const content = extractOfficeDocumentText(buf, ext);
+    return { path: relClean, name: basename(target), content, kind: "text", size: stat.size, modifiedAt: stat.mtime.toISOString(), extension: ext };
+  }
   if (!markdownOnly && previewableBinaryExtensions.has(ext)) {
     if (stat.size > 50_000_000) throw new Error("Tệp lớn hơn 50 MB; hãy mở bằng ứng dụng trên máy.");
     const kind = ext === ".pdf" ? "pdf" : /\.(png|jpe?g|gif|webp|ico|bmp)$/i.test(ext) ? "image" : "media";
     return { path: relClean, name: basename(target), content: "", kind, size: stat.size, modifiedAt: stat.mtime.toISOString(), extension: ext };
   }
-  if (stat.size > 1_000_000) throw new Error("Tệp lớn hơn 1 MB; hãy mở bằng editor trên máy.");
+  if (stat.size > 8_000_000) throw new Error("Tệp lớn hơn 8 MB; hãy mở bằng editor trên máy.");
   if (!allowedTextFile(basename(target)) || (markdownOnly && !/\.(md|mdx|markdown)$/i.test(target))) throw new Error("OpenSybau chỉ xem tệp văn bản và Markdown được hỗ trợ.");
   const content = await fs.readFile(target, "utf8");
   return { path: relClean, name: basename(target), content, kind: "text", size: stat.size, modifiedAt: stat.mtime.toISOString(), extension: ext };

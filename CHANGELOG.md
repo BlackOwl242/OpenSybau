@@ -5,6 +5,21 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.76] - 2026-10-15
+
+### Fixed & Improved (Thẳng Hàng Tuyệt Đối Các Đường Kẻ Ngang, Tối Giản Trình Xem Tệp Theo Định Dạng & Khắc Phục Lỗi Khuyết Giao Diện Split View)
+- **Căn chỉnh thẳng hàng tuyệt đối các đường kẻ phân cách ngang (`y = 40px` & `y = 74px`)**:
+  - Khóa chiều cao **Hàng 1** (`.wb-topbar`, `.wb-topbar.orca-tabbar`, `.orca-dock-topbar`, `.kb-pane-head`, `.kb-stage-topbar`) cố định ở đúng **`40px`** và **Hàng 2** (`.orca-viewer-toolbar`, `.orca-dock-subheader`) cố định ở đúng **`34px` một dòng (`flex-wrap: nowrap`)**, giúp các đường viền ngang nối liền mạch từ khu vực chính sang Sidebar phải mà không bị lệch tầng.
+- **Tối giản bố cục Trình xem tệp (`.orca-file-viewer`) & Thanh địa chỉ trình duyệt theo đúng định dạng**:
+  - Chỉ hiển thị nút **Quay lại (`←`)**, **Tải lại (`↻`)** và **Thanh địa chỉ URL (`http://workspace.local/...`)** khi đang xem trực tiếp tệp trang web **HTML (`.html`, `.htm`)** ở chế độ `Xem`.
+  - Đối với các định dạng khác (`.md`, `.docx`, `.doc`, `.pdf`, `.csv`, `.json`, mã nguồn, hình ảnh): chỉ hiển thị đường dẫn tệp gọn gàng cùng thông số (`dòng · dung lượng` hoặc `+thêm / -xóa`) ở bên trái và cụm nút `Xem` / `Code` / `Diff` + `@Chèn` trên cùng 1 hàng duy nhất; loại bỏ hoàn toàn thanh banner phụ `.orca-diff-banner` và thanh nổi `.orca-live-floating-bar` gây che khuất nội dung.
+  - Bổ sung bộ giải nén văn bản trực tiếp cho tài liệu Word **`.docx` và `.doc`** (`extractOfficeDocumentText`) để đọc nội dung ngay trong tab mà không bị báo tệp nhị phân.
+  - Sửa bố cục khung bình luận dòng code (`.diff-comment-editor`) tự động giãn toàn chiều ngang dễ nhập liệu.
+- **Khắc phục lỗi khuyết giao diện ở chế độ Chia đôi màn hình (`.orca-stage-split-layout`)**:
+  - Cắt gọn tên Workspace dài trên thanh chọn (`.codex-rail-pill`) bằng dấu `...` trên một dòng và giới hạn kích thước menu nổi (`.codex-pop-card`) để không bị cắt mất mép phải khi mở trong khung chia đôi.
+
+---
+
 ## [0.2.75] - 2026-10-15
 
 ### Fixed & Improved (Đồng Bộ Hóa Font Chữ Toàn Hệ Thống `Nunito Sans Variable`)

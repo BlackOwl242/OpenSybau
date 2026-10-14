@@ -5760,4 +5760,276 @@ body.is-resizing-dock .orca-dock-resizer {
   font-variant-numeric: tabular-nums;
 }
 
+/* ==========================================================================
+   v0.2.76 — Strict Horizontal Grid Line Alignment, Simplified File Viewer,
+   & Split-Pane Anti-Clipping Polish
+   ========================================================================== */
+
+/* 1. Row 1 Alignment: Lock all primary top bars to exact 40px height & shared border */
+.wb-topbar,
+.wb-topbar.orca-tabbar,
+.orca-dock-topbar,
+.kb-pane-head,
+.kb-stage-topbar {
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  flex: 0 0 40px !important;
+  box-sizing: border-box !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.orca-dock-tab {
+  height: 39px !important;
+}
+
+.orca-tab {
+  height: 39px !important;
+  max-width: 210px !important;
+  min-width: 88px !important;
+  padding: 0 11px !important;
+}
+
+/* 2. Row 2 Alignment: Lock File Viewer Toolbar & Right Dock Subheader to exact 34px single-line height */
+.orca-viewer-toolbar,
+.orca-dock-subheader {
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  flex: 0 0 34px !important;
+  padding: 0 10px !important;
+  flex-wrap: nowrap !important;
+  box-sizing: border-box !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  background: #111216 !important;
+}
+
+.orca-viewer-nav {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.orca-viewer-address.is-url-bar {
+  height: 24px !important;
+  padding: 0 8px !important;
+  border-radius: 5px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.orca-viewer-file-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding-left: 2px;
+}
+
+.orca-meta-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 520;
+  color: #e4e4e7;
+}
+
+.orca-meta-sub {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #71717a;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.orca-meta-add {
+  color: #4ade80;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.orca-meta-del {
+  color: #f87171;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.orca-viewer-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex: 0 0 auto !important;
+}
+
+.orca-mode-switch {
+  padding: 2px !important;
+  border-radius: 6px !important;
+}
+
+.orca-mode-btn {
+  height: 22px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+}
+
+.orca-viewer-action-btn {
+  height: 24px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+  white-space: nowrap !important;
+}
+
+/* 3. Clean Full-Width Inline Line Comment Editor & Diff Rows */
+.diff-line-row {
+  display: grid !important;
+  grid-template-columns: 52px minmax(0, 1fr) auto !important;
+  align-items: baseline !important;
+  padding: 1px 12px 1px 0 !important;
+  font-family: var(--wb-font-mono) !important;
+  font-size: 12.5px !important;
+  line-height: 1.55 !important;
+  cursor: pointer;
+}
+
+.diff-line-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.diff-line-row.is-add {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.diff-line-row.is-del {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.diff-line-row.is-hunk {
+  background: rgba(59, 130, 246, 0.08);
+  color: #93c5fd;
+}
+
+.diff-line-num {
+  user-select: none;
+  text-align: right;
+  padding-right: 14px;
+  color: rgba(255, 255, 255, 0.28);
+  font-size: 11.5px;
+}
+
+.diff-line-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #e4e4e7;
+}
+
+.diff-line-row .diff-comment-trigger {
+  opacity: 0;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 11px;
+  color: #a1a1aa;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.diff-line-row:hover .diff-comment-trigger {
+  opacity: 1;
+}
+
+.diff-comment-editor {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 6px 16px 8px 52px !important;
+  padding: 8px 10px !important;
+  border-radius: 8px !important;
+  background: #16181e !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  font-family: var(--wb-font-sans) !important;
+}
+
+.orca-live-floating-bar,
+.orca-diff-banner {
+  display: none !important;
+}
+
+.diff-comment-editor input {
+  flex: 1 1 auto !important;
+  min-width: 180px !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: #0e0f13 !important;
+  color: #f4f4f5 !important;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 12px !important;
+  outline: none !important;
+}
+
+.diff-comment-editor input:focus {
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+/* 4. Split View Anti-Clipping & Compact Composer Controls */
+.codex-rail-pill {
+  max-width: 200px !important;
+  white-space: nowrap !important;
+}
+
+.codex-rail-pill > span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 155px !important;
+}
+
+.orca-stage-pane.is-primary {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.orca-stage-pane.is-primary .command-home {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 20px 14px !important;
+  box-sizing: border-box !important;
+}
+
+.orca-stage-pane.is-primary .codex-home-stage,
+.orca-stage-pane.is-primary .codex-composer-shell {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.orca-stage-pane.is-primary .codex-context-rail {
+  gap: 8px !important;
+  padding: 6px 2px 0 !important;
+  flex-wrap: wrap !important;
+}
+
+.orca-stage-pane.is-primary .codex-rail-pill {
+  max-width: 150px !important;
+}
+
+.orca-stage-pane.is-primary .codex-rail-pill > span {
+  max-width: 112px !important;
+}
+
+.orca-stage-pane.is-primary .codex-pop-card {
+  min-width: 190px !important;
+  max-width: min(260px, calc(100vw - 320px)) !important;
+}
+
 

@@ -117,7 +117,7 @@ export function AppShell({ snapshot, pageMarkup }) {
   const page = snapshot.page || "chat";
   const hasStageTabs = (snapshot.stageTabs?.length || 0) > 0;
   const isViewingFileTab = hasStageTabs && (snapshot.activeStageTabId !== "chat" || snapshot.stageSplit);
-  const home = page === "chat" && !snapshot.selected && !hasStageTabs;
+  const home = page === "chat" && !snapshot.selected && !isViewingFileTab;
   const hasContextSidebar = pageLayouts[page]?.sidebar === "context" && !sidebarCollapsed;
   const hasPageSidebar = Boolean(snapshot.pageSidebarMarkup);
   const hasRightDock = Boolean(snapshot.chatDrawerOpen && snapshot.rightDockMarkup);
@@ -140,7 +140,7 @@ export function AppShell({ snapshot, pageMarkup }) {
     <ContextSidebar snapshot={snapshot} mobileOpen={mobileSidebarOpen} mobileOnly={!hasContextSidebar} onNavigate={() => setMobileSidebarOpen(false)} />
     {mobileSidebarOpen ? <button class="wb-mobile-sidebar-backdrop" type="button" aria-label="Đóng danh sách workspace" onClick={() => setMobileSidebarOpen(false)} /> : null}
     {hasPageSidebar && <aside class="wb-page-sidebar" dangerouslySetInnerHTML={{ __html: snapshot.pageSidebarMarkup }} />}
-    <main class={`wb-main ${home ? "is-home-stage" : ""}`}>
+    <main class={`wb-main ${home && !hasStageTabs ? "is-home-stage" : ""}`}>
       <div class={`wb-workspace-split ${hasRightDock ? "has-right-dock" : ""}`}>
         <div class="wb-stage-column">
           <TopBar snapshot={snapshot} onOpenNavigation={() => setMobileSidebarOpen(true)} />

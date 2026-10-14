@@ -897,7 +897,7 @@ function dockFileIconName(fileName = "") {
 function defaultFileTabMode(ext = "", preferredMode = "") {
   if (["preview", "code", "diff"].includes(preferredMode)) return preferredMode;
   const lower = String(ext || "").toLowerCase();
-  if ([".html", ".htm", ".pdf", ".md", ".mdx", ".markdown", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav", ".csv", ".tsv", ".json"].includes(lower)) {
+  if ([".html", ".htm", ".pdf", ".md", ".mdx", ".markdown", ".docx", ".doc", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav", ".csv", ".tsv", ".json"].includes(lower)) {
     return "preview";
   }
   return "code";
@@ -906,7 +906,7 @@ function defaultFileTabMode(ext = "", preferredMode = "") {
 function canRichPreviewExtension(ext = "", kind = "text") {
   if (kind && kind !== "text") return true;
   const lower = String(ext || "").toLowerCase();
-  return [".html", ".htm", ".pdf", ".md", ".mdx", ".markdown", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav", ".csv", ".tsv", ".json"].includes(lower);
+  return [".html", ".htm", ".pdf", ".md", ".mdx", ".markdown", ".docx", ".doc", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav", ".csv", ".tsv", ".json"].includes(lower);
 }
 
 async function openStageFileTab({ workspaceId = "", taskId = "", path = "", preferredMode = "" } = {}) {
@@ -1005,6 +1005,14 @@ function renderCsvTableMarkup(content = "", delimiter = ",") {
   </div>`;
 }
 
+function formatCompactBytes(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n < 0) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1).replace(/\.0$/, "")} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1).replace(/\.0$/, "")} MB`;
+}
+
 function renderStageFileViewer(tab) {
   if (!tab) return "";
   const file = tab.fileData;
@@ -1012,6 +1020,7 @@ function renderStageFileViewer(tab) {
   const diffFile = diffFiles[0] || null;
   const diffAdds = diffFile?.additions || 0;
   const diffDels = diffFile?.deletions || 0;
+  const hasDiffChanges = Boolean(diffFile?.hunks?.length);
   const ext = (file?.extension || tab.ext || "").toLowerCase();
   const kind = file?.kind || "text";
   const hasRichPreview = canRichPreviewExtension(ext, kind);
@@ -1020,9 +1029,10 @@ function renderStageFileViewer(tab) {
   if (mode === "preview" && !hasRichPreview) mode = "code";
   if (mode === "code" && !hasCodeView) mode = "preview";
 
+  const isWebBrowser = (ext === ".html" || ext === ".htm") && mode === "preview";
   const rawUrl = `/api/workspaces/${encodeURIComponent(tab.workspaceId)}/raw/${tab.path.split("/").map(encodeURIComponent).join("/")}?${tab.taskId ? `taskId=${encodeURIComponent(tab.taskId)}&` : ""}t=${tab.loadedAt || 0}`;
-  const formatBadge = ext ? ext.replace(/^\./, "").toUpperCase() : "FILE";
-  const sizeBadge = file?.size !== undefined ? `${formatNumber(file.size)} B` : "";
+  const sizeBadge = file?.size !== undefined ? formatCompactBytes(file.size) : "";
+  const totalLines = hasCodeView && file?.content ? String(file.content).split(/\r?\n/).length : 0;
 
   let bodyHtml = "";
   if (tab.loading && !file) {
@@ -1037,12 +1047,11 @@ function renderStageFileViewer(tab) {
       <p>${esc(tab.error)}</p>
       <div class="orca-viewer-empty-actions">
         <button type="button" class="button quiet small" data-action="reload-stage-tab" data-tab-id="${esc(tab.id)}">${icon("refresh-cw", 13)}<span>Thử lại</span></button>
-        <button type="button" class="button quiet small" data-action="activate-stage-tab" data-tab-id="chat">${icon("arrow-left", 13)}<span>Quay lại Chat</span></button>
       </div>
     </div>`;
   } else if (mode === "diff") {
     const commentTarget = view.stageLineCommentTarget;
-    if (diffFile?.hunks?.length) {
+    if (hasDiffChanges) {
       const hunksHtml = diffFile.hunks.map((hunk, hIdx) => `<div class="diff-hunk">
         <div class="diff-hunk-header"><code>${esc(hunk.header)}</code></div>
         <div class="diff-hunk-lines">
@@ -1060,18 +1069,14 @@ function renderStageFileViewer(tab) {
               <span class="diff-comment-trigger" title="Gắn nhận xét dòng ${lineNum} cho Agent">+ Nhận xét</span>
             </div>
             ${isCommenting ? `<div class="diff-comment-editor">
-              <input type="text" data-stage-line-comment-input placeholder="Nhập yêu cầu sửa tại dòng ${lineNum} của ${esc(tab.name)} rồi nhấn Gửi cho Agent…" autocomplete="off">
-              <button type="button" class="button primary small" data-action="send-stage-line-comment">${icon("arrow-up-right", 12)}<span>Gửi cho Agent</span></button>
+              <input type="text" data-stage-line-comment-input placeholder="Nhập yêu cầu sửa dòng ${lineNum} của ${esc(tab.name)}…" autocomplete="off">
+              <button type="button" class="button primary small" data-action="send-stage-line-comment">${icon("arrow-up-right", 12)}<span>Gửi</span></button>
               <button type="button" class="button quiet small" data-action="cancel-stage-line-comment">Hủy</button>
             </div>` : ""}`;
           }).join("")}
         </div>
       </div>`).join("");
       bodyHtml = `<div class="orca-diff-scroll">
-        <div class="orca-diff-banner">
-          <span><strong>Diff Review</strong> · <code>${esc(tab.path)}</code> · <em class="is-add">+${diffAdds}</em> <em class="is-del">-${diffDels}</em></span>
-          <small>Nhấn vào bất kỳ dòng nào để gửi yêu cầu chỉnh sửa dòng đó cho Agent</small>
-        </div>
         <div class="diff-hunk-list">${hunksHtml}</div>
       </div>`;
     } else {
@@ -1080,8 +1085,8 @@ function renderStageFileViewer(tab) {
         <strong>Không có thay đổi chưa commit cho ${esc(tab.name)}</strong>
         <p>Tệp <code>${esc(tab.path)}</code> hiện đồng bộ với Git HEAD.</p>
         <div class="orca-viewer-empty-actions">
-          ${hasRichPreview ? `<button type="button" class="button primary small" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview">${icon("eye", 13)}<span>Xem trực tiếp</span></button>` : ""}
-          ${hasCodeView ? `<button type="button" class="button quiet small" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code">${icon("code-2", 13)}<span>Xem mã nguồn</span></button>` : ""}
+          ${hasRichPreview ? `<button type="button" class="button primary small" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview">${icon("eye", 13)}<span>Xem</span></button>` : ""}
+          ${hasCodeView ? `<button type="button" class="button quiet small" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code">${icon("code-2", 13)}<span>Code</span></button>` : ""}
         </div>
       </div>`;
     }
@@ -1089,13 +1094,6 @@ function renderStageFileViewer(tab) {
     if (ext === ".html" || ext === ".htm") {
       bodyHtml = `<div class="orca-live-frame-wrap">
         <iframe class="orca-live-frame" src="${esc(rawUrl)}" title="Xem trực tiếp ${esc(tab.name)}" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
-        <div class="orca-live-floating-bar">
-          <span>Đang chạy bản xem trực tiếp HTML · <code>${esc(tab.path)}</code></span>
-          <div>
-            <button type="button" class="orca-float-btn" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code">${icon("code-2", 12)}<span>Mã nguồn</span></button>
-            <button type="button" class="orca-float-btn" data-action="mention-drawer-file" data-path="${esc(tab.path)}">@Chèn vào Chat</button>
-          </div>
-        </div>
       </div>`;
     } else if (ext === ".pdf" || kind === "pdf") {
       bodyHtml = `<div class="orca-live-frame-wrap is-pdf">
@@ -1108,7 +1106,7 @@ function renderStageFileViewer(tab) {
         </div>
         <div class="orca-media-caption">
           <strong>${esc(tab.name)}</strong>
-          <small>${esc(tab.path)} · ${sizeBadge}</small>
+          <small>${esc(tab.path)}${sizeBadge ? ` · ${esc(sizeBadge)}` : ""}</small>
         </div>
       </div>`;
     } else if (kind === "media" || [".mp4", ".webm", ".mp3", ".wav"].includes(ext)) {
@@ -1119,10 +1117,10 @@ function renderStageFileViewer(tab) {
           : `<video controls src="${esc(rawUrl)}" class="orca-video-player"></video>`}
         <div class="orca-media-caption">
           <strong>${esc(tab.name)}</strong>
-          <small>${esc(tab.path)} · ${sizeBadge}</small>
+          <small>${esc(tab.path)}${sizeBadge ? ` · ${esc(sizeBadge)}` : ""}</small>
         </div>
       </div>`;
-    } else if ([".md", ".mdx", ".markdown"].includes(ext)) {
+    } else if ([".md", ".mdx", ".markdown", ".docx", ".doc"].includes(ext)) {
       bodyHtml = `<div class="orca-doc-scroll">
         <article class="markdown-preview orca-markdown-doc">${renderMarkdown(file?.content || "")}</article>
       </div>`;
@@ -1130,20 +1128,11 @@ function renderStageFileViewer(tab) {
       bodyHtml = renderCsvTableMarkup(file?.content || "", ext === ".tsv" ? "\t" : ",");
     } else if (ext === ".json") {
       let formattedJson = file?.content || "";
-      let jsonMeta = "JSON";
       try {
-        const parsed = JSON.parse(formattedJson);
-        formattedJson = JSON.stringify(parsed, null, 2);
-        jsonMeta = Array.isArray(parsed) ? `Mảng JSON · ${parsed.length} phần tử` : typeof parsed === "object" && parsed !== null ? `Đối tượng JSON · ${Object.keys(parsed).length} khóa` : "JSON hợp lệ";
-      } catch {
-        jsonMeta = "JSON (chưa chuẩn cú pháp)";
-      }
+        formattedJson = JSON.stringify(JSON.parse(formattedJson), null, 2);
+      } catch {}
       const lines = formattedJson.split(/\r?\n/);
       bodyHtml = `<div class="orca-code-scroll">
-        <div class="orca-diff-banner">
-          <span><strong>${esc(jsonMeta)}</strong> · <code>${esc(tab.path)}</code></span>
-          <small>${lines.length} dòng</small>
-        </div>
         <div class="orca-code-lines">
           ${lines.map((line, idx) => `<div class="orca-code-row"><span class="orca-code-ln">${idx + 1}</span><code class="orca-code-text">${esc(line)}</code></div>`).join("")}
         </div>
@@ -1153,23 +1142,19 @@ function renderStageFileViewer(tab) {
     const lines = String(file?.content || "").split(/\r?\n/);
     const commentTarget = view.stageLineCommentTarget;
     bodyHtml = `<div class="orca-code-scroll">
-      <div class="orca-diff-banner">
-        <span><strong>Mã nguồn</strong> · <code>${esc(tab.path)}</code> · ${lines.length} dòng</span>
-        <small>Nhấn vào dòng bất kỳ để gắn nhận xét và gửi cho Agent sửa</small>
-      </div>
       <div class="orca-code-lines">
         ${lines.map((line, idx) => {
           const lineNum = idx + 1;
           const lineKey = `code:${tab.id}:${lineNum}`;
           const isCommenting = commentTarget?.key === lineKey;
-          return `<div class="orca-code-row" data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}" data-code="${esc(line)}">
+          return `<div class="orca-code-row ${isCommenting ? "is-commenting" : ""}" data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}" data-code="${esc(line)}">
             <span class="orca-code-ln">${lineNum}</span>
             <code class="orca-code-text">${esc(line)}</code>
             <span class="diff-comment-trigger">+ Nhận xét</span>
           </div>
           ${isCommenting ? `<div class="diff-comment-editor">
             <input type="text" data-stage-line-comment-input placeholder="Nhập yêu cầu cho Agent tại dòng ${lineNum} của ${esc(tab.name)}…" autocomplete="off">
-            <button type="button" class="button primary small" data-action="send-stage-line-comment">${icon("arrow-up-right", 12)}<span>Gửi cho Agent</span></button>
+            <button type="button" class="button primary small" data-action="send-stage-line-comment">${icon("arrow-up-right", 12)}<span>Gửi</span></button>
             <button type="button" class="button quiet small" data-action="cancel-stage-line-comment">Hủy</button>
           </div>` : ""}`;
         }).join("")}
@@ -1177,25 +1162,37 @@ function renderStageFileViewer(tab) {
     </div>`;
   }
 
+  const metaParts = [];
+  if (mode === "diff" && (diffAdds || diffDels)) metaParts.push(`<em class="is-add">+${diffAdds}</em> <em class="is-del">-${diffDels}</em>`);
+  else if (totalLines > 0) metaParts.push(`${totalLines} dòng`);
+  if (sizeBadge) metaParts.push(esc(sizeBadge));
+
+  const leftToolbarMarkup = isWebBrowser
+    ? `<div class="orca-viewer-nav is-web-browser">
+        <button type="button" class="icon-button orca-viewer-icon" data-action="activate-stage-tab" data-tab-id="chat" title="Quay về cửa sổ Chat">${icon("arrow-left", 13)}</button>
+        <button type="button" class="icon-button orca-viewer-icon" data-action="reload-stage-tab" data-tab-id="${esc(tab.id)}" title="Tải lại trang web">${icon("refresh-cw", 12)}</button>
+        <div class="orca-viewer-address" title="${esc(tab.path)}">
+          ${icon("globe", 12)}
+          <span class="orca-address-path">http://workspace.local/${esc(tab.path)}</span>
+        </div>
+      </div>`
+    : `<div class="orca-viewer-file-meta" title="${esc(tab.path)}">
+        <span class="orca-meta-path">${esc(tab.path)}</span>
+        ${metaParts.length ? `<small class="orca-meta-sub">${metaParts.join(" · ")}</small>` : ""}
+      </div>`;
+
+  const showModeSwitch = (hasRichPreview && hasCodeView) || hasDiffChanges || mode === "diff";
+
   return `<section class="orca-file-viewer" aria-label="Trình xem tệp ${esc(tab.name)}">
     <header class="orca-viewer-toolbar">
-      <div class="orca-viewer-nav">
-        <button type="button" class="icon-button orca-viewer-icon" data-action="activate-stage-tab" data-tab-id="chat" title="Quay về cửa sổ Chat">${icon("arrow-left", 14)}</button>
-        <button type="button" class="icon-button orca-viewer-icon" data-action="reload-stage-tab" data-tab-id="${esc(tab.id)}" title="Tải lại tệp">${icon("refresh-cw", 13)}</button>
-        <div class="orca-viewer-address" title="${esc(tab.path)}">
-          <span class="orca-format-pill">${esc(formatBadge)}</span>
-          <code class="orca-address-path">${esc(tab.path)}</code>
-          ${sizeBadge ? `<small class="orca-address-size">${esc(sizeBadge)}</small>` : ""}
-        </div>
-      </div>
+      ${leftToolbarMarkup}
       <div class="orca-viewer-actions">
-        <div class="orca-mode-switch" role="tablist" aria-label="Chế độ xem tệp">
-          ${hasRichPreview ? `<button type="button" class="orca-mode-btn ${mode === "preview" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview">${icon("eye", 13)}<span>Xem trực tiếp</span></button>` : ""}
-          ${hasCodeView ? `<button type="button" class="orca-mode-btn ${mode === "code" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code">${icon("code-2", 13)}<span>Mã nguồn</span></button>` : ""}
-          <button type="button" class="orca-mode-btn ${mode === "diff" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="diff">${icon("git-branch", 13)}<span>Diff Review${diffAdds || diffDels ? ` (+${diffAdds}/-${diffDels})` : ""}</span></button>
-        </div>
-        <button type="button" class="orca-viewer-action-btn" data-action="mention-drawer-file" data-path="${esc(tab.path)}" title="Chèn @${esc(tab.path)} vào khung chat">@Chèn vào Chat</button>
-        <button type="button" class="orca-viewer-action-btn ${view.stageSplit ? "is-active" : ""}" data-action="toggle-stage-split" title="Chia đôi cửa sổ: Vừa trò chuyện với Agent vừa xem tệp này">${icon("columns-2", 13)}<span>${view.stageSplit ? "Đang chia đôi" : "Chia đôi"}</span></button>
+        ${showModeSwitch ? `<div class="orca-mode-switch" role="tablist" aria-label="Chế độ xem tệp">
+          ${hasRichPreview ? `<button type="button" class="orca-mode-btn ${mode === "preview" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview"><span>Xem</span></button>` : ""}
+          ${hasCodeView ? `<button type="button" class="orca-mode-btn ${mode === "code" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code"><span>Code</span></button>` : ""}
+          ${hasDiffChanges || mode === "diff" || hasCodeView ? `<button type="button" class="orca-mode-btn ${mode === "diff" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="diff"><span>Diff${diffAdds || diffDels ? ` +${diffAdds}/-${diffDels}` : ""}</span></button>` : ""}
+        </div>` : ""}
+        <button type="button" class="orca-viewer-action-btn" data-action="mention-drawer-file" data-path="${esc(tab.path)}" title="Chèn @${esc(tab.path)} vào khung chat">@Chèn</button>
       </div>
     </header>
     <div class="orca-viewer-body">
