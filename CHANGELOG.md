@@ -5,6 +5,20 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.67] - 2026-10-14
+
+### Added & Fixed (Tri thức Obsidian Vault & Biểu đồ Mạng Nơ-ron Tri thức)
+- **Khắc phục lỗi nút "Mở trong Obsidian" không hoạt động**:
+  - Bổ sung giao thức `obsidian:` vào danh sách cho phép của Electron (`desktop/main.cjs`) và thêm endpoint `POST /api/vault/open-obsidian` gọi trực tiếp `obsidian://open?path=...` qua trình xử lý giao thức của hệ điều hành để mở đúng vault hoặc tệp ghi chú ngay trong ứng dụng Obsidian.
+- **Tạo mới, chỉnh sửa trực tiếp (Inline Editor) và xóa tệp tri thức Markdown**:
+  - Hỗ trợ tạo ghi chú `.md` mới (`POST /api/vault/file`), chỉnh sửa trực tiếp nội dung Markdown ngay trong khung xem (`PUT /api/vault/file`, hỗ trợ phím tắt `Ctrl+S` / `Cmd+S`) và xóa tệp ghi chú khỏi vault (`DELETE /api/vault/file`).
+  - Hỗ trợ nhấp trực tiếp vào chip liên kết `[[WikiLink]]` trong bài viết để nhảy sang ghi chú liên quan (hoặc tự tạo mới nếu ghi chú đích chưa tồn tại).
+- **Biểu đồ Mạng Nơ-ron Tri thức (Neural Knowledge Graph — `GET /api/vault/graph`)**:
+  - Tự động phân tích toàn bộ các tệp `.md` trong vault cùng hệ thống liên kết hai chiều `[[WikiLinks]]`, liên kết Markdown nội bộ, thẻ `#tag` chung và cấu trúc thư mục.
+  - Trực quan hóa dưới dạng mạng lưới nơ-ron tương tác vật lý lực đẩy/lực hút trên Canvas 2D với hiệu ứng xung tín hiệu synapse chạy dọc các liên kết, hỗ trợ kéo thả nút, phóng to/thu nhỏ, lọc vùng lân cận và bảng Inspector xem/sửa nhanh nút đang chọn.
+
+---
+
 ## [0.2.66] - 2026-10-14
 
 ### Fixed & Improved (Đồng nhất nút màu trắng, Hiệu ứng Hover, Dọn dẹp & Hotfix đóng gói)

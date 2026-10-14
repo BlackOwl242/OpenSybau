@@ -70,6 +70,7 @@ function initializeUserConfig() {
 function isAllowedExternal(value) {
   try {
     const url = new URL(value);
+    if (url.protocol === "obsidian:") return true;
     return url.protocol === "https:" && externalHosts.has(url.hostname);
   } catch { return false; }
 }
@@ -130,6 +131,11 @@ async function createMainWindow() {
       return { action: "deny" };
     });
     mainWindow.webContents.on("will-navigate", (event, url) => {
+      if (isAllowedExternal(url)) {
+        event.preventDefault();
+        void shell.openExternal(url);
+        return;
+      }
       if (!workbenchUrl) return;
       if (url !== workbenchUrl && !url.startsWith(`${workbenchUrl}/`) && !url.startsWith(`${workbenchUrl}#`)) event.preventDefault();
     });

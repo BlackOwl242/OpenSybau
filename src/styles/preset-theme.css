@@ -3253,5 +3253,407 @@ body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.12) !important;
 }
 
+/* ============================================================================
+   10. KNOWLEDGE VAULT EDITOR, WIKILINKS & NEURAL KNOWLEDGE GRAPH
+   ============================================================================ */
+
+.file-browser-head-actions,
+.file-preview-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.file-preview-empty-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Mode Switcher Pill in Page Header */
+.vault-mode-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  background: rgba(18, 19, 23, 0.85);
+}
+
+.vault-mode-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.vault-mode-tab:hover {
+  color: #f4f4f5;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.vault-mode-tab.is-active {
+  background: #f4f4f5;
+  color: #09090b;
+  font-weight: 620;
+}
+
+/* Inline Markdown Editor */
+.vault-editor-wrap {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px 14px;
+  gap: 8px;
+}
+
+.vault-editor-textarea {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 380px !important;
+  padding: 12px 14px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 10px !important;
+  background: rgba(14, 15, 18, 0.92) !important;
+  color: #f4f4f5 !important;
+  font-family: var(--wb-font-mono) !important;
+  font-size: 13px !important;
+  line-height: 1.65 !important;
+  resize: none !important;
+}
+
+.vault-editor-textarea:focus {
+  outline: none !important;
+  border-color: rgba(255, 255, 255, 0.26) !important;
+}
+
+.vault-editor-foot small {
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 11.5px;
+}
+
+/* Interactive [[WikiLink]] Chips */
+.vault-wikilink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 2px;
+  padding: 1px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f4f5;
+  font-size: 0.92em;
+  font-weight: 560;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.vault-wikilink:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+/* Neural Knowledge Graph Layout */
+.neural-graph-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 14px;
+  min-height: 540px;
+  height: calc(100dvh - 175px);
+}
+
+@media (max-width: 960px) {
+  .neural-graph-shell {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+}
+
+.neural-graph-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 460px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(38, 40, 48, 0.42) 0%, rgba(15, 16, 20, 0.92) 78%),
+    rgba(16, 17, 21, 0.9);
+  overflow: hidden;
+}
+
+.neural-graph-toolbar {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.neural-graph-stats,
+.neural-graph-controls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.neural-stat-pill,
+.neural-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(20, 21, 25, 0.82);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11.5px;
+}
+
+.neural-stat-pill strong {
+  color: #ffffff;
+  font-weight: 640;
+}
+
+.neural-legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.neural-legend i.is-link {
+  background: #ffffff;
+}
+
+.neural-legend i.is-tag {
+  background: #a78bfa;
+}
+
+.neural-legend i.is-folder {
+  background: #64748b;
+}
+
+.neural-graph-canvas {
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+  display: block;
+  cursor: grab;
+}
+
+.neural-graph-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 14px;
+  right: 14px;
+  z-index: 2;
+  pointer-events: none;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 11px;
+  text-align: center;
+}
+
+.neural-graph-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+}
+
+/* Neural Inspector Right Panel */
+.neural-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(22, 23, 27, 0.85);
+  overflow-y: auto;
+}
+
+.neural-inspector-head small {
+  display: block;
+  margin-bottom: 3px;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+}
+
+.neural-inspector-head strong {
+  display: block;
+  color: #fafafa;
+  font-size: 15px;
+  font-weight: 640;
+  line-height: 1.3;
+}
+
+.neural-inspector-head code {
+  display: block;
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 11px;
+}
+
+.neural-inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.neural-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.neural-tag-list span {
+  padding: 2px 8px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  border-radius: 999px;
+  background: rgba(167, 139, 250, 0.1);
+  color: #ddd6fe;
+  font-size: 11px;
+}
+
+.neural-connections-box,
+.neural-excerpt-box {
+  display: grid;
+  gap: 7px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.neural-connections-box > strong,
+.neural-excerpt-box > strong {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11.5px;
+  font-weight: 620;
+}
+
+.neural-connection-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.neural-connection-list button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #e4e4e7;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.neural-connection-list button:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.neural-connection-list strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.neural-connection-list small {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 10.5px;
+}
+
+.conn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+
+.conn-dot.is-link {
+  background: #ffffff;
+}
+
+.conn-dot.is-tag {
+  background: #a78bfa;
+}
+
+.conn-dot.is-folder {
+  background: #64748b;
+}
+
+.neural-muted {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.46);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.neural-inspector-empty {
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 12px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.neural-inspector-empty strong {
+  color: #f4f4f5;
+  font-size: 14px;
+}
+
+.neural-inspector-empty p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.48);
+}
+
+
 
 

@@ -410,11 +410,27 @@ function renderMarkdown(source) {
   if (inCode) html.push(`<pre><code>${esc(codeLines.join("\n"))}</code></pre>`);
   return html.join("") || `<p class="file-empty">Tệp Markdown đang trống.</p>`;
 }
+function renderKnowledgeMarkdown(source) {
+  const baseHtml = renderMarkdown(source);
+  return baseHtml.replace(/\[\[([^\]|#\r\n]+)(?:#[^\]|\r\n]*)?(?:\|([^\]\r\n]+))?\]\]/g, (_, target, alias) => {
+    const label = (alias || target).trim();
+    const cleanTarget = target.trim();
+    return `<button type="button" class="vault-wikilink" data-action="vault-open-wikilink" data-target="${esc(cleanTarget)}" title="Mở liên kết tri thức: ${esc(cleanTarget)}">${icon("file", 12)}<span>${esc(label)}</span></button>`;
+  });
+}
 function filePreviewMarkup(file, title = "Chọn một tệp để xem") {
-  if (!file) return `<div class="file-preview-empty">${icon("file", 19)}<p>${title}</p></div>`;
+  if (!file) return `<div class="file-preview-empty">${icon("file", 19)}<p>${title}</p>${view.page === "knowledge" ? `<div class="file-preview-empty-actions"><button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)} Tạo ghi chú mới</button><button type="button" class="button quiet small" data-action="vault-mode" data-mode="graph">${icon("brain", 13)} Xem mạng nơ-ron tri thức</button></div>` : ""}</div>`;
   const markdown = [".md", ".mdx", ".markdown"].includes(file.extension);
-  const body = markdown ? `<article class="markdown-preview">${renderMarkdown(file.content)}</article>` : `<pre class="code-preview"><code>${esc(file.content)}</code></pre>`;
-  return `<header class="file-preview-head"><div><strong>${esc(file.name)}</strong><small>${markdown ? "Markdown" : file.extension || "Tệp văn bản"} · ${formatNumber(file.size)} B · ${fmtDate(file.modifiedAt)}</small></div>${view.page === "knowledge" ? `<button class="button quiet small" data-action="open-obsidian" data-path="${esc(file.path)}">Mở trong Obsidian ${icon("arrow-up-right", 14)}</button>` : ""}</header>${body}`;
+  if (view.page === "knowledge" && view.vaultEditing && view.vaultEditingPath === file.path) {
+    return `<header class="file-preview-head"><div><strong>${esc(file.name)}</strong><small>Đang chỉnh sửa · ${esc(file.path)}</small></div><div class="file-preview-actions"><button type="button" class="button quiet small" data-action="vault-cancel-edit">Hủy</button><button type="button" class="button primary small" data-action="vault-save-note" data-path="${esc(file.path)}">${icon("check", 13)} Lưu ghi chú</button></div></header><div class="vault-editor-wrap"><textarea class="vault-editor-textarea" data-vault-editor spellcheck="false" placeholder="Nhập nội dung Markdown… Dùng [[Tên ghi chú]] để tạo liên kết nơ-ron và #tag để phân nhóm.">${esc(view.vaultDraft ?? file.content)}</textarea><div class="vault-editor-foot"><small>Mẹo: Liên kết <code>[[Ghi chú khác]]</code> hoặc gắn <code>#tag</code> để kết nối các nút trên Mạng nơ-ron tri thức. Nhấn Ctrl+S để lưu nhanh.</small></div></div>`;
+  }
+  const body = markdown
+    ? `<article class="markdown-preview">${view.page === "knowledge" ? renderKnowledgeMarkdown(file.content) : renderMarkdown(file.content)}</article>`
+    : `<pre class="code-preview"><code>${esc(file.content)}</code></pre>`;
+  const knowledgeActions = view.page === "knowledge"
+    ? `<div class="file-preview-actions"><button type="button" class="button quiet small" data-action="vault-edit-note" data-path="${esc(file.path)}">${icon("square-pen", 13)} Chỉnh sửa</button><button type="button" class="button danger small" data-action="vault-delete-note" data-path="${esc(file.path)}">${icon("delete", 13)} Xóa</button><button type="button" class="button quiet small" data-action="open-obsidian" data-path="${esc(file.path)}">Mở trong Obsidian ${icon("arrow-up-right", 14)}</button></div>`
+    : "";
+  return `<header class="file-preview-head"><div><strong>${esc(file.name)}</strong><small>${markdown ? "Markdown" : file.extension || "Tệp văn bản"} · ${formatNumber(file.size)} B · ${fmtDate(file.modifiedAt)}</small></div>${knowledgeActions}</header>${body}`;
 }
 async function loadWorkspaceDir(workspaceId, path = "") {
   const workspace = view.state.workspaces.find((item) => item.id === workspaceId);
@@ -431,18 +447,426 @@ async function loadWorkspacePreview(workspaceId, path) {
   if (view.selected !== workspaceId) return;
   view.filePreview = file; render();
 }
-async function loadVaultDir(path = "") {
-  view.page = "knowledge"; view.vaultDir = path; view.vaultPreview = null; view.vaultEntries = [];
+async function loadVaultDir(path = "", { keepPreview = false } = {}) {
+  view.page = "knowledge"; view.vaultDir = path;
+  if (!keepPreview) { view.vaultPreview = null; view.vaultEditing = false; view.vaultEditingPath = ""; }
+  view.vaultEntries = [];
   render();
-  const data = await api(`/api/vault/files?path=${encodeURIComponent(path)}`);
+  const [data, graph] = await Promise.all([
+    api(`/api/vault/files?path=${encodeURIComponent(path)}`),
+    api("/api/vault/graph").catch(() => ({ nodes: [], edges: [] })),
+  ]);
   if (view.page !== "knowledge" || view.vaultDir !== path) return;
   if (view.vaultDir !== data.path) replaceBrowserRoute = true;
-  view.vaultDir = data.path; view.vaultEntries = data.entries || []; render();
+  view.vaultDir = data.path;
+  view.vaultEntries = data.entries || [];
+  view.vaultGraph = graph;
+  render();
 }
-async function loadVaultPreview(path) {
+async function loadVaultPreview(path, { startEdit = false } = {}) {
   const file = await api(`/api/vault/file?path=${encodeURIComponent(path)}`);
   if (view.page !== "knowledge") return;
-  view.vaultPreview = file; render();
+  view.vaultPreview = file;
+  view.vaultEditing = Boolean(startEdit);
+  view.vaultEditingPath = startEdit ? file.path : "";
+  view.vaultDraft = file.content;
+  render();
+}
+async function loadVaultGraph() {
+  const graph = await api("/api/vault/graph").catch(() => ({ nodes: [], edges: [] }));
+  if (view.page !== "knowledge") return;
+  view.vaultGraph = graph;
+  render();
+}
+function showNewVaultNoteModal() {
+  const prefix = view.vaultDir ? `${view.vaultDir}/` : "";
+  const today = new Date().toISOString().slice(0, 10);
+  const body = `<label>Đường dẫn tệp ghi chú (.md)<input name="notePath" required maxlength="240" value="${esc(`${prefix}${today}.md`)}" placeholder="Ví dụ: kien-truc/he-thong.md"></label><label>Nội dung Markdown<textarea name="content" rows="7" spellcheck="false" placeholder="# Tiêu đề ghi chú\n\nNội dung ghi chú… Liên kết tới [[Ghi chú khác]] hoặc gắn #tag."># </textarea><small>Sử dụng cú pháp <code>[[Tên ghi chú]]</code> hoặc <code>#tag</code> để tự động tạo liên kết nơ-ron trên biểu đồ tri thức.</small></label>`;
+  showModal("Tạo ghi chú tri thức mới", body, "Tạo ghi chú", "vault-note-create");
+}
+let neuralGraphCleanup = null;
+function knowledgeGraphPaneMarkup() {
+  const graph = view.vaultGraph || { nodes: [], edges: [] };
+  const nodes = graph.nodes || [];
+  const edges = graph.edges || [];
+  const selectedPath = view.vaultPreview?.path || "";
+  const selectedNode = nodes.find((n) => n.path === selectedPath) || null;
+  const connectedEdges = selectedNode ? edges.filter((e) => e.source === selectedNode.id || e.target === selectedNode.id) : [];
+  const connectedNodes = selectedNode
+    ? connectedEdges.map((e) => {
+        const otherId = e.source === selectedNode.id ? e.target : e.source;
+        const node = nodes.find((n) => n.id === otherId);
+        return node ? { node, kind: e.kind, label: e.label } : null;
+      }).filter(Boolean)
+    : [];
+  return `<div class="neural-graph-shell">
+    <div class="neural-graph-stage">
+      <header class="neural-graph-toolbar">
+        <div class="neural-graph-stats">
+          <span class="neural-stat-pill"><strong>${nodes.length}</strong> nút nơ-ron</span>
+          <span class="neural-stat-pill"><strong>${edges.length}</strong> liên kết</span>
+          <span class="neural-legend"><i class="is-link"></i>[[WikiLink]]</span>
+          <span class="neural-legend"><i class="is-tag"></i>#Tag chung</span>
+          <span class="neural-legend"><i class="is-folder"></i>Cùng thư mục</span>
+        </div>
+        <div class="neural-graph-controls">
+          <button type="button" class="button quiet small" data-action="neural-graph-reset" title="Căn giữa biểu đồ">${icon("target", 13)} Căn giữa</button>
+          <button type="button" class="button quiet small" data-action="refresh-vault-graph" title="Quét lại liên kết">${icon("refresh-cw", 13)} Quét lại</button>
+        </div>
+      </header>
+      <canvas id="vault-neural-canvas" class="neural-graph-canvas"></canvas>
+      ${nodes.length === 0 ? `<div class="neural-graph-empty"><strong>Chưa có nút tri thức nào trong vault</strong><p>Tạo ghi chú Markdown mới và dùng <code>[[Tên ghi chú]]</code> hoặc <code>#tag</code> để hình thành mạng lưới nơ-ron tri thức.</p><button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)} Tạo ghi chú đầu tiên</button></div>` : `<div class="neural-graph-hint">Kéo các nút nơ-ron để dịch chuyển · Cuộn chuột để phóng to/thu nhỏ · Nhấp vào nút để xem &amp; sửa ghi chú · Nhấp đúp để mở tài liệu</div>`}
+    </div>
+    <aside class="neural-inspector">
+      ${selectedNode ? `
+        <header class="neural-inspector-head">
+          <div>
+            <small>NÚT NƠ-RON ĐANG CHỌN</small>
+            <strong>${esc(selectedNode.title || selectedNode.name)}</strong>
+            <code>${esc(selectedNode.path)}</code>
+          </div>
+        </header>
+        <div class="neural-inspector-actions">
+          <button type="button" class="button primary small" data-action="vault-open-from-graph" data-path="${esc(selectedNode.path)}">${icon("book-open-text", 13)} Đọc</button>
+          <button type="button" class="button quiet small" data-action="vault-edit-from-graph" data-path="${esc(selectedNode.path)}">${icon("square-pen", 13)} Sửa</button>
+          <button type="button" class="button quiet small" data-action="open-obsidian" data-path="${esc(selectedNode.path)}">Obsidian ${icon("arrow-up-right", 13)}</button>
+          <button type="button" class="button danger small" data-action="vault-delete-note" data-path="${esc(selectedNode.path)}">${icon("delete", 13)}</button>
+        </div>
+        ${selectedNode.tags?.length ? `<div class="neural-tag-list">${selectedNode.tags.map((t) => `<span>#${esc(t)}</span>`).join("")}</div>` : ""}
+        <div class="neural-connections-box">
+          <strong>Liên kết nơ-ron (${connectedNodes.length})</strong>
+          ${connectedNodes.length ? `<ul class="neural-connection-list">${connectedNodes.map(({ node, kind, label }) => `<li><button type="button" data-action="vault-select-graph-node" data-path="${esc(node.path)}"><span class="conn-dot is-${esc(kind)}"></span><strong>${esc(node.title || node.name)}</strong><small>${esc(label)}</small></button></li>`).join("")}</ul>` : `<p class="neural-muted">Chưa có liên kết trực tiếp. Thêm <code>[[Tên ghi chú]]</code> vào nội dung để tạo đường dẫn truyền nơ-ron.</p>`}
+        </div>
+        <div class="neural-excerpt-box">
+          <strong>Trích đoạn nội dung</strong>
+          <div class="markdown-preview">${view.vaultPreview?.content ? renderKnowledgeMarkdown(view.vaultPreview.content) : `<p class="neural-muted">${esc(selectedNode.excerpt || "Tệp Markdown đang trống.")}</p>`}</div>
+        </div>
+      ` : `
+        <div class="neural-inspector-empty">
+          ${icon("brain", 22)}
+          <strong>Chọn một nút nơ-ron</strong>
+          <p>Nhấp vào bất kỳ nút nào trên biểu đồ để xem các liên kết ngữ nghĩa, đọc nội dung hoặc chỉnh sửa trực tiếp.</p>
+          <button type="button" class="button primary small" data-action="vault-new-note">${icon("plus", 13)} Tạo ghi chú mới</button>
+        </div>
+      `}
+    </aside>
+  </div>`;
+}
+function mountKnowledgeGraphCanvas() {
+  if (neuralGraphCleanup) { neuralGraphCleanup(); neuralGraphCleanup = null; }
+  if (view.page !== "knowledge" || view.vaultViewMode !== "graph") return;
+  const canvas = document.getElementById("vault-neural-canvas");
+  if (!canvas) return;
+  const graph = view.vaultGraph || { nodes: [], edges: [] };
+  if (!graph.nodes?.length) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  view.vaultGraphPositions ||= new Map();
+  const simNodes = graph.nodes.map((n, i) => {
+    const saved = view.vaultGraphPositions.get(n.id);
+    const angle = (i / Math.max(1, graph.nodes.length)) * Math.PI * 2;
+    const radius = 90 + (i % 3) * 45;
+    return {
+      ...n,
+      x: saved ? saved.x : Math.cos(angle) * radius,
+      y: saved ? saved.y : Math.sin(angle) * radius,
+      vx: 0,
+      vy: 0,
+      radius: Math.min(14, 6.5 + Math.sqrt(n.degree || 0) * 2.2),
+    };
+  });
+  const nodeById = new Map(simNodes.map((n) => [n.id, n]));
+  const simEdges = (graph.edges || []).map((e) => ({
+    ...e,
+    sourceNode: nodeById.get(e.source),
+    targetNode: nodeById.get(e.target),
+  })).filter((e) => e.sourceNode && e.targetNode);
+
+  let camX = 0;
+  let camY = 0;
+  let camZoom = 1;
+  let hoveredNode = null;
+  let draggedNode = null;
+  let isPanning = false;
+  let panStartX = 0;
+  let panStartY = 0;
+  let pointerMoved = false;
+  let pulsePhase = 0;
+  let rafId = 0;
+  let cooling = 1.0;
+
+  const resize = () => {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  };
+  resize();
+  const ro = new ResizeObserver(resize);
+  ro.observe(canvas);
+
+  const screenToWorld = (sx, sy) => {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (sx - rect.width / 2 - camX) / camZoom,
+      y: (sy - rect.height / 2 - camY) / camZoom,
+    };
+  };
+
+  const findNodeAt = (sx, sy) => {
+    const { x, y } = screenToWorld(sx, sy);
+    for (let i = simNodes.length - 1; i >= 0; i -= 1) {
+      const n = simNodes[i];
+      const hitRadius = (n.radius + 6) / Math.max(0.5, camZoom);
+      const dx = x - n.x;
+      const dy = y - n.y;
+      if (dx * dx + dy * dy <= hitRadius * hitRadius) return n;
+    }
+    return null;
+  };
+
+  const stepPhysics = () => {
+    if (cooling < 0.01 && !draggedNode) return;
+    const count = simNodes.length;
+    for (let i = 0; i < count; i += 1) {
+      const a = simNodes[i];
+      a.vx -= a.x * 0.008 * cooling;
+      a.vy -= a.y * 0.008 * cooling;
+      for (let j = i + 1; j < count; j += 1) {
+        const b = simNodes[j];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let distSq = dx * dx + dy * dy;
+        if (distSq < 1) { dx = (Math.random() - 0.5) * 2; dy = (Math.random() - 0.5) * 2; distSq = dx * dx + dy * dy; }
+        const dist = Math.sqrt(distSq);
+        const repulse = (1800 / (distSq + 120)) * cooling;
+        const fx = (dx / dist) * repulse;
+        const fy = (dy / dist) * repulse;
+        a.vx -= fx; a.vy -= fy;
+        b.vx += fx; b.vy += fy;
+      }
+    }
+    for (const edge of simEdges) {
+      const a = edge.sourceNode;
+      const b = edge.targetNode;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const ideal = edge.kind === "link" ? 105 : edge.kind === "tag" ? 135 : 160;
+      const strength = edge.kind === "link" ? 0.045 : edge.kind === "tag" ? 0.025 : 0.014;
+      const force = (dist - ideal) * strength * cooling;
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      a.vx += fx; a.vy += fy;
+      b.vx -= fx; b.vy -= fy;
+    }
+    for (const n of simNodes) {
+      if (n === draggedNode) { n.vx = 0; n.vy = 0; continue; }
+      n.vx *= 0.82;
+      n.vy *= 0.82;
+      n.x += Math.max(-12, Math.min(12, n.vx));
+      n.y += Math.max(-12, Math.min(12, n.vy));
+      view.vaultGraphPositions.set(n.id, { x: n.x, y: n.y });
+    }
+    if (!draggedNode) cooling *= 0.985;
+  };
+
+  const draw = () => {
+    stepPhysics();
+    pulsePhase = (pulsePhase + 0.008) % 1;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const selectedId = view.vaultPreview?.path || "";
+    const activeId = hoveredNode?.id || selectedId;
+    const neighborIds = new Set();
+    if (activeId) {
+      neighborIds.add(activeId);
+      for (const e of simEdges) {
+        if (e.source === activeId) neighborIds.add(e.target);
+        if (e.target === activeId) neighborIds.add(e.source);
+      }
+    }
+
+    ctx.save();
+    ctx.translate(w / 2 + camX, h / 2 + camY);
+    ctx.scale(camZoom, camZoom);
+
+    for (let idx = 0; idx < simEdges.length; idx += 1) {
+      const e = simEdges[idx];
+      const a = e.sourceNode;
+      const b = e.targetNode;
+      const isHighlighted = activeId && (e.source === activeId || e.target === activeId);
+      const isDimmed = activeId && !isHighlighted;
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      if (isHighlighted) {
+        ctx.strokeStyle = e.kind === "link" ? "rgba(255, 255, 255, 0.72)" : e.kind === "tag" ? "rgba(167, 139, 250, 0.65)" : "rgba(148, 163, 184, 0.45)";
+        ctx.lineWidth = e.kind === "link" ? 1.8 : 1.3;
+      } else {
+        ctx.strokeStyle = isDimmed ? "rgba(255, 255, 255, 0.04)" : e.kind === "link" ? "rgba(255, 255, 255, 0.24)" : e.kind === "tag" ? "rgba(167, 139, 250, 0.22)" : "rgba(255, 255, 255, 0.1)";
+        ctx.lineWidth = e.kind === "link" ? 1.2 : 0.9;
+      }
+      ctx.stroke();
+
+      if (isHighlighted || (!activeId && e.kind === "link")) {
+        const t = (pulsePhase + (idx * 0.19)) % 1;
+        const px = a.x + (b.x - a.x) * t;
+        const py = a.y + (b.y - a.y) * t;
+        ctx.beginPath();
+        ctx.arc(px, py, isHighlighted ? 2.2 : 1.6, 0, Math.PI * 2);
+        ctx.fillStyle = isHighlighted ? "#ffffff" : "rgba(255, 255, 255, 0.55)";
+        ctx.fill();
+      }
+    }
+
+    for (const n of simNodes) {
+      const isSelected = n.id === selectedId;
+      const isHovered = n === hoveredNode;
+      const isNeighbor = neighborIds.has(n.id);
+      const isDimmed = activeId && !isNeighbor;
+
+      if (isSelected || isHovered) {
+        const halo = ctx.createRadialGradient(n.x, n.y, n.radius * 0.5, n.x, n.y, n.radius * 2.8);
+        halo.addColorStop(0, "rgba(255, 255, 255, 0.32)");
+        halo.addColorStop(1, "rgba(255, 255, 255, 0)");
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, n.radius * 2.8, 0, Math.PI * 2);
+        ctx.fillStyle = halo;
+        ctx.fill();
+      }
+
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
+      if (isSelected || isHovered) {
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.95)";
+        ctx.lineWidth = 2;
+      } else if (isDimmed) {
+        ctx.fillStyle = "rgba(113, 113, 122, 0.25)";
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+        ctx.lineWidth = 1;
+      } else {
+        ctx.fillStyle = n.degree > 1 ? "#e4e4e7" : "#a1a1aa";
+        ctx.strokeStyle = "rgba(24, 24, 27, 0.9)";
+        ctx.lineWidth = 1.5;
+      }
+      ctx.fill();
+      ctx.stroke();
+
+      if (!isDimmed || camZoom > 1.25) {
+        ctx.font = `${isSelected || isHovered ? "600" : "500"} 11.5px "Nunito Sans Variable", "Segoe UI", sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = isSelected || isHovered ? "#ffffff" : isDimmed ? "rgba(255, 255, 255, 0.22)" : "rgba(244, 244, 245, 0.86)";
+        ctx.fillText(n.stem || n.name, n.x, n.y + n.radius + 5);
+      }
+    }
+
+    ctx.restore();
+    rafId = requestAnimationFrame(draw);
+  };
+
+  const onPointerDown = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    pointerMoved = false;
+    const hit = findNodeAt(sx, sy);
+    if (hit) {
+      draggedNode = hit;
+      cooling = Math.max(cooling, 0.35);
+    } else {
+      isPanning = true;
+      panStartX = e.clientX - camX;
+      panStartY = e.clientY - camY;
+    }
+  };
+
+  const onPointerMove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    if (draggedNode) {
+      pointerMoved = true;
+      const world = screenToWorld(sx, sy);
+      draggedNode.x = world.x;
+      draggedNode.y = world.y;
+      view.vaultGraphPositions.set(draggedNode.id, { x: world.x, y: world.y });
+      cooling = Math.max(cooling, 0.25);
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+    if (isPanning) {
+      pointerMoved = true;
+      camX = e.clientX - panStartX;
+      camY = e.clientY - panStartY;
+      canvas.style.cursor = "grabbing";
+      return;
+    }
+    hoveredNode = findNodeAt(sx, sy);
+    canvas.style.cursor = hoveredNode ? "pointer" : "grab";
+  };
+
+  const onPointerUp = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    if (draggedNode && !pointerMoved) {
+      const targetPath = draggedNode.path;
+      draggedNode = null;
+      void loadVaultPreview(targetPath);
+      return;
+    }
+    draggedNode = null;
+    isPanning = false;
+    hoveredNode = findNodeAt(sx, sy);
+    canvas.style.cursor = hoveredNode ? "pointer" : "grab";
+  };
+
+  const onDblClick = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const hit = findNodeAt(e.clientX - rect.left, e.clientY - rect.top);
+    if (hit) {
+      view.vaultViewMode = "files";
+      void loadVaultPreview(hit.path);
+    }
+  };
+
+  const onWheel = (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.12 : 0.9;
+    camZoom = Math.max(0.35, Math.min(2.8, camZoom * factor));
+  };
+
+  const onReset = () => {
+    camX = 0; camY = 0; camZoom = 1; cooling = 0.8;
+  };
+
+  canvas.addEventListener("pointerdown", onPointerDown);
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", onPointerUp);
+  canvas.addEventListener("dblclick", onDblClick);
+  canvas.addEventListener("wheel", onWheel, { passive: false });
+  canvas.dataset.resetReady = "1";
+  canvas._resetCamera = onReset;
+
+  rafId = requestAnimationFrame(draw);
+  neuralGraphCleanup = () => {
+    cancelAnimationFrame(rafId);
+    ro.disconnect();
+    canvas.removeEventListener("pointerdown", onPointerDown);
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    canvas.removeEventListener("dblclick", onDblClick);
+    canvas.removeEventListener("wheel", onWheel);
+  };
 }
 function projectDetailPage(workspace) {
   const dirs = view.workspaceDir.split("/").filter(Boolean);
@@ -451,9 +875,13 @@ function projectDetailPage(workspace) {
 }
 function knowledgePage() {
   const vaultPath = view.state.settings.vaultPath || "";
-  if (!vaultPath) return `<div class="page-head"><div><div class="eyebrow">OBSIDIAN · LOCAL VAULT</div><h1>Tri thức</h1><p>Kết nối vault để duyệt và đọc ghi chú Markdown trực tiếp trên máy.</p></div></div><section class="empty-state knowledge-empty"><strong>Chưa kết nối Obsidian vault</strong><p>OpenSybau chỉ đọc thư mục bạn chỉ định; nội dung không được đưa vào prompt tự động.</p><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></section>`;
-  return `<div class="page-head"><div><div class="eyebrow">OBSIDIAN · LOCAL VAULT</div><h1>Tri thức</h1><p title="${esc(vaultPath)}">${esc(vaultPath)}</p></div><div class="page-head-actions"><button class="button quiet" data-action="disconnect-vault">Ngắt vault</button><button class="button" data-action="connect-vault">Đổi vault</button></div></div>
-  <section class="file-workbench knowledge-workbench"><aside class="file-browser"><header><strong>Ghi chú</strong><button class="icon-button" data-action="refresh-vault-files" title="Tải lại ghi chú">${icon("refresh-cw", 15)}</button></header><label class="skill-search"><span>${icon("search", 15)}</span><input type="search" data-file-filter="vault" placeholder="Tìm ghi chú trong thư mục này…" autocomplete="off"></label><nav class="file-breadcrumbs">${breadcrumbButtons(view.vaultDir, "vault-dir")}</nav><ul class="file-list">${view.vaultDir ? `<li><button class="file-row parent" data-action="vault-up"><span>${icon("chevron-right", 14)}</span><strong>Thư mục cha</strong></button></li>` : ""}${localFileRows(view.vaultEntries, "vault-file-action", view.vaultFilter || "")}</ul></aside><section class="file-preview">${filePreviewMarkup(view.vaultPreview, "Chọn ghi chú để đọc · không nạp tự động vào AI")}</section></section>`;
+  if (!vaultPath) return `<div class="page-head"><div><div class="eyebrow">OBSIDIAN · LOCAL VAULT</div><h1>Tri thức</h1><p>Kết nối vault để duyệt, chỉnh sửa ghi chú Markdown và khám phá biểu đồ nơ-ron tri thức trực tiếp trên máy.</p></div></div><section class="empty-state knowledge-empty"><strong>Chưa kết nối Obsidian vault</strong><p>OpenSybau chỉ đọc/ghi thư mục bạn chỉ định; nội dung không được đưa vào prompt tự động.</p><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></section>`;
+  const mode = view.vaultViewMode || "files";
+  const graphCount = view.vaultGraph?.nodes?.length || 0;
+  return `<div class="page-head"><div><div class="eyebrow">OBSIDIAN · LOCAL VAULT</div><h1>Tri thức</h1><p title="${esc(vaultPath)}">${esc(vaultPath)}</p></div><div class="page-head-actions"><div class="vault-mode-tabs" role="tablist" aria-label="Chế độ xem Tri thức"><button type="button" class="vault-mode-tab ${mode === "files" ? "is-active" : ""}" data-action="vault-mode" data-mode="files">${icon("book-open-text", 14)}<span>Ghi chú &amp; Soạn thảo</span></button><button type="button" class="vault-mode-tab ${mode === "graph" ? "is-active" : ""}" data-action="vault-mode" data-mode="graph">${icon("brain", 14)}<span>Mạng nơ-ron tri thức${graphCount ? ` (${graphCount})` : ""}</span></button></div><button class="button primary" data-action="vault-new-note">${icon("plus", 14)} Tạo ghi chú</button><button class="button quiet" data-action="open-obsidian" data-path="${esc(view.vaultPreview?.path || "")}">Mở Obsidian ${icon("arrow-up-right", 13)}</button><button class="button quiet" data-action="disconnect-vault">Ngắt vault</button><button class="button" data-action="connect-vault">Đổi vault</button></div></div>
+  ${mode === "graph"
+    ? knowledgeGraphPaneMarkup()
+    : `<section class="file-workbench knowledge-workbench"><aside class="file-browser"><header><strong>Ghi chú</strong><div class="file-browser-head-actions"><button class="icon-button" data-action="vault-new-note" title="Tạo ghi chú mới">${icon("plus", 15)}</button><button class="icon-button" data-action="refresh-vault-files" title="Tải lại ghi chú">${icon("refresh-cw", 15)}</button></div></header><label class="skill-search"><span>${icon("search", 15)}</span><input type="search" data-file-filter="vault" placeholder="Tìm ghi chú trong thư mục này…" autocomplete="off"></label><nav class="file-breadcrumbs">${breadcrumbButtons(view.vaultDir, "vault-dir")}</nav><ul class="file-list">${view.vaultDir ? `<li><button class="file-row parent" data-action="vault-up"><span>${icon("chevron-right", 14)}</span><strong>Thư mục cha</strong></button></li>` : ""}${localFileRows(view.vaultEntries, "vault-file-action", view.vaultFilter || "")}</ul></aside><section class="file-preview">${filePreviewMarkup(view.vaultPreview, "Chọn ghi chú để đọc hoặc chỉnh sửa · không nạp tự động vào AI")}</section></section>`}`;
 }
 function skillPage() {
   const sources = new Set(view.skills.flatMap((skill) => skill.sources || [skill.source])).size;
@@ -807,6 +1235,7 @@ function render() {
     }
   }
   if (view.page === "skills") applySkillFilter($("[data-skill-filter=library]", nextContent));
+  mountKnowledgeGraphCanvas();
   const overlay = $("#overlay");
   if (!overlay.querySelector(".modal")) {
     overlay.innerHTML = "";
@@ -1802,6 +2231,18 @@ async function handleSubmit(event) {
     } else if (form.dataset.form === "vault") {
       await api("/api/settings", { method: "POST", body: JSON.stringify({ vaultPath: object.vaultPath }) });
       view.page = "knowledge"; view.vaultDir = ""; view.vaultPreview = null; showToast("Đã kết nối Obsidian vault.");
+    } else if (form.dataset.form === "vault-note-create") {
+      const created = await api("/api/vault/file", { method: "POST", body: JSON.stringify({ path: object.notePath, content: object.content, createOnly: true }) });
+      $("#overlay").innerHTML = "";
+      view.page = "knowledge";
+      const folder = created.path.includes("/") ? created.path.slice(0, created.path.lastIndexOf("/")) : "";
+      await loadVaultDir(folder, { keepPreview: true });
+      view.vaultPreview = created;
+      view.vaultEditing = false;
+      view.vaultEditingPath = "";
+      render();
+      showToast("Đã tạo ghi chú tri thức mới.");
+      return;
     } else if (form.dataset.form === "dismiss") {
       // Informational modal; its primary action only closes the dialog.
     } else {
@@ -2385,12 +2826,96 @@ async function handleWorkbenchClick(event) {
       if (entry?.type === "directory") await loadVaultDir(entry.path);
       else if (entry) await loadVaultPreview(entry.path);
     }
-    if (action === "refresh-vault-files") await loadVaultDir(view.vaultDir);
+    if (action === "refresh-vault-files") await loadVaultDir(view.vaultDir, { keepPreview: true });
+    if (action === "vault-mode") {
+      view.vaultViewMode = button.dataset.mode || "files";
+      if (view.vaultViewMode === "graph" && !view.vaultGraph) await loadVaultGraph();
+      else render();
+    }
+    if (action === "refresh-vault-graph") await loadVaultGraph();
+    if (action === "neural-graph-reset") {
+      const canvas = document.getElementById("vault-neural-canvas");
+      if (canvas?._resetCamera) canvas._resetCamera();
+    }
+    if (action === "vault-select-graph-node") {
+      if (button.dataset.path) await loadVaultPreview(button.dataset.path);
+    }
+    if (action === "vault-open-from-graph") {
+      view.vaultViewMode = "files";
+      if (button.dataset.path) await loadVaultPreview(button.dataset.path);
+      else render();
+    }
+    if (action === "vault-edit-from-graph") {
+      view.vaultViewMode = "files";
+      if (button.dataset.path) await loadVaultPreview(button.dataset.path, { startEdit: true });
+    }
+    if (action === "vault-new-note") showNewVaultNoteModal();
+    if (action === "vault-edit-note") {
+      const path = button.dataset.path || view.vaultPreview?.path;
+      if (path) await loadVaultPreview(path, { startEdit: true });
+    }
+    if (action === "vault-cancel-edit") {
+      view.vaultEditing = false;
+      view.vaultEditingPath = "";
+      view.vaultDraft = view.vaultPreview?.content || "";
+      render();
+    }
+    if (action === "vault-save-note") {
+      const path = button.dataset.path || view.vaultEditingPath || view.vaultPreview?.path;
+      const editorEl = document.querySelector("[data-vault-editor]");
+      const content = editorEl ? editorEl.value : (view.vaultDraft ?? "");
+      if (path) {
+        const saved = await api("/api/vault/file", { method: "PUT", body: JSON.stringify({ path, content }) });
+        view.vaultPreview = saved;
+        view.vaultEditing = false;
+        view.vaultEditingPath = "";
+        view.vaultDraft = saved.content;
+        await loadVaultDir(view.vaultDir, { keepPreview: true });
+        showToast("Đã lưu ghi chú tri thức.");
+      }
+    }
+    if (action === "vault-delete-note") {
+      const path = button.dataset.path || view.vaultPreview?.path;
+      if (path && confirm(`Xóa vĩnh viễn tệp ghi chú “${path}” khỏi Obsidian vault?`)) {
+        await api(`/api/vault/file?path=${encodeURIComponent(path)}`, { method: "DELETE" });
+        if (view.vaultPreview?.path === path) {
+          view.vaultPreview = null;
+          view.vaultEditing = false;
+          view.vaultEditingPath = "";
+        }
+        await loadVaultDir(view.vaultDir, { keepPreview: true });
+        showToast("Đã xóa tệp ghi chú khỏi vault.");
+      }
+    }
+    if (action === "vault-open-wikilink") {
+      const target = (button.dataset.target || "").trim();
+      if (target) {
+        const nodes = view.vaultGraph?.nodes || [];
+        const lower = target.toLowerCase().replace(/\.(md|mdx|markdown)$/i, "");
+        const match = nodes.find((n) => n.path.toLowerCase() === target.toLowerCase() || n.path.replace(/\.(md|mdx|markdown)$/i, "").toLowerCase() === lower || n.stem.toLowerCase() === lower.split("/").at(-1));
+        if (match) {
+          await loadVaultPreview(match.path);
+        } else {
+          const candidatePath = /\.(md|mdx|markdown)$/i.test(target) ? target : `${target}.md`;
+          try {
+            await loadVaultPreview(candidatePath);
+          } catch {
+            if (confirm(`Ghi chú “${candidatePath}” chưa tồn tại. Tạo mới ngay?`)) {
+              const created = await api("/api/vault/file", { method: "POST", body: JSON.stringify({ path: candidatePath, content: `# ${target.replace(/\.(md|mdx|markdown)$/i, "")}\n\n`, createOnly: true }) });
+              await loadVaultDir(view.vaultDir, { keepPreview: true });
+              view.vaultPreview = created;
+              view.vaultEditing = true;
+              view.vaultEditingPath = created.path;
+              view.vaultDraft = created.content;
+              render();
+            }
+          }
+        }
+      }
+    }
     if (action === "open-obsidian") {
-      const vaultPath = view.state.settings.vaultPath || "";
-      const vaultName = vaultPath.split(/[\\/]/).filter(Boolean).at(-1) || "";
-      const uri = `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(button.dataset.path || "")}`;
-      window.location.href = uri;
+      await api("/api/vault/open-obsidian", { method: "POST", body: JSON.stringify({ path: button.dataset.path || view.vaultPreview?.path || "" }) });
+      showToast("Đang mở trong ứng dụng Obsidian…");
     }
     if (action === "view-skill") await showSkillView(id);
     if (action === "edit-skill") await showSkillEdit(id);
@@ -2525,6 +3050,11 @@ document.addEventListener("input", (event) => {
     const query = fileInput.value.trim().toLocaleLowerCase();
     const list = fileInput.closest(".file-browser")?.querySelector(".file-list");
     list?.querySelectorAll("[data-file-entry]").forEach((entry) => { entry.hidden = !entry.textContent.toLocaleLowerCase().includes(query); });
+    return;
+  }
+  const vaultEditor = event.target.closest("[data-vault-editor]");
+  if (vaultEditor) {
+    view.vaultDraft = vaultEditor.value;
     return;
   }
   const input = event.target.closest("[data-skill-filter]");
@@ -2667,6 +3197,11 @@ document.addEventListener("change", (event) => {
   if (event.target.matches("[data-chat-effort]")) { view.chatEffort = event.target.value; }
 });
 document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && view.page === "knowledge" && view.vaultEditing) {
+    event.preventDefault();
+    document.querySelector("[data-action='vault-save-note']")?.click();
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault(); view.page = "chat"; view.selected = null; view.chatDraft = ""; render(); $(`[data-home-prompt]`)?.focus({ preventScroll: true }); return;
   }
