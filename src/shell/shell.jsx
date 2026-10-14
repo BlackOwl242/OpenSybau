@@ -59,20 +59,100 @@ function StatusBar({ snapshot }) {
   </footer>;
 }
 
+function WindowChrome({ snapshot, sidebarCollapsed, onToggleSidebar }) {
+  const desktop = typeof window !== "undefined" ? window.opensybauDesktop : null;
+  const [updateState, setUpdateState] = useState(null);
+  useEffect(() => {
+    if (!desktop?.supportsAutoUpdate) return undefined;
+    let active = true;
+    const unsubscribe = desktop.onUpdateState((state) => { if (active) setUpdateState(state); });
+    desktop.getUpdateState().then((state) => { if (active) setUpdateState(state); }).catch(() => {});
+    return () => { active = false; unsubscribe?.(); };
+  }, [desktop]);
+
+  const updateDownloaded = updateState?.status === "downloaded";
+  const updateBusy = ["checking", "available", "downloading"].includes(updateState?.status);
+  const updateLabel = updateDownloaded
+    ? snapshot.language === "en" ? "Restart to update" : "Khởi động lại để cập nhật"
+    : updateState?.status === "downloading"
+      ? `${updateState.percent || 0}%`
+      : updateBusy
+        ? "..."
+        : snapshot.language === "en" ? "Update" : "Cập nhật";
+
+  return <header class="wb-window-chrome" aria-label="Thanh tiêu đề cửa sổ">
+    <div class="wb-window-chrome-left">
+      <button type="button" class="wb-chrome-icon" data-page="chat" title="Quay về màn hình chính" aria-label="Quay lại">
+        <Icon name="arrow-left" size={14} />
+      </button>
+      <button type="button" class="wb-chrome-icon" data-page="tasks" title="Danh sách tác vụ" aria-label="Tiến tới">
+        <Icon name="arrow-right" size={14} />
+      </button>
+      <button
+        type="button"
+        class={`wb-chrome-icon ${!sidebarCollapsed ? "is-active" : ""}`}
+        onClick={onToggleSidebar}
+        title="Đóng/mở thanh bên trái"
+        aria-label="Đóng/mở thanh bên trái"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="3" />
+          <line x1="9" y1="4" x2="9" y2="20" />
+        </svg>
+      </button>
+      <nav class="wb-chrome-menu" aria-label="Menu nhanh">
+        <button type="button" class="wb-chrome-menu-item" data-action="add-workspace">Dự án</button>
+        <button type="button" class="wb-chrome-menu-item" data-page="tasks">Tác vụ</button>
+        <button type="button" class="wb-chrome-menu-item" data-page="skills">Skills</button>
+        <button type="button" class="wb-chrome-menu-item" data-page="settings">Cài đặt</button>
+      </nav>
+    </div>
+    <div class="wb-window-chrome-right">
+      <button class="wb-chrome-pill" type="button" data-action="toggle-language" title="Chuyển ngôn ngữ VI / EN">
+        {snapshot.language === "en" ? "VI" : "EN"}
+      </button>
+      {desktop?.supportsAutoUpdate ? (
+        <button
+          class={`wb-chrome-pill ${updateDownloaded ? "is-ready" : ""}`}
+          type="button"
+          data-action={updateDownloaded ? "app-update-restart" : "app-update-check"}
+          disabled={updateBusy}
+          title={updateState?.status === "error" ? updateState.error : "Kiểm tra bản cập nhật mới"}
+        >
+          <Icon name={updateDownloaded ? "rotate-cw" : "download-cloud"} size={12} />
+          <span>{updateLabel}</span>
+        </button>
+      ) : null}
+    </div>
+  </header>;
+}
+
 export function AppShell({ snapshot, pageMarkup }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const page = snapshot.page || "chat";
   const home = page === "chat" && !snapshot.selected;
-  const hasContextSidebar = pageLayouts[page]?.sidebar === "context";
+  const hasContextSidebar = pageLayouts[page]?.sidebar === "context" && !sidebarCollapsed;
   const hasPageSidebar = Boolean(snapshot.pageSidebarMarkup);
-  const shellClasses = ["wb-app-shell", hasContextSidebar && "has-context-sidebar", hasPageSidebar && "has-page-sidebar", hasContextSidebar && hasPageSidebar && "has-both-sidebars"].filter(Boolean).join(" ");
+  const shellClasses = [
+    "wb-app-shell",
+    hasContextSidebar && "has-context-sidebar",
+    hasPageSidebar && "has-page-sidebar",
+    hasContextSidebar && hasPageSidebar && "has-both-sidebars",
+    sidebarCollapsed && "is-sidebar-collapsed",
+  ].filter(Boolean).join(" ");
   useEffect(() => { setMobileSidebarOpen(false); }, [page, snapshot.selected]);
   return <div class={shellClasses}>
+    <WindowChrome
+      snapshot={snapshot}
+      sidebarCollapsed={sidebarCollapsed}
+      onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+    />
     <NavRail page={page} snapshot={snapshot} />
     <ContextSidebar snapshot={snapshot} mobileOpen={mobileSidebarOpen} mobileOnly={!hasContextSidebar} onNavigate={() => setMobileSidebarOpen(false)} />
     {mobileSidebarOpen ? <button class="wb-mobile-sidebar-backdrop" type="button" aria-label="Đóng danh sách workspace" onClick={() => setMobileSidebarOpen(false)} /> : null}
     {hasPageSidebar && <aside class="wb-page-sidebar" dangerouslySetInnerHTML={{ __html: snapshot.pageSidebarMarkup }} />}
-    <main class="wb-main">
+    <main class={`wb-main ${home ? "is-home-stage" : ""}`}>
       <TopBar snapshot={snapshot} onOpenNavigation={() => setMobileSidebarOpen(true)} />
       <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${page === "chat" && snapshot.selected ? "is-task-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
       <StatusBar snapshot={snapshot} />

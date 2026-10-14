@@ -1,8 +1,10 @@
-const { app, BrowserWindow, dialog, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, promises: fs } = require("node:fs");
 const path = require("node:path");
 const { findDesktopAntigravityPath } = require("./antigravity-path.cjs");
+
+nativeTheme.themeSource = "dark";
 
 const externalHosts = new Set(["developers.openai.com", "platform.openai.com", "code.claude.com", "console.anthropic.com", "antigravity.google", "aistudio.google.com"]);
 let mainWindow;
@@ -96,8 +98,18 @@ async function createMainWindow() {
     minWidth: 960,
     minHeight: 640,
     icon: windowIconPath,
-    backgroundColor: process.platform === "win32" ? "#00000000" : "#1b1c1d",
-    ...(process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
+    backgroundColor: process.platform === "win32" ? "#00000000" : "#111214",
+    ...(process.platform === "win32"
+      ? {
+          backgroundMaterial: "acrylic",
+          titleBarStyle: "hidden",
+          titleBarOverlay: {
+            color: "#00000000",
+            symbolColor: "#d4d4d8",
+            height: 38,
+          },
+        }
+      : {}),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),

@@ -150,40 +150,48 @@ function SideContent({ snapshot }) {
     if (!tasksByWorkspace.has(task.workspaceId)) tasksByWorkspace.set(task.workspaceId, []);
     tasksByWorkspace.get(task.workspaceId).push(task);
   });
-  const sections = new Map();
-  [...workspaces]
-    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || a.name.localeCompare(b.name))
-    .forEach((workspace) => {
-      const section = workspace.section || "Projects";
-      if (!sections.has(section)) sections.set(section, []);
-      sections.get(section).push(workspace);
-    });
-  const recent = [...tasks].filter((task) => !task.archived)
-    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
-    .slice(0, 12);
-  const archived = [...tasks].filter((task) => task.archived)
+  const sortedWorkspaces = [...workspaces].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || a.name.localeCompare(b.name));
+  const pinnedTasks = [...tasks]
+    .filter((task) => !task.archived && task.pinned)
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+  const recent = [...tasks]
+    .filter((task) => !task.archived && !task.pinned)
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt))
+    .slice(0, 14);
+  const archived = [...tasks]
+    .filter((task) => task.archived)
     .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
 
   return <>
-    <div class="wb-side-heading"><span>Workspace</span><button class="wb-small-icon" data-action="add-workspace" title="Thêm workspace" aria-label="Thêm workspace"><Icon name="plus" size={16} /></button></div>
+    {pinnedTasks.length ? <>
+      <div class="wb-side-heading"><span>Đã ghim</span></div>
+      <div class="wb-side-list wb-recent-list">
+        {pinnedTasks.map((task) => <TaskLink key={task.id} task={task} selected={snapshot.selected} taskMenuId={snapshot.taskMenuId} menuKey={`pinned:${task.id}`} />)}
+      </div>
+    </> : null}
+
+    <div class="wb-side-heading wb-projects-heading">
+      <button type="button" class="wb-side-heading-btn" data-action="add-workspace" title="Thêm hoặc quản lý dự án">
+        <span>Dự án</span>
+        <Icon name="chevron-right" size={12} />
+      </button>
+      <button class="wb-small-icon" data-action="add-workspace" title="Thêm thư mục dự án" aria-label="Thêm thư mục dự án"><Icon name="plus" size={14} /></button>
+    </div>
     <div class="wb-side-list wb-workspace-list">
-      {workspaces.length ? [...sections.entries()].map(([section, items]) => <div class="wb-project-section" key={section}>
-        <div class="wb-project-section-title">{section}</div>
-        {items.map((workspace) => <WorkspaceGroup
-          key={workspace.id}
-          workspace={workspace}
-          tasks={tasksByWorkspace.get(workspace.id) || []}
-          selected={snapshot.selected}
-          collapsedWorkspaces={collapsedWorkspaces}
-          projectMenuId={snapshot.projectMenuId}
-          taskMenuId={snapshot.taskMenuId}
-        />)}
-      </div>) : <div class="wb-side-empty"><span>Chưa có workspace</span><button data-action="add-workspace">Thêm workspace</button></div>}
+      {sortedWorkspaces.length ? sortedWorkspaces.map((workspace) => <WorkspaceGroup
+        key={workspace.id}
+        workspace={workspace}
+        tasks={tasksByWorkspace.get(workspace.id) || []}
+        selected={snapshot.selected}
+        collapsedWorkspaces={collapsedWorkspaces}
+        projectMenuId={snapshot.projectMenuId}
+        taskMenuId={snapshot.taskMenuId}
+      />) : <button type="button" class="wb-side-ghost-empty" data-action="add-workspace"><Icon name="folder-open" size={14} /><span>Thêm thư mục dự án…</span></button>}
     </div>
 
     <div class="wb-side-heading wb-recent-heading"><span>Gần đây</span></div>
     <div class="wb-side-list wb-recent-list">
-      {recent.length ? recent.map((task) => <TaskLink key={task.id} task={task} selected={snapshot.selected} taskMenuId={snapshot.taskMenuId} menuKey={`recent:${task.id}`} />) : <div class="wb-side-empty wb-recent-empty">Chưa có cuộc trò chuyện</div>}
+      {recent.length ? recent.map((task) => <TaskLink key={task.id} task={task} selected={snapshot.selected} taskMenuId={snapshot.taskMenuId} menuKey={`recent:${task.id}`} />) : <div class="wb-side-muted-note">Chưa có cuộc trò chuyện</div>}
     </div>
     {archived.length ? <>
       <div class="wb-side-heading wb-archived-heading"><span>Đã lưu trữ</span></div>
@@ -193,16 +201,49 @@ function SideContent({ snapshot }) {
 }
 
 export function ContextSidebar({ snapshot, mobileOpen = false, mobileOnly = false, onNavigate = () => {} }) {
+  const hasQuery = Boolean((snapshot.searchQuery || "").trim());
   return <aside class={`wb-context-sidebar ${mobileOnly ? "is-mobile-only" : ""} ${mobileOpen ? "is-mobile-open" : ""}`} aria-label="Workspace và cuộc trò chuyện" onClick={(event) => {
+    const searchToggle = event.target.closest("[data-toggle-sidebar-search]");
+    if (searchToggle) {
+      const aside = searchToggle.closest(".wb-context-sidebar");
+      const wrap = aside?.querySelector(".wb-sidebar-search");
+      if (wrap) {
+        const nextHidden = !wrap.hasAttribute("data-open") && !hasQuery;
+        if (nextHidden) {
+          wrap.setAttribute("data-open", "true");
+          wrap.querySelector("input")?.focus();
+        } else {
+          wrap.removeAttribute("data-open");
+        }
+      }
+      return;
+    }
     if (event.target.closest("[data-page], [data-task], [data-action='new-chat'], [data-action='add-workspace'], [data-action='edit-project']")) onNavigate();
   }}>
-    <header class="wb-sidebar-header"><strong>OpenSybau</strong><button class="wb-sidebar-close" type="button" onClick={onNavigate} aria-label="Đóng danh sách"><Icon name="x" size={18} /></button></header>
-    <label class="wb-sidebar-search">
-      <Icon name="search" size={16} />
-      <input data-home-search value={snapshot.searchQuery || ""} placeholder="Tìm cuộc trò chuyện" autoComplete="off" aria-label="Tìm task, chat hoặc workspace" />
-      <div class="home-search-results wb-search-results" data-home-search-results hidden={!(snapshot.searchQuery || "").trim()}>{snapshot.searchResults || ""}</div>
+    <header class="wb-sidebar-header">
+      <button type="button" class="wb-sidebar-brand" data-page="chat">
+        <strong>OpenSybau</strong>
+        <Icon name="chevron-down" size={13} />
+      </button>
+      <div class="wb-sidebar-header-actions">
+        <button class="wb-sidebar-icon-btn" type="button" data-toggle-sidebar-search title="Tìm kiếm cuộc trò chuyện" aria-label="Tìm kiếm">
+          <Icon name="search" size={15} />
+        </button>
+        <button class="wb-sidebar-icon-btn" type="button" data-action="add-workspace" title="Thêm dự án mới" aria-label="Thêm dự án">
+          <Icon name="plus" size={15} />
+        </button>
+        <button class="wb-sidebar-close" type="button" onClick={onNavigate} aria-label="Đóng danh sách"><Icon name="x" size={18} /></button>
+      </div>
+    </header>
+    <label class="wb-sidebar-search" data-open={hasQuery ? "true" : undefined}>
+      <Icon name="search" size={14} />
+      <input data-home-search value={snapshot.searchQuery || ""} placeholder="Tìm cuộc trò chuyện…" autoComplete="off" aria-label="Tìm task, chat hoặc workspace" />
+      <div class="home-search-results wb-search-results" data-home-search-results hidden={!hasQuery}>{snapshot.searchResults || ""}</div>
     </label>
-    <button class="wb-new-chat" data-action="new-chat" data-workspace-id={snapshot.homeWorkspaceId || ""}><Icon name="square-terminal" size={16} /><span>Cuộc trò chuyện mới</span></button>
+    <button class="wb-new-chat" data-action="new-chat" data-workspace-id={snapshot.homeWorkspaceId || ""}>
+      <Icon name="square-pen" size={15} />
+      <span>Cuộc trò chuyện mới</span>
+    </button>
     <div class="wb-side-scroll"><SideContent snapshot={snapshot} /></div>
   </aside>;
 }
