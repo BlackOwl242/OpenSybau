@@ -468,6 +468,18 @@ const english = {
   "Khóa API và cấu hình điều phối chỉ lưu cục bộ trên máy này.": "API keys and orchestration settings are stored locally on this computer only.",
   "plugin đã cài": "installed plugin",
   "bản tùy chỉnh": "custom",
+  "Nhấp vào một phần tử trên trang để thêm nhận xét cho Agent.": "Click an element to add feedback for the agent.",
+  "Nhập nhận xét hoặc yêu cầu chỉnh sửa phần tử này cho Agent…": "Add feedback or instructions for the agent on this element…",
+  "Chọn phần tử HTML trên trang": "Select an HTML element on the page",
+  "Nhấp vào phần tử để gửi nhận xét cho Agent": "Click an element to send feedback to the agent",
+  "Thoát chế độ chọn phần tử (Esc)": "Exit element selection mode (Esc)",
+  "Đóng khung nhận xét": "Close feedback popover",
+  "Chọn Agent & Model xử lý": "Choose Agent & Model to handle this",
+  "Phần tử HTML": "HTML element",
+  "Nhập nhận xét cho phần tử này trước khi gửi.": "Enter feedback for this element before sending.",
+  "Hãy chọn một dự án trước khi gửi nhận xét phần tử.": "Select a project before sending element feedback.",
+  "Đã thêm nhận xét phần tử vào hàng chờ của Agent.": "Added element feedback to the agent queue.",
+  "Đã gửi nhận xét phần tử cho Agent xử lý.": "Sent element feedback to the agent.",
 };
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));

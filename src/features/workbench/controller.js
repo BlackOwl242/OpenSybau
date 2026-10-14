@@ -1064,6 +1064,137 @@ function formatCompactBytes(bytes) {
   return `${(n / (1024 * 1024)).toFixed(1).replace(/\.0$/, "")} MB`;
 }
 
+function resolveHtmlCommentAgentSelection() {
+  const activeTask = view.page === "chat" && view.selected ? (view.state?.tasks || []).find((t) => t.id === view.selected) : null;
+  const wf = activeTask?.config?.workflow || "chat-only";
+  const fallbackProvider = view.stageHtmlCommentProvider
+    || view.chatProvider
+    || (activeTask ? (wf === "chat-only" ? activeTask.config?.chatProvider : roleConfig(activeTask.config, "build")?.provider || roleConfig(activeTask.config, "plan")?.provider) : "")
+    || view.homeChatProvider
+    || view.state?.settings?.defaults?.chatProvider
+    || "codex";
+
+  const availableEntries = Object.entries(view.connectors || {}).filter(([, conn]) => conn?.available && conn?.capabilities?.chat);
+  const chosenEntry = availableEntries.find(([id]) => id === fallbackProvider) || availableEntries[0] || ["codex", view.connectors?.codex || {}];
+  const provider = chosenEntry[0];
+  const conn = chosenEntry[1] || {};
+  const models = conn.models?.length ? conn.models : [{ id: "", name: conn.name || providerTitle(view.connectors, provider), efforts: ["low", "medium", "high"] }];
+  const fallbackModelId = view.stageHtmlCommentModel || view.chatModel || activeTask?.config?.chatModel || view.homeChatModel || models[0]?.id || "";
+  const modelObj = models.find((m) => m.id === fallbackModelId) || models[0] || { id: "", name: provider, efforts: ["low", "medium", "high"] };
+  const model = modelObj.id || "";
+  const effortsList = modelObj.efforts?.length ? modelObj.efforts : ["low", "medium", "high"];
+  const fallbackEffort = view.stageHtmlCommentEffort || view.chatEffort || activeTask?.config?.chatEffort || view.homeChatEffort || "medium";
+  const effort = effortsList.includes(fallbackEffort) ? fallbackEffort : (effortsList.includes("medium") ? "medium" : effortsList[0] || "medium");
+
+  const effortDisplay = { low: "Low", medium: "Medium", high: "High", minimal: "Min", standard: "Std", max: "Max", xhigh: "xHigh", ultra: "Ultra" };
+  const optgroups = availableEntries.map(([provId, c]) => {
+    const provName = providerTitle(view.connectors, provId);
+    const provModels = c.models?.length ? c.models : [{ id: "", name: c.name || provName }];
+    const options = provModels.map((m) => {
+      const val = `${provId}::${m.id || ""}`;
+      const selected = provId === provider && (m.id || "") === model;
+      const title = m.name || m.id || provName;
+      return `<option value="${esc(val)}" ${selected ? "selected" : ""}>${esc(`${provName} · ${title}`)}</option>`;
+    }).join("");
+    return `<optgroup label="${esc(provName)}">${options}</optgroup>`;
+  }).join("");
+
+  const effortOptionsMarkup = effortsList.map((ef) => `<option value="${esc(ef)}" ${ef === effort ? "selected" : ""}>${esc(effortDisplay[ef] || ef)}</option>`).join("");
+
+  return {
+    provider,
+    model,
+    effort,
+    agentOptionsMarkup: optgroups || `<option value="codex::">Codex</option>`,
+    effortOptionsMarkup,
+  };
+}
+
+function renderHtmlElementCommentPopoverMarkup(tab) {
+  const el = view.stageHtmlSelectedElement;
+  if (!el) return "";
+  const { agentOptionsMarkup, effortOptionsMarkup } = resolveHtmlCommentAgentSelection();
+  const r = el.rect || {};
+  const vw = r.viewportWidth || 800;
+  const vh = r.viewportHeight || 600;
+  const popWidth = 370;
+  const popHeight = 190;
+  let left = Math.max(12, Math.min((r.left || 24), Math.max(12, vw - popWidth - 16)));
+  let top = (r.bottom || 80) + 10;
+  if (top + popHeight > vh - 12 && (r.top || 0) > popHeight + 16) {
+    top = Math.max(12, (r.top || 80) - popHeight - 10);
+  } else {
+    top = Math.max(12, Math.min(top, Math.max(12, vh - popHeight - 12)));
+  }
+
+  return `<div class="orca-element-comment-popover" style="top:${Math.round(top)}px;left:${Math.round(left)}px;">
+    <header class="orca-el-pop-head">
+      <div class="orca-el-pop-title">
+        <span class="orca-el-tag">&lt;${esc(el.tagName || "div")}&gt;</span>
+        <strong title="${esc(el.label || el.selector || "")}">${esc(el.label || el.selector || "Phần tử HTML")}</strong>
+      </div>
+      <button type="button" class="icon-button orca-el-pop-close" data-action="cancel-html-element-comment" title="Đóng khung nhận xét">${icon("x", 13)}</button>
+    </header>
+    <div class="orca-el-pop-meta">
+      <code title="${esc(el.selector || "")}">${esc(el.selector || `<${el.tagName || "element"}>`)}</code>
+      ${tab?.path ? `<span>@${esc(tab.path)}</span>` : ""}
+    </div>
+    <textarea class="orca-el-comment-input" data-html-element-comment-input rows="2" placeholder="Nhập nhận xét hoặc yêu cầu chỉnh sửa phần tử này cho Agent…">${esc(view.stageHtmlCommentDraft || "")}</textarea>
+    <footer class="orca-el-pop-foot">
+      <div class="orca-el-agent-bar">
+        <select class="orca-el-agent-select" data-html-comment-agent title="Chọn Agent & Model xử lý">${agentOptionsMarkup}</select>
+        <select class="orca-el-effort-select" data-html-comment-effort title="Mức suy luận">${effortOptionsMarkup}</select>
+      </div>
+      <div class="orca-el-pop-actions">
+        <button type="button" class="button quiet small" data-action="cancel-html-element-comment">Hủy</button>
+        <button type="button" class="button primary small" data-action="send-html-element-comment">${icon("arrow-up-right", 12)}<span>Gửi</span></button>
+      </div>
+    </footer>
+  </div>`;
+}
+
+function syncHtmlInspectUi({ focusInput = false } = {}) {
+  const active = Boolean(view.stageHtmlInspectActive);
+  const selected = view.stageHtmlSelectedElement;
+  const activeTab = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId) || (view.stageSplit ? (view.stageTabs || []).at(-1) : null);
+  document.querySelectorAll("[data-action='toggle-html-inspect']").forEach((btn) => {
+    btn.classList.toggle("is-active", active);
+  });
+  const banner = document.querySelector("[data-html-inspect-banner]");
+  if (banner) {
+    banner.hidden = !active;
+    const chipWrap = banner.querySelector("[data-html-inspect-chip-slot]");
+    if (chipWrap) {
+      chipWrap.innerHTML = selected
+        ? `<code class="orca-inspect-selected-chip">&lt;${esc(selected.tagName)}&gt; ${esc(selected.label || selected.selector)}</code>`
+        : "";
+    }
+  }
+  const layer = document.querySelector("[data-html-comment-layer]");
+  if (layer) {
+    if (active && selected) {
+      layer.hidden = false;
+      layer.innerHTML = renderHtmlElementCommentPopoverMarkup(activeTab);
+      localizeDom(layer, view.language);
+      if (focusInput) {
+        const input = layer.querySelector("[data-html-element-comment-input]");
+        input?.focus();
+      }
+    } else {
+      layer.hidden = true;
+      layer.innerHTML = "";
+    }
+  }
+  const iframe = document.querySelector(".orca-live-frame:not(.is-pdf)");
+  if (iframe?.contentWindow) {
+    iframe.contentWindow.postMessage({
+      type: "orca-inspect:set-mode",
+      active,
+      clearSelection: !selected,
+    }, "*");
+  }
+}
+
 function renderStageFileViewer(tab) {
   if (!tab) return "";
   const file = tab.fileData;
@@ -1097,8 +1228,12 @@ function renderStageFileViewer(tab) {
     </div>`;
   } else if (mode === "preview") {
     if (ext === ".html" || ext === ".htm") {
+      const hasPopover = Boolean(view.stageHtmlInspectActive && view.stageHtmlSelectedElement);
       bodyHtml = `<div class="orca-live-frame-wrap">
         <iframe class="orca-live-frame" src="${esc(rawUrl)}" title="Xem trực tiếp ${esc(tab.name)}" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
+        <div class="orca-element-comment-layer" data-html-comment-layer ${hasPopover ? "" : "hidden"}>
+          ${hasPopover ? renderHtmlElementCommentPopoverMarkup(tab) : ""}
+        </div>
       </div>`;
     } else if (ext === ".pdf" || kind === "pdf") {
       bodyHtml = `<div class="orca-live-frame-wrap is-pdf">
@@ -1175,9 +1310,10 @@ function renderStageFileViewer(tab) {
     ? `<div class="orca-viewer-nav is-web-browser">
         <button type="button" class="icon-button orca-viewer-icon" data-action="activate-stage-tab" data-tab-id="chat" title="Quay về cửa sổ Chat">${icon("arrow-left", 13)}</button>
         <button type="button" class="icon-button orca-viewer-icon" data-action="reload-stage-tab" data-tab-id="${esc(tab.id)}" title="Tải lại trang web">${icon("refresh-cw", 12)}</button>
-        <div class="orca-viewer-address" title="${esc(tab.path)}">
+        <div class="orca-viewer-address is-url-bar" title="${esc(tab.path)}">
           ${icon("globe", 12)}
-          <span class="orca-address-path">http://workspace.local/${esc(tab.path)}</span>
+          <span class="orca-address-host">localhost</span>
+          <span class="orca-address-path">/${esc(tab.path)}</span>
         </div>
       </div>`
     : `<div class="orca-viewer-file-meta" title="${esc(tab.path)}">
@@ -1190,13 +1326,24 @@ function renderStageFileViewer(tab) {
   return `<section class="orca-file-viewer" aria-label="Trình xem tệp ${esc(tab.name)}">
     <header class="orca-viewer-toolbar">
       ${leftToolbarMarkup}
-      ${showModeSwitch ? `<div class="orca-viewer-actions">
-        <div class="orca-mode-switch" role="tablist" aria-label="Chế độ xem tệp">
+      <div class="orca-viewer-actions">
+        ${isWebBrowser ? `
+          <button type="button" class="icon-button orca-viewer-icon orca-inspect-crosshair-btn ${view.stageHtmlInspectActive ? "is-active" : ""}" data-action="toggle-html-inspect" title="Chọn phần tử HTML trên trang">${icon("crosshair", 13)}</button>
+          <button type="button" class="icon-button orca-viewer-icon orca-inspect-comment-btn ${view.stageHtmlInspectActive ? "is-active" : ""}" data-action="toggle-html-inspect" title="Nhấp vào phần tử để gửi nhận xét cho Agent">${icon("message-square-plus", 13)}</button>
+        ` : ""}
+        ${showModeSwitch ? `<div class="orca-mode-switch" role="tablist" aria-label="Chế độ xem tệp">
           <button type="button" class="orca-mode-btn ${mode === "preview" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview"><span>Xem</span></button>
           <button type="button" class="orca-mode-btn ${mode === "code" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code"><span>Code</span></button>
-        </div>
-      </div>` : ""}
+        </div>` : ""}
+      </div>
     </header>
+    ${isWebBrowser ? `<div class="orca-inspect-banner" data-html-inspect-banner ${view.stageHtmlInspectActive ? "" : "hidden"}>
+      <span class="orca-inspect-banner-text" data-html-inspect-banner-text>Nhấp vào một phần tử trên trang để thêm nhận xét cho Agent.</span>
+      <div class="orca-inspect-banner-right">
+        <span data-html-inspect-chip-slot>${view.stageHtmlSelectedElement ? `<code class="orca-inspect-selected-chip">&lt;${esc(view.stageHtmlSelectedElement.tagName)}&gt; ${esc(view.stageHtmlSelectedElement.label || view.stageHtmlSelectedElement.selector)}</code>` : ""}</span>
+        <button type="button" class="orca-inspect-banner-close" data-action="close-html-inspect" title="Thoát chế độ chọn phần tử (Esc)">Esc</button>
+      </div>
+    </div>` : ""}
     <div class="orca-viewer-body">
       ${bodyHtml}
     </div>
@@ -3768,6 +3915,99 @@ async function handleWorkbenchClick(event) {
       }
       return;
     }
+    if (action === "toggle-html-inspect") {
+      view.stageHtmlInspectActive = !view.stageHtmlInspectActive;
+      if (!view.stageHtmlInspectActive) {
+        view.stageHtmlSelectedElement = null;
+        view.stageHtmlCommentDraft = "";
+      }
+      syncHtmlInspectUi();
+      return;
+    }
+    if (action === "close-html-inspect") {
+      view.stageHtmlInspectActive = false;
+      view.stageHtmlSelectedElement = null;
+      view.stageHtmlCommentDraft = "";
+      syncHtmlInspectUi();
+      return;
+    }
+    if (action === "cancel-html-element-comment") {
+      view.stageHtmlSelectedElement = null;
+      view.stageHtmlCommentDraft = "";
+      syncHtmlInspectUi();
+      return;
+    }
+    if (action === "send-html-element-comment") {
+      const comment = String($("[data-html-element-comment-input]")?.value || view.stageHtmlCommentDraft || "").trim();
+      const el = view.stageHtmlSelectedElement;
+      if (!comment || !el) {
+        showToast("Nhập nội dung nhận xét cho phần tử HTML này trước khi gửi.");
+        return;
+      }
+      const agentSelectVal = String($("[data-html-comment-agent]")?.value || "");
+      const [pickedProv, pickedModel] = agentSelectVal.includes("::") ? agentSelectVal.split("::") : [agentSelectVal, ""];
+      const fallback = resolveHtmlCommentAgentSelection();
+      const provider = pickedProv || fallback.provider || "codex";
+      const model = pickedModel || fallback.model || "";
+      const effort = String($("[data-html-comment-effort]")?.value || fallback.effort || "medium");
+      view.stageHtmlCommentProvider = provider;
+      view.stageHtmlCommentModel = model;
+      view.stageHtmlCommentEffort = effort;
+      view.chatProvider = provider;
+      view.chatModel = model;
+      view.chatEffort = effort;
+
+      const activeTab = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId) || (view.stageSplit ? (view.stageTabs || []).at(-1) : null);
+      const filePath = activeTab?.path || "index.html";
+      const selectorText = el.selector ? `\`${el.selector}\`` : `\`<${el.tagName || "element"}>\``;
+      const labelText = el.label ? ` ("${el.label}")` : "";
+      const htmlBlock = el.outerHTML ? `\n\`\`\`html\n${el.outerHTML}\n\`\`\`\n` : "\n";
+      const snippet = `Tại tệp @${filePath} — Phần tử ${selectorText}${labelText}:${htmlBlock}Yêu cầu chỉnh sửa: ${comment}`;
+
+      view.stageHtmlSelectedElement = null;
+      view.stageHtmlCommentDraft = "";
+      syncHtmlInspectUi();
+
+      const activeTask = view.page === "chat" && view.selected ? (view.state?.tasks || []).find((t) => t.id === view.selected) : null;
+      if (activeTask) {
+        await api(`/api/tasks/${encodeURIComponent(activeTask.id)}/chat`, {
+          method: "POST",
+          body: JSON.stringify({ message: snippet, provider, model, effort }),
+        });
+        view.stageSplit = true;
+        await refresh();
+        showToast(`Đã gửi nhận xét phần tử <${el.tagName}> cho ${providerTitle(view.connectors, provider)}!`);
+      } else {
+        const wsId = activeTab?.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+        if (wsId) {
+          const created = await api("/api/tasks", {
+            method: "POST",
+            body: JSON.stringify({
+              title: `${filePath} · ${comment.slice(0, 56)}`,
+              prompt: snippet,
+              workspaceId: wsId,
+              workflow: "chat-only",
+              permissionPreset: view.homePermissionPreset || "workspace-write",
+              chatProvider: provider,
+              chatModel: model,
+              chatEffort: effort,
+            }),
+          });
+          view.page = "chat";
+          view.selected = created.task.id;
+          view.stageSplit = true;
+          await refresh();
+          showToast(`Đã tạo tác vụ mới và gửi phần tử <${el.tagName}> cho ${providerTitle(view.connectors, provider)}!`);
+        } else {
+          view.page = "chat";
+          view.stageSplit = true;
+          view.chatDraft = view.chatDraft ? `${view.chatDraft}\n\n${snippet}` : snippet;
+          render();
+          showToast("Đã chèn nhận xét phần tử HTML vào khung Chat.");
+        }
+      }
+      return;
+    }
     if (action === "select-diff-file") { view.diffSelectedFile = button.dataset.path || ""; view.diffAnnotationTarget = null; renderDiffStudioModal(); return; }
     if (action === "open-diff-comment") {
       view.diffAnnotationTarget = { key: button.dataset.key, path: button.dataset.path, line: button.dataset.line, code: button.dataset.code || "" };
@@ -4482,6 +4722,42 @@ document.addEventListener("change", (event) => {
     if (task) openTaskInstructionModal(task); else render();
   }
   if (event.target.matches("[data-chat-effort]")) { view.chatEffort = event.target.value; }
+  if (event.target.matches("[data-html-comment-agent]")) {
+    const val = String(event.target.value || "");
+    const [prov, mod] = val.includes("::") ? val.split("::") : [val, ""];
+    view.stageHtmlCommentProvider = prov || "";
+    view.stageHtmlCommentModel = mod || "";
+    view.stageHtmlCommentDraft = String($("[data-html-element-comment-input]")?.value || view.stageHtmlCommentDraft || "");
+    syncHtmlInspectUi();
+  }
+  if (event.target.matches("[data-html-comment-effort]")) {
+    view.stageHtmlCommentEffort = event.target.value;
+  }
+});
+document.addEventListener("input", (event) => {
+  if (event.target.matches?.("[data-html-element-comment-input]")) {
+    view.stageHtmlCommentDraft = event.target.value;
+  }
+});
+window.addEventListener("message", (event) => {
+  const data = event?.data;
+  if (!data || typeof data !== "object") return;
+  if (data.type === "orca-inspect:ready") {
+    syncHtmlInspectUi();
+  } else if (data.type === "orca-inspect:selected" && data.element) {
+    view.stageHtmlInspectActive = true;
+    view.stageHtmlSelectedElement = data.element;
+    syncHtmlInspectUi({ focusInput: true });
+  } else if (data.type === "orca-inspect:escape") {
+    if (view.stageHtmlSelectedElement) {
+      view.stageHtmlSelectedElement = null;
+      view.stageHtmlCommentDraft = "";
+      syncHtmlInspectUi();
+    } else if (view.stageHtmlInspectActive) {
+      view.stageHtmlInspectActive = false;
+      syncHtmlInspectUi();
+    }
+  }
 });
 document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && view.page === "knowledge" && view.vaultEditing) {
@@ -4517,7 +4793,25 @@ document.addEventListener("keydown", (event) => {
     if (results) { results.hidden = true; results.innerHTML = ""; }
     return;
   }
-  if (event.key === "Escape") closeOverlay();
+  if (event.key === "Escape") {
+    if (view.stageHtmlSelectedElement) {
+      view.stageHtmlSelectedElement = null;
+      view.stageHtmlCommentDraft = "";
+      syncHtmlInspectUi();
+      return;
+    }
+    if (view.stageHtmlInspectActive) {
+      view.stageHtmlInspectActive = false;
+      syncHtmlInspectUi();
+      return;
+    }
+    closeOverlay();
+  }
+  if (event.key === "Enter" && !event.shiftKey && event.target.matches?.("[data-html-element-comment-input]")) {
+    event.preventDefault();
+    document.querySelector("[data-action='send-html-element-comment']")?.click();
+    return;
+  }
   if (event.key === "Enter" && event.target.matches?.("[data-stage-line-comment-input]")) {
     event.preventDefault();
     document.querySelector("[data-action='send-stage-line-comment']")?.click();
