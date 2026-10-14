@@ -895,7 +895,7 @@ function dockFileIconName(fileName = "") {
 }
 
 function defaultFileTabMode(ext = "", preferredMode = "") {
-  if (["preview", "code", "diff"].includes(preferredMode)) return preferredMode;
+  if (["preview", "code"].includes(preferredMode)) return preferredMode;
   const lower = String(ext || "").toLowerCase();
   if ([".html", ".htm", ".pdf", ".md", ".mdx", ".markdown", ".docx", ".doc", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav", ".csv", ".tsv", ".json"].includes(lower)) {
     return "preview";
@@ -962,12 +962,8 @@ async function reloadStageFileTab(tabId) {
   render();
   try {
     const q = `path=${encodeURIComponent(tab.path)}${tab.taskId ? `&taskId=${encodeURIComponent(tab.taskId)}` : ""}`;
-    const [fileRes, diffRes] = await Promise.all([
-      api(`/api/workspaces/${encodeURIComponent(tab.workspaceId)}/file?${q}`),
-      api(`/api/workspaces/${encodeURIComponent(tab.workspaceId)}/file-diff?${q}`).catch(() => ({ path: tab.path, diff: "", files: [] })),
-    ]);
+    const fileRes = await api(`/api/workspaces/${encodeURIComponent(tab.workspaceId)}/file?${q}`);
     tab.fileData = fileRes;
-    tab.diffData = diffRes;
     tab.ext = fileRes.extension || tab.ext;
     tab.loadedAt = Date.now();
     tab.loading = false;
@@ -1016,16 +1012,11 @@ function formatCompactBytes(bytes) {
 function renderStageFileViewer(tab) {
   if (!tab) return "";
   const file = tab.fileData;
-  const diffFiles = tab.diffData?.files || [];
-  const diffFile = diffFiles[0] || null;
-  const diffAdds = diffFile?.additions || 0;
-  const diffDels = diffFile?.deletions || 0;
-  const hasDiffChanges = Boolean(diffFile?.hunks?.length);
   const ext = (file?.extension || tab.ext || "").toLowerCase();
   const kind = file?.kind || "text";
   const hasRichPreview = canRichPreviewExtension(ext, kind);
   const hasCodeView = kind === "text";
-  let mode = tab.mode || defaultFileTabMode(ext);
+  let mode = tab.mode === "code" || tab.mode === "preview" ? tab.mode : defaultFileTabMode(ext);
   if (mode === "preview" && !hasRichPreview) mode = "code";
   if (mode === "code" && !hasCodeView) mode = "preview";
 
@@ -1049,47 +1040,6 @@ function renderStageFileViewer(tab) {
         <button type="button" class="button quiet small" data-action="reload-stage-tab" data-tab-id="${esc(tab.id)}">${icon("refresh-cw", 13)}<span>Thử lại</span></button>
       </div>
     </div>`;
-  } else if (mode === "diff") {
-    const commentTarget = view.stageLineCommentTarget;
-    if (hasDiffChanges) {
-      const hunksHtml = diffFile.hunks.map((hunk, hIdx) => `<div class="diff-hunk">
-        <div class="diff-hunk-header"><code>${esc(hunk.header)}</code></div>
-        <div class="diff-hunk-lines">
-          ${hunk.lines.map((line, lIdx) => {
-            const lineNum = line.newLine ?? line.oldLine ?? 1;
-            const lineKey = `diff:${tab.id}:${hIdx}:${lIdx}`;
-            const isCommenting = commentTarget?.key === lineKey;
-            const rowClass = line.type === "add" ? "is-add" : line.type === "del" ? "is-del" : "is-ctx";
-            const prefix = line.type === "add" ? "+" : line.type === "del" ? "-" : " ";
-            return `<div class="diff-line-row ${rowClass}" data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}" data-code="${esc(line.text)}">
-              <span class="diff-ln old">${line.oldLine ?? ""}</span>
-              <span class="diff-ln new">${line.newLine ?? ""}</span>
-              <span class="diff-sign">${prefix}</span>
-              <code class="diff-code">${esc(line.text)}</code>
-              <span class="diff-comment-trigger" title="Gắn nhận xét dòng ${lineNum} cho Agent">+ Nhận xét</span>
-            </div>
-            ${isCommenting ? `<div class="diff-comment-editor">
-              <input type="text" data-stage-line-comment-input placeholder="Nhập yêu cầu sửa dòng ${lineNum} của ${esc(tab.name)}…" autocomplete="off">
-              <button type="button" class="button primary small" data-action="send-stage-line-comment">${icon("arrow-up-right", 12)}<span>Gửi</span></button>
-              <button type="button" class="button quiet small" data-action="cancel-stage-line-comment">Hủy</button>
-            </div>` : ""}`;
-          }).join("")}
-        </div>
-      </div>`).join("");
-      bodyHtml = `<div class="orca-diff-scroll">
-        <div class="diff-hunk-list">${hunksHtml}</div>
-      </div>`;
-    } else {
-      bodyHtml = `<div class="orca-viewer-empty">
-        ${icon("git-branch", 20)}
-        <strong>Không có thay đổi chưa commit cho ${esc(tab.name)}</strong>
-        <p>Tệp <code>${esc(tab.path)}</code> hiện đồng bộ với Git HEAD.</p>
-        <div class="orca-viewer-empty-actions">
-          ${hasRichPreview ? `<button type="button" class="button primary small" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview">${icon("eye", 13)}<span>Xem</span></button>` : ""}
-          ${hasCodeView ? `<button type="button" class="button quiet small" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code">${icon("code-2", 13)}<span>Code</span></button>` : ""}
-        </div>
-      </div>`;
-    }
   } else if (mode === "preview") {
     if (ext === ".html" || ext === ".htm") {
       bodyHtml = `<div class="orca-live-frame-wrap">
@@ -1163,8 +1113,7 @@ function renderStageFileViewer(tab) {
   }
 
   const metaParts = [];
-  if (mode === "diff" && (diffAdds || diffDels)) metaParts.push(`<em class="is-add">+${diffAdds}</em> <em class="is-del">-${diffDels}</em>`);
-  else if (totalLines > 0) metaParts.push(`${totalLines} dòng`);
+  if (totalLines > 0) metaParts.push(`${totalLines} dòng`);
   if (sizeBadge) metaParts.push(esc(sizeBadge));
 
   const leftToolbarMarkup = isWebBrowser
@@ -1181,19 +1130,17 @@ function renderStageFileViewer(tab) {
         ${metaParts.length ? `<small class="orca-meta-sub">${metaParts.join(" · ")}</small>` : ""}
       </div>`;
 
-  const showModeSwitch = (hasRichPreview && hasCodeView) || hasDiffChanges || mode === "diff";
+  const showModeSwitch = hasRichPreview && hasCodeView;
 
   return `<section class="orca-file-viewer" aria-label="Trình xem tệp ${esc(tab.name)}">
     <header class="orca-viewer-toolbar">
       ${leftToolbarMarkup}
-      <div class="orca-viewer-actions">
-        ${showModeSwitch ? `<div class="orca-mode-switch" role="tablist" aria-label="Chế độ xem tệp">
-          ${hasRichPreview ? `<button type="button" class="orca-mode-btn ${mode === "preview" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview"><span>Xem</span></button>` : ""}
-          ${hasCodeView ? `<button type="button" class="orca-mode-btn ${mode === "code" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code"><span>Code</span></button>` : ""}
-          ${hasDiffChanges || mode === "diff" || hasCodeView ? `<button type="button" class="orca-mode-btn ${mode === "diff" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="diff"><span>Diff${diffAdds || diffDels ? ` +${diffAdds}/-${diffDels}` : ""}</span></button>` : ""}
-        </div>` : ""}
-        <button type="button" class="orca-viewer-action-btn" data-action="mention-drawer-file" data-path="${esc(tab.path)}" title="Chèn @${esc(tab.path)} vào khung chat">@Chèn</button>
-      </div>
+      ${showModeSwitch ? `<div class="orca-viewer-actions">
+        <div class="orca-mode-switch" role="tablist" aria-label="Chế độ xem tệp">
+          <button type="button" class="orca-mode-btn ${mode === "preview" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview"><span>Xem</span></button>
+          <button type="button" class="orca-mode-btn ${mode === "code" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code"><span>Code</span></button>
+        </div>
+      </div>` : ""}
     </header>
     <div class="orca-viewer-body">
       ${bodyHtml}
@@ -3633,7 +3580,6 @@ async function handleWorkbenchClick(event) {
         workspaceId: button.dataset.workspaceId || targetTask?.workspaceId || "",
         taskId: id || view.selected || "",
         path: button.dataset.path || "",
-        preferredMode: "diff",
       });
       return;
     }

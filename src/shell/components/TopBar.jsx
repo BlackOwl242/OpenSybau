@@ -2,8 +2,7 @@ import { h } from "preact";
 import { pageTitles } from "../navigation.js";
 import { Icon } from "../../shared/ui/Icon.jsx";
 
-function tabIconName(ext = "", mode = "") {
-  if (mode === "diff") return "git-branch";
+function tabIconName(ext = "") {
   const lower = String(ext || "").toLowerCase();
   if (lower === ".html" || lower === ".htm") return "globe";
   if (lower === ".pdf" || lower === ".md" || lower === ".mdx" || lower === ".markdown") return "book-open-text";
@@ -72,11 +71,10 @@ export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
             class={`orca-tab ${isActive ? "is-active" : ""}`}
             data-action="activate-stage-tab"
             data-tab-id={tab.id}
-            title={`${tab.path}${tab.mode === "diff" ? " (Diff Review)" : ""}`}
+            title={tab.path}
           >
-            <Icon name={tabIconName(tab.ext, tab.mode)} size={13} />
+            <Icon name={tabIconName(tab.ext)} size={13} />
             <span class="orca-tab-title">{tab.name}</span>
-            {tab.mode === "diff" ? <small class="orca-tab-badge">Diff</small> : null}
             <button
               type="button"
               class="orca-tab-close"

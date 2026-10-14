@@ -5,6 +5,15 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.77] - 2026-10-15
+
+### Fixed & Improved (Tối Giản Thanh Công Cụ Trình Xem Tệp: Loại Bỏ `Diff` & `@Chèn`)
+- **Loại bỏ nút `Diff` và `@Chèn` trên thanh công cụ trình xem tệp (`.orca-viewer-toolbar`)**:
+  - Giữ lại duy nhất bộ chuyển đổi tối giản **`Xem` / `Code`** cho các tệp hỗ trợ bản xem trước phong phú (`.html`, `.md`, `.docx`, `.doc`, `.csv`, `.json`), và ẩn hoàn toàn cụm nút phụ trên các tệp chỉ có một chế độ xem để thanh tiêu đề tệp thoáng sạch.
+  - Gỡ bỏ hoàn toàn huy hiệu `Diff` trên thanh Tab (`.orca-tab`) và bỏ truy vấn `/file-diff` dư thừa khi mở tab tệp, giúp tốc độ mở tệp tức thì hơn.
+
+---
+
 ## [0.2.76] - 2026-10-15
 
 ### Fixed & Improved (Thẳng Hàng Tuyệt Đối Các Đường Kẻ Ngang, Tối Giản Trình Xem Tệp Theo Định Dạng & Khắc Phục Lỗi Khuyết Giao Diện Split View)
