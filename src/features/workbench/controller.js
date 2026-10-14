@@ -740,19 +740,53 @@ async function ensureWorkspaceFileIndex(workspaceId) {
 function availableArenaCompetitors() {
   const entries = Object.entries(view.connectors || {}).filter(([, connector]) => connector?.available && (connector.capabilities?.build || connector.capabilities?.chat || connector.capabilities?.plan));
   if (!entries.length) {
-    return ["codex", "antigravity", "claude"].map((id) => ({
-      provider: id,
-      name: providerTitle(view.connectors, id),
-      model: view.connectors?.[id]?.models?.[0]?.id || "",
-      effort: "medium",
-      available: Boolean(view.connectors?.[id]?.available),
-    }));
+    return ["codex", "antigravity", "claude"].map((id) => {
+      const connector = view.connectors?.[id];
+      const models = connector?.models || [];
+      return {
+        provider: id,
+        name: providerTitle(view.connectors, id),
+        models,
+        model: models[0]?.id || "",
+        effort: "medium",
+        available: Boolean(connector?.available),
+      };
+    });
   }
   return entries.map(([id, connector]) => {
-    const model = connector.models?.[0]?.id || "";
-    const effort = connector.models?.[0]?.efforts?.includes("medium") ? "medium" : (connector.models?.[0]?.efforts?.[0] || "");
-    return { provider: id, name: connector.name || providerTitle(view.connectors, id), model, effort, available: true };
+    const models = connector.models || [];
+    const model = models[0]?.id || "";
+    const effort = models[0]?.efforts?.includes("medium") ? "medium" : (models[0]?.efforts?.[0] || "medium");
+    return { provider: id, name: connector.name || providerTitle(view.connectors, id), models, model, effort, available: true };
   });
+}
+function ensureHomeArenaSlots() {
+  const candidates = availableArenaCompetitors();
+  const primary = candidates[0] || { provider: "codex", model: "", effort: "medium", models: [] };
+  if (!Array.isArray(view.homeArenaSlots) || view.homeArenaSlots.length < 2) {
+    if (candidates.length >= 2) {
+      view.homeArenaSlots = candidates.slice(0, Math.min(3, candidates.length)).map((c) => ({
+        provider: c.provider,
+        model: c.model,
+        effort: c.effort,
+      }));
+    } else {
+      view.homeArenaSlots = [
+        { provider: primary.provider, model: primary.model, effort: primary.effort },
+        { provider: primary.provider, model: primary.model, effort: primary.effort },
+      ];
+    }
+  }
+  view.homeArenaSlots = view.homeArenaSlots.slice(0, 8).map((slot) => {
+    const cand = candidates.find((c) => c.provider === slot?.provider) || primary;
+    const models = cand.models || [];
+    const modelObj = models.find((m) => m.id === slot?.model) || models[0];
+    const model = modelObj?.id || slot?.model || cand.model || "";
+    const effortList = modelObj?.efforts?.length ? modelObj.efforts : efforts;
+    const effort = effortList.includes(slot?.effort) ? slot.effort : (effortList.includes("medium") ? "medium" : (effortList[0] || "medium"));
+    return { provider: cand.provider, model, effort };
+  });
+  return view.homeArenaSlots;
 }
 function chatPage() {
   if (view.selected && view.state.tasks.some((task) => task.id === view.selected)) return taskConversationPage();
@@ -770,33 +804,89 @@ function chatPage() {
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
   const canIsolateHome = Boolean(activeWorkspace?.runtime?.isGit && activeWorkspace?.runtime?.head);
   const arenaCandidates = availableArenaCompetitors();
-  const selectedArenaIds = (view.homeArenaProviders || []).filter((id) => arenaCandidates.some((c) => c.provider === id));
-  const effectiveArenaIds = selectedArenaIds.length >= 2 ? selectedArenaIds : arenaCandidates.slice(0, Math.min(3, arenaCandidates.length)).map((c) => c.provider);
+  const arenaSlots = ensureHomeArenaSlots();
   const isArena = view.homeMode === "arena";
   const canRun = isArena
-    ? Boolean(canIsolateHome && effectiveArenaIds.length >= 2)
+    ? Boolean(canIsolateHome && arenaSlots.length >= 2 && arenaCandidates.some((c) => c.available))
     : workflow === "chat-only" ? Boolean(chatSelection.connector?.available) : workflow === "plan-only" ? planReady : pipelineReady;
   const workflowOptions = `<option value="chat-only" ${workflow === "chat-only" ? "selected" : ""}>Chat · một agent</option><option value="codex-antigravity" ${workflow === "codex-antigravity" ? "selected" : ""} ${pipelineReady ? "" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${workflow === "plan-only" ? "selected" : ""} ${planReady ? "" : "disabled"}>Chỉ lập kế hoạch</option>`;
-  const pipelineLabel = workflowRoles.map((role) => providerTitle(view.connectors, roleSelections[role.id].provider)).join(" → ");
-  const workflowLabel = isArena ? `Đấu trường · ${effectiveArenaIds.length} Worktree` : workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, chatSelection.provider)}` : workflow === "plan-only" ? `${providerTitle(view.connectors, roleSelections.plan.provider)} · lập kế hoạch` : pipelineLabel;
   const chatProviders = Object.entries(view.connectors || {}).filter(([, connector]) => connectorSupports(connector, "chat"));
-  const homeModelSummary = isArena ? effectiveArenaIds.map((id) => providerTitle(view.connectors, id)).join(" vs ") : workflow === "chat-only" ? chatSelection.model?.name || "Chưa có model" : workflow === "plan-only" ? roleSelections.plan.model || "Chưa có model" : workflowRoles.map((role) => roleSelections[role.id].model || "Chưa có model").join(" · ");
   const homeIsolated = Boolean((isArena || view.homeIsolated) && canIsolateHome);
   const homePermissionPreset = view.homePermissionPreset || "full-access";
-  const homeConfigSummary = `${activeWorkspace?.name || "Chọn workspace"} · ${workflowLabel} · ${homeModelSummary}${homeIsolated && !isArena ? " · Worktree" : ""}`;
-  const arenaStrip = isArena ? `<div class="home-arena-strip"><div class="home-arena-head"><strong>${icon("git-branch", 14)} Đấu trường Agent (Parallel Worktree Fan-Out)</strong><small>${canIsolateHome ? "Chọn 2–4 agent để chạy song song trên các nhánh Git worktree cô lập rồi so sánh diff." : "Workspace cần là Git repository đã có ít nhất 1 commit để bật Đấu trường."}</small></div><div class="home-arena-competitors">${arenaCandidates.map((comp) => `<label class="arena-competitor-pill ${effectiveArenaIds.includes(comp.provider) ? "is-checked" : ""}"><input type="checkbox" data-arena-provider="${esc(comp.provider)}" ${effectiveArenaIds.includes(comp.provider) ? "checked" : ""}><span><strong>${esc(comp.name)}</strong>${comp.model ? `<small>${esc(comp.model)}</small>` : ""}</span></label>`).join("")}</div></div>` : "";
+  const compactAgentLabel = isArena
+    ? `${arenaSlots.length} nhánh Worktree song song`
+    : workflow === "chat-only"
+      ? `${providerTitle(view.connectors, chatSelection.provider)}${chatSelection.model?.name ? ` · ${chatSelection.model.name}` : ""}`
+      : workflow === "plan-only"
+        ? `${providerTitle(view.connectors, roleSelections.plan.provider)}${roleSelections.plan.model ? ` · ${roleSelections.plan.model}` : ""}`
+        : `Pipeline · ${providerTitle(view.connectors, roleSelections.build.provider)}`;
+  const arenaStrip = isArena ? `<div class="home-arena-strip">
+    <div class="home-arena-head">
+      <div class="home-arena-title">
+        <strong>${icon("git-branch", 14)}<span>Đấu trường Worktree (${arenaSlots.length} nhánh chạy song song)</span></strong>
+        <small>${canIsolateHome ? "Bạn có thể chạy nhiều bản của cùng 1 model hoặc phối hợp nhiều hãng/model khác nhau." : "Workspace cần là Git repository đã có ít nhất 1 commit để tách nhánh Worktree."}</small>
+      </div>
+      <div class="home-arena-presets">
+        <button type="button" class="arena-preset-btn" data-action="arena-preset" data-preset="same-2" title="Chạy 2 nhánh song song cùng dùng 1 model">2× Cùng model</button>
+        <button type="button" class="arena-preset-btn" data-action="arena-preset" data-preset="same-3" title="Chạy 3 nhánh song song cùng dùng 1 model">3× Cùng model</button>
+        ${arenaCandidates.length > 1 ? `<button type="button" class="arena-preset-btn" data-action="arena-preset" data-preset="all-providers" title="Mỗi hãng CLI 1 nhánh">Đa hãng</button>` : ""}
+        <button type="button" class="arena-preset-btn is-primary" data-action="arena-add-slot" ${arenaSlots.length >= 8 ? "disabled" : ""} title="Thêm 1 nhánh Agent song song (tối đa 8)">${icon("plus", 12)}<span>Thêm nhánh</span></button>
+      </div>
+    </div>
+    <div class="arena-slot-list">
+      ${arenaSlots.map((slot, idx) => {
+        const cand = arenaCandidates.find((c) => c.provider === slot.provider) || arenaCandidates[0];
+        const models = cand?.models || [];
+        const modelObj = models.find((m) => m.id === slot.model) || models[0];
+        const slotEfforts = modelObj?.efforts?.length ? modelObj.efforts : ["low", "medium", "high"];
+        return `<div class="arena-slot-row">
+          <span class="arena-slot-badge">#${idx + 1}</span>
+          <select class="arena-slot-select" data-arena-slot-provider="${idx}" aria-label="Agent nhánh ${idx + 1}">
+            ${arenaCandidates.map((c) => `<option value="${esc(c.provider)}" ${c.provider === slot.provider ? "selected" : ""}>${esc(c.name)}</option>`).join("")}
+          </select>
+          <select class="arena-slot-select is-model" data-arena-slot-model="${idx}" aria-label="Model nhánh ${idx + 1}">
+            ${models.length ? models.map((m) => `<option value="${esc(m.id)}" ${m.id === slot.model ? "selected" : ""}>${esc(m.name || m.id)}</option>`).join("") : `<option value="">Mặc định</option>`}
+          </select>
+          <select class="arena-slot-select is-effort" data-arena-slot-effort="${idx}" aria-label="Mức suy nghĩ nhánh ${idx + 1}">
+            ${slotEfforts.map((ef) => `<option value="${esc(ef)}" ${ef === slot.effort ? "selected" : ""}>${esc(ef)}</option>`).join("")}
+          </select>
+          <button type="button" class="arena-slot-icon" data-action="arena-clone-slot" data-index="${idx}" ${arenaSlots.length >= 8 ? "disabled" : ""} title="Nhân bản thêm 1 nhánh giống hệt nhánh này">${icon("copy", 13)}</button>
+          <button type="button" class="arena-slot-icon is-danger" data-action="arena-remove-slot" data-index="${idx}" ${arenaSlots.length <= 2 ? "disabled" : ""} title="Xóa nhánh này">${icon("x", 13)}</button>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>` : "";
   return `<section class="command-home">
-    <div class="command-stage"><div class="home-welcome"><p class="home-kicker">OPENSYBAU · ${esc(activeWorkspace?.name || "CHỌN WORKSPACE")}</p><h1>${activeWorkspace ? `Bạn muốn làm gì trong ${esc(activeWorkspace.name)}?` : "Bạn muốn làm gì?"}</h1><p class="home-subtitle">Bắt đầu một cuộc trò chuyện hoặc giao việc cho các agent đang chạy trên máy. Gõ <code>@tên-tệp</code> để chèn nhanh đường dẫn tệp trong dự án.</p></div>
+    <div class="command-stage"><div class="home-welcome"><p class="home-kicker">OPENSYBAU · ${esc(activeWorkspace?.name || "CHỌN WORKSPACE")}</p><h1>${activeWorkspace ? `Bạn muốn làm gì trong ${esc(activeWorkspace.name)}?` : "Bạn muốn làm gì?"}</h1><p class="home-subtitle">Điều phối một hoặc nhiều agent chạy song song trên máy. Gõ <code>@tên-tệp</code> để đính kèm nhanh tệp dự án.</p></div>
       ${chatProviders.length ? "" : `<div class="provider-connect-callout home-provider-empty"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa có agent sẵn sàng</strong><p>Kết nối API/model local hoặc cài và đăng nhập Codex, Claude Code hay Antigravity để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="desktop-open-settings">Mở cài đặt</button><button class="button quiet small" type="button" data-action="open-setup-assistant">Hướng dẫn</button></div></div>`}
-      <div class="home-mode-switch" role="tablist" aria-label="Chế độ làm việc"><button type="button" class="home-mode-tab ${view.homeMode === "chat" ? "active" : ""}" data-home-mode="chat">Chat</button><button type="button" class="home-mode-tab ${view.homeMode === "code" ? "active" : ""}" data-home-mode="code" ${pipelineReady ? "" : "disabled title=\"Cần agent có quyền làm việc trên workspace\""}>Code</button><button type="button" class="home-mode-tab ${view.homeMode === "plan" ? "active" : ""}" data-home-mode="plan" ${planReady ? "" : "disabled"}>Lập kế hoạch</button><button type="button" class="home-mode-tab ${view.homeMode === "arena" ? "active" : ""}" data-home-mode="arena" title="Chạy song song nhiều agent trên các Git worktree riêng">${icon("git-branch", 13)} Đấu trường</button><button type="button" class="home-mode-link" data-page="tasks">${view.state.tasks.length} task</button></div>
+      <div class="home-mode-switch-wrap"><div class="home-mode-switch" role="tablist" aria-label="Chế độ làm việc"><button type="button" class="home-mode-tab ${view.homeMode === "chat" ? "active" : ""}" data-home-mode="chat">${icon("message-circle", 13)}<span>Trò chuyện</span></button><button type="button" class="home-mode-tab ${view.homeMode === "code" ? "active" : ""}" data-home-mode="code" ${pipelineReady ? "" : "disabled title=\"Cần agent có quyền làm việc trên workspace\""}>${icon("square-terminal", 13)}<span>Code</span></button><button type="button" class="home-mode-tab ${view.homeMode === "plan" ? "active" : ""}" data-home-mode="plan" ${planReady ? "" : "disabled"}>${icon("list-checks", 13)}<span>Kế hoạch</span></button><button type="button" class="home-mode-tab ${view.homeMode === "arena" ? "active" : ""}" data-home-mode="arena" title="Chạy song song nhiều agent (cùng hoặc khác model) trên các Git worktree riêng">${icon("git-branch", 13)}<span>Đấu trường</span></button></div></div>
       <form class="home-composer" data-modal data-form="home-task">
         ${arenaStrip}
         ${composerAttachmentsMarkup("home")}
         <div class="composer-input-wrap">
-          <textarea name="prompt" data-home-prompt maxlength="50000" rows="3" placeholder="${isArena ? "Nhập yêu cầu chung để các agent thi đấu song song trên các Git worktree riêng (hỗ trợ @file)…" : workflow === "chat-only" ? `Nhắn ${providerTitle(view.connectors, chatSelection.provider)} (gõ @ để chọn tệp)…` : workflow === "plan-only" ? "Mô tả vấn đề cần phân tích và lập kế hoạch…" : "Mô tả thay đổi cần triển khai trong workspace…"}">${esc(view.chatDraft)}</textarea>
+          <textarea name="prompt" data-home-prompt maxlength="50000" rows="3" placeholder="${isArena ? `Nhập yêu cầu chung cho ${arenaSlots.length} nhánh agent chạy song song (gõ @ để chèn tệp)…` : workflow === "chat-only" ? `Nhắn ${providerTitle(view.connectors, chatSelection.provider)} (gõ @ để chèn tệp)…` : workflow === "plan-only" ? "Mô tả vấn đề cần phân tích và lập kế hoạch (gõ @ để chèn tệp)…" : "Mô tả thay đổi cần triển khai trong workspace (gõ @ để chèn tệp)…"}">${esc(view.chatDraft)}</textarea>
           <div class="mention-popover" data-mention-popover hidden></div>
         </div>
-        <footer class="home-composer-controls"><div class="composer-add-wrap">${composerAddMenu("prompt")}<span class="auto-skill-chip">${icon("notebook-tabs", 14)} Tự chọn skill · ${view.skills.length}</span></div><div class="home-composer-actions"><button type="button" class="home-composer-settings" data-action="toggle-home-config" aria-label="Cấu hình workspace, agent và model" aria-expanded="${view.homeConfigOpen}" title="Workspace, agent, model và mức suy nghĩ">${icon("settings-2", 15)}<span>${esc(homeConfigSummary)}</span>${icon("chevron-down", 14)}</button><button class="home-submit" type="submit" aria-label="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${workspaces.length && canRun ? "" : "disabled"}>${icon("arrow-up-right", 17)}</button></div></footer>
+        <footer class="home-composer-controls">
+          <div class="composer-add-wrap">
+            ${composerAddMenu("prompt")}
+            <button type="button" class="orca-composer-pill" data-action="toggle-home-config" title="Chọn dự án (Workspace)">
+              ${icon("folder-code", 13)}
+              <span>${esc(activeWorkspace?.name || "Chọn workspace")}</span>
+              ${activeWorkspace?.runtime?.branch ? `<small>${esc(activeWorkspace.runtime.branch)}</small>` : ""}
+            </button>
+            ${!isArena && canIsolateHome ? `<button type="button" class="orca-composer-pill ${homeIsolated ? "is-active" : ""}" data-action="toggle-home-isolated" title="Tách nhánh Git worktree cô lập cho phiên này">${icon("git-branch", 13)}<span>Worktree</span></button>` : ""}
+            <span class="orca-composer-meta" title="Số lượng skill tự động định tuyến">${icon("notebook-tabs", 13)}<span>${view.skills.length} skills</span></span>
+          </div>
+          <div class="home-composer-actions">
+            <button type="button" class="orca-composer-pill is-model-trigger" data-action="toggle-home-config" aria-label="Cấu hình workspace, agent và model" aria-expanded="${view.homeConfigOpen}" title="Đổi Agent, Model và quyền truy cập">
+              ${icon("settings-2", 13)}
+              <span>${esc(compactAgentLabel)}</span>
+              ${icon("chevron-down", 12)}
+            </button>
+            <button class="home-submit" type="submit" aria-label="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${workspaces.length && canRun ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>
+          </div>
+        </footer>
         <div class="composer-config-backdrop home-config-backdrop" ${view.homeConfigOpen ? "" : "hidden"}><section class="composer-config-dialog app-dialog-shell" role="dialog" aria-modal="true" aria-label="Cấu hình tác vụ"><header class="app-dialog-header"><div><small>OPENSYBAU</small><h2>Cấu hình tác vụ</h2></div><button type="button" class="icon-button" data-action="close-composer-config" aria-label="Đóng">${icon("x", 16)}</button></header><div class="app-dialog-content composer-config-content"><div class="composer-config-grid"><label>Workspace<select name="workspaceId" data-home-workspace required ${workspaces.length ? "" : "disabled"}>${workspaces.length ? workspaces.map((workspace) => `<option value="${workspace.id}" ${workspace.id === activeWorkspaceId ? "selected" : ""}>${esc(workspace.name)}</option>`).join("") : `<option value="">Thêm workspace để bắt đầu</option>`}</select></label><label>Luồng<select name="workflow" data-home-workflow>${workflowOptions}</select></label></div><div class="composer-config-grid"><label>Quyền truy cập<select name="permissionPreset" data-home-permission><option value="full-access" ${homePermissionPreset === "full-access" ? "selected" : ""}>Toàn quyền trên máy</option><option value="workspace-write" ${homePermissionPreset === "workspace-write" ? "selected" : ""}>Đọc và sửa workspace</option><option value="read-only" ${homePermissionPreset === "read-only" ? "selected" : ""}>Chỉ đọc workspace</option></select></label><label class="check-row home-isolation-row"><input type="checkbox" name="isolated" data-home-isolated ${homeIsolated ? "checked" : ""} ${canIsolateHome ? "" : "disabled"}><span><strong>Tách Git worktree riêng</strong><small>${canIsolateHome ? `Nhánh ${esc(activeWorkspace?.runtime?.branch || "HEAD")} · chạy song song an toàn` : "Cần Git repo có ít nhất 1 commit"}</small></span></label></div><div class="chat-agent-role" ${workflow === "chat-only" ? "" : "hidden"}>${chatAgentEditor({ provider: chatSelection.provider, model: chatSelection.model?.id, effort: chatSelection.effort })}</div><div class="agent-role-grid home-role-grid" ${workflow === "chat-only" ? "hidden" : ""}>${workflowRoles.map((role) => roleEditor(role.id, roleSelections[role.id])).join("")}</div></div><footer class="app-dialog-footer"><span>${icon("notebook-tabs", 14)} Skill tự chọn · ${view.skills.length} · Tối đa ${view.state.settings.maxConcurrent} task song song</span><button type="button" class="button primary" data-action="close-composer-config">Xong</button></footer></section></div>
       </form>
     </div>
@@ -1440,10 +1530,13 @@ async function handleSubmit(event) {
       view.selected = task.task.id; view.page = "chat"; view.chatProvider = task.task.config.chatProvider || task.task.config.roles?.plan?.provider || "codex"; view.chatModel = task.task.config.workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = task.task.config.workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; showToast("Task thật đã vào hàng đợi.");
     } else if (form.dataset.form === "home-task") {
       if (view.homeMode === "arena") {
-        const candidates = availableArenaCompetitors();
-        const chosenIds = (view.homeArenaProviders || []).filter((id) => candidates.some((c) => c.provider === id));
-        const activeIds = chosenIds.length >= 2 ? chosenIds : candidates.slice(0, Math.min(3, candidates.length)).map((c) => c.provider);
-        const competitors = activeIds.map((id) => candidates.find((c) => c.provider === id) || { provider: id, name: providerTitle(view.connectors, id) });
+        const slots = ensureHomeArenaSlots();
+        const competitors = slots.map((slot, idx) => ({
+          provider: slot.provider,
+          model: slot.model,
+          effort: slot.effort,
+          label: `#${idx + 1} ${providerTitle(view.connectors, slot.provider)}${slot.model ? ` (${slot.model})` : ""}`,
+        }));
         const result = await api("/api/tasks/fanout", {
           method: "POST",
           body: JSON.stringify({
@@ -1462,7 +1555,7 @@ async function handleSubmit(event) {
           view.chatDraft = "";
           clearComposerAttachments(form);
         }
-        showToast(`Đã khởi chạy Đấu trường với ${result.tasks?.length || competitors.length} Git worktree song song!`);
+        showToast(`Đã khởi chạy Đấu trường với ${result.tasks?.length || competitors.length} nhánh Git worktree song song!`);
       } else {
         const workflow = object.workflow || "chat-only";
         const payload = { ...object, prompt: String(object.prompt || "").trim(), workflow, isolated: data.has("isolated") || Boolean(view.homeIsolated), permissionPreset: object.permissionPreset || view.homePermissionPreset || "full-access" };
@@ -1569,6 +1662,55 @@ async function handleWorkbenchClick(event) {
     return;
   }
   const action = button.dataset.action; const id = button.dataset.id;
+  if (action === "toggle-home-isolated") {
+    view.homeIsolated = !view.homeIsolated;
+    render();
+    return;
+  }
+  if (action === "arena-add-slot") {
+    const slots = ensureHomeArenaSlots();
+    if (slots.length >= 8) { showToast("Đấu trường hỗ trợ tối đa 8 nhánh Git worktree song song."); return; }
+    const last = slots[slots.length - 1] || { provider: "codex", model: "", effort: "medium" };
+    view.homeArenaSlots = [...slots, { ...last }];
+    render();
+    return;
+  }
+  if (action === "arena-clone-slot") {
+    const slots = ensureHomeArenaSlots();
+    if (slots.length >= 8) { showToast("Đấu trường hỗ trợ tối đa 8 nhánh Git worktree song song."); return; }
+    const idx = Number(button.dataset.index || 0);
+    const source = slots[idx] || slots[0];
+    const next = [...slots];
+    next.splice(idx + 1, 0, { ...source });
+    view.homeArenaSlots = next;
+    render();
+    return;
+  }
+  if (action === "arena-remove-slot") {
+    const slots = ensureHomeArenaSlots();
+    if (slots.length <= 2) { showToast("Đấu trường cần ít nhất 2 nhánh để chạy song song."); return; }
+    const idx = Number(button.dataset.index || 0);
+    view.homeArenaSlots = slots.filter((_, i) => i !== idx);
+    render();
+    return;
+  }
+  if (action === "arena-preset") {
+    const preset = button.dataset.preset;
+    const candidates = availableArenaCompetitors();
+    const slots = ensureHomeArenaSlots();
+    const base = slots[0] || candidates[0] || { provider: "codex", model: "", effort: "medium" };
+    if (preset === "same-2") {
+      view.homeArenaSlots = [{ ...base }, { ...base }];
+    } else if (preset === "same-3") {
+      view.homeArenaSlots = [{ ...base }, { ...base }, { ...base }];
+    } else if (preset === "all-providers") {
+      view.homeArenaSlots = candidates.length >= 2
+        ? candidates.slice(0, 8).map((c) => ({ provider: c.provider, model: c.model, effort: c.effort }))
+        : [{ ...base }, { ...base }];
+    }
+    render();
+    return;
+  }
   if (action === "remove-composer-attachment") {
     const scope = button.dataset.scope;
     const items = view.composerAttachments?.[scope] || [];
@@ -2098,14 +2240,37 @@ document.addEventListener("input", (event) => {
   applySkillFilter(input);
 });
 document.addEventListener("change", (event) => {
-  if (event.target.matches("[data-arena-provider]")) {
-    const id = event.target.dataset.arenaProvider;
-    const set = new Set(view.homeArenaProviders || []);
-    if (event.target.checked) set.add(id);
-    else if (set.size > 2) set.delete(id);
-    else { event.target.checked = true; showToast("Đấu trường cần tối thiểu 2 agent để so sánh song song."); return; }
-    view.homeArenaProviders = [...set];
-    render();
+  if (event.target.matches("[data-arena-slot-provider]")) {
+    const idx = Number(event.target.dataset.arenaSlotProvider || 0);
+    const slots = ensureHomeArenaSlots();
+    if (slots[idx]) {
+      const cand = availableArenaCompetitors().find((c) => c.provider === event.target.value);
+      slots[idx].provider = event.target.value;
+      slots[idx].model = cand?.model || "";
+      slots[idx].effort = cand?.effort || "medium";
+      view.homeArenaSlots = [...slots];
+      render();
+    }
+    return;
+  }
+  if (event.target.matches("[data-arena-slot-model]")) {
+    const idx = Number(event.target.dataset.arenaSlotModel || 0);
+    const slots = ensureHomeArenaSlots();
+    if (slots[idx]) {
+      slots[idx].model = event.target.value;
+      view.homeArenaSlots = [...slots];
+      render();
+    }
+    return;
+  }
+  if (event.target.matches("[data-arena-slot-effort]")) {
+    const idx = Number(event.target.dataset.arenaSlotEffort || 0);
+    const slots = ensureHomeArenaSlots();
+    if (slots[idx]) {
+      slots[idx].effort = event.target.value;
+      view.homeArenaSlots = [...slots];
+      render();
+    }
     return;
   }
   if (event.target.matches("[data-content-file-import]")) { void importContentFiles(event.target); return; }

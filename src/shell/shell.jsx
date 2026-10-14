@@ -28,10 +28,10 @@ function StatusBar({ snapshot }) {
 
   return <footer class="wb-statusbar" aria-label="Trạng thái hệ thống và hạn mức">
     <div class="wb-status-left">
-      <span class={`wb-status-item wb-status-conn ${connected ? "is-online" : "is-offline"}`}>
-        <i class="wb-status-dot" />
-        <span>{connected ? "Localhost · Trực tuyến" : "Đang kết nối lại…"}</span>
-      </span>
+      {!connected ? <span class="wb-status-item wb-status-conn is-offline">
+        <i class="wb-status-dot is-offline" />
+        <span>Đang kết nối lại…</span>
+      </span> : null}
       {workspace ? <span class="wb-status-item" title={workspace.path}>
         <Icon name="folder-code" size={12} />
         <span>{workspace.name}</span>

@@ -2226,7 +2226,7 @@ async function api(request, response, pathname) {
     const info = await inspectWorkspace(workspace.path);
     if (!info.isGit || !info.head) return json(response, 400, { error: "Đấu trường Agent cần Git repository có ít nhất 1 commit để tách Git worktree cô lập cho từng đối thủ." });
     const competitors = Array.isArray(body.competitors) ? body.competitors : [];
-    if (competitors.length < 2 || competitors.length > 4) return json(response, 400, { error: "Chọn từ 2 đến 4 agent để chạy song song trên các Git worktree." });
+    if (competitors.length < 2 || competitors.length > 8) return json(response, 400, { error: "Chọn từ 2 đến 8 nhánh agent để chạy song song trên các Git worktree." });
     const connectors = await loadModels();
     const workflow = ["chat-only", "plan-only", "codex-antigravity"].includes(body.workflow) ? body.workflow : "chat-only";
     const permissionPreset = body.permissionPreset === undefined ? "full-access" : body.permissionPreset;
@@ -2242,12 +2242,12 @@ async function api(request, response, pathname) {
       const requiredCap = workflow === "chat-only" ? "chat" : "plan";
       const validationError = validateAgentSelection({ provider, model, effort }, requiredCap, connectors);
       if (validationError) return json(response, 400, { error: validationError });
-      normalizedCompetitors.push({ provider, model, effort });
+      normalizedCompetitors.push({ provider, model, effort, customLabel: String(entry?.label || "").trim() });
     }
     const fanoutId = `fanout-${randomUUID().slice(0, 8)}`;
     const baseTitle = String(body.title || prompt.split(/\r?\n/)[0]).trim().slice(0, 96) || safeAttachments[0]?.name || "Đấu trường Agent";
     const createdTasks = [];
-    for (const comp of normalizedCompetitors) {
+    for (const [idx, comp] of normalizedCompetitors.entries()) {
       const id = `task-${randomUUID().slice(0, 8)}`;
       const singleRole = { provider: comp.provider, model: comp.model, effort: comp.effort };
       const config = {
@@ -2258,10 +2258,11 @@ async function api(request, response, pathname) {
         agyEffort: comp.provider === "antigravity" ? comp.effort : String(state.settings.defaults?.agyEffort || "medium"),
         chatProvider: comp.provider, chatModel: comp.model, chatEffort: comp.effort, workflow,
       };
+      const slotName = comp.customLabel || `#${idx + 1} ${publicProviderName(comp.provider)}${comp.model ? ` (${comp.model})` : ""}`;
       const now = new Date().toISOString();
       const task = {
         id,
-        title: `[${publicProviderName(comp.provider)}] ${baseTitle}`.slice(0, 120),
+        title: `[#${idx + 1} ${publicProviderName(comp.provider)}] ${baseTitle}`.slice(0, 120),
         prompt,
         attachments: safeAttachments,
         workspaceId: workspace.id,
@@ -2272,14 +2273,15 @@ async function api(request, response, pathname) {
         fanoutId,
         fanoutProvider: comp.provider,
         fanoutModel: comp.model,
-        fanoutLabel: `${publicProviderName(comp.provider)} · ${comp.model}`,
+        fanoutLabel: slotName,
+        fanoutCompetitor: { index: idx + 1, name: slotName, provider: comp.provider, model: comp.model, effort: comp.effort },
         config,
         permissionPreset,
         goal: String(body.goal || "").trim().slice(0, 2000),
         goalChecklist: [],
         createdAt: now,
         updatedAt: now,
-        events: [{ at: now, kind: "success", text: `Khởi tạo trong Đấu trường Song song (${fanoutId}) trên Git worktree riêng.` }],
+        events: [{ at: now, kind: "success", text: `Khởi tạo trong Đấu trường Song song (${fanoutId} · Nhánh #${idx + 1}) trên Git worktree riêng.` }],
         skillSelectionMode: "auto",
         skillSelectionCompleted: false,
         skillIds: [],

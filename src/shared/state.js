@@ -52,6 +52,7 @@ export const view = {
   homeWorkspaceId: "",
   homeConfigOpen: false,
   homeArenaProviders: ["codex", "antigravity", "claude"],
+  homeArenaSlots: [],
   chatDrawerOpen: false,
   chatDrawerTab: "files",
   chatDrawerFilter: "",

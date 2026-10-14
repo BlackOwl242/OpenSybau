@@ -12,9 +12,9 @@ html, body, #root { color: var(--foreground); background: var(--background); }
 body { font-family: "Nunito Sans Variable", "Segoe UI", Arial, sans-serif; }
 button, input, select, textarea { font-family: inherit; }
 ::selection { color: var(--primary-foreground); background: color-mix(in srgb, var(--primary) 82%, var(--background)); }
-button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible,
+button:focus-visible, select:focus-visible,
 a:focus-visible, [tabindex]:focus-visible {
-  outline: 2px solid var(--ring) !important;
+  outline: 1.5px solid var(--ring);
   outline-offset: 2px;
 }
 
@@ -29,14 +29,14 @@ body .wb-update-button,
 body .home-composer-settings,
 body .chat-config-trigger {
   border-radius: var(--radius-md);
-  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 body .wb-page-content .button:not(.primary):not(.danger),
 body #overlay .button:not(.primary):not(.danger),
 body .desktop-setup-dialog .button:not(.primary):not(.danger),
 body .icon-button {
   color: var(--foreground);
-  border-color: var(--input);
+  border-color: var(--border);
   background: var(--secondary);
 }
 body .wb-page-content .button:not(:disabled):hover,
@@ -49,16 +49,18 @@ body .icon-button:not(:disabled):hover {
 body .wb-page-content .button.primary,
 body #overlay .button.primary,
 body .desktop-setup-dialog .button.primary {
-  border-color: var(--primary);
-  color: var(--primary-foreground);
-  background: var(--primary);
+  border-color: #fafafa;
+  color: #111113;
+  background: #ededef;
+  font-weight: 600;
 }
 body .wb-page-content .button.primary:not(:disabled):hover,
 body #overlay .button.primary:not(:disabled):hover,
 body .desktop-setup-dialog .button.primary:not(:disabled):hover {
-  border-color: #4770d1;
-  background: #4770d1;
-  box-shadow: 0 2px 10px rgb(54 95 195 / 18%);
+  border-color: #ffffff;
+  background: #ffffff;
+  color: #09090b;
+  box-shadow: 0 2px 10px rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 body .wb-page-content .button.danger,
@@ -69,25 +71,21 @@ body #overlay .button.danger {
 }
 body .wb-page-content .button:disabled,
 body #overlay .button:disabled,
-body .desktop-setup-dialog .button:disabled { opacity: .52; transform: none; }
+body .desktop-setup-dialog .button:disabled { opacity: .48; transform: none; }
 
-/* Inputs, native dropdowns, and options use the same Mist/Cyan palette. */
-body .wb-page-content input:not([type="checkbox"]),
+/* Standalone inputs and dropdowns use the Orca obsidian field palette. */
+body .wb-page-content input:not([type="checkbox"]):not([data-chat-drawer-filter]):not([data-skill-filter]):not([data-file-filter]),
 body .wb-page-content select,
-body .wb-page-content textarea,
 body #overlay input:not([type="checkbox"]),
 body #overlay select,
 body #overlay textarea,
 body .desktop-setup-dialog input:not([type="checkbox"]),
 body .desktop-setup-dialog select,
-body .desktop-setup-dialog textarea,
-body .wb-app-shell input:not([type="checkbox"]),
-body .wb-app-shell select,
-body .wb-app-shell textarea {
-  border-color: var(--input) !important;
-  border-radius: var(--radius-md) !important;
-  color: var(--foreground) !important;
-  background-color: var(--wb-field) !important;
+body .desktop-setup-dialog textarea {
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  background-color: var(--wb-field);
   accent-color: var(--primary);
 }
 body .wb-page-content input::placeholder,
@@ -1577,6 +1575,533 @@ html.desktop-glass .wb-page-content .task-conversation-page .chat-composer { bac
     border-bottom: 1px solid #32353b;
   }
   .wb-topbar-tabs {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   Orca Obsidian Design System Overhaul (shadcn new-york-v4 Dark Aesthetic)
+   Fixes all nested input boxes, muddy grays, mode switch tabs, and Arena slots
+   ========================================================================== */
+
+/* 1. Shell & Surface Hierarchy */
+.wb-app-shell {
+  background: #0a0a0b !important;
+}
+.wb-rail {
+  background: #0d0d0f !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+.wb-rail-group {
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+}
+.wb-rail-link {
+  color: #8a8a93 !important;
+  border-radius: 9px !important;
+}
+.wb-rail-link:hover {
+  color: #fafafa !important;
+  background: #1c1c20 !important;
+}
+.wb-rail-link.is-active {
+  color: #fafafa !important;
+  background: #232329 !important;
+}
+.wb-rail-link.is-active::before {
+  background: #fafafa !important;
+}
+.wb-context-sidebar,
+.wb-page-sidebar {
+  background: #121215 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+.wb-topbar {
+  height: 52px !important;
+  background: #0f0f12 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+.wb-main,
+.wb-page-content {
+  background: #0a0a0b !important;
+}
+.wb-statusbar {
+  height: 26px !important;
+  background: #0d0d10 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+  color: #8e8e98 !important;
+  font-size: 11px !important;
+}
+html.desktop-glass {
+  --wb-rail: rgba(13, 13, 15, 0.94);
+  --wb-sidebar: rgba(18, 18, 21, 0.93);
+  --wb-main: rgba(10, 10, 11, 0.91);
+  --wb-surface: rgba(22, 22, 25, 0.94);
+  --wb-surface-soft: rgba(18, 18, 21, 0.93);
+  --wb-field: rgba(18, 18, 21, 0.92);
+  --wb-control: rgba(29, 29, 33, 0.94);
+}
+html.desktop-glass .wb-topbar {
+  background: rgba(15, 15, 18, 0.93) !important;
+}
+html.desktop-glass .wb-page-content .home-composer,
+html.desktop-glass .wb-page-content .task-conversation-page .chat-composer {
+  background: #151518 !important;
+}
+
+/* 2. Fix ALL "Input-Inside-Input" (Box-in-Box) Search & Composer Fields */
+.wb-sidebar-search,
+.chat-drawer-search,
+.wb-page-content .skill-search {
+  height: 34px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 0 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 8px !important;
+  background: #18181c !important;
+  color: #8e8e98 !important;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease !important;
+}
+.wb-sidebar-search:focus-within,
+.chat-drawer-search:focus-within,
+.wb-page-content .skill-search:focus-within {
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  background: #1c1c21 !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.05) !important;
+}
+.wb-sidebar-search input,
+.wb-sidebar-search input:focus,
+.wb-sidebar-search input:focus-visible,
+.chat-drawer-search input,
+.chat-drawer-search input:focus,
+.chat-drawer-search input:focus-visible,
+.wb-page-content .skill-search input,
+.wb-page-content .skill-search input:focus,
+.wb-page-content .skill-search input:focus-visible {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: #f4f4f6 !important;
+  font-size: 12px !important;
+}
+.wb-new-chat {
+  height: 34px !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+  border-radius: 8px !important;
+  background: #18181c !important;
+  color: #ededef !important;
+  font-weight: 550 !important;
+}
+.wb-new-chat:hover {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  background: #202026 !important;
+}
+
+/* 3. Home Stage & Segmented Mode Switch (Orca Pill Switcher) */
+.wb-page-content .command-stage {
+  width: min(840px, 100%) !important;
+  padding: 24px 0 clamp(28px, 7vh, 64px) !important;
+}
+.wb-page-content .home-welcome {
+  margin: auto 0 20px !important;
+}
+.wb-page-content .home-welcome .home-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: #141417;
+  color: #a1a1aa !important;
+  font-family: var(--wb-font-mono);
+  font-size: 10px !important;
+  font-weight: 600;
+  letter-spacing: 0.08em !important;
+}
+.wb-page-content .home-welcome h1 {
+  color: #fafafa !important;
+  font-size: clamp(24px, 2.8vw, 30px) !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.03em !important;
+  margin: 0 0 8px !important;
+}
+.wb-page-content .home-welcome .home-subtitle {
+  color: #8e8e98 !important;
+  font-size: 13px !important;
+}
+.wb-page-content .home-welcome .home-subtitle code {
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 5px;
+  background: #18181c;
+  color: #e4e4e7;
+  font-family: var(--wb-font-mono);
+  font-size: 11.5px;
+}
+.home-mode-switch-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 14px;
+}
+.wb-page-content .home-mode-switch {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  margin: 0 !important;
+  padding: 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 11px !important;
+  background: #131316 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+.wb-page-content .home-mode-tab {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 31px !important;
+  min-height: 31px !important;
+  padding: 0 13px !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: #9898a2 !important;
+  font-size: 12.5px !important;
+  font-weight: 560 !important;
+  white-space: nowrap !important;
+  cursor: pointer;
+  transition: color 130ms ease, background-color 130ms ease, border-color 130ms ease !important;
+}
+.wb-page-content .home-mode-tab svg {
+  width: 13px !important;
+  height: 13px !important;
+  flex: 0 0 auto !important;
+  opacity: 0.85;
+}
+.wb-page-content .home-mode-tab:hover:not(:disabled) {
+  color: #f4f4f6 !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+.wb-page-content .home-mode-tab.active {
+  color: #fafafa !important;
+  background: #232329 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* 4. Orca Unified Prompt Composer (Zero Inner Box, Seamless Surface) */
+.wb-page-content .home-composer,
+.wb-page-content .task-conversation-page .chat-composer {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 10px !important;
+  padding: 14px 16px 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 14px !important;
+  background: #151518 !important;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+  transition: border-color 150ms ease, box-shadow 150ms ease !important;
+}
+.wb-page-content .home-composer:focus-within,
+.wb-page-content .task-conversation-page .chat-composer:focus-within {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.04), 0 14px 38px rgba(0, 0, 0, 0.5) !important;
+}
+.composer-input-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.wb-page-content .home-composer textarea,
+.wb-page-content .home-composer textarea:focus,
+.wb-page-content .home-composer textarea:focus-visible,
+.wb-page-content .chat-composer textarea,
+.wb-page-content .chat-composer textarea:focus,
+.wb-page-content .chat-composer textarea:focus-visible,
+.composer-input-wrap > textarea,
+.composer-input-wrap > textarea:focus,
+.composer-input-wrap > textarea:focus-visible {
+  width: 100% !important;
+  min-height: 76px !important;
+  max-height: 260px !important;
+  padding: 2px 2px 6px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: #f4f4f6 !important;
+  font-size: 13.5px !important;
+  line-height: 1.58 !important;
+  resize: none !important;
+}
+.wb-page-content .home-composer textarea::placeholder,
+.wb-page-content .chat-composer textarea::placeholder {
+  color: #71717a !important;
+}
+
+/* 5. Orca Context Pills & Monochrome Send Button in Composer Footer */
+.wb-page-content .home-composer-controls,
+.wb-page-content .chat-composer-controls {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  padding-top: 8px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+.composer-add-wrap,
+.home-composer-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+.composer-add > summary {
+  width: 30px !important;
+  height: 30px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  background: #1f1f24 !important;
+  color: #d4d4d8 !important;
+}
+.composer-add > summary:hover,
+.composer-add[open] > summary {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  background: #292930 !important;
+  color: #ffffff !important;
+}
+.orca-composer-pill,
+.wb-page-content .chat-config-trigger {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  height: 30px !important;
+  max-width: 280px !important;
+  padding: 0 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 8px !important;
+  background: #1e1e23 !important;
+  color: #d4d4d8 !important;
+  font-size: 11.5px !important;
+  font-weight: 540 !important;
+  white-space: nowrap !important;
+  cursor: pointer;
+  transition: background-color 130ms ease, border-color 130ms ease, color 130ms ease !important;
+}
+.orca-composer-pill:hover,
+.wb-page-content .chat-config-trigger:hover {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  background: #27272e !important;
+  color: #fafafa !important;
+}
+.orca-composer-pill.is-active {
+  border-color: rgba(134, 239, 172, 0.4) !important;
+  background: rgba(134, 239, 172, 0.11) !important;
+  color: #86efac !important;
+}
+.orca-composer-pill > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.orca-composer-pill > small {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #a1a1aa !important;
+  font-family: var(--wb-font-mono);
+  font-size: 10px !important;
+}
+.orca-composer-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  color: #7c7c86;
+  font-size: 11px;
+  user-select: none;
+}
+.wb-page-content .home-submit,
+.wb-page-content .chat-send-button {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  border: 1px solid #fafafa !important;
+  border-radius: 9px !important;
+  background: #ededef !important;
+  color: #0d0d10 !important;
+  cursor: pointer;
+  transition: transform 130ms ease, background-color 130ms ease, opacity 130ms ease !important;
+}
+.wb-page-content .home-submit:hover:not(:disabled),
+.wb-page-content .chat-send-button:hover:not(:disabled) {
+  background: #ffffff !important;
+  border-color: #ffffff !important;
+  transform: translateY(-1px);
+}
+.wb-page-content .home-submit:disabled,
+.wb-page-content .chat-send-button:disabled {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: #232328 !important;
+  color: #65656f !important;
+  opacity: 0.65 !important;
+}
+
+/* 6. Orca Multi-Slot Arena Builder (Supports N instances of same or different models) */
+.home-arena-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0 0 4px;
+  padding: 11px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  background: #101013;
+}
+.home-arena-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.home-arena-title {
+  display: grid;
+  gap: 2px;
+}
+.home-arena-title strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #fafafa;
+  font-size: 12px;
+  font-weight: 620;
+}
+.home-arena-title small {
+  color: #8a8a95 !important;
+  font-size: 11px !important;
+}
+.home-arena-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.arena-preset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 6px;
+  background: #1b1b20;
+  color: #d4d4d8;
+  font-size: 11px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.arena-preset-btn:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: #26262d;
+  color: #ffffff;
+}
+.arena-preset-btn.is-primary {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: #27272f;
+  color: #fafafa;
+}
+.arena-slot-list {
+  display: grid;
+  gap: 6px;
+}
+.arena-slot-row {
+  display: grid;
+  grid-template-columns: 30px minmax(120px, 1.1fr) minmax(140px, 1.5fr) minmax(90px, 0.8fr) 28px 28px;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  background: #16161a;
+}
+.arena-slot-badge {
+  display: inline-grid;
+  place-items: center;
+  height: 22px;
+  border-radius: 5px;
+  background: #232329;
+  color: #d4d4d8;
+  font-family: var(--wb-font-mono);
+  font-size: 10.5px;
+  font-weight: 650;
+}
+.arena-slot-select {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 8px !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 6px !important;
+  background: #101013 !important;
+  color: #ededef !important;
+  font-size: 11.5px !important;
+}
+.arena-slot-select.is-model {
+  font-family: var(--wb-font-mono) !important;
+  font-size: 11px !important;
+}
+.arena-slot-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+  background: #1e1e23;
+  color: #a1a1aa;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.arena-slot-icon:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: #292930;
+  color: #fafafa;
+}
+.arena-slot-icon.is-danger:hover:not(:disabled) {
+  border-color: rgba(255, 101, 104, 0.4);
+  background: rgba(255, 101, 104, 0.14);
+  color: #ff6568;
+}
+.arena-slot-icon:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+@media (max-width: 680px) {
+  .arena-slot-row {
+    grid-template-columns: 28px 1fr 1fr auto auto;
+  }
+  .arena-slot-select.is-effort {
     display: none;
   }
 }
