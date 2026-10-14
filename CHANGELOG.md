@@ -5,6 +5,18 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.72] - 2026-10-14
+
+### Changed & Improved (Đồng Bộ Hóa Khung Trò Chuyện Không Viền & Đưa Các Nút Thao Tác Phiên Vào Sidebar Phải)
+- **Gộp giao diện cuộc trò chuyện vào khung chat tối giản bình thường (`.task-conversation-page.is-unified-chat`)**:
+  - Loại bỏ hoàn toàn thanh tiêu đề lồng ghép `.pane-heading` (`Trò chuyện | Hoàn tất · ... | Quyền | Mục tiêu | N tin nhắn`), thanh `.chat-pipeline-strip` (`Diff & Review`, `Luồng`) và hộp viền xám `.conversation-chat-pane` ở giữa màn hình để giao diện cuộc trò chuyện đồng bộ 100% với màn hình chat chính.
+  - Tinh giản thanh `TopBar` phía trên chỉ giữ đường dẫn tiêu đề gọn gàng bên trái và duy nhất nút đóng/mở Sidebar phải (`◨`) ở góc trên bên phải.
+- **Đưa toàn bộ các nút điều khiển & thông tin phiên vào Sidebar bên phải có thể kéo giãn (`.orca-right-dock`)**:
+  - Chuyển các nút `Diff & Review`, `Luồng điều phối`, `Quyền truy cập`, `Mục tiêu & Checklist`, `Gộp vào dự án`, `Hủy worktree`, `So sánh Đa luồng`, `Mở thư mục` và thông tin trạng thái/token của phiên sang gọn trong Sidebar phải (ở cả menu `⋯`, tab `Source Control / Changes` và tab `Checklist & Công cụ phiên`).
+  - Hỗ trợ kéo thanh phân cách bên trái Sidebar phải (`220px` – `620px`) để tùy chỉnh kích thước linh hoạt.
+
+---
+
 ## [0.2.71] - 2026-10-14
 
 ### Changed & Improved (Sidebar Phải Hợp Nhất 4 Tab kiểu ORCA/Codex, Kéo Giãn Chiều Rộng & Tối Giản Khung Chính Giữa)

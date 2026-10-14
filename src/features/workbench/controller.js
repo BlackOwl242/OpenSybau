@@ -969,9 +969,21 @@ function orcaRightDockMarkup() {
     subTitle = activeWs.name;
     subTooltip = activeWs.path;
     refreshAction = "refresh-dock-context";
+    const taskArtifactsCount = (selectedTask?.artifacts || []).length;
     moreMenuHtml = `<details class="codex-pop-menu is-right is-down">
-      <summary class="icon-button orca-sub-btn" title="Tùy chọn dự án">${icon("ellipsis", 14)}</summary>
+      <summary class="icon-button orca-sub-btn" title="Tùy chọn dự án & phiên">${icon("ellipsis", 14)}</summary>
       <div class="codex-pop-card">
+        ${selectedTask ? `
+          <div class="codex-pop-head">Phiên trò chuyện</div>
+          <button type="button" class="codex-pop-item" data-action="show-diff" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("file-text", 13)}<span>Diff & Review (${taskArtifactsCount})</span></span></button>
+          <button type="button" class="codex-pop-item" data-action="open-task-flow" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("workflow", 13)}<span>Luồng điều phối</span></span></button>
+          <button type="button" class="codex-pop-item" data-action="task-permissions" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("shield", 13)}<span>Quyền truy cập</span></span></button>
+          <button type="button" class="codex-pop-item" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("target", 13)}<span>Mục tiêu & Checklist</span></span></button>
+          <button type="button" class="codex-pop-item" data-action="task-instruction" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("settings-2", 13)}<span>Cấu hình Agent / Model</span></span></button>
+          <button type="button" class="codex-pop-item" data-action="${selectedTask.archived ? "restore-task" : "archive-task"}" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("archive", 13)}<span>${selectedTask.archived ? "Khôi phục chat" : "Lưu trữ chat"}</span></span></button>
+          <div class="codex-pop-sep"></div>
+        ` : ""}
+        <div class="codex-pop-head">Dự án</div>
         <button type="button" class="codex-pop-item" data-action="open-project-folder" data-id="${esc(activeWs.id)}"><span class="codex-pop-item-main">${icon("folder-open", 13)}<span>Mở trong Explorer</span></span></button>
         <button type="button" class="codex-pop-item" data-action="edit-project" data-id="${esc(activeWs.id)}"><span class="codex-pop-item-main">${icon("settings-2", 13)}<span>Sửa cấu hình dự án</span></span></button>
         <button type="button" class="codex-pop-item" data-action="add-workspace"><span class="codex-pop-item-main">${icon("folder-plus", 13)}<span>Thêm dự án mới…</span></span></button>
@@ -1166,11 +1178,27 @@ function orcaRightDockMarkup() {
       </div>`;
     } else {
       const artifacts = selectedTask?.artifacts || [];
-      const canMergeWt = Boolean(selectedTask?.isolated && !["running", "queued"].includes(selectedTask.status) && !selectedTask.worktreeCleaned && !selectedTask.worktreeAppliedAt && artifacts.length > 0);
+      const taskBusy = selectedTask && ["running", "queued"].includes(selectedTask.status);
+      const canManageWt = Boolean(selectedTask?.isolated && !taskBusy && !selectedTask.worktreeCleaned && !selectedTask.worktreeAppliedAt);
+      const canMergeWt = Boolean(canManageWt && artifacts.length > 0);
       const isolatedTasks = (view.state?.tasks || []).filter((t) => t.workspaceId === activeWs?.id && t.isolated && !t.worktreeCleaned && !t.archived);
+      const fanoutSiblings = selectedTask?.fanoutId ? (view.state?.tasks || []).filter((t) => t.fanoutId === selectedTask.fanoutId && !t.archived) : [];
       bodyHtml = `<div class="orca-dock-pad">
-        ${canMergeWt ? `<button type="button" class="button primary small orca-merge-btn" data-action="apply-worktree" data-id="${esc(selectedTask.id)}">${icon("git-branch", 13)}<span>Gộp Worktree vào dự án</span></button>` : ""}
-        <div class="orca-section-label">CHANGES (${artifacts.length})</div>
+        ${selectedTask ? `<div class="orca-dock-actions-grid">
+          ${selectedTask.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${esc(selectedTask.id)}">${icon("file-text", 13)}<span>Diff & Review (${artifacts.length})</span></button>` : ""}
+          <button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(selectedTask.id)}">${icon("workflow", 13)}<span>Luồng</span></button>
+          ${canMergeWt ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(selectedTask.id)}">${icon("check", 13)}<span>Gộp vào dự án</span></button>` : ""}
+          ${canManageWt ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${esc(selectedTask.id)}">${icon("delete", 13)}<span>Hủy worktree</span></button>` : ""}
+        </div>` : ""}
+        ${fanoutSiblings.length > 1 ? `<div class="orca-section-head" style="margin-top:8px">
+          <span class="orca-section-label">ĐA LUỒNG (${fanoutSiblings.length})</span>
+          <button type="button" class="button quiet small" data-action="compare-fanout" data-fanout-id="${esc(selectedTask.fanoutId)}">So sánh</button>
+        </div>
+        <ul class="orca-tree-list">${fanoutSiblings.map((t) => {
+          const compName = t.fanoutCompetitor?.name || t.fanoutLabel || t.title;
+          return `<li class="orca-tree-item is-file ${t.id === selectedTask.id ? "is-selected" : ""}"><button type="button" class="orca-tree-row ${t.id === selectedTask.id ? "is-selected" : ""}" style="padding-left:10px" data-task="${esc(t.id)}"><span class="wb-task-dot is-${t.status || "done"}"></span><span class="orca-tree-label">${esc(compName)}</span><small class="orca-tree-badge">${(t.artifacts || []).length}</small></button></li>`;
+        }).join("")}</ul>` : ""}
+        <div class="orca-section-label" style="margin-top:8px">CHANGES (${artifacts.length})</div>
         ${artifacts.length
           ? `<ul class="orca-tree-list">${artifacts.map((filePath) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-action="open-diff-file" data-id="${esc(selectedTask.id)}" data-path="${esc(filePath)}" title="${esc(filePath)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(filePath)}</span><small class="orca-diff-dot">M</small></button></li>`).join("")}</ul>`
           : `<p class="orca-muted-note">${selectedTask ? "Chưa có tệp thay đổi nào trong phiên này." : "Chọn một cuộc trò chuyện để xem danh sách tệp thay đổi (Changes)."}</p>`}
@@ -1189,8 +1217,22 @@ function orcaRightDockMarkup() {
       </div>`;
     } else if (selectedTask) {
       const checklist = selectedTask.goalChecklist || [];
+      const totalUsage = Object.values(selectedTask.usage || {}).reduce((sum, item) => sum + tokenCount(item), 0);
+      const taskBusy = ["running", "queued"].includes(selectedTask.status);
+      const artifactsCount = (selectedTask.artifacts || []).length;
+      const permLabel = selectedTask.permissionPreset === "read-only" ? "Chỉ đọc" : selectedTask.permissionPreset === "full-access" ? "Toàn quyền máy" : "Sửa workspace";
       bodyHtml = `<div class="orca-dock-pad">
-        <div class="orca-section-head">
+        <div class="orca-section-label">THÔNG TIN & CÔNG CỤ PHIÊN</div>
+        <p class="orca-muted-note">${esc(statuses[selectedTask.status] || selectedTask.status)} · ${fmtDate(selectedTask.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tok` : ""} · ${esc(permLabel)}</p>
+        <div class="orca-dock-actions-grid">
+          ${selectedTask.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${esc(selectedTask.id)}">${icon("file-text", 13)}<span>Diff & Review (${artifactsCount})</span></button>` : ""}
+          <button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(selectedTask.id)}">${icon("workflow", 13)}<span>Luồng</span></button>
+          <button type="button" class="button quiet small" data-action="task-permissions" data-id="${esc(selectedTask.id)}">${icon("shield", 13)}<span>Quyền</span></button>
+          <button type="button" class="button quiet small" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}">${icon("target", 13)}<span>Mục tiêu</span></button>
+          <button type="button" class="button quiet small" data-action="open-folder" data-id="${esc(selectedTask.id)}">${icon("folder-open", 13)}<span>Mở thư mục</span></button>
+          ${taskBusy ? `<button type="button" class="button danger small" data-action="stop-task" data-id="${esc(selectedTask.id)}">${icon("square", 12)}<span>Dừng</span></button>` : ""}
+        </div>
+        <div class="orca-section-head" style="margin-top:12px">
           <span class="orca-section-label">MỤC TIÊU & CHECKLIST (${checklist.length})</span>
           <button type="button" class="icon-button" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}" title="Sửa mục tiêu">${icon("square-pen", 13)}</button>
         </div>
@@ -2344,13 +2386,17 @@ function taskConversationPage() {
       </button>`);
     }
   }
-  return `<section class="task-conversation-page" aria-label="Cuộc trò chuyện">
-      <section class="task-chat-pane conversation-chat-pane"><header class="pane-heading"><div><strong>Trò chuyện</strong><small>${statuses[task.status]} · ${fmtDate(task.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tokens` : ""}${busy ? ` · ${taskProgress(task)}` : ` · ${workflow === "chat-only" ? "Chat" : "Task"}`} · ${task.permissionPreset === "read-only" ? "Chỉ đọc" : task.permissionPreset === "full-access" ? "Toàn quyền máy" : "Sửa workspace"}</small></div><span class="chat-pane-meta">${queueSummary ? `<span class="chat-queue-summary">${icon("list-checks", 13)}${esc(queueSummary)}</span>` : ""}<button type="button" class="button quiet small" data-action="task-permissions" data-id="${task.id}" aria-label="${view.language === "en" ? "Permissions" : "Quyền"}" title="${view.language === "en" ? "Permissions" : "Quyền"}">${icon("shield", 13)}<span>${view.language === "en" ? "Permissions" : "Quyền"}</span></button><button type="button" class="button quiet small chat-goal-button" data-action="edit-task-goal" data-id="${task.id}" aria-label="${view.language === "en" ? "Goal" : "Mục tiêu"}" title="${task.goal ? esc(task.goal) : (view.language === "en" ? "Add a long-term goal" : "Thêm mục tiêu dài hạn")}">${icon("target", 13)}<span>${view.language === "en" ? "Goal" : "Mục tiêu"}</span></button><span class="chat-message-count">${icon("book-open-text", 14)} ${formatNumber(transcript.length)} ${view.language === "en" ? "messages" : "tin nhắn"}</span></span></header>
-      ${taskArenaBanner(task)}
-      ${taskConversationPipelineStrip(task, busy)}
-      <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${taskInlineToolStream(task)}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
-      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button type="button" class="codex-config-gear" data-action="task-instruction" data-id="${task.id}" title="Cấu hình nâng cao">${icon("settings-2", 14)}</button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
-    </section>
+  return `<section class="task-conversation-page is-unified-chat" aria-label="Cuộc trò chuyện">
+      <section class="task-chat-pane conversation-chat-pane">
+        <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">
+          <div class="chat-thread-stream">
+            ${transcriptHtml}
+            ${taskInlineToolStream(task)}
+            ${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}
+          </div>
+        </div>
+        <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button type="button" class="codex-config-gear" data-action="task-instruction" data-id="${task.id}" title="Cấu hình nâng cao">${icon("settings-2", 14)}</button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
+      </section>
   </section>`;
 }
 function homeAgentCard(name, connector, ready) {
