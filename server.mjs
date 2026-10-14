@@ -775,10 +775,12 @@ async function resolveInside(rootPath, relativePath, mustBeFile = false) {
   return { root: realRoot, target: realTarget, stat };
 }
 const ignoredFileDirectories = new Set([".git", ".obsidian", ".trash", "node_modules", ".runtime", "dist", "build", "release", "out", "target", "coverage", ".next", "vendor", "__pycache__", ".venv", "venv", ".cache", ".turbo", ".parcel-cache", ".gradle"]);
-const textExtensions = new Set([".md", ".mdx", ".txt", ".log", ".json", ".jsonc", ".yaml", ".yml", ".toml", ".xml", ".html", ".css", ".scss", ".less", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue", ".svelte", ".astro", ".py", ".go", ".rs", ".java", ".kt", ".c", ".h", ".cpp", ".hpp", ".cs", ".php", ".rb", ".swift", ".sql", ".sh", ".ps1", ".bat", ".cmd", ".env.example", ".diff", ".patch"]);
+const textExtensions = new Set([".md", ".mdx", ".markdown", ".txt", ".log", ".json", ".jsonc", ".yaml", ".yml", ".toml", ".xml", ".html", ".htm", ".css", ".scss", ".less", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue", ".svelte", ".astro", ".py", ".go", ".rs", ".java", ".kt", ".c", ".h", ".cpp", ".hpp", ".cs", ".php", ".rb", ".swift", ".sql", ".sh", ".ps1", ".bat", ".cmd", ".env.example", ".diff", ".patch", ".csv", ".tsv", ".ini", ".conf", ".cfg", ".svg", ".prisma", ".graphql", ".gql"]);
+const previewableBinaryExtensions = new Set([".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav"]);
 function allowedTextFile(name) {
   if (/^\.env(?:\.|$)/i.test(name) && !/^\.env\.example$/i.test(name)) return false;
-  return textExtensions.has(extname(name).toLowerCase()) || /^\.env\.example$/i.test(name);
+  const ext = extname(name).toLowerCase();
+  return textExtensions.has(ext) || previewableBinaryExtensions.has(ext) || /^\.env\.example$/i.test(name);
 }
 async function listLocalFiles(rootPath, relativePath = "", markdownOnly = false) {
   const resolvedPath = await resolveInside(rootPath, relativePath, false);
@@ -804,10 +806,17 @@ async function listLocalFiles(rootPath, relativePath = "", markdownOnly = false)
 }
 async function readLocalTextFile(rootPath, relativePath, markdownOnly = false) {
   const { target, stat } = await resolveInside(rootPath, relativePath, true);
+  const ext = extname(target).toLowerCase();
+  const relClean = safeRelativePath(relativePath).split(sep).join("/");
+  if (!markdownOnly && previewableBinaryExtensions.has(ext)) {
+    if (stat.size > 50_000_000) throw new Error("Tệp lớn hơn 50 MB; hãy mở bằng ứng dụng trên máy.");
+    const kind = ext === ".pdf" ? "pdf" : /\.(png|jpe?g|gif|webp|ico|bmp)$/i.test(ext) ? "image" : "media";
+    return { path: relClean, name: basename(target), content: "", kind, size: stat.size, modifiedAt: stat.mtime.toISOString(), extension: ext };
+  }
   if (stat.size > 1_000_000) throw new Error("Tệp lớn hơn 1 MB; hãy mở bằng editor trên máy.");
   if (!allowedTextFile(basename(target)) || (markdownOnly && !/\.(md|mdx|markdown)$/i.test(target))) throw new Error("OpenSybau chỉ xem tệp văn bản và Markdown được hỗ trợ.");
   const content = await fs.readFile(target, "utf8");
-  return { path: safeRelativePath(relativePath).split(sep).join("/"), name: basename(target), content, size: stat.size, modifiedAt: stat.mtime.toISOString(), extension: extname(target).toLowerCase() };
+  return { path: relClean, name: basename(target), content, kind: "text", size: stat.size, modifiedAt: stat.mtime.toISOString(), extension: ext };
 }
 function normalizeVaultNoteRelativePath(relativePath) {
   let clean = safeRelativePath(relativePath).split(sep).join("/").replace(/^\/+|\/+$/g, "");
@@ -1197,20 +1206,20 @@ function redactRemoteSecrets(value) {
     .replace(/((?:api[_-]?key|access[_-]?token|client[_-]?secret|password|passwd)\s*[:=]\s*)(["']?)[^\s"'`,;]+/gi, "$1[redacted secret]")
     .replace(/(\bBearer\s+)[A-Za-z0-9._~+/-]{16,}/gi, "$1[redacted token]");
 }
-async function listRemoteContextFiles(cwd) {
+async function listRemoteContextFiles(cwd, maxFiles = 180) {
   const result = await git(cwd, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]);
   if (result.code === 0) {
     const paths = [...new Set(result.stdout.split("\0").map((path) => path.trim()).filter(safeForRemoteContext))];
-    if (paths.length) return paths.slice(0, 180);
+    if (paths.length) return paths.slice(0, maxFiles);
   }
   const paths = [];
   const ignored = new Set([".git", ".runtime", "node_modules", "dist", "build", "release", "out", "target", "coverage", ".next", ".venv", "venv", ".cache", ".turbo"]);
   async function walk(directory, relativeDir = "", depth = 0) {
-    if (depth > 9 || paths.length >= 180) return;
+    if (depth > 9 || paths.length >= maxFiles) return;
     let entries;
     try { entries = await fs.readdir(directory, { withFileTypes: true }); } catch { return; }
     for (const entry of entries) {
-      if (paths.length >= 180) return;
+      if (paths.length >= maxFiles) return;
       if (entry.isSymbolicLink() || entry.name === "." || entry.name === "..") continue;
       const path = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
       if (!safeForRemoteContext(path)) continue;
@@ -2288,14 +2297,91 @@ async function api(request, response, pathname) {
       publish("skills"); return json(response, 200, { ok: true, removedSources: editableFiles.length, readonlySourcesRemain: skill.files.some((file) => !file.managed) });
     }
   }
-  const workspaceFileMatch = pathname.match(/^\/api\/workspaces\/([^/]+)\/(files|file|file-index)$/);
+  const workspaceFileMatch = pathname.match(/^\/api\/workspaces\/([^/]+)\/(files|file|file-index|raw|file-diff)(?:\/(.*))?$/);
   if (workspaceFileMatch) {
     const workspace = state.workspaces.find((item) => item.id === decodeURIComponent(workspaceFileMatch[1]));
     if (!workspace) return json(response, 404, { error: "Workspace không tồn tại." });
     const params = new URL(request.url, `http://${host}:${port}`).searchParams;
-    if (request.method === "GET" && workspaceFileMatch[2] === "files") return json(response, 200, await listLocalFiles(workspace.path, params.get("path") || ""));
-    if (request.method === "GET" && workspaceFileMatch[2] === "file") return json(response, 200, await readLocalTextFile(workspace.path, params.get("path") || ""));
-    if (request.method === "GET" && workspaceFileMatch[2] === "file-index") return json(response, 200, { files: await listRemoteContextFiles(workspace.path) });
+    const taskId = params.get("taskId") || "";
+    const taskForRoot = taskId ? state.tasks.find((t) => t.id === taskId && t.workspaceId === workspace.id) : null;
+    const taskCandidateRoot = taskForRoot?.executionPath || taskForRoot?.worktreePath || "";
+    const baseRoot = taskCandidateRoot && existsSync(taskCandidateRoot) ? taskCandidateRoot : workspace.path;
+    const rawSubpath = workspaceFileMatch[3] ? decodeURIComponent(workspaceFileMatch[3]) : (params.get("path") || "");
+    if (request.method === "GET" && workspaceFileMatch[2] === "files") return json(response, 200, await listLocalFiles(baseRoot, params.get("path") || ""));
+    if (request.method === "GET" && workspaceFileMatch[2] === "file") return json(response, 200, await readLocalTextFile(baseRoot, params.get("path") || ""));
+    if (request.method === "GET" && workspaceFileMatch[2] === "file-index") return json(response, 200, { files: await listRemoteContextFiles(baseRoot, 600) });
+    if (request.method === "GET" && workspaceFileMatch[2] === "raw") {
+      try {
+        const { target, stat } = await resolveInside(baseRoot, rawSubpath, true);
+        const fileName = basename(target);
+        if (/^\.env(?:\.|$)/i.test(fileName) && !/^\.env\.example$/i.test(fileName)) {
+          return json(response, 403, { error: "Từ chối truy cập tệp môi trường .env." });
+        }
+        if (stat.size > 50_000_000) return json(response, 413, { error: "Tệp quá lớn để xem trực tiếp." });
+        const ext = extname(target).toLowerCase();
+        const rawMimeMap = {
+          ".html": "text/html; charset=utf-8",
+          ".htm": "text/html; charset=utf-8",
+          ".css": "text/css; charset=utf-8",
+          ".js": "text/javascript; charset=utf-8",
+          ".mjs": "text/javascript; charset=utf-8",
+          ".cjs": "text/javascript; charset=utf-8",
+          ".json": "application/json; charset=utf-8",
+          ".pdf": "application/pdf",
+          ".png": "image/png",
+          ".jpg": "image/jpeg",
+          ".jpeg": "image/jpeg",
+          ".gif": "image/gif",
+          ".webp": "image/webp",
+          ".svg": "image/svg+xml",
+          ".ico": "image/x-icon",
+          ".bmp": "image/bmp",
+          ".mp4": "video/mp4",
+          ".webm": "video/webm",
+          ".mp3": "audio/mpeg",
+          ".wav": "audio/wav",
+          ".woff": "font/woff",
+          ".woff2": "font/woff2",
+          ".ttf": "font/ttf",
+        };
+        const mime = rawMimeMap[ext] || "text/plain; charset=utf-8";
+        const buf = await fs.readFile(target);
+        response.writeHead(200, {
+          "Content-Type": mime,
+          "Content-Length": buf.byteLength,
+          "Content-Disposition": "inline",
+          "Cache-Control": "no-store",
+        });
+        return response.end(buf);
+      } catch (error) {
+        return json(response, 400, { error: safeError(error) });
+      }
+    }
+    if (request.method === "GET" && workspaceFileMatch[2] === "file-diff") {
+      try {
+        const relPath = safeRelativePath(params.get("path") || "").split(sep).join("/");
+        if (!relPath) return json(response, 400, { error: "Thiếu đường dẫn tệp." });
+        const baseArgs = taskForRoot?.isolated && taskForRoot?.worktreeBaseHead
+          ? ["diff", "--no-ext-diff", "--no-color", taskForRoot.worktreeBaseHead, "--", relPath]
+          : ["diff", "--no-ext-diff", "--no-color", "--", relPath];
+        const res = await git(baseRoot, baseArgs);
+        let diff = res.stdout || "";
+        if (!diff.trim()) {
+          const untracked = await git(baseRoot, ["ls-files", "--others", "--exclude-standard", "--", relPath]);
+          if ((untracked.stdout || "").trim()) {
+            const { target, stat } = await resolveInside(baseRoot, relPath, true);
+            if (stat.isFile() && stat.size <= 300_000) {
+              const content = await fs.readFile(target, "utf8");
+              const lines = content.split(/\r?\n/);
+              diff = `diff --git a/${relPath} b/${relPath}\n--- /dev/null\n+++ b/${relPath}\n@@ -0,0 +1,${lines.length} @@\n` + lines.map((l) => `+${l}`).join("\n") + "\n";
+            }
+          }
+        }
+        return json(response, 200, { path: relPath, diff, files: parseUnifiedDiffFiles(diff) });
+      } catch (error) {
+        return json(response, 400, { error: safeError(error) });
+      }
+    }
   }
   if (request.method === "GET" && pathname === "/api/vault/files") {
     if (!state.settings.vaultPath) return json(response, 404, { error: "Chưa kết nối Obsidian vault." });

@@ -5056,3 +5056,661 @@ body.is-resizing-dock .orca-dock-resizer {
   font-size: 11px !important;
   font-weight: 450 !important;
 }
+
+/* ==========================================================================
+   ORCA Multi-Window Tab Bar & Format-Aware File / Diff Review Workbench
+   ========================================================================== */
+
+:root {
+  --stage-split-ratio: 48%;
+}
+
+.wb-topbar.orca-tabbar {
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: space-between !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 8px 0 0 !important;
+  background: #0c0d10 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.065) !important;
+  gap: 8px !important;
+  user-select: none;
+}
+
+.orca-tabbar-scroll {
+  display: flex !important;
+  align-items: stretch !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none;
+}
+
+.orca-tabbar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.orca-tab {
+  position: relative;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  height: 100% !important;
+  max-width: 220px !important;
+  min-width: 96px !important;
+  padding: 0 12px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.055) !important;
+  border-top: 2px solid transparent !important;
+  color: #8b8d94 !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  flex: 0 0 auto;
+}
+
+.orca-tab:hover {
+  background: rgba(255, 255, 255, 0.03) !important;
+  color: #d4d4d8 !important;
+}
+
+.orca-tab.is-active {
+  background: #111216 !important;
+  color: #f4f4f5 !important;
+  border-top-color: #ffffff !important;
+  font-weight: 560 !important;
+}
+
+.orca-tab.is-split-pinned {
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #e4e4e7 !important;
+  border-top-color: rgba(255, 255, 255, 0.45) !important;
+}
+
+.orca-tab-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.orca-tab-badge {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e4e4e7;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.orca-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin-left: 2px;
+  margin-right: -4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.42);
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.orca-tab:hover .orca-tab-close,
+.orca-tab.is-active .orca-tab-close {
+  opacity: 1;
+}
+
+.orca-tab-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.orca-tabbar-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #71717a;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.orca-tabbar-add:hover {
+  color: #f4f4f5;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.orca-tabbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex: 0 0 auto !important;
+}
+
+.wb-top-icon.is-active {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+}
+
+/* Stage Split-Pane & Full Tab Stage */
+#content.is-orca-tab-stage {
+  padding: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.orca-stage-split-layout {
+  display: grid !important;
+  grid-template-columns: minmax(280px, var(--stage-split-ratio, 48%)) 5px minmax(320px, 1fr) !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.orca-stage-pane {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.orca-stage-pane.is-primary {
+  overflow-y: auto !important;
+  background: #101114 !important;
+}
+
+.orca-stage-pane.is-primary > .task-conversation-page {
+  height: 100% !important;
+}
+
+.orca-stage-pane.is-primary > .command-home {
+  min-height: 100% !important;
+  padding: 20px 16px !important;
+}
+
+.orca-stage-split-resizer {
+  width: 5px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.055);
+  cursor: col-resize;
+  transition: background 120ms ease;
+  z-index: 15;
+}
+
+.orca-stage-split-resizer:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* ORCA File Viewer & Sub-Toolbar */
+.orca-file-viewer {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  background: #0e0f13 !important;
+  overflow: hidden !important;
+}
+
+.orca-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  padding: 4px 10px;
+  background: #111216;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.065);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.orca-viewer-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.orca-viewer-icon {
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 6px !important;
+  color: #a1a1aa !important;
+}
+
+.orca-viewer-icon:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: #f4f4f5 !important;
+}
+
+.orca-viewer-address {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.orca-format-pill {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.09);
+  color: #f4f4f5;
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+.orca-address-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: #d4d4d8;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.orca-address-size {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: #71717a;
+}
+
+.orca-viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.orca-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.065);
+}
+
+.orca-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 23px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #8b8d94;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.orca-mode-btn:hover {
+  color: #e4e4e7;
+}
+
+.orca-mode-btn.is-active {
+  background: #f4f4f5;
+  color: #09090b;
+  font-weight: 600;
+}
+
+.orca-viewer-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+  color: #d4d4d8;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.orca-viewer-action-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.orca-viewer-action-btn.is-active {
+  background: #f4f4f5;
+  color: #09090b;
+  border-color: #f4f4f5;
+  font-weight: 600;
+}
+
+/* Viewer Body Modes */
+.orca-viewer-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.orca-live-frame-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+}
+
+.orca-live-frame-wrap.is-pdf {
+  background: #18191e;
+}
+
+.orca-live-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+
+.orca-live-frame.is-pdf {
+  background: #18191e;
+}
+
+.orca-live-floating-bar {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: rgba(15, 16, 20, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #d4d4d8;
+  font-size: 11.5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.orca-live-floating-bar > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.orca-float-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f4f5;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.orca-float-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Media & Image Stage */
+.orca-media-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  overflow: auto;
+  background: radial-gradient(circle at center, rgba(255, 255, 255, 0.03) 0%, transparent 70%);
+}
+
+.orca-image-canvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  max-height: calc(100% - 48px);
+  padding: 16px;
+  border-radius: 10px;
+  background-color: #14151a;
+  background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.03) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.03) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.03) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.03) 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.orca-image-preview {
+  max-width: 100%;
+  max-height: 72vh;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.orca-video-player {
+  max-width: min(920px, 100%);
+  max-height: 72vh;
+  border-radius: 8px;
+  background: #000;
+}
+
+.orca-audio-player {
+  width: min(460px, 100%);
+}
+
+.orca-media-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: #a1a1aa;
+  font-size: 12px;
+}
+
+/* Markdown & CSV Table & Code Viewer */
+.orca-doc-scroll,
+.orca-code-scroll,
+.orca-diff-scroll,
+.orca-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+}
+
+.orca-markdown-doc {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 28px 32px 48px;
+}
+
+.orca-diff-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.025);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  color: #a1a1aa;
+}
+
+.orca-diff-banner em.is-add {
+  color: #4ade80;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.orca-diff-banner em.is-del {
+  color: #f87171;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.orca-code-lines {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0 28px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.orca-code-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: baseline;
+  padding: 0 12px 0 0;
+  cursor: pointer;
+}
+
+.orca-code-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.orca-code-ln {
+  user-select: none;
+  text-align: right;
+  padding-right: 14px;
+  color: rgba(255, 255, 255, 0.26);
+  font-size: 11.5px;
+}
+
+.orca-code-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #e4e4e7;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.orca-code-row .diff-comment-trigger {
+  opacity: 0;
+  font-family: var(--sans);
+  font-size: 11px;
+  color: #a1a1aa;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  transition: opacity 120ms ease;
+}
+
+.orca-code-row:hover .diff-comment-trigger {
+  opacity: 1;
+}
+
+.orca-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.orca-data-table th,
+.orca-data-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.orca-data-table th {
+  position: sticky;
+  top: 0;
+  background: #14151a;
+  color: #f4f4f5;
+  font-weight: 600;
+  z-index: 2;
+}
+
+.orca-data-table .is-row-num {
+  width: 44px;
+  text-align: right;
+  color: #71717a;
+  font-family: var(--mono);
+}
+
+.orca-viewer-empty {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+  text-align: center;
+  color: #a1a1aa;
+}
+
+.orca-viewer-empty strong {
+  color: #f4f4f5;
+  font-size: 14px;
+}
+
+.orca-viewer-empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+

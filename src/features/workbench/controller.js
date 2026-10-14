@@ -884,6 +884,343 @@ function buildDockFileTree(paths = []) {
   return root;
 }
 
+function dockFileIconName(fileName = "") {
+  const lower = String(fileName || "").toLowerCase();
+  const ext = lower.includes(".") ? `.${lower.split(".").at(-1)}` : "";
+  if (ext === ".html" || ext === ".htm") return "globe";
+  if (ext === ".pdf" || ext === ".md" || ext === ".mdx" || ext === ".markdown") return "book-open-text";
+  if ([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp"].includes(ext)) return "image";
+  if ([".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".py", ".go", ".rs", ".java", ".c", ".cpp", ".cs", ".css", ".scss", ".json", ".sql", ".sh", ".ps1"].includes(ext)) return "code-2";
+  return "file-text";
+}
+
+function defaultFileTabMode(ext = "", preferredMode = "") {
+  if (["preview", "code", "diff"].includes(preferredMode)) return preferredMode;
+  const lower = String(ext || "").toLowerCase();
+  if ([".html", ".htm", ".pdf", ".md", ".mdx", ".markdown", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav", ".csv", ".tsv", ".json"].includes(lower)) {
+    return "preview";
+  }
+  return "code";
+}
+
+function canRichPreviewExtension(ext = "", kind = "text") {
+  if (kind && kind !== "text") return true;
+  const lower = String(ext || "").toLowerCase();
+  return [".html", ".htm", ".pdf", ".md", ".mdx", ".markdown", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav", ".csv", ".tsv", ".json"].includes(lower);
+}
+
+async function openStageFileTab({ workspaceId = "", taskId = "", path = "", preferredMode = "" } = {}) {
+  const cleanPath = String(path || "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+  if (!cleanPath) return;
+  const selectedTask = (taskId || view.selected) ? (view.state?.tasks || []).find((t) => t.id === (taskId || view.selected)) : null;
+  const wsId = workspaceId
+    || (view.page === "workspaces" && view.selected ? view.selected : "")
+    || selectedTask?.workspaceId
+    || view.homeWorkspaceId
+    || view.state?.workspaces?.[0]?.id
+    || "";
+  if (!wsId) return;
+  const tId = taskId || selectedTask?.id || "";
+  const tabId = `${wsId}::${cleanPath}`;
+  const name = cleanPath.split("/").at(-1) || cleanPath;
+  const ext = name.includes(".") ? `.${name.split(".").at(-1).toLowerCase()}` : "";
+
+  view.stageTabs ||= [];
+  let tab = view.stageTabs.find((item) => item.id === tabId);
+  if (!tab) {
+    tab = {
+      id: tabId,
+      workspaceId: wsId,
+      taskId: tId,
+      path: cleanPath,
+      name,
+      ext,
+      mode: defaultFileTabMode(ext, preferredMode),
+      fileData: null,
+      diffData: null,
+      loading: true,
+      error: "",
+      loadedAt: Date.now(),
+    };
+    view.stageTabs.push(tab);
+    if (view.stageTabs.length > 10) view.stageTabs.shift();
+  } else {
+    tab.taskId = tId || tab.taskId;
+    if (preferredMode) tab.mode = preferredMode;
+  }
+  view.activeStageTabId = tab.id;
+  view.stageLineCommentTarget = null;
+  render();
+  await reloadStageFileTab(tab.id);
+}
+
+async function reloadStageFileTab(tabId) {
+  const tab = (view.stageTabs || []).find((item) => item.id === tabId);
+  if (!tab) return;
+  tab.loading = true;
+  tab.error = "";
+  render();
+  try {
+    const q = `path=${encodeURIComponent(tab.path)}${tab.taskId ? `&taskId=${encodeURIComponent(tab.taskId)}` : ""}`;
+    const [fileRes, diffRes] = await Promise.all([
+      api(`/api/workspaces/${encodeURIComponent(tab.workspaceId)}/file?${q}`),
+      api(`/api/workspaces/${encodeURIComponent(tab.workspaceId)}/file-diff?${q}`).catch(() => ({ path: tab.path, diff: "", files: [] })),
+    ]);
+    tab.fileData = fileRes;
+    tab.diffData = diffRes;
+    tab.ext = fileRes.extension || tab.ext;
+    tab.loadedAt = Date.now();
+    tab.loading = false;
+  } catch (error) {
+    tab.error = error.message || "Không thể đọc tệp.";
+    tab.loading = false;
+  }
+  render();
+}
+
+function renderCsvTableMarkup(content = "", delimiter = ",") {
+  const rows = String(content || "")
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0)
+    .slice(0, 200)
+    .map((line) => line.split(delimiter).map((cell) => cell.trim().replace(/^"|"$/g, "")));
+  if (!rows.length) return `<div class="orca-viewer-empty"><p>Tệp dữ liệu trống.</p></div>`;
+  const header = rows[0] || [];
+  const bodyRows = rows.slice(1);
+  return `<div class="orca-table-scroll">
+    <table class="orca-data-table">
+      <thead>
+        <tr>
+          <th class="is-row-num">#</th>
+          ${header.map((col) => `<th>${esc(col)}</th>`).join("")}
+        </tr>
+      </thead>
+      <tbody>
+        ${bodyRows.map((cols, idx) => `<tr>
+          <td class="is-row-num">${idx + 1}</td>
+          ${header.map((_, cIdx) => `<td>${esc(cols[cIdx] ?? "")}</td>`).join("")}
+        </tr>`).join("")}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function renderStageFileViewer(tab) {
+  if (!tab) return "";
+  const file = tab.fileData;
+  const diffFiles = tab.diffData?.files || [];
+  const diffFile = diffFiles[0] || null;
+  const diffAdds = diffFile?.additions || 0;
+  const diffDels = diffFile?.deletions || 0;
+  const ext = (file?.extension || tab.ext || "").toLowerCase();
+  const kind = file?.kind || "text";
+  const hasRichPreview = canRichPreviewExtension(ext, kind);
+  const hasCodeView = kind === "text";
+  let mode = tab.mode || defaultFileTabMode(ext);
+  if (mode === "preview" && !hasRichPreview) mode = "code";
+  if (mode === "code" && !hasCodeView) mode = "preview";
+
+  const rawUrl = `/api/workspaces/${encodeURIComponent(tab.workspaceId)}/raw/${tab.path.split("/").map(encodeURIComponent).join("/")}?${tab.taskId ? `taskId=${encodeURIComponent(tab.taskId)}&` : ""}t=${tab.loadedAt || 0}`;
+  const formatBadge = ext ? ext.replace(/^\./, "").toUpperCase() : "FILE";
+  const sizeBadge = file?.size !== undefined ? `${formatNumber(file.size)} B` : "";
+
+  let bodyHtml = "";
+  if (tab.loading && !file) {
+    bodyHtml = `<div class="orca-viewer-empty">
+      <span>${icon("refresh-cw", 18)}</span>
+      <strong>Đang tải ${esc(tab.name)}…</strong>
+      <small>${esc(tab.path)}</small>
+    </div>`;
+  } else if (tab.error) {
+    bodyHtml = `<div class="orca-viewer-empty is-error">
+      <strong>Không thể đọc tệp ${esc(tab.name)}</strong>
+      <p>${esc(tab.error)}</p>
+      <div class="orca-viewer-empty-actions">
+        <button type="button" class="button quiet small" data-action="reload-stage-tab" data-tab-id="${esc(tab.id)}">${icon("refresh-cw", 13)}<span>Thử lại</span></button>
+        <button type="button" class="button quiet small" data-action="activate-stage-tab" data-tab-id="chat">${icon("arrow-left", 13)}<span>Quay lại Chat</span></button>
+      </div>
+    </div>`;
+  } else if (mode === "diff") {
+    const commentTarget = view.stageLineCommentTarget;
+    if (diffFile?.hunks?.length) {
+      const hunksHtml = diffFile.hunks.map((hunk, hIdx) => `<div class="diff-hunk">
+        <div class="diff-hunk-header"><code>${esc(hunk.header)}</code></div>
+        <div class="diff-hunk-lines">
+          ${hunk.lines.map((line, lIdx) => {
+            const lineNum = line.newLine ?? line.oldLine ?? 1;
+            const lineKey = `diff:${tab.id}:${hIdx}:${lIdx}`;
+            const isCommenting = commentTarget?.key === lineKey;
+            const rowClass = line.type === "add" ? "is-add" : line.type === "del" ? "is-del" : "is-ctx";
+            const prefix = line.type === "add" ? "+" : line.type === "del" ? "-" : " ";
+            return `<div class="diff-line-row ${rowClass}" data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}" data-code="${esc(line.text)}">
+              <span class="diff-ln old">${line.oldLine ?? ""}</span>
+              <span class="diff-ln new">${line.newLine ?? ""}</span>
+              <span class="diff-sign">${prefix}</span>
+              <code class="diff-code">${esc(line.text)}</code>
+              <span class="diff-comment-trigger" title="Gắn nhận xét dòng ${lineNum} cho Agent">+ Nhận xét</span>
+            </div>
+            ${isCommenting ? `<div class="diff-comment-editor">
+              <input type="text" data-stage-line-comment-input placeholder="Nhập yêu cầu sửa tại dòng ${lineNum} của ${esc(tab.name)} rồi nhấn Gửi cho Agent…" autocomplete="off">
+              <button type="button" class="button primary small" data-action="send-stage-line-comment">${icon("arrow-up-right", 12)}<span>Gửi cho Agent</span></button>
+              <button type="button" class="button quiet small" data-action="cancel-stage-line-comment">Hủy</button>
+            </div>` : ""}`;
+          }).join("")}
+        </div>
+      </div>`).join("");
+      bodyHtml = `<div class="orca-diff-scroll">
+        <div class="orca-diff-banner">
+          <span><strong>Diff Review</strong> · <code>${esc(tab.path)}</code> · <em class="is-add">+${diffAdds}</em> <em class="is-del">-${diffDels}</em></span>
+          <small>Nhấn vào bất kỳ dòng nào để gửi yêu cầu chỉnh sửa dòng đó cho Agent</small>
+        </div>
+        <div class="diff-hunk-list">${hunksHtml}</div>
+      </div>`;
+    } else {
+      bodyHtml = `<div class="orca-viewer-empty">
+        ${icon("git-branch", 20)}
+        <strong>Không có thay đổi chưa commit cho ${esc(tab.name)}</strong>
+        <p>Tệp <code>${esc(tab.path)}</code> hiện đồng bộ với Git HEAD.</p>
+        <div class="orca-viewer-empty-actions">
+          ${hasRichPreview ? `<button type="button" class="button primary small" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview">${icon("eye", 13)}<span>Xem trực tiếp</span></button>` : ""}
+          ${hasCodeView ? `<button type="button" class="button quiet small" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code">${icon("code-2", 13)}<span>Xem mã nguồn</span></button>` : ""}
+        </div>
+      </div>`;
+    }
+  } else if (mode === "preview") {
+    if (ext === ".html" || ext === ".htm") {
+      bodyHtml = `<div class="orca-live-frame-wrap">
+        <iframe class="orca-live-frame" src="${esc(rawUrl)}" title="Xem trực tiếp ${esc(tab.name)}" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
+        <div class="orca-live-floating-bar">
+          <span>Đang chạy bản xem trực tiếp HTML · <code>${esc(tab.path)}</code></span>
+          <div>
+            <button type="button" class="orca-float-btn" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code">${icon("code-2", 12)}<span>Mã nguồn</span></button>
+            <button type="button" class="orca-float-btn" data-action="mention-drawer-file" data-path="${esc(tab.path)}">@Chèn vào Chat</button>
+          </div>
+        </div>
+      </div>`;
+    } else if (ext === ".pdf" || kind === "pdf") {
+      bodyHtml = `<div class="orca-live-frame-wrap is-pdf">
+        <iframe class="orca-live-frame is-pdf" src="${esc(rawUrl)}#toolbar=1&navpanes=1&view=FitH" title="Tài liệu PDF ${esc(tab.name)}"></iframe>
+      </div>`;
+    } else if (kind === "image" || [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp"].includes(ext)) {
+      bodyHtml = `<div class="orca-media-stage">
+        <div class="orca-image-canvas">
+          <img class="orca-image-preview" src="${esc(rawUrl)}" alt="${esc(tab.name)}" />
+        </div>
+        <div class="orca-media-caption">
+          <strong>${esc(tab.name)}</strong>
+          <small>${esc(tab.path)} · ${sizeBadge}</small>
+        </div>
+      </div>`;
+    } else if (kind === "media" || [".mp4", ".webm", ".mp3", ".wav"].includes(ext)) {
+      const isAudio = ext === ".mp3" || ext === ".wav";
+      bodyHtml = `<div class="orca-media-stage">
+        ${isAudio
+          ? `<audio controls src="${esc(rawUrl)}" class="orca-audio-player"></audio>`
+          : `<video controls src="${esc(rawUrl)}" class="orca-video-player"></video>`}
+        <div class="orca-media-caption">
+          <strong>${esc(tab.name)}</strong>
+          <small>${esc(tab.path)} · ${sizeBadge}</small>
+        </div>
+      </div>`;
+    } else if ([".md", ".mdx", ".markdown"].includes(ext)) {
+      bodyHtml = `<div class="orca-doc-scroll">
+        <article class="markdown-preview orca-markdown-doc">${renderMarkdown(file?.content || "")}</article>
+      </div>`;
+    } else if (ext === ".csv" || ext === ".tsv") {
+      bodyHtml = renderCsvTableMarkup(file?.content || "", ext === ".tsv" ? "\t" : ",");
+    } else if (ext === ".json") {
+      let formattedJson = file?.content || "";
+      let jsonMeta = "JSON";
+      try {
+        const parsed = JSON.parse(formattedJson);
+        formattedJson = JSON.stringify(parsed, null, 2);
+        jsonMeta = Array.isArray(parsed) ? `Mảng JSON · ${parsed.length} phần tử` : typeof parsed === "object" && parsed !== null ? `Đối tượng JSON · ${Object.keys(parsed).length} khóa` : "JSON hợp lệ";
+      } catch {
+        jsonMeta = "JSON (chưa chuẩn cú pháp)";
+      }
+      const lines = formattedJson.split(/\r?\n/);
+      bodyHtml = `<div class="orca-code-scroll">
+        <div class="orca-diff-banner">
+          <span><strong>${esc(jsonMeta)}</strong> · <code>${esc(tab.path)}</code></span>
+          <small>${lines.length} dòng</small>
+        </div>
+        <div class="orca-code-lines">
+          ${lines.map((line, idx) => `<div class="orca-code-row"><span class="orca-code-ln">${idx + 1}</span><code class="orca-code-text">${esc(line)}</code></div>`).join("")}
+        </div>
+      </div>`;
+    }
+  } else {
+    const lines = String(file?.content || "").split(/\r?\n/);
+    const commentTarget = view.stageLineCommentTarget;
+    bodyHtml = `<div class="orca-code-scroll">
+      <div class="orca-diff-banner">
+        <span><strong>Mã nguồn</strong> · <code>${esc(tab.path)}</code> · ${lines.length} dòng</span>
+        <small>Nhấn vào dòng bất kỳ để gắn nhận xét và gửi cho Agent sửa</small>
+      </div>
+      <div class="orca-code-lines">
+        ${lines.map((line, idx) => {
+          const lineNum = idx + 1;
+          const lineKey = `code:${tab.id}:${lineNum}`;
+          const isCommenting = commentTarget?.key === lineKey;
+          return `<div class="orca-code-row" data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}" data-code="${esc(line)}">
+            <span class="orca-code-ln">${lineNum}</span>
+            <code class="orca-code-text">${esc(line)}</code>
+            <span class="diff-comment-trigger">+ Nhận xét</span>
+          </div>
+          ${isCommenting ? `<div class="diff-comment-editor">
+            <input type="text" data-stage-line-comment-input placeholder="Nhập yêu cầu cho Agent tại dòng ${lineNum} của ${esc(tab.name)}…" autocomplete="off">
+            <button type="button" class="button primary small" data-action="send-stage-line-comment">${icon("arrow-up-right", 12)}<span>Gửi cho Agent</span></button>
+            <button type="button" class="button quiet small" data-action="cancel-stage-line-comment">Hủy</button>
+          </div>` : ""}`;
+        }).join("")}
+      </div>
+    </div>`;
+  }
+
+  return `<section class="orca-file-viewer" aria-label="Trình xem tệp ${esc(tab.name)}">
+    <header class="orca-viewer-toolbar">
+      <div class="orca-viewer-nav">
+        <button type="button" class="icon-button orca-viewer-icon" data-action="activate-stage-tab" data-tab-id="chat" title="Quay về cửa sổ Chat">${icon("arrow-left", 14)}</button>
+        <button type="button" class="icon-button orca-viewer-icon" data-action="reload-stage-tab" data-tab-id="${esc(tab.id)}" title="Tải lại tệp">${icon("refresh-cw", 13)}</button>
+        <div class="orca-viewer-address" title="${esc(tab.path)}">
+          <span class="orca-format-pill">${esc(formatBadge)}</span>
+          <code class="orca-address-path">${esc(tab.path)}</code>
+          ${sizeBadge ? `<small class="orca-address-size">${esc(sizeBadge)}</small>` : ""}
+        </div>
+      </div>
+      <div class="orca-viewer-actions">
+        <div class="orca-mode-switch" role="tablist" aria-label="Chế độ xem tệp">
+          ${hasRichPreview ? `<button type="button" class="orca-mode-btn ${mode === "preview" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview">${icon("eye", 13)}<span>Xem trực tiếp</span></button>` : ""}
+          ${hasCodeView ? `<button type="button" class="orca-mode-btn ${mode === "code" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code">${icon("code-2", 13)}<span>Mã nguồn</span></button>` : ""}
+          <button type="button" class="orca-mode-btn ${mode === "diff" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="diff">${icon("git-branch", 13)}<span>Diff Review${diffAdds || diffDels ? ` (+${diffAdds}/-${diffDels})` : ""}</span></button>
+        </div>
+        <button type="button" class="orca-viewer-action-btn" data-action="mention-drawer-file" data-path="${esc(tab.path)}" title="Chèn @${esc(tab.path)} vào khung chat">@Chèn vào Chat</button>
+        <button type="button" class="orca-viewer-action-btn ${view.stageSplit ? "is-active" : ""}" data-action="toggle-stage-split" title="Chia đôi cửa sổ: Vừa trò chuyện với Agent vừa xem tệp này">${icon("columns-2", 13)}<span>${view.stageSplit ? "Đang chia đôi" : "Chia đôi"}</span></button>
+      </div>
+    </header>
+    <div class="orca-viewer-body">
+      ${bodyHtml}
+    </div>
+  </section>`;
+}
+
+function wrapStageWithOrcaTabs(primaryMarkup) {
+  const tabs = view.stageTabs || [];
+  if (!tabs.length || !["chat", "workspaces"].includes(view.page)) return primaryMarkup;
+  const activeTab = tabs.find((t) => t.id === view.activeStageTabId) || (view.stageSplit ? tabs[tabs.length - 1] : null);
+  if (view.stageSplit && activeTab) {
+    return `<div class="orca-stage-split-layout">
+      <div class="orca-stage-pane is-primary">${primaryMarkup}</div>
+      <div class="orca-stage-split-resizer" data-stage-split-resizer title="Kéo để thay đổi tỷ lệ giữa Chat và Trình xem tệp"></div>
+      <div class="orca-stage-pane is-viewer">${renderStageFileViewer(activeTab)}</div>
+    </div>`;
+  }
+  if (view.activeStageTabId !== "chat" && activeTab) {
+    return renderStageFileViewer(activeTab);
+  }
+  return primaryMarkup;
+}
+
 function renderDockTreeLevel(node, depth, { collapsedSet, activePath, fileAction, workspaceId = "", taskId = "", showMention = false, showVaultMenu = false }) {
   const folders = [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   const files = [...node.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
@@ -894,7 +1231,7 @@ function renderDockTreeLevel(node, depth, { collapsedSet, activePath, fileAction
     html += `<li class="orca-tree-item is-folder">
       <button type="button" class="orca-tree-row" style="padding-left:${padLeft}px" data-action="toggle-dock-folder" data-folder="${esc(folder.path)}" title="${esc(folder.path)}">
         <span class="orca-tree-caret ${isCollapsed ? "" : "is-open"}">${icon("chevron-right", 12)}</span>
-        <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+        <span class="orca-tree-icon">${icon("folder", 14)}</span>
         <span class="orca-tree-label">${esc(folder.name)}</span>
       </button>
     </li>`;
@@ -904,9 +1241,10 @@ function renderDockTreeLevel(node, depth, { collapsedSet, activePath, fileAction
   }
   for (const file of files) {
     const isSelected = activePath && activePath === file.path;
+    const fIcon = showVaultMenu ? "file-text" : dockFileIconName(file.name);
     html += `<li class="orca-tree-item is-file ${isSelected ? "is-selected" : ""}">
       <button type="button" class="orca-tree-row ${isSelected ? "is-selected" : ""}" style="padding-left:${padLeft + 16}px" data-action="${esc(fileAction)}" ${workspaceId ? `data-workspace-id="${esc(workspaceId)}"` : ""} ${taskId ? `data-id="${esc(taskId)}"` : ""} data-path="${esc(file.path)}" title="${esc(file.path)}">
-        <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+        <span class="orca-tree-icon">${icon(fIcon, 14)}</span>
         <span class="orca-tree-label">${esc(file.name)}</span>
       </button>
       ${showMention ? `<button type="button" class="orca-tree-quick" data-action="mention-drawer-file" data-path="${esc(file.path)}" title="Chèn @${esc(file.path)} vào khung chat">@</button>` : ""}
@@ -1100,7 +1438,8 @@ function orcaRightDockMarkup() {
         view.collapsedDockFolders = topFolders.filter((p) => p !== "src");
       }
       const collapsedSet = new Set(view.collapsedDockFolders || []);
-      const activePath = page === "workspaces" ? (view.filePreview?.path || "") : (view.chatDrawerPreview?.path || "");
+      const activeStageTab = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId);
+      const activePath = activeStageTab?.path || (page === "workspaces" ? (view.filePreview?.path || "") : (view.chatDrawerPreview?.path || ""));
       const fileAction = page === "workspaces" ? "dock-open-workspace-file" : "preview-drawer-file";
       const rows = renderDockTreeLevel(tree, 0, {
         collapsedSet,
@@ -1110,18 +1449,7 @@ function orcaRightDockMarkup() {
         taskId: selectedTask?.id || "",
         showMention: page === "chat",
       });
-      const preview = page !== "workspaces" ? view.chatDrawerPreview : null;
-      bodyHtml = `<ul class="orca-tree-list">${rows || `<li class="orca-dock-empty">Đang tải cây tệp dự án…</li>`}</ul>
-      ${preview ? `<section class="orca-dock-preview">
-        <header>
-          <strong title="${esc(preview.path)}">${esc(preview.name || preview.path)}</strong>
-          <div>
-            <button type="button" class="button quiet small" data-action="mention-drawer-file" data-path="${esc(preview.path)}">@file</button>
-            <button type="button" class="icon-button" data-action="close-drawer-preview">${icon("x", 13)}</button>
-          </div>
-        </header>
-        <pre><code>${esc(preview.content || "")}</code></pre>
-      </section>` : ""}`;
+      bodyHtml = `<ul class="orca-tree-list">${rows || `<li class="orca-dock-empty">Đang tải cây tệp dự án…</li>`}</ul>`;
     } else {
       bodyHtml = `<div class="orca-dock-empty"><p>Chưa có dự án nào được chọn.</p><button type="button" class="button primary small" data-action="add-workspace">${icon("plus", 12)}<span>Thêm dự án</span></button></div>`;
     }
@@ -1143,7 +1471,7 @@ function orcaRightDockMarkup() {
       const matches = allFiles.filter((f) => !filter || f.toLowerCase().includes(filter)).slice(0, 100);
       const fileAction = page === "workspaces" ? "dock-open-workspace-file" : "preview-drawer-file";
       resultsHtml = matches.length
-        ? matches.map((f) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="${fileAction}" data-workspace-id="${esc(activeWs?.id || "")}" data-path="${esc(f)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(f)}</span></button>${page === "chat" ? `<button type="button" class="orca-tree-quick" data-action="mention-drawer-file" data-path="${esc(f)}" title="Chèn @${esc(f)}">@</button>` : ""}</li>`).join("")
+        ? matches.map((f) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="${fileAction}" data-workspace-id="${esc(activeWs?.id || "")}" data-id="${esc(selectedTask?.id || "")}" data-path="${esc(f)}"><span class="orca-tree-icon">${icon(dockFileIconName(f), 14)}</span><span class="orca-tree-label">${esc(f)}</span></button>${page === "chat" ? `<button type="button" class="orca-tree-quick" data-action="mention-drawer-file" data-path="${esc(f)}" title="Chèn @${esc(f)}">@</button>` : ""}</li>`).join("")
         : `<li class="orca-dock-empty">Không tìm thấy tệp phù hợp.</li>`;
     }
     bodyHtml = `<div class="orca-dock-search-wrap">
@@ -1886,9 +2214,10 @@ function render() {
       : "";
   const activeComposerName = activeComposerForm ? activeEl.name : "";
   const activeComposerSelection = activeComposerName && typeof activeEl.selectionStart === "number" ? [activeEl.selectionStart, activeEl.selectionEnd] : previousSelection;
-  const pageMarkup = (pages[view.page] || taskPage)();
+  const rawPageMarkup = (pages[view.page] || taskPage)();
+  const pageMarkup = wrapStageWithOrcaTabs(rawPageMarkup);
   const rightDockMarkup = view.chatDrawerOpen ? orcaRightDockMarkup() : "";
-  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup }, pageMarkup);
+  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit) }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
   localizeDom(document.querySelector("#overlay"), view.language);
   const nextContent = $("#content");
@@ -2961,6 +3290,7 @@ async function handleWorkbenchClick(event) {
     const selectedTask = view.state.tasks.find((item) => item.id === task.dataset.task);
     clearSidebarSearch();
     view.selected = task.dataset.task; view.page = "chat"; view.projectMenuId = ""; view.taskMenuId = "";
+    if (!view.stageSplit) view.activeStageTabId = "chat";
     view.homeWorkspaceId = selectedTask?.workspaceId || view.homeWorkspaceId;
     view.chatProvider = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatProvider || "codex" : roleConfig(selectedTask?.config, "plan").provider || "codex";
     view.chatModel = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatModel || "" : roleConfig(selectedTask?.config, "plan").model || "";
@@ -3155,7 +3485,7 @@ async function handleWorkbenchClick(event) {
       return;
     }
     if (action === "app-update-restart") { await window.opensybauDesktop?.restartToUpdate(); return; }
-    if (action === "new-chat") { view.page = "chat"; view.selected = null; view.chatDraft = ""; view.homeWorkspaceId = button.dataset.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id || ""; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; clearSidebarSearch(); view.homeConfigOpen = false; closeOverlay(); render(); }
+    if (action === "new-chat") { view.page = "chat"; view.selected = null; view.activeStageTabId = "chat"; view.chatDraft = ""; view.homeWorkspaceId = button.dataset.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id || ""; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; clearSidebarSearch(); view.homeConfigOpen = false; closeOverlay(); render(); }
     if (action === "refresh") { await scanCliProviders(button); }
     if (action === "scan-skills") {
       button.disabled = true;
@@ -3300,7 +3630,111 @@ async function handleWorkbenchClick(event) {
       await refresh();
     }
     if (action === "show-diff") { const data = await api(`/api/tasks/${encodeURIComponent(id)}/diff`); showDiffModal(data, id); return; }
-    if (action === "open-diff-file") { const data = await api(`/api/tasks/${encodeURIComponent(id)}/diff`); showDiffModal(data, id, button.dataset.path || ""); return; }
+    if (action === "open-diff-file") {
+      const targetTask = view.state.tasks.find((item) => item.id === (id || view.selected));
+      await openStageFileTab({
+        workspaceId: button.dataset.workspaceId || targetTask?.workspaceId || "",
+        taskId: id || view.selected || "",
+        path: button.dataset.path || "",
+        preferredMode: "diff",
+      });
+      return;
+    }
+    if (action === "activate-stage-tab") {
+      if (event.target.closest?.("[data-action='close-stage-tab']")) return;
+      const tabId = button.dataset.tabId || "chat";
+      view.activeStageTabId = tabId;
+      view.stageLineCommentTarget = null;
+      render();
+      return;
+    }
+    if (action === "close-stage-tab") {
+      event.stopPropagation();
+      const tabId = button.dataset.tabId || "";
+      view.stageTabs = (view.stageTabs || []).filter((item) => item.id !== tabId);
+      if (!view.stageTabs.length) {
+        view.activeStageTabId = "chat";
+        view.stageSplit = false;
+      } else if (view.activeStageTabId === tabId) {
+        view.activeStageTabId = view.stageTabs[view.stageTabs.length - 1].id;
+      }
+      view.stageLineCommentTarget = null;
+      render();
+      return;
+    }
+    if (action === "toggle-stage-split") {
+      view.stageSplit = !view.stageSplit;
+      if (view.stageSplit && view.activeStageTabId === "chat" && view.stageTabs?.length) {
+        view.activeStageTabId = view.stageTabs[view.stageTabs.length - 1].id;
+      }
+      render();
+      return;
+    }
+    if (action === "stage-tab-mode") {
+      const tabId = button.dataset.tabId || view.activeStageTabId;
+      const tab = (view.stageTabs || []).find((item) => item.id === tabId);
+      if (tab && button.dataset.mode) {
+        tab.mode = button.dataset.mode;
+        view.stageLineCommentTarget = null;
+        render();
+      }
+      return;
+    }
+    if (action === "reload-stage-tab") {
+      const tabId = button.dataset.tabId || view.activeStageTabId;
+      if (tabId && tabId !== "chat") {
+        await reloadStageFileTab(tabId);
+        showToast("Đã làm mới nội dung tệp.");
+      }
+      return;
+    }
+    if (action === "open-stage-line-comment") {
+      view.stageLineCommentTarget = {
+        key: button.dataset.key || "",
+        path: button.dataset.path || "",
+        line: button.dataset.line || "1",
+        code: button.dataset.code || "",
+      };
+      render();
+      $("[data-stage-line-comment-input]")?.focus();
+      return;
+    }
+    if (action === "cancel-stage-line-comment") {
+      view.stageLineCommentTarget = null;
+      render();
+      return;
+    }
+    if (action === "send-stage-line-comment") {
+      const comment = String($("[data-stage-line-comment-input]")?.value || "").trim();
+      const target = view.stageLineCommentTarget;
+      if (!comment || !target) { showToast("Nhập nội dung nhận xét cho dòng này trước khi gửi."); return; }
+      const snippet = `Tại tệp @${target.path} (Dòng ${target.line}: \`${String(target.code || "").trim().slice(0, 120)}\`): ${comment}`;
+      view.stageLineCommentTarget = null;
+      const activeTask = view.page === "chat" && view.selected ? view.state.tasks.find((t) => t.id === view.selected) : null;
+      if (activeTask && String(snippet).length >= 6) {
+        const wf = activeTask.config?.workflow || "codex-antigravity";
+        const provider = view.chatProvider || (wf === "chat-only" ? activeTask.config?.chatProvider : roleConfig(activeTask.config, "build")?.provider || roleConfig(activeTask.config, "plan")?.provider) || "codex";
+        const models = view.connectors?.[provider]?.models || [];
+        const model = view.chatModel || models[0]?.id || "";
+        const effort = view.chatEffort || "medium";
+        await api(`/api/tasks/${encodeURIComponent(activeTask.id)}/chat`, {
+          method: "POST",
+          body: JSON.stringify({ message: snippet, provider, model, effort }),
+        });
+        view.stageSplit = true;
+        await refresh();
+        showToast(`Đã gửi nhận xét dòng ${target.line} của ${target.path} cho Agent!`);
+      } else {
+        view.page = "chat";
+        view.stageSplit = true;
+        view.chatDraft = view.chatDraft ? `${view.chatDraft}\n${snippet}` : snippet;
+        render();
+        const textarea = $(".chat-input") || $("[data-home-prompt]");
+        textarea?.focus();
+        showToast("Đã chèn nhận xét dòng vào khung Chat.");
+      }
+      return;
+    }
     if (action === "select-diff-file") { view.diffSelectedFile = button.dataset.path || ""; view.diffAnnotationTarget = null; renderDiffStudioModal(); return; }
     if (action === "open-diff-comment") {
       view.diffAnnotationTarget = { key: button.dataset.key, path: button.dataset.path, line: button.dataset.line, code: button.dataset.code || "" };
@@ -3415,15 +3849,25 @@ async function handleWorkbenchClick(event) {
       }
       return;
     }
-    if (action === "dock-open-workspace-file") {
-      const wsId = button.dataset.workspaceId || view.selected || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id;
+    if (action === "dock-open-workspace-file" || action === "preview-drawer-file") {
+      const wsId = button.dataset.workspaceId
+        || (view.page === "workspaces" && view.selected ? view.selected : "")
+        || view.state.tasks.find((item) => item.id === (id || view.selected))?.workspaceId
+        || view.homeWorkspaceId
+        || view.state?.workspaces?.[0]?.id;
       if (wsId && button.dataset.path) {
-        await loadWorkspacePreview(wsId, button.dataset.path);
+        await openStageFileTab({
+          workspaceId: wsId,
+          taskId: id || (view.page === "chat" ? view.selected : "") || "",
+          path: button.dataset.path,
+        });
       }
       return;
     }
-    if (action === "close-workspace-preview") {
+    if (action === "close-workspace-preview" || action === "close-drawer-preview") {
       view.filePreview = null;
+      view.chatDrawerPreview = null;
+      view.activeStageTabId = "chat";
       render();
       return;
     }
@@ -3491,24 +3935,20 @@ async function handleWorkbenchClick(event) {
       secEl?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    if (action === "preview-drawer-file") {
-      const wsId = button.dataset.workspaceId || view.state.tasks.find((item) => item.id === view.selected)?.workspaceId;
-      if (wsId && button.dataset.path) {
-        const file = await api(`/api/workspaces/${encodeURIComponent(wsId)}/file?path=${encodeURIComponent(button.dataset.path)}`);
-        view.chatDrawerPreview = file;
-        render();
-      }
-      return;
-    }
-    if (action === "close-drawer-preview") {
-      view.chatDrawerPreview = null;
-      render();
-      return;
-    }
     if (action === "mention-drawer-file") {
       const path = button.dataset.path || "";
       if (!path) return;
-      const textarea = $(".chat-input") || $("[data-home-prompt]");
+      let textarea = $(".chat-input") || $("[data-home-prompt]");
+      if (!textarea) {
+        view.page = "chat";
+        if ((view.stageTabs || []).length > 0 && view.activeStageTabId !== "chat") {
+          view.stageSplit = true;
+        } else {
+          view.activeStageTabId = "chat";
+        }
+        render();
+        textarea = $(".chat-input") || $("[data-home-prompt]");
+      }
       if (textarea) {
         const prefix = textarea.value && !/\s$/.test(textarea.value) ? " " : "";
         textarea.value = `${textarea.value}${prefix}@${path} `;
@@ -4045,6 +4485,11 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (event.key === "Escape") closeOverlay();
+  if (event.key === "Enter" && event.target.matches?.("[data-stage-line-comment-input]")) {
+    event.preventDefault();
+    document.querySelector("[data-action='send-stage-line-comment']")?.click();
+    return;
+  }
   if (event.key === "Enter" && !event.shiftKey && event.target.matches?.(".chat-input, [data-home-prompt]")) { event.preventDefault(); event.target.closest("form")?.requestSubmit(); }
 });
 window.addEventListener("popstate", () => {
@@ -4085,30 +4530,63 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) sche
     if (savedWidth >= 220 && savedWidth <= 620) {
       document.documentElement.style.setProperty("--right-dock-width", `${savedWidth}px`);
     }
+    const savedSplit = Number(localStorage.getItem("opensybau.stage-split-ratio"));
+    if (savedSplit >= 28 && savedSplit <= 72) {
+      document.documentElement.style.setProperty("--stage-split-ratio", `${savedSplit}%`);
+    }
   } catch {}
 
   let resizingDock = false;
+  let resizingSplit = false;
   document.addEventListener("pointerdown", (event) => {
-    const handle = event.target.closest?.("[data-right-dock-resizer]");
-    if (!handle) return;
-    event.preventDefault();
-    resizingDock = true;
-    document.body.classList.add("is-resizing-dock");
+    const dockHandle = event.target.closest?.("[data-right-dock-resizer]");
+    if (dockHandle) {
+      event.preventDefault();
+      resizingDock = true;
+      document.body.classList.add("is-resizing-dock");
+      return;
+    }
+    const splitHandle = event.target.closest?.("[data-stage-split-resizer]");
+    if (splitHandle) {
+      event.preventDefault();
+      resizingSplit = true;
+      document.body.classList.add("is-resizing-dock");
+    }
   });
   window.addEventListener("pointermove", (event) => {
-    if (!resizingDock) return;
-    const nextWidth = Math.max(220, Math.min(620, Math.round(window.innerWidth - event.clientX)));
-    document.documentElement.style.setProperty("--right-dock-width", `${nextWidth}px`);
+    if (resizingDock) {
+      const nextWidth = Math.max(220, Math.min(620, Math.round(window.innerWidth - event.clientX)));
+      document.documentElement.style.setProperty("--right-dock-width", `${nextWidth}px`);
+      return;
+    }
+    if (resizingSplit) {
+      const splitContainer = document.querySelector(".orca-stage-split-layout");
+      if (!splitContainer) return;
+      const rect = splitContainer.getBoundingClientRect();
+      if (rect.width <= 100) return;
+      const pct = Math.max(28, Math.min(72, Math.round(((event.clientX - rect.left) / rect.width) * 100)));
+      document.documentElement.style.setProperty("--stage-split-ratio", `${pct}%`);
+    }
   });
   window.addEventListener("pointerup", () => {
-    if (!resizingDock) return;
-    resizingDock = false;
-    document.body.classList.remove("is-resizing-dock");
-    try {
-      const raw = document.documentElement.style.getPropertyValue("--right-dock-width");
-      const px = parseInt(raw, 10);
-      if (px >= 220 && px <= 620) localStorage.setItem("opensybau.right-dock-width", String(px));
-    } catch {}
+    if (resizingDock) {
+      resizingDock = false;
+      document.body.classList.remove("is-resizing-dock");
+      try {
+        const raw = document.documentElement.style.getPropertyValue("--right-dock-width");
+        const px = parseInt(raw, 10);
+        if (px >= 220 && px <= 620) localStorage.setItem("opensybau.right-dock-width", String(px));
+      } catch {}
+    }
+    if (resizingSplit) {
+      resizingSplit = false;
+      document.body.classList.remove("is-resizing-dock");
+      try {
+        const raw = document.documentElement.style.getPropertyValue("--stage-split-ratio");
+        const pct = parseInt(raw, 10);
+        if (pct >= 28 && pct <= 72) localStorage.setItem("opensybau.stage-split-ratio", String(pct));
+      } catch {}
+    }
   });
 })();
 

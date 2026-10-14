@@ -5,6 +5,21 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.74] - 2026-10-14
+
+### Added & Improved (Đa Cửa Sổ Tab Kiểu ORCA, Trình Xem Tệp Đa Định Dạng Tức Thì & Chế Độ Chia Đôi Màn Hình Split View)
+- **Thanh Đa Cửa Sổ Tab kiểu ORCA (`.orca-tabbar`) & Chế độ Chia đôi màn hình (`.orca-stage-split-layout`)**:
+  - Khi bấm vào bất kỳ tệp nào trong Sidebar phải (`Files`, `Search`, `Source Control / Changes`) hoặc các thẻ tệp đính kèm trong cuộc trò chuyện, tệp sẽ được mở ngay thành **Tab cửa sổ riêng** trên thanh `TopBar` (`.orca-tabbar`) kèm vạch nhấn trắng trên đỉnh tab đang mở, biểu tượng định dạng, huy hiệu `Diff` và nút đóng `×`.
+  - Hỗ trợ nút **Chia đôi màn hình (`columns-2` Split View)** trên thanh Tab để vừa trò chuyện với Agent ở cột trái vừa xem trực tiếp tệp / bản xem trước / Diff Review ở cột phải, kèm thanh kéo phân cách chỉnh độ rộng linh hoạt (`[data-stage-split-resizer]`).
+- **Trình xem tệp thông minh đa định dạng (`.orca-file-viewer`) & Diff Review từng tệp**:
+  - **HTML (`.html`, `.htm`)**: Xem trước trang web trực tiếp (`Xem trước`) qua `<iframe class="orca-live-frame">` hỗ trợ đầy đủ đường dẫn tương đối CSS/JS/ảnh qua endpoint `/api/workspaces/:id/raw/<subpath>`, chuyển đổi tức thì sang `Mã nguồn (Code)` hoặc `Diff Review`.
+  - **PDF (`.pdf`)**: Mở trực tiếp tài liệu PDF ngay trong tab bằng trình đọc PDF tích hợp (`#toolbar=1&navpanes=1&view=FitH`).
+  - **Hình ảnh & Đa phương tiện (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`, `.ico`, `.bmp`, `.mp4`, `.webm`, `.mp3`, `.wav`)**: Khung xem studio sắc nét ngay trong tab.
+  - **Markdown (`.md`, `.mdx`), Bảng dữ liệu (`.csv`, `.tsv`) & JSON (`.json`)**: Hỗ trợ chế độ `Xem trước` định dạng đẹp (bảng dữ liệu cố định tiêu đề, JSON kiểm tra cú pháp) song song với `Mã nguồn` và `Diff Review`.
+  - **Mã nguồn & Bình luận từng dòng (Inline Line Comment)**: Bấm vào bất kỳ dòng code nào để mở ô ghi chú và gửi yêu cầu chỉnh sửa chính xác dòng đó cho Agent; tích hợp chế độ `Diff Review` (`+` / `-` hunks) cho từng tệp thông qua `/api/workspaces/:id/file-diff`.
+
+---
+
 ## [0.2.73] - 2026-10-14
 
 ### Fixed & Improved (Sửa Lỗi Bố Cục Sidebar Phải Bị Tràn Xuống Dưới & Loại Bỏ Hoàn Toàn Các Badge `main` / `Codex` Rườm Rà)

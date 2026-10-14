@@ -115,7 +115,9 @@ export function AppShell({ snapshot, pageMarkup }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const page = snapshot.page || "chat";
-  const home = page === "chat" && !snapshot.selected;
+  const hasStageTabs = (snapshot.stageTabs?.length || 0) > 0;
+  const isViewingFileTab = hasStageTabs && (snapshot.activeStageTabId !== "chat" || snapshot.stageSplit);
+  const home = page === "chat" && !snapshot.selected && !hasStageTabs;
   const hasContextSidebar = pageLayouts[page]?.sidebar === "context" && !sidebarCollapsed;
   const hasPageSidebar = Boolean(snapshot.pageSidebarMarkup);
   const hasRightDock = Boolean(snapshot.chatDrawerOpen && snapshot.rightDockMarkup);
@@ -142,7 +144,7 @@ export function AppShell({ snapshot, pageMarkup }) {
       <div class={`wb-workspace-split ${hasRightDock ? "has-right-dock" : ""}`}>
         <div class="wb-stage-column">
           <TopBar snapshot={snapshot} onOpenNavigation={() => setMobileSidebarOpen(true)} />
-          <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${page === "chat" && snapshot.selected ? "is-task-detail" : ""} ${page === "knowledge" && snapshot.state?.settings?.vaultPath ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
+          <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${(page === "chat" && snapshot.selected) || isViewingFileTab ? "is-task-detail" : ""} ${isViewingFileTab ? "is-orca-tab-stage" : ""} ${page === "knowledge" && snapshot.state?.settings?.vaultPath ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
         </div>
         {hasRightDock ? (
           <aside

@@ -2,10 +2,24 @@ import { h } from "preact";
 import { pageTitles } from "../navigation.js";
 import { Icon } from "../../shared/ui/Icon.jsx";
 
+function tabIconName(ext = "", mode = "") {
+  if (mode === "diff") return "git-branch";
+  const lower = String(ext || "").toLowerCase();
+  if (lower === ".html" || lower === ".htm") return "globe";
+  if (lower === ".pdf" || lower === ".md" || lower === ".mdx" || lower === ".markdown") return "book-open-text";
+  if ([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp"].includes(lower)) return "image";
+  if ([".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".py", ".go", ".rs", ".java", ".c", ".cpp", ".cs", ".css", ".scss", ".json", ".sql", ".sh", ".ps1"].includes(lower)) return "code-2";
+  return "file-text";
+}
+
 export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
+  const stageTabs = snapshot.stageTabs || [];
+  const activeStageTabId = snapshot.activeStageTabId || "chat";
+  const stageSplit = Boolean(snapshot.stageSplit && stageTabs.length > 0);
   const isHome = snapshot.page === "chat" && !snapshot.selected;
   const dockOpen = Boolean(snapshot.chatDrawerOpen);
-  if (isHome) {
+
+  if (isHome && stageTabs.length === 0) {
     return !dockOpen ? <div class="wb-home-dock-trigger">
       <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
         <Icon name="sidebar-right" size={16} />
@@ -21,21 +35,100 @@ export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
     ? snapshot.state?.workspaces?.find((item) => item.id === task.workspaceId)
     : snapshot.page === "workspaces" && snapshot.selected
       ? snapshot.state?.workspaces?.find((item) => item.id === snapshot.selected)
-      : null;
+      : snapshot.state?.workspaces?.find((item) => item.id === snapshot.homeWorkspaceId) || snapshot.state?.workspaces?.[0] || null;
+
+  const useOrcaTabs = snapshot.page === "chat" || snapshot.page === "workspaces" || stageTabs.length > 0;
+
+  if (useOrcaTabs) {
+    const primaryTitle = task
+      ? task.title
+      : snapshot.page === "workspaces" && workspace
+        ? workspace.name
+        : "Cuộc trò chuyện mới";
+    const primaryIcon = snapshot.page === "workspaces" && !task ? "folder-code" : "message-circle";
+    const isPrimaryActive = activeStageTabId === "chat" && !stageSplit;
+
+    return <header class="wb-topbar orca-tabbar" aria-label="Thanh tab đa cửa sổ">
+      <div class="orca-tabbar-scroll" role="tablist">
+        <button class="wb-mobile-menu-button" type="button" onClick={onOpenNavigation} aria-label="Mở workspace và cuộc trò chuyện" title="Workspace và chat" />
+        <button
+          type="button"
+          role="tab"
+          aria-selected={isPrimaryActive}
+          class={`orca-tab is-primary-tab ${isPrimaryActive ? "is-active" : ""} ${stageSplit ? "is-split-pinned" : ""}`}
+          data-action="activate-stage-tab"
+          data-tab-id="chat"
+          title={primaryTitle}
+        >
+          <Icon name={primaryIcon} size={13} />
+          <span class="orca-tab-title">{primaryTitle}</span>
+        </button>
+        {stageTabs.map((tab) => {
+          const isActive = activeStageTabId === tab.id || (stageSplit && activeStageTabId === "chat" && stageTabs[0]?.id === tab.id);
+          return <div
+            key={tab.id}
+            role="tab"
+            aria-selected={isActive}
+            class={`orca-tab ${isActive ? "is-active" : ""}`}
+            data-action="activate-stage-tab"
+            data-tab-id={tab.id}
+            title={`${tab.path}${tab.mode === "diff" ? " (Diff Review)" : ""}`}
+          >
+            <Icon name={tabIconName(tab.ext, tab.mode)} size={13} />
+            <span class="orca-tab-title">{tab.name}</span>
+            {tab.mode === "diff" ? <small class="orca-tab-badge">Diff</small> : null}
+            <button
+              type="button"
+              class="orca-tab-close"
+              data-action="close-stage-tab"
+              data-tab-id={tab.id}
+              title={`Đóng tab ${tab.name}`}
+              aria-label={`Đóng tab ${tab.name}`}
+            >
+              <Icon name="x" size={11} />
+            </button>
+          </div>;
+        })}
+        <button
+          type="button"
+          class="orca-tabbar-add"
+          data-action="new-chat"
+          title="Mở cuộc trò chuyện mới"
+          aria-label="Mở cuộc trò chuyện mới"
+        >
+          <Icon name="plus" size={14} />
+        </button>
+      </div>
+      <div class="wb-top-actions orca-tabbar-actions">
+        {stageTabs.length > 0 ? (
+          <button
+            class={`wb-top-icon ${stageSplit ? "is-active" : ""}`}
+            type="button"
+            data-action="toggle-stage-split"
+            title={stageSplit ? "Tắt chế độ chia đôi màn hình" : "Chia đôi màn hình: Chat + Xem File song song"}
+            aria-label="Chia đôi màn hình: Chat + Xem File song song"
+          >
+            <Icon name="columns-2" size={15} />
+          </button>
+        ) : null}
+        {!dockOpen ? (
+          <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
+            <Icon name="sidebar-right" size={16} />
+          </button>
+        ) : null}
+      </div>
+    </header>;
+  }
 
   return <header class="wb-topbar">
     <div class="wb-topbar-leading">
       <button class="wb-mobile-menu-button" type="button" onClick={onOpenNavigation} aria-label="Mở workspace và cuộc trò chuyện" title="Workspace và chat" />
-      {task ? <div class="wb-breadcrumb wb-chat-breadcrumb" title={task.title}>
-        <span>{workspace?.name || task.workspacePath}</span>
-        <Icon name="chevron-right" size={13} />
-        <strong>{task.title}</strong>
-      </div> : <div class="wb-breadcrumb">
+      <div class="wb-breadcrumb">
         <span>OpenSybau</span>
         <Icon name="chevron-right" size={13} />
         <strong>{title}</strong>
         {workspace ? <><Icon name="chevron-right" size={13} /><span>{workspace.name}</span></> : null}
-      </div>}
+      </div>
     </div>
     <div class="wb-top-actions">
       {!dockOpen ? (
@@ -46,4 +139,5 @@ export function TopBar({ snapshot, onOpenNavigation = () => {} }) {
     </div>
   </header>;
 }
+
 
