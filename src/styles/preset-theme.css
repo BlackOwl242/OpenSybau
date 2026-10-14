@@ -7432,11 +7432,13 @@ pre > code {
   box-shadow: 0 12px 28px rgba(0, 0, 0, .42) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  max-height: var(--orca-menu-max-height, min(68vh, 360px)) !important;
+  max-height: min(var(--orca-menu-max-height, 280px), 280px) !important;
+  overflow: hidden !important;
 }
 .orca-el-model-bar .codex-pop-scroll,
 .orca-el-model-bar .codex-pop-card.is-effort-list .codex-pop-scroll {
-  max-height: calc(var(--orca-menu-max-height, min(68vh, 360px)) - 42px) !important;
+  min-height: 0 !important;
+  max-height: min(calc(var(--orca-menu-max-height, 280px) - 42px), 238px) !important;
   overflow-y: auto !important;
 }
 .orca-el-model-bar .codex-pop-head { color: var(--wb-muted) !important; }

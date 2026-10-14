@@ -1194,14 +1194,15 @@ function positionHtmlCommentMenu(menu) {
   const itemCount = menu.querySelectorAll(".codex-pop-item").length;
   const headingHeight = menu.querySelector(".codex-pop-head") ? 38 : 8;
   const rowHeight = menu.matches("[data-pop-id='html-comment-effort']") ? 34 : 36;
-  const preferredHeight = Math.min(window.innerHeight * 0.68, headingHeight + itemCount * rowHeight + 14);
+  const maxMenuHeight = Math.min(window.innerHeight * 0.48, 280);
+  const preferredHeight = Math.min(maxMenuHeight, headingHeight + itemCount * rowHeight + 14);
   const spaceAbove = Math.max(0, rect.top - 10);
   const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - 10);
   const opensDown = spaceBelow >= preferredHeight || spaceBelow >= spaceAbove;
   const availableHeight = (opensDown ? spaceBelow : spaceAbove) - 8;
   menu.classList.toggle("is-down", opensDown);
   menu.classList.toggle("is-up", !opensDown);
-  menu.style.setProperty("--orca-menu-max-height", `${Math.max(96, Math.min(window.innerHeight * 0.68, availableHeight))}px`);
+  menu.style.setProperty("--orca-menu-max-height", `${Math.max(96, Math.min(maxMenuHeight, availableHeight))}px`);
 }
 
 function ensureIframeInspectorBridge(iframe) {

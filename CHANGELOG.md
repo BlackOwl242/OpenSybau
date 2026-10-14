@@ -5,6 +5,14 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.81] - 2026-10-15
+
+### Sửa chiều cao dropdown trong popup nhận xét HTML
+- Giới hạn menu Agent/model ở tối đa 280 px, cuộn bên trong danh sách thay vì kéo dài che nội dung trang.
+- Chọn hướng mở theo vùng trống nhưng giữ kích thước menu ngắn gọn, không phủ lên toàn bộ khung xem.
+
+---
+
 ## [0.2.80] - 2026-10-15
 
 ### Cải thiện trình xem HTML và thao tác chọn phần tử
