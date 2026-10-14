@@ -1993,12 +1993,15 @@ body .wb-top-icon:hover {
   color: #ffffff !important;
 }
 .wb-statusbar {
-  height: 24px !important;
+  height: 20px !important;
   background: transparent !important;
   border-top: 0 !important;
   color: rgba(255, 255, 255, 0.42) !important;
   font-size: 11px !important;
   padding: 0 14px !important;
+}
+.wb-main.is-home-stage .wb-statusbar {
+  display: none !important;
 }
 
 /* 6. Codex Home Stage: Balanced Center Emblem Hero + Bottom-Docked Two-Tier Composer */
@@ -2006,7 +2009,8 @@ body .wb-top-icon:hover {
   display: flex !important;
   flex-direction: column !important;
   justify-content: stretch !important;
-  padding: 0 28px 6px !important;
+  padding: 0 28px 12px !important;
+  overflow: hidden !important;
 }
 .wb-page-content .command-home {
   flex: 1 !important;
@@ -2020,7 +2024,7 @@ body .wb-top-icon:hover {
   min-height: 0 !important;
   width: min(740px, 100%) !important;
   margin: 0 auto !important;
-  padding: 20px 0 clamp(22px, 4.2vh, 42px) !important;
+  padding: 14px 0 0 !important;
   display: flex !important;
   flex-direction: column !important;
   justify-content: space-between !important;
@@ -2028,7 +2032,7 @@ body .wb-top-icon:hover {
 }
 .wb-page-content .home-welcome {
   margin: auto 0 !important;
-  transform: translateY(12px);
+  transform: translateY(8px);
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
@@ -2158,13 +2162,17 @@ body .wb-top-icon:hover {
   z-index: 4;
   display: flex !important;
   flex-direction: column !important;
-  gap: 12px !important;
-  padding: 16px 18px 12px !important;
+  gap: 10px !important;
+  padding: 14px 18px 11px !important;
   border: 1px solid rgba(255, 255, 255, 0.09) !important;
   border-radius: 22px !important;
   background: #222327 !important;
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
   transition: border-color 140ms ease, box-shadow 140ms ease !important;
+}
+.wb-page-content .task-conversation-page .chat-composer {
+  width: min(760px, calc(100% - 36px)) !important;
+  margin: 6px auto 8px !important;
 }
 .wb-page-content .home-composer:focus-within,
 .wb-page-content .task-conversation-page .chat-composer:focus-within {
@@ -2256,6 +2264,161 @@ body .wb-top-icon:hover {
   background: rgba(255, 255, 255, 0.07);
   color: #f3f4f6;
 }
+
+/* Codex Approval / Permission Pill & Rich Upward Popover Card */
+.codex-perm-pill {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e4e4e7;
+  font-size: 13px;
+  font-weight: 510;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.codex-perm-pill::-webkit-details-marker {
+  display: none;
+}
+.codex-perm-pill:hover,
+.codex-perm-menu[open] > .codex-perm-pill {
+  background: rgba(255, 255, 255, 0.11);
+  color: #ffffff;
+}
+.codex-perm-pill.is-full-access {
+  background: rgba(249, 115, 22, 0.13);
+  color: #fb923c;
+}
+.codex-perm-pill.is-full-access:hover,
+.codex-perm-menu[open] > .codex-perm-pill.is-full-access {
+  background: rgba(249, 115, 22, 0.2);
+  color: #fdba74;
+}
+.codex-perm-pill svg:last-child {
+  color: currentColor;
+  opacity: 0.65;
+  transition: transform 140ms ease;
+}
+.codex-pop-card.is-permission-card {
+  width: 368px;
+  min-width: 332px;
+  max-width: calc(100vw - 44px);
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(31, 32, 37, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  gap: 6px;
+}
+.codex-perm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 8px 6px;
+}
+.codex-perm-title {
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 12.5px;
+  font-weight: 540;
+}
+.codex-perm-learn {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+.codex-perm-learn:hover {
+  color: #f4f4f5;
+  background: rgba(255, 255, 255, 0.07);
+}
+.codex-perm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.codex-perm-option {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 18px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: #e4e4e7;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.codex-perm-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+.codex-perm-option.is-selected {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+.codex-perm-opt-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  color: rgba(255, 255, 255, 0.8);
+}
+.codex-perm-opt-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.codex-perm-opt-copy strong {
+  font-size: 13.5px;
+  font-weight: 580;
+  line-height: 1.3;
+  color: inherit;
+}
+.codex-perm-opt-copy small {
+  font-size: 12px;
+  font-weight: 430;
+  line-height: 1.38;
+  color: rgba(255, 255, 255, 0.5);
+  white-space: normal;
+}
+.codex-perm-opt-check {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 20px;
+  color: #f4f4f5;
+}
+.codex-perm-option.is-full-access {
+  color: #fb923c;
+}
+.codex-perm-option.is-full-access .codex-perm-opt-icon,
+.codex-perm-option.is-full-access .codex-perm-opt-check {
+  color: #fb923c;
+}
+.codex-perm-option.is-full-access:hover,
+.codex-perm-option.is-full-access.is-selected {
+  background: rgba(249, 115, 22, 0.11);
+  color: #fdba74;
+}
+
 .codex-inline-model-bar {
   display: inline-flex;
   align-items: center;

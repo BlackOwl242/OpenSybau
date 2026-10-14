@@ -504,6 +504,69 @@ function composerAddMenu(target, taskId = "") {
   ].map((option) => `<label class="composer-file-option"><span class="composer-file-option-label">${icon(option.icon, 16)}<span>${option.label}</span></span><input type="file" ${option.attrs} data-content-file-import data-import-target="${target}" aria-label="${option.aria}"><small data-content-file-status aria-live="polite" hidden></small></label>`).join("");
   return `<details class="composer-add"><summary aria-label="Thêm tệp và tính năng" title="Thêm tệp và tính năng">${icon("plus", 18)}</summary><div class="composer-add-menu" role="group" aria-label="Thêm vào cuộc trò chuyện"><strong>Thêm vào cuộc trò chuyện</strong>${fileImportOptions}${extra}<button type="button" data-page="skills">${icon("notebook-tabs", 16)}<span>Kỹ năng</span></button><small>Tệp văn bản được gửi riêng kèm tin nhắn. Tối đa 20 tệp, tổng 1 MB.</small></div></details>`;
 }
+function permissionModeIcon(mode, size = 16) {
+  if (mode === "read-only") {
+    return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>`;
+  }
+  if (mode === "workspace-write") {
+    return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 10 11 12 9 14"/><line x1="12.5" y1="14" x2="15" y2="14"/></svg>`;
+  }
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12.5"/><circle cx="12" cy="15.8" r="0.9" fill="currentColor" stroke="none"/></svg>`;
+}
+function composerPermissionMenuMarkup(currentPreset = "full-access", scope = "home", taskId = "") {
+  const options = [
+    {
+      id: "read-only",
+      pillLabel: "Hỏi quyền phê duyệt",
+      title: "Hỏi quyền phê duyệt",
+      desc: "Luôn hỏi trước khi sửa tệp ngoài và sử dụng mạng",
+      tone: "default",
+    },
+    {
+      id: "workspace-write",
+      pillLabel: "Tự duyệt cho tôi",
+      title: "Tự duyệt cho tôi",
+      desc: "Chỉ hỏi với các hành động được phát hiện có nguy cơ mất an toàn",
+      tone: "default",
+    },
+    {
+      id: "full-access",
+      pillLabel: "Toàn quyền (Full access)",
+      title: "Toàn quyền (Full access)",
+      desc: "Truy cập không giới hạn mạng và mọi tệp trên máy tính của bạn",
+      tone: "danger-warn",
+    },
+  ];
+  const current = options.find((item) => item.id === currentPreset) || options[2];
+  const popId = scope === "task" ? "task-permission" : "home-permission";
+  const action = scope === "task" ? "pick-task-permission" : "pick-home-permission";
+  const learnAction = scope === "task" ? "task-permissions" : "toggle-home-config";
+  return `<details class="codex-pop-menu is-up codex-perm-menu" data-pop-id="${popId}">
+    <summary class="codex-perm-pill ${current.id === "full-access" ? "is-full-access" : ""}" title="Chọn cách phê duyệt hành động của Agent">
+      ${permissionModeIcon(current.id, 15)}
+      <span>${esc(current.pillLabel)}</span>
+    </summary>
+    <div class="codex-pop-card is-permission-card" role="menu" aria-label="Cách phê duyệt hành động của Agent?">
+      <div class="codex-perm-header">
+        <span>Cách phê duyệt hành động của Agent?</span>
+        <button type="button" class="codex-perm-learn" data-action="${learnAction}" ${taskId ? `data-id="${esc(taskId)}"` : ""}>Tìm hiểu thêm</button>
+      </div>
+      <div class="codex-perm-list">
+        ${options.map((opt) => {
+          const isSelected = opt.id === current.id;
+          return `<button type="button" class="codex-perm-option ${isSelected ? "is-selected" : ""} ${opt.tone === "danger-warn" ? "is-full-access" : ""}" data-action="${action}" data-permission="${opt.id}" ${taskId ? `data-id="${esc(taskId)}"` : ""}>
+            <span class="codex-perm-option-icon">${permissionModeIcon(opt.id, 18)}</span>
+            <span class="codex-perm-option-body">
+              <strong>${esc(opt.title)}</strong>
+              <small>${esc(opt.desc)}</small>
+            </span>
+            <span class="codex-perm-option-check">${isSelected ? icon("check", 15) : ""}</span>
+          </button>`;
+        }).join("")}
+      </div>
+    </div>
+  </details>`;
+}
 function contentFileImportField(target) {
   return '<label class="content-file-import">Thêm tệp nội dung<input type="file" accept="' + contentImportAccept + '" multiple data-content-file-import data-import-target="' + esc(target) + '"><small data-content-file-status>Chọn nhiều tệp văn bản cùng lúc, gồm Markdown (.md), TXT, JSON, YAML, CSV, HTML và mã nguồn. Tệp được nối vào nội dung, không lưu riêng.</small></label>';
 }
@@ -846,12 +909,6 @@ function chatPage() {
       : workflow === "plan-only"
         ? `${providerTitle(view.connectors, roleSelections.plan.provider)}${roleSelections.plan.model ? ` · ${roleSelections.plan.model}` : ""}`
         : `Pipeline · ${providerTitle(view.connectors, roleSelections.build.provider)}`;
-  const permissionLabels = {
-    "workspace-write": { icon: "hand", text: "Hỏi quyền sửa tệp" },
-    "full-access": { icon: "zap", text: "Tự động thực thi" },
-    "read-only": { icon: "shield", text: "Chỉ đọc an toàn" },
-  };
-  const currentPerm = permissionLabels[homePermissionPreset] || permissionLabels["full-access"];
   const quickAgentItems = [];
   let activeAgentLabel = chatSelection.model?.name || chatSelection.model?.id || providerTitle(view.connectors, chatSelection.provider) || compactAgentLabel;
   for (const [provId, conn] of Object.entries(view.connectors || {})) {
@@ -973,16 +1030,7 @@ function chatPage() {
           <footer class="home-composer-controls">
             <div class="composer-add-wrap">
               ${composerAddMenu("prompt")}
-              <button type="button" class="codex-footer-btn" data-action="cycle-home-permission" title="Bấm để chuyển nhanh quyền thực thi (Hỏi quyền / Tự động thực thi / Chỉ đọc)">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  ${homePermissionPreset === "workspace-write"
-                    ? `<path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>`
-                    : homePermissionPreset === "read-only"
-                      ? `<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>`
-                      : `<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>`}
-                </svg>
-                <span>${esc(currentPerm.text)}</span>
-              </button>
+              ${composerPermissionMenuMarkup(homePermissionPreset, "home")}
             </div>
             <div class="home-composer-actions">
               ${!isArena && quickAgentItems.length ? `<div class="codex-inline-model-bar">
@@ -1234,7 +1282,7 @@ function taskConversationPage() {
       ${taskArenaBanner(task)}
       ${taskConversationPipelineStrip(task, busy)}
       <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${taskInlineToolStream(task)}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
-      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button type="button" class="codex-config-gear" data-action="task-instruction" data-id="${task.id}" title="Cấu hình nâng cao">${icon("settings-2", 14)}</button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
+      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button type="button" class="codex-config-gear" data-action="task-instruction" data-id="${task.id}" title="Cấu hình nâng cao">${icon("settings-2", 14)}</button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
     </section>
     ${chatContextDrawer(task)}
   </section>`;
@@ -1695,7 +1743,7 @@ async function handleSubmit(event) {
             workspaceId: object.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id,
             prompt: String(object.prompt || "").trim(),
             attachments: object.attachments,
-            permissionPreset: object.permissionPreset || view.homePermissionPreset || "full-access",
+            permissionPreset: view.homePermissionPreset || object.permissionPreset || "full-access",
             workflow: "codex-antigravity",
             competitors,
           }),
@@ -1710,7 +1758,7 @@ async function handleSubmit(event) {
         showToast(`Đã khởi chạy Đấu trường với ${result.tasks?.length || competitors.length} nhánh Git worktree song song!`);
       } else {
         const workflow = object.workflow || "chat-only";
-        const payload = { ...object, prompt: String(object.prompt || "").trim(), workflow, isolated: data.has("isolated") || Boolean(view.homeIsolated), permissionPreset: object.permissionPreset || view.homePermissionPreset || "full-access" };
+        const payload = { ...object, prompt: String(object.prompt || "").trim(), workflow, isolated: data.has("isolated") || Boolean(view.homeIsolated), permissionPreset: view.homePermissionPreset || object.permissionPreset || "full-access" };
         const task = await api("/api/tasks", { method: "POST", body: JSON.stringify(payload) });
         view.selected = task.task.id; view.page = "chat"; view.chatProvider = workflow === "chat-only" ? task.task.config.chatProvider : task.task.config.roles?.plan?.provider || "codex"; view.chatModel = workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; clearComposerAttachments(form); showToast(workflow === "chat-only" ? "Đã gửi tin nhắn cho agent." : "Task thật đã vào hàng đợi.");
       }
@@ -1873,6 +1921,24 @@ async function handleWorkbenchClick(event) {
   if (action === "toggle-home-isolated") {
     view.homeIsolated = !view.homeIsolated;
     render();
+    return;
+  }
+  if (action === "pick-home-permission") {
+    const next = button.dataset.permission || "full-access";
+    view.homePermissionPreset = next;
+    render();
+    return;
+  }
+  if (action === "pick-task-permission") {
+    const next = button.dataset.permission || "workspace-write";
+    if (id) {
+      const targetTask = view.state?.tasks?.find((item) => item.id === id);
+      if (targetTask) targetTask.permissionPreset = next;
+      render();
+      void api(`/api/tasks/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ permissionPreset: next }) })
+        .then(() => refresh())
+        .catch((error) => showToast(error.message));
+    }
     return;
   }
   if (action === "cycle-home-permission") {

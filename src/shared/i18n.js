@@ -415,6 +415,14 @@ const english = {
   "chọn cấu hình sẵn, nhập API key OpenAI rồi tải model.": "Choose the preset, enter an OpenAI API key, then load models.",
   "OpenSybau tự dò Codex, Antigravity và Claude Code trên máy. Nếu CLI đã cài nhưng chưa đăng nhập, mở terminal đăng nhập ngay tại đây.": "OpenSybau detects Codex, Antigravity, and Claude Code on this computer. If a CLI is installed but not signed in, open a sign-in terminal here.",
   "Cài Claude Code theo hướng dẫn chính thức của Anthropic trên máy chạy OpenSybau, rồi quay lại đây và quét lại.": "Install Claude Code using Anthropic's official instructions on the computer running OpenSybau, then return here and scan again.",
+  "Cách phê duyệt hành động của Agent?": "How to approve Agent actions?",
+  "Tìm hiểu thêm": "Learn more",
+  "Hỏi quyền phê duyệt": "Ask for approval",
+  "Luôn hỏi trước khi sửa tệp ngoài và sử dụng mạng": "Always ask before editing external files and using network",
+  "Tự duyệt cho tôi": "Auto-approve for me",
+  "Chỉ hỏi với các hành động được phát hiện có nguy cơ mất an toàn": "Only ask for actions detected as potentially unsafe",
+  "Toàn quyền (Full access)": "Full access",
+  "Truy cập không giới hạn mạng và mọi tệp trên máy tính của bạn": "Unrestricted network access and all files on your computer",
 };
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));
