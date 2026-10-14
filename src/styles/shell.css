@@ -6,10 +6,12 @@ button { color: inherit; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid #83aaff; outline-offset: 2px; }
 button:disabled { cursor: not-allowed; }
 ::selection { color: #fff; background: #4264a5; }
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: #202122; }
-::-webkit-scrollbar-thumb { background: #53565a; border: 2px solid #202122; border-radius: 9px; }
-::-webkit-scrollbar-thumb:hover { background: #73777d; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-button { display: none !important; width: 0 !important; height: 0 !important; }
+::-webkit-scrollbar-track { background: transparent !important; }
+::-webkit-scrollbar-corner { background: transparent !important; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border: 0; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 .boot-screen { height: 100%; display: grid; place-items: center; padding: 24px; color: var(--wb-muted); background: var(--wb-main); }
 .boot-error { color: var(--wb-red); }
 
@@ -669,7 +671,6 @@ button:disabled { cursor: not-allowed; }
   padding: 3px 4px 6px;
   overscroll-behavior: contain;
   scroll-padding: 6px;
-  scrollbar-color: #545454 transparent;
 }
 
 .app-dialog-footer {

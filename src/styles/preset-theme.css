@@ -2588,8 +2588,6 @@ body .wb-top-icon:hover {
   body .desktop-setup-dialog select::picker(select),
   body .wb-app-shell select::picker(select) {
     position-try-fallbacks: flip-block;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
   }
 }
 
@@ -2781,5 +2779,463 @@ body .wb-top-icon:hover {
     display: none;
   }
 }
+
+/* ============================================================================
+   9. UNIFIED SCROLLBARS, PROPORTIONAL MODALS, BUTTONS & FORM CONTROLS
+   ============================================================================ */
+
+/* 9.1 Sleek, Frameless 5px Floating Pill Scrollbars (Never native OS arrow scrollbars) */
+html,
+body,
+body *:not(.wb-rail-nav) {
+  scrollbar-color: auto;
+  scrollbar-width: auto;
+}
+
+*::-webkit-scrollbar {
+  width: 5px !important;
+  height: 5px !important;
+}
+
+*::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track-piece,
+*::-webkit-scrollbar-corner {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3) !important;
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.42) !important;
+}
+
+/* 9.2 Proportional, Well-Contained Modal Dialogs */
+#overlay .modal-backdrop,
+.wb-page-content .composer-config-modal,
+.desktop-setup-overlay {
+  padding: 36px 24px !important;
+  background: rgba(6, 7, 10, 0.68) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  display: grid !important;
+  place-items: center !important;
+}
+
+#overlay .modal:not(.diff-studio-modal),
+.wb-page-content .composer-config-dialog,
+.desktop-setup-dialog {
+  width: min(520px, calc(100vw - 48px)) !important;
+  max-width: 520px !important;
+  max-height: min(600px, calc(100dvh - 88px)) !important;
+  margin: auto !important;
+  padding: 16px 18px 14px !important;
+  gap: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  background: rgba(24, 25, 29, 0.98) !important;
+  color: #f3f4f6 !important;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.72),
+    0 4px 16px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  overflow: hidden !important;
+}
+
+#overlay .modal-head,
+.wb-page-content .composer-config-head {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding-bottom: 10px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+#overlay .modal-head small,
+.wb-page-content .composer-config-head small {
+  display: block;
+  margin-bottom: 2px;
+  color: rgba(255, 255, 255, 0.42) !important;
+  font-size: 10px !important;
+  font-weight: 650 !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase;
+}
+
+#overlay .modal-head h2,
+.wb-page-content .composer-config-head h2 {
+  margin: 0 !important;
+  color: #fafafa !important;
+  font-size: 16px !important;
+  font-weight: 640 !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.015em !important;
+}
+
+#overlay .modal-body,
+.wb-page-content .composer-config-body,
+.desktop-setup-dialog .app-dialog-content {
+  display: grid !important;
+  gap: 10px !important;
+  padding: 2px 4px 4px 2px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.modal-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+@media (max-width: 560px) {
+  .modal-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+#overlay .modal-actions,
+.wb-page-content .composer-config-actions,
+.desktop-setup-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+  padding-top: 10px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+/* Compact inner blocks inside modals */
+#overlay .provider-cli-entry {
+  display: grid !important;
+  grid-template-columns: 28px minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 9px 11px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 11px !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+#overlay .provider-cli-entry .provider-connect-icon {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 7px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #d4d4d8 !important;
+}
+
+#overlay .provider-cli-entry strong {
+  font-size: 12.5px !important;
+  color: #f4f4f5 !important;
+}
+
+#overlay .provider-cli-entry p {
+  margin: 1px 0 0 !important;
+  font-size: 11.5px !important;
+  line-height: 1.35 !important;
+  color: rgba(255, 255, 255, 0.56) !important;
+}
+
+#overlay .provider-presets {
+  display: grid !important;
+  gap: 7px !important;
+  padding: 9px 11px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 11px !important;
+  background: rgba(255, 255, 255, 0.025) !important;
+}
+
+#overlay .provider-presets-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+#overlay .provider-presets-head > span {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+#overlay .provider-key-links {
+  display: inline-flex !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+}
+
+#overlay .provider-key-links a {
+  font-size: 11px !important;
+  color: #93c5fd !important;
+  text-decoration: none !important;
+}
+
+#overlay .provider-key-links a:hover {
+  color: #bfdbfe !important;
+  text-decoration: underline !important;
+}
+
+#overlay .provider-model-field {
+  display: grid !important;
+  gap: 6px !important;
+}
+
+#overlay .provider-model-field > button {
+  justify-self: start !important;
+}
+
+#overlay .form-note,
+.wb-page-content .form-note {
+  margin: 0 !important;
+  padding: 7px 10px !important;
+  border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  border-radius: 9px !important;
+  background: rgba(255, 255, 255, 0.025) !important;
+  color: rgba(255, 255, 255, 0.56) !important;
+  font-size: 11.5px !important;
+  line-height: 1.4 !important;
+}
+
+/* 9.3 Unified Form Labels, Inputs, Selects & Textareas */
+#overlay .modal label,
+.wb-page-content .composer-config-dialog label,
+.wb-page-content .settings-card label {
+  display: grid;
+  gap: 5px;
+  color: #e4e4e7 !important;
+  font-size: 12px !important;
+  font-weight: 560 !important;
+}
+
+#overlay .modal label small,
+.wb-page-content .composer-config-dialog label small,
+.wb-page-content .settings-card label small {
+  color: rgba(255, 255, 255, 0.5) !important;
+  font-size: 11px !important;
+  font-weight: 450 !important;
+  line-height: 1.35 !important;
+}
+
+#overlay .modal input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+#overlay .modal select,
+#overlay .modal textarea,
+.wb-page-content .composer-config-dialog input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.wb-page-content .composer-config-dialog select,
+.wb-page-content .composer-config-dialog textarea,
+.wb-page-content .settings-card input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.wb-page-content .settings-card select,
+.wb-page-content .settings-card textarea,
+.desktop-setup-dialog input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.desktop-setup-dialog select,
+.desktop-setup-dialog textarea {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 9px !important;
+  background: rgba(16, 17, 21, 0.9) !important;
+  color: #f4f4f5 !important;
+  padding: 7px 10px !important;
+  font-size: 12.5px !important;
+  line-height: 1.4 !important;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease !important;
+}
+
+#overlay .modal input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+#overlay .modal select,
+.wb-page-content .composer-config-dialog input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.wb-page-content .composer-config-dialog select,
+.wb-page-content .settings-card input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.wb-page-content .settings-card select {
+  min-height: 34px !important;
+}
+
+#overlay .modal textarea,
+.wb-page-content .composer-config-dialog textarea {
+  min-height: 64px !important;
+  resize: vertical;
+}
+
+#overlay .modal input:focus,
+#overlay .modal select:focus,
+#overlay .modal textarea:focus,
+.wb-page-content .composer-config-dialog input:focus,
+.wb-page-content .composer-config-dialog select:focus,
+.wb-page-content .composer-config-dialog textarea:focus,
+.wb-page-content .settings-card input:focus,
+.wb-page-content .settings-card select:focus,
+.wb-page-content .settings-card textarea:focus,
+.desktop-setup-dialog input:focus,
+.desktop-setup-dialog select:focus,
+.desktop-setup-dialog textarea:focus {
+  outline: none !important;
+  border-color: rgba(96, 165, 250, 0.65) !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
+  background: rgba(19, 21, 26, 0.98) !important;
+}
+
+/* 9.4 Unified Button System Across Modals, Settings, and Views */
+body .wb-page-content .button:not(.home-submit):not(.chat-send-button),
+body #overlay .button,
+body .desktop-setup-dialog .button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #e4e4e7 !important;
+  font-size: 12.5px !important;
+  font-weight: 540 !important;
+  line-height: 1 !important;
+  text-decoration: none !important;
+  white-space: nowrap !important;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, transform 100ms ease !important;
+}
+
+body .wb-page-content .button:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
+body #overlay .button:hover:not(:disabled),
+body .desktop-setup-dialog .button:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  background: rgba(255, 255, 255, 0.11) !important;
+  color: #ffffff !important;
+}
+
+body .wb-page-content .button.small:not(.home-submit):not(.chat-send-button),
+body #overlay .button.small,
+body .desktop-setup-dialog .button.small {
+  height: 27px !important;
+  min-height: 27px !important;
+  padding: 0 9px !important;
+  border-radius: 7px !important;
+  font-size: 11.5px !important;
+}
+
+body .wb-page-content .button.quiet:not(.home-submit):not(.chat-send-button),
+body #overlay .button.quiet,
+body .desktop-setup-dialog .button.quiet {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: #d4d4d8 !important;
+}
+
+body .wb-page-content .button.quiet:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
+body #overlay .button.quiet:hover:not(:disabled),
+body .desktop-setup-dialog .button.quiet:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: #ffffff !important;
+}
+
+body .wb-page-content .button.primary:not(.home-submit):not(.chat-send-button),
+body #overlay .button.primary,
+body .desktop-setup-dialog .button.primary {
+  border-color: rgba(96, 165, 250, 0.4) !important;
+  background: #2563eb !important;
+  color: #ffffff !important;
+  font-weight: 580 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
+body .wb-page-content .button.primary:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
+body #overlay .button.primary:hover:not(:disabled),
+body .desktop-setup-dialog .button.primary:hover:not(:disabled) {
+  border-color: rgba(147, 197, 253, 0.55) !important;
+  background: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+body .wb-page-content .button.danger:not(.home-submit):not(.chat-send-button),
+body #overlay .button.danger {
+  border-color: rgba(248, 113, 113, 0.3) !important;
+  background: rgba(239, 68, 68, 0.14) !important;
+  color: #fca5a5 !important;
+}
+
+body .wb-page-content .button.danger:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
+body #overlay .button.danger:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.5) !important;
+  background: rgba(239, 68, 68, 0.24) !important;
+  color: #fecaca !important;
+}
+
+body .wb-page-content .button:disabled,
+body #overlay .button:disabled,
+body .desktop-setup-dialog .button:disabled {
+  opacity: 0.42 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Unified Icon Buttons (Close Modal ×, Toolbar Actions) */
+body .wb-page-content .icon-button,
+body #overlay .icon-button,
+body .desktop-setup-dialog .icon-button {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.56) !important;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease !important;
+}
+
+body .wb-page-content .icon-button:hover:not(:disabled),
+body #overlay .icon-button:hover:not(:disabled),
+body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+/* Unified Settings Cards & Concurrency Stepper */
+.wb-page-content .settings-card {
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 14px !important;
+  background: rgba(24, 25, 29, 0.72) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+.wb-page-content .concurrency-setting > div button {
+  width: 28px !important;
+  height: 28px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 7px !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #f4f4f5 !important;
+  transition: background-color 120ms ease, border-color 120ms ease !important;
+}
+
+.wb-page-content .concurrency-setting > div button:hover {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
 
 

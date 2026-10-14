@@ -21,7 +21,6 @@ body,
 
 body {
   overflow-x: hidden;
-  scrollbar-color: #545454 #1a1a1a;
 }
 
 body.launch-home,

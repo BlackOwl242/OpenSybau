@@ -5,6 +5,20 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.64] - 2026-10-14
+
+### Fixed & Improved (Chuẩn hóa Modal, Nút bấm & Thanh cuộn)
+- **Thu gọn & cân đối kích thước các hộp thoại Modal**:
+  - Giới hạn kích thước chuẩn cho toàn bộ hộp thoại (`#overlay .modal`, `.composer-config-dialog`, `.desktop-setup-dialog`) ở mức `max-width: 520px` và `max-height: min(600px, calc(100dvh - 88px))` kèm khoảng đệm ngoài thoáng đãng, không còn bị tràn sát mép trên/dưới cửa sổ ứng dụng.
+  - Sắp xếp lại biểu mẫu trong modal **"Thêm nguồn AI"** và **"Task mới"** theo bố cục lưới 2 cột (`.modal-grid-2`), rút gọn khoảng cách và số dòng `textarea` để hiển thị gọn gàng trong một khung nhìn.
+- **Loại bỏ thanh cuộn Windows cổ điển thô kệch**:
+  - Xóa thuộc tính `scrollbar-color` trên `body` và `.app-dialog-content` vốn khiến Chromium/Electron vô hiệu hóa `::-webkit-scrollbar` và quay về thanh cuộn Windows mặc định có nút mũi tên `▲`/`▼` và nền xám dày.
+  - Áp dụng thanh cuộn nổi siêu mảnh (`5px`, nền trong suốt, bo tròn dạng viên thuốc, ẩn hoàn toàn mũi tên hai đầu) đồng nhất trên mọi trang và hộp thoại.
+- **Đồng bộ hóa hệ thống nút bấm (`.button`, `.icon-button`) và ô nhập liệu**:
+  - Chuẩn hóa chiều cao, độ bo góc, viền kính mờ, hiệu ứng hover/focus và màu nút chính (`#2563eb`) giữa tất cả các modal, thẻ cài đặt (`.settings-card`) và thanh công cụ.
+
+---
+
 ## [0.2.63] - 2026-10-14
 
 ### Fixed & Improved (Giao diện & Tài liệu)
