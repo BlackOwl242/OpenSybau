@@ -2769,6 +2769,13 @@ export async function stopWorkbench() {
   clients.clear();
   await vite?.close();
   vite = undefined;
-  if (server?.listening) await new Promise((resolvePromise) => server.close(resolvePromise));
+  if (server?.listening) {
+    server.closeIdleConnections?.();
+    server.closeAllConnections?.();
+    await Promise.race([
+      new Promise((resolvePromise) => server.close(() => resolvePromise())),
+      new Promise((resolvePromise) => setTimeout(resolvePromise, 1000)),
+    ]);
+  }
   server = undefined;
 }

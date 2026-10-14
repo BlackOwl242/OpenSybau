@@ -75,13 +75,11 @@ function isAllowedExternal(value) {
   } catch { return false; }
 }
 
-async function createMainWindow() {
-  initializeUserConfig();
-  const serverModule = await import("../server.mjs");
-  stopWorkbench = serverModule.stopWorkbench;
-  const server = await serverModule.startWorkbench();
-  workbenchUrl = `${server.protocol}://${server.host}:${server.port}`;
+let ipcRegistered = false;
 
+function registerIpcHandlers() {
+  if (ipcRegistered) return;
+  ipcRegistered = true;
   ipcMain.handle("opensybau:open-config-folder", async () => shell.openPath(userData));
   ipcMain.handle("opensybau:update:get-state", () => updateState);
   ipcMain.handle("opensybau:update:check", () => checkForAppUpdate());
@@ -90,43 +88,66 @@ async function createMainWindow() {
     autoUpdater.quitAndInstall(false, true);
     return true;
   });
+}
+
+async function createMainWindow() {
+  initializeUserConfig();
+  registerIpcHandlers();
+
   const unpackedIconPath = path.join(__dirname.replace("app.asar", "app.asar.unpacked"), "icon.ico");
   const windowIconPath = existsSync(unpackedIconPath) ? unpackedIconPath : path.join(__dirname, "icon.ico");
-  mainWindow = new BrowserWindow({
-    width: 1480,
-    height: 960,
-    minWidth: 960,
-    minHeight: 640,
-    icon: windowIconPath,
-    backgroundColor: process.platform === "win32" ? "#00000000" : "#111214",
-    ...(process.platform === "win32"
-      ? {
-          backgroundMaterial: "acrylic",
-          titleBarStyle: "hidden",
-          titleBarOverlay: {
-            color: "#00000000",
-            symbolColor: "#d4d4d8",
-            height: 38,
-          },
-        }
-      : {}),
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-    },
-  });
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isAllowedExternal(url)) void shell.openExternal(url);
-    return { action: "deny" };
-  });
-  mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (url !== workbenchUrl && !url.startsWith(`${workbenchUrl}/`) && !url.startsWith(`${workbenchUrl}#`)) event.preventDefault();
-  });
-  await mainWindow.loadURL(workbenchUrl);
-  mainWindow.on("closed", () => { mainWindow = null; });
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = new BrowserWindow({
+      title: "OpenSybau",
+      width: 1480,
+      height: 960,
+      minWidth: 960,
+      minHeight: 640,
+      show: true,
+      icon: windowIconPath,
+      backgroundColor: process.platform === "win32" ? "#00000000" : "#111214",
+      ...(process.platform === "win32"
+        ? {
+            backgroundMaterial: "acrylic",
+            titleBarStyle: "hidden",
+            titleBarOverlay: {
+              color: "#00000000",
+              symbolColor: "#d4d4d8",
+              height: 38,
+            },
+          }
+        : {}),
+      autoHideMenuBar: true,
+      webPreferences: {
+        preload: path.join(__dirname, "preload.cjs"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+    mainWindow.on("closed", () => { mainWindow = null; });
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+      if (isAllowedExternal(url)) void shell.openExternal(url);
+      return { action: "deny" };
+    });
+    mainWindow.webContents.on("will-navigate", (event, url) => {
+      if (!workbenchUrl) return;
+      if (url !== workbenchUrl && !url.startsWith(`${workbenchUrl}/`) && !url.startsWith(`${workbenchUrl}#`)) event.preventDefault();
+    });
+  }
+
+  const serverModule = await import("../server.mjs");
+  stopWorkbench = serverModule.stopWorkbench;
+  const server = await serverModule.startWorkbench();
+  workbenchUrl = `${server.protocol}://${server.host}:${server.port}`;
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    await mainWindow.loadURL(workbenchUrl);
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }
   await initializeAutoUpdates();
 }
 
@@ -135,8 +156,11 @@ function publishUpdateState(nextState) {
   if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("opensybau:update:state", updateState);
 }
 
+let updatesInitialized = false;
+
 async function initializeAutoUpdates() {
-  if (!app.isPackaged || process.platform !== "win32") return;
+  if (!app.isPackaged || process.platform !== "win32" || updatesInitialized) return;
+  updatesInitialized = true;
   await cleanupInstalledUpdateCache();
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
@@ -209,8 +233,13 @@ async function checkForAppUpdate() {
 }
 
 app.on("second-instance", () => {
-  if (!mainWindow) return;
+  if (stopping) return;
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    void createMainWindow();
+    return;
+  }
   if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
   mainWindow.focus();
 });
 
@@ -221,10 +250,19 @@ app.whenReady().then(() => singletonLock ? createMainWindow() : undefined).catch
 });
 
 app.on("before-quit", (event) => {
-  if (!stopWorkbench || stopping) return;
-  event.preventDefault();
+  if (stopping) return;
   stopping = true;
-  void stopWorkbench().finally(() => app.quit());
+  try { app.releaseSingleInstanceLock(); } catch {}
+  if (!stopWorkbench) return;
+  event.preventDefault();
+  const forceExitTimer = setTimeout(() => app.exit(0), 1500);
+  forceExitTimer.unref?.();
+  void Promise.resolve(stopWorkbench())
+    .catch(() => {})
+    .finally(() => {
+      clearTimeout(forceExitTimer);
+      app.exit(0);
+    });
 });
 
 app.on("window-all-closed", () => {
