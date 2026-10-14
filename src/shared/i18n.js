@@ -512,6 +512,8 @@ const dynamicContentSelector = [
 
 export function localizeDom(root, language = getLanguage()) {
   if (!root || typeof document === "undefined") return;
+  if (language === "vi" && root.dataset?.localizedLang !== "en") return;
+  if (root.dataset) root.dataset.localizedLang = language;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes = [];
   while (walker.nextNode()) nodes.push(walker.currentNode);

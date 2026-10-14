@@ -116,24 +116,44 @@ function findAntigravity() {
   });
 }
 
-function readRegisteredEnvironmentValue(name) {
+const regEnvCache = new Map();
+const pathExeCache = new Map();
+let lastCliRefreshAt = 0;
+const CLI_CACHE_TTL_MS = 60_000;
+
+function readRegisteredEnvironmentValue(name, force = false) {
   if (process.platform !== "win32") return "";
+  const now = Date.now();
+  const cached = regEnvCache.get(name);
+  if (!force && cached && now < cached.until) return cached.value;
+  let resolved = "";
   for (const key of ["HKCU\\Environment", "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment"]) {
     const result = spawnSync("reg.exe", ["query", key, "/v", name], { cwd: homedir(), encoding: "utf8", windowsHide: true, timeout: 5000 });
     const registered = parseWindowsRegisteredEnvironmentValue(result.stdout, name);
-    if (registered) return registered.replace(/%([^%]+)%/g, (_, variable) => process.env[variable] || `%${variable}%`);
+    if (registered) {
+      resolved = registered.replace(/%([^%]+)%/g, (_, variable) => process.env[variable] || `%${variable}%`);
+      break;
+    }
   }
-  return "";
+  regEnvCache.set(name, { value: resolved, until: now + CLI_CACHE_TTL_MS });
+  return resolved;
 }
 
-function findOnPath(name) {
+function findOnPath(name, force = false) {
+  const now = Date.now();
+  const cached = pathExeCache.get(name);
+  if (!force && cached && now < cached.until) return cached.value;
   const locator = process.platform === "win32" ? "where.exe" : "which";
   const result = spawnSync(locator, [name], { cwd: homedir(), encoding: "utf8", windowsHide: true, timeout: 5000 });
-  return (result.stdout || "").split(/\r?\n/).map((item) => item.trim()).find((item) => item && existsSync(item)) || "";
+  const value = (result.stdout || "").split(/\r?\n/).map((item) => item.trim()).find((item) => item && existsSync(item)) || "";
+  pathExeCache.set(name, { value, until: now + CLI_CACHE_TTL_MS });
+  return value;
 }
 
-function refreshWindowsPath() {
+function refreshWindowsPath(force = false) {
   if (process.platform !== "win32") return;
+  const now = Date.now();
+  if (!force && lastCliRefreshAt && now - lastCliRefreshAt < CLI_CACHE_TTL_MS) return;
   const keys = ["HKCU\\Environment", "HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment"];
   const registered = keys.map((key) => {
     const result = spawnSync("reg.exe", ["query", key, "/v", "Path"], { cwd: homedir(), encoding: "utf8", windowsHide: true, timeout: 5000 });
@@ -146,15 +166,22 @@ function refreshWindowsPath() {
   if (unique.length) process.env.PATH = unique.join(delimiter);
 }
 
-function refreshCliExecutables() {
-  refreshWindowsPath();
+function refreshCliExecutables(force = false) {
+  const now = Date.now();
+  if (!force && lastCliRefreshAt && now - lastCliRefreshAt < CLI_CACHE_TTL_MS) return;
+  if (force && now - lastCliRefreshAt > 3000) {
+    regEnvCache.clear();
+    pathExeCache.clear();
+  }
+  refreshWindowsPath(force);
+  lastCliRefreshAt = Date.now();
   codexExe = findCodex();
   agyExe = findAntigravity();
   claudeCommand = findClaudeCode();
   claudeExe = claudeCommand.executable;
 }
 
-refreshCliExecutables();
+refreshCliExecutables(true);
 
 function initialState() {
   return {
@@ -276,7 +303,7 @@ function record(task, text, kind = "info", meta = null) {
     schedulePersist();
     schedulePublish("task");
   } else {
-    persist();
+    schedulePersist(60);
     publish("task");
   }
 }
@@ -307,7 +334,13 @@ function assertTaskActive(task) {
   if (shuttingDown || runInfo?.stopped) throw new Error(shuttingDown ? "OpenSybau is shutting down." : "Stopped by user");
 }
 function json(response, status, value) {
-  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+  response.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+  });
   response.end(JSON.stringify(value));
 }
 function safeError(error) {
@@ -332,7 +365,9 @@ function run(exe, args, options = {}) {
   return new Promise((resolvePromise) => {
     // In an Electron production build, `root` can be inside app.asar and is not
     // a valid process working directory for external CLIs. Run probes from home.
-    const child = spawn(exe, args, { cwd: options.cwd || homedir(), windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, NO_COLOR: "1" } });
+    const childEnv = { ...process.env, NO_COLOR: "1", ...(exe === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {}) };
+    if (exe !== process.execPath) delete childEnv.ELECTRON_RUN_AS_NODE;
+    const child = spawn(exe, args, { cwd: options.cwd || homedir(), windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: childEnv });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -739,7 +774,7 @@ async function resolveInside(rootPath, relativePath, mustBeFile = false) {
   if (!mustBeFile && !stat.isDirectory()) throw new Error("Đường dẫn này không phải thư mục.");
   return { root: realRoot, target: realTarget, stat };
 }
-const ignoredFileDirectories = new Set([".git", ".obsidian", ".trash", "node_modules", ".runtime", "dist", "build", "coverage", ".next", "vendor", "__pycache__"]);
+const ignoredFileDirectories = new Set([".git", ".obsidian", ".trash", "node_modules", ".runtime", "dist", "build", "release", "out", "target", "coverage", ".next", "vendor", "__pycache__", ".venv", "venv", ".cache", ".turbo", ".parcel-cache", ".gradle"]);
 const textExtensions = new Set([".md", ".mdx", ".txt", ".log", ".json", ".jsonc", ".yaml", ".yml", ".toml", ".xml", ".html", ".css", ".scss", ".less", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".vue", ".svelte", ".astro", ".py", ".go", ".rs", ".java", ".kt", ".c", ".h", ".cpp", ".hpp", ".cs", ".php", ".rb", ".swift", ".sql", ".sh", ".ps1", ".bat", ".cmd", ".env.example", ".diff", ".patch"]);
 function allowedTextFile(name) {
   if (/^\.env(?:\.|$)/i.test(name) && !/^\.env\.example$/i.test(name)) return false;
@@ -748,17 +783,22 @@ function allowedTextFile(name) {
 async function listLocalFiles(rootPath, relativePath = "", markdownOnly = false) {
   const resolvedPath = await resolveInside(rootPath, relativePath, false);
   const entries = await fs.readdir(resolvedPath.target, { withFileTypes: true });
-  const visible = [];
-  for (const entry of entries) {
-    if (entry.isSymbolicLink() || (entry.isDirectory() && ignoredFileDirectories.has(entry.name.toLowerCase()))) continue;
+  const candidates = entries.filter((entry) => {
+    if (entry.isSymbolicLink() || (entry.isDirectory() && ignoredFileDirectories.has(entry.name.toLowerCase()))) return false;
     const isDirectory = entry.isDirectory();
-    if (!isDirectory && (!entry.isFile() || (markdownOnly ? !/\.(md|mdx|markdown)$/i.test(entry.name) : !allowedTextFile(entry.name)))) continue;
+    if (!isDirectory && (!entry.isFile() || (markdownOnly ? !/\.(md|mdx|markdown)$/i.test(entry.name) : !allowedTextFile(entry.name)))) return false;
+    return true;
+  });
+  const stats = await Promise.all(candidates.map(async (entry) => {
+    const isDirectory = entry.isDirectory();
     const absolute = resolve(resolvedPath.target, entry.name);
-    let stat;
-    try { stat = await fs.stat(absolute); } catch { continue; }
-    const rel = relative(resolvedPath.root, absolute).split(sep).join("/");
-    visible.push({ name: entry.name, path: rel, type: isDirectory ? "directory" : "file", size: isDirectory ? null : stat.size, modifiedAt: stat.mtime.toISOString() });
-  }
+    try {
+      const stat = await fs.stat(absolute);
+      const rel = relative(resolvedPath.root, absolute).split(sep).join("/");
+      return { name: entry.name, path: rel, type: isDirectory ? "directory" : "file", size: isDirectory ? null : stat.size, modifiedAt: stat.mtime.toISOString() };
+    } catch { return null; }
+  }));
+  const visible = stats.filter(Boolean);
   visible.sort((a, b) => a.type === b.type ? a.name.localeCompare(b.name, "vi") : a.type === "directory" ? -1 : 1);
   return { path: safeRelativePath(relativePath).split(sep).join("/"), entries: visible.slice(0, 500), truncated: visible.length > 500 };
 }
@@ -855,7 +895,14 @@ function publicState() {
     frontendVersion: "preact-vite",
     settings: state.settings,
     workspaces: state.workspaces.map((w) => ({ ...w, status: w.runtime || null })),
-    tasks: state.tasks.map((task) => ({ ...task, processRunning: running.has(task.id) })),
+    tasks: state.tasks.map((task) => ({
+      ...task,
+      attachments: task.attachments?.length ? task.attachments.map(({ name }) => ({ name })) : task.attachments,
+      chatMessages: task.chatMessages?.length
+        ? task.chatMessages.map((msg) => (msg.attachments?.length ? { ...msg, attachments: msg.attachments.map(({ name }) => ({ name })) } : msg))
+        : task.chatMessages,
+      processRunning: running.has(task.id),
+    })),
     memories,
     memoryCount: memories.length,
     telemetry: buildTelemetrySummary(),
@@ -966,7 +1013,7 @@ function validateAgentSelection(selection, capability, connectors) {
 function publicProviderName(provider) { return providerLabel(provider); }
 function safeForRemoteContext(path) {
   const normalized = String(path || "").replace(/\\/g, "/");
-  return normalized && !/[\0\r\n]/.test(normalized) && !/(^|\/)(?:\.git|\.runtime|\.ssh|\.aws|node_modules|dist|build|coverage|\.next|\.venv|venv)(\/|$)/i.test(normalized)
+  return normalized && !/[\0\r\n]/.test(normalized) && !/(^|\/)(?:\.git|\.runtime|\.ssh|\.aws|node_modules|dist|build|release|out|target|coverage|\.next|\.venv|venv|\.cache|\.turbo)(\/|$)/i.test(normalized)
     && !/(^|\/)(?:\.env(?:\..*)?|\.npmrc|\.netrc|\.pypirc|\.git-credentials|[^/]*(?:secret|credential|token|private[-_.]?key)[^/]*|id_rsa|id_ed25519)(?:$|\/)/i.test(normalized)
     && !/\.(?:pem|p12|pfx|key|sqlite|db)$/i.test(normalized);
 }
@@ -984,7 +1031,7 @@ async function listRemoteContextFiles(cwd) {
     if (paths.length) return paths.slice(0, 180);
   }
   const paths = [];
-  const ignored = new Set([".git", ".runtime", "node_modules", "dist", "build", "coverage", ".next", ".venv", "venv"]);
+  const ignored = new Set([".git", ".runtime", "node_modules", "dist", "build", "release", "out", "target", "coverage", ".next", ".venv", "venv", ".cache", ".turbo"]);
   async function walk(directory, relativeDir = "", depth = 0) {
     if (depth > 9 || paths.length >= 180) return;
     let entries;
@@ -1308,7 +1355,9 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
     throw new Error(`Provider ${provider} không có bộ chạy cục bộ.`);
   }
   return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(exe, args, { cwd, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, NO_COLOR: "1" } });
+    const childEnv = { ...process.env, NO_COLOR: "1", ...(exe === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {}) };
+    if (exe !== process.execPath) delete childEnv.ELECTRON_RUN_AS_NODE;
+    const child = spawn(exe, args, { cwd, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: childEnv });
     const runInfo = running.get(task.id);
     if (runInfo) runInfo.child = child;
     let pending = "";
@@ -1789,20 +1838,32 @@ async function discardTaskWorktree(task) {
 async function changedFilesSince(cwd, startTime) {
   const changed = [];
   const cutoff = Number.isFinite(startTime) ? startTime : Date.now();
-  const ignored = new Set([".git", ".runtime", "node_modules", "dist", "build", ".next", "coverage", "vendor"]);
+  const ignored = new Set([".git", ".runtime", "node_modules", "dist", "build", "release", "out", "target", ".next", "coverage", "vendor", ".venv", "venv", ".cache", ".turbo", ".parcel-cache", "__pycache__", ".gradle"]);
   async function visit(directory, relative = "", depth = 0) {
     if (depth > 12 || changed.length >= 100) return;
     let entries;
     try { entries = await fs.readdir(directory, { withFileTypes: true }); } catch { return; }
+    const subdirs = [];
+    const files = [];
     for (const entry of entries) {
-      if (changed.length >= 100) break;
-      if (ignored.has(entry.name)) continue;
+      if (ignored.has(entry.name.toLowerCase()) || entry.isSymbolicLink()) continue;
       const absolute = resolve(directory, entry.name);
       const rel = relative ? `${relative}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) await visit(absolute, rel, depth + 1);
-      else if (entry.isFile()) {
-        try { const stat = await fs.stat(absolute); if (stat.mtimeMs >= cutoff) changed.push(rel); } catch { }
-      }
+      if (entry.isDirectory()) subdirs.push([absolute, rel]);
+      else if (entry.isFile()) files.push([absolute, rel]);
+    }
+    if (files.length) {
+      await Promise.all(files.map(async ([absolute, rel]) => {
+        if (changed.length >= 100) return;
+        try {
+          const stat = await fs.stat(absolute);
+          if (stat.mtimeMs >= cutoff && changed.length < 100) changed.push(rel);
+        } catch { }
+      }));
+    }
+    for (const [absolute, rel] of subdirs) {
+      if (changed.length >= 100) break;
+      await visit(absolute, rel, depth + 1);
     }
   }
   await visit(cwd);
@@ -1813,7 +1874,8 @@ async function api(request, response, pathname) {
   if (request.method === "POST" && pathname === "/api/connectors/antigravity/path") {
     const body = await readBody(request);
     const requestedPath = String(body.path || "").trim();
-    if (!requestedPath || !isAbsolute(requestedPath) || process.platform === "win32" && extname(requestedPath).toLowerCase() !== ".exe") {
+    const baseName = basename(requestedPath).toLowerCase();
+    if (!requestedPath || !isAbsolute(requestedPath) || process.platform === "win32" && !/^(?:agy|antigravity)[\w.-]*\.exe$/i.test(baseName)) {
       return json(response, 400, { error: "Chọn đường dẫn tuyệt đối tới file agy.exe." });
     }
     const executable = resolve(requestedPath);
@@ -1835,7 +1897,11 @@ async function api(request, response, pathname) {
     const body = await readBody(request);
     const requestedPath = String(body.path || "").trim();
     const extension = extname(requestedPath).toLowerCase();
-    if (!requestedPath || !isAbsolute(requestedPath) || process.platform === "win32" && ![".exe", ".js"].includes(extension)) {
+    const baseName = basename(requestedPath).toLowerCase();
+    const validClaudeName = extension === ".js"
+      ? /^(?:claude(?:[-_.]cli)?|cli)\.js$/i.test(baseName)
+      : process.platform === "win32" ? /^claude[\w.-]*\.exe$/i.test(baseName) : /^claude[\w.-]*$/i.test(baseName);
+    if (!requestedPath || !isAbsolute(requestedPath) || (process.platform === "win32" && ![".exe", ".js"].includes(extension)) || !validClaudeName) {
       return json(response, 400, { error: "Chọn đường dẫn tuyệt đối tới claude.exe hoặc cli.js." });
     }
     const executable = resolve(requestedPath);
@@ -2629,6 +2695,13 @@ async function api(request, response, pathname) {
 let vite;
 let server;
 const productionMode = process.env.WORKBENCH_MODE === "production";
+const securityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "no-referrer",
+};
+const htmlCspHeader = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+
 function createWorkbenchServer() {
 const serverFactory = secureTransport ? createHttpsServer : createServer;
 const serverOptions = secureTransport ? { cert: readFileSync(resolve(tlsCert)), key: readFileSync(resolve(tlsKey)) } : undefined;
@@ -2636,9 +2709,13 @@ return serverFactory(serverOptions, async (request, response) => {
   const requestHost = (request.headers.host || "").toLowerCase();
   if (!allowedHosts.has(requestHost)) return json(response, 403, { error: "Host not allowed" });
   if (!hasValidAccess(request)) {
-    response.writeHead(401, { "WWW-Authenticate": 'Basic realm="OpenSybau", charset="UTF-8"', "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+    response.writeHead(401, { "WWW-Authenticate": 'Basic realm="OpenSybau", charset="UTF-8"', "Cache-Control": "no-store", ...securityHeaders });
     response.end("Authentication required");
     return;
+  }
+  const secFetchSite = String(request.headers["sec-fetch-site"] || "").toLowerCase();
+  if (secFetchSite === "cross-site" || (request.method !== "GET" && request.method !== "HEAD" && secFetchSite && secFetchSite !== "same-origin" && secFetchSite !== "none")) {
+    return json(response, 403, { error: "Cross-site requests are not allowed" });
   }
   const origin = request.headers.origin;
   if (origin) {
@@ -2651,7 +2728,7 @@ return serverFactory(serverOptions, async (request, response) => {
   try { pathname = new URL(request.url || "/", `${secureTransport ? "https" : "http"}://${requestHost}`).pathname; }
   catch { return json(response, 400, { error: "Invalid request URL" }); }
   if (pathname === "/__events") {
-    response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+    response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no", ...securityHeaders });
     response.write("event: connected\ndata: ready\n\n"); clients.add(response); request.on("close", () => clients.delete(response)); return;
   }
   if (pathname.startsWith("/api/")) {
@@ -2665,31 +2742,37 @@ return serverFactory(serverOptions, async (request, response) => {
       try {
         const html = await fs.readFile(resolve(root, "index.html"), "utf8");
         const transformed = await vite.transformIndexHtml(request.url || "/", html);
-        response.writeHead(200, { "Content-Type": contentTypes[".html"], "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+        response.writeHead(200, { "Content-Type": contentTypes[".html"], "Cache-Control": "no-store", ...securityHeaders });
         response.end(request.method === "HEAD" ? undefined : transformed);
-      } catch (error) { response.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" }).end(safeError(error)); }
+      } catch (error) { response.writeHead(500, { "Content-Type": "text/plain; charset=utf-8", ...securityHeaders }).end(safeError(error)); }
       return;
     }
     vite.middlewares(request, response, (error) => {
       if (error) {
         vite.ssrFixStacktrace(error);
-        response.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" }).end(safeError(error));
-      } else response.writeHead(404).end("Not found");
+        response.writeHead(500, { "Content-Type": "text/plain; charset=utf-8", ...securityHeaders }).end(safeError(error));
+      } else response.writeHead(404, securityHeaders).end("Not found");
     });
     return;
   }
   let filePath;
   const staticRoot = resolve(root, "dist");
   try { filePath = resolve(staticRoot, "." + decodeURIComponent(pathname === "/" ? "/index.html" : pathname)); }
-  catch { response.writeHead(400).end("Bad request"); return; }
-  if (filePath !== staticRoot && !filePath.startsWith(staticRoot + sep)) return response.writeHead(403).end("Forbidden");
+  catch { response.writeHead(400, securityHeaders).end("Bad request"); return; }
+  if (filePath !== staticRoot && !filePath.startsWith(staticRoot + sep)) return response.writeHead(403, securityHeaders).end("Forbidden");
   try {
     let content;
     try { content = await fs.readFile(filePath); }
     catch { content = await fs.readFile(resolve(staticRoot, "index.html")); filePath = resolve(staticRoot, "index.html"); }
-    response.writeHead(200, { "Content-Type": contentTypes[extname(filePath)] || "application/octet-stream", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
+    const ext = extname(filePath);
+    response.writeHead(200, {
+      "Content-Type": contentTypes[ext] || "application/octet-stream",
+      "Cache-Control": "no-store",
+      ...securityHeaders,
+      ...(ext === ".html" ? { "Content-Security-Policy": htmlCspHeader } : {}),
+    });
     response.end(request.method === "HEAD" ? undefined : content);
-  } catch { response.writeHead(404).end("Not found"); }
+  } catch { response.writeHead(404, securityHeaders).end("Not found"); }
 });
 }
 
@@ -2697,10 +2780,10 @@ export async function startWorkbench() {
   if (server?.listening) return { server, host, port: server.address().port, protocol: secureTransport ? "https" : "http" };
   if (shuttingDown) throw new Error("OpenSybau server cannot be restarted after shutdown.");
   for (const task of state.tasks) if (task.status === "failed" && (task.error?.startsWith("OpenSybau đã dừng") || task.error?.startsWith("Workbench đã dừng"))) task.events = [...(task.events || []), { at: task.updatedAt, kind: "warning", text: task.error }].slice(-250);
-  for (const workspace of state.workspaces) {
+  await Promise.all(state.workspaces.map(async (workspace) => {
     try { workspace.runtime = await inspectWorkspace(workspace.path); }
     catch (error) { workspace.runtime = { path: workspace.path, error: safeError(error), isGit: false, head: false }; }
-  }
+  }));
   persist();
   server = createWorkbenchServer();
   try {

@@ -40,8 +40,7 @@ function initializeUserConfig() {
     process.env[match[1]] = value;
   }
   process.env.OPENSYBAU_DESKTOP = "1";
-  // Claude's npm CLI entry point is JavaScript; its child process must run Electron's bundled Node runtime.
-  process.env.ELECTRON_RUN_AS_NODE = "1";
+  delete process.env.ELECTRON_RUN_AS_NODE;
   process.env.WORKBENCH_MODE = "production";
   process.env.WORKBENCH_HOST = "127.0.0.1";
   process.env.WORKBENCH_PORT = "0";

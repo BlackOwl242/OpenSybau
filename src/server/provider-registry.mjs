@@ -6,10 +6,18 @@ import { resolve } from "node:path";
 const effortStandard = ["standard"];
 const apiCapabilities = { chat: true, plan: true, build: true, review: true };
 
+const executableCache = new Map();
+const EXECUTABLE_CACHE_TTL_MS = 60_000;
+
 function findExecutable(name) {
+  const now = Date.now();
+  const cached = executableCache.get(name);
+  if (cached && now < cached.until) return cached.value;
   const locator = process.platform === "win32" ? "where.exe" : "which";
   const result = spawnSync(locator, [name], { encoding: "utf8", windowsHide: true, timeout: 5000 });
-  return (result.stdout || "").split(/\r?\n/).map((item) => item.trim()).find((item) => item && !/\.(?:cmd|bat)$/i.test(item)) || "";
+  const value = (result.stdout || "").split(/\r?\n/).map((item) => item.trim()).find((item) => item && !/\.(?:cmd|bat)$/i.test(item)) || "";
+  executableCache.set(name, { value, until: now + EXECUTABLE_CACHE_TTL_MS });
+  return value;
 }
 
 export function findClaudeCode({ env = process.env, platform = process.platform, home = homedir(), fileExists = existsSync } = {}) {
@@ -41,9 +49,18 @@ export function providerLabel(id) {
   return ({ codex: "Codex", antigravity: "Antigravity", claude: "Claude Code", "claude-api": "Claude API", openai: "OpenAI API", gemini: "Google Gemini API" })[id] || id;
 }
 
+function isBlockedEndpointHost(hostname) {
+  const host = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (!host || host === "0.0.0.0" || host === "::" || host === "metadata.google.internal" || host === "instance-data") return true;
+  if (/^169\.254\.\d{1,3}\.\d{1,3}$/.test(host) || /^fe80:/i.test(host)) return true;
+  return false;
+}
+
 function endpoint(value, protocol) {
   const url = new URL(String(value || ""));
-  const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname.toLowerCase());
+  const host = url.hostname.toLowerCase();
+  if (isBlockedEndpointHost(host)) throw new Error("API endpoint host is blocked for security reasons.");
+  const local = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(host);
   if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) throw new Error("API endpoint must use HTTPS; HTTP is allowed only for localhost.");
   if (url.username || url.password || url.search || url.hash) throw new Error("API endpoint cannot contain credentials, query parameters, or fragments.");
   const basePath = url.pathname.replace(/\/$/, "");

@@ -391,7 +391,7 @@ function renderMarkdown(source) {
   const lines = String(source || "").split(/\r?\n/);
   const html = [];
   let paragraph = [], listType = "", codeLines = [], inCode = false;
-  const inline = (text) => esc(text).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>").replace(/\[([^\]]+)\]\((https?:\/\/[^ )]+|obsidian:\/\/[^ )]+|#[^ )]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  const inline = (text) => esc(text).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>").replace(/\[([^\]]+)\]\(((?:https?:\/\/|obsidian:\/\/|#)[^ ")<>']+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
   const flushParagraph = () => { if (paragraph.length) { html.push(`<p>${paragraph.map(inline).join("<br>")}</p>`); paragraph = []; } };
   const closeList = () => { if (listType) { html.push(`</${listType}>`); listType = ""; } };
   for (const line of lines) {
@@ -704,6 +704,18 @@ function render() {
   const activeComposer = document.activeElement?.closest?.(".chat-composer") ? document.activeElement.name : "";
   const previousSelection = activeComposer === "message" ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
   const selectedTask = view.selected && view.state.tasks.some((task) => task.id === view.selected);
+  const openPops = new Map();
+  content?.querySelectorAll(".codex-pop-menu[open][data-pop-id]")?.forEach((el) => {
+    openPops.set(el.dataset.popId, el.querySelector(".codex-pop-scroll")?.scrollTop || 0);
+  });
+  const activeEl = document.activeElement;
+  const activeComposerForm = activeEl?.closest?.(".chat-composer")
+    ? ".chat-composer"
+    : activeEl?.closest?.(".home-composer") && activeEl.name === "prompt"
+      ? ".home-composer"
+      : "";
+  const activeComposerName = activeComposerForm ? activeEl.name : "";
+  const activeComposerSelection = activeComposerName && typeof activeEl.selectionStart === "number" ? [activeEl.selectionStart, activeEl.selectionEnd] : previousSelection;
   const pageMarkup = (pages[view.page] || taskPage)();
   updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
@@ -711,12 +723,26 @@ function render() {
   const nextContent = $("#content");
   nextContent.scrollTop = contentScroll;
   view.renderedPage = renderKey;
+  if (openPops.size) {
+    for (const [popId, popScroll] of openPops) {
+      const nextPop = $(`.codex-pop-menu[data-pop-id="${popId}"]`, nextContent);
+      if (nextPop) {
+        nextPop.open = true;
+        const scroller = nextPop.querySelector(".codex-pop-scroll");
+        if (scroller && popScroll) scroller.scrollTop = popScroll;
+      }
+    }
+  }
   const nextChat = $("#chat-thread", nextContent);
   if (nextChat) nextChat.scrollTop = shouldScrollChatToEnd ? nextChat.scrollHeight : chatScroll;
-  if (activeComposer) {
-    const nextInput = $(`.chat-composer [name="${activeComposer}"]`, nextContent);
-    nextInput?.focus({ preventScroll: true });
-    if (previousSelection && nextInput?.setSelectionRange) nextInput.setSelectionRange(...previousSelection);
+  if (activeComposerForm && activeComposerName) {
+    const nextInput = $(`${activeComposerForm} [name="${activeComposerName}"]`, nextContent);
+    if (nextInput) {
+      nextInput.style.height = "auto";
+      nextInput.style.height = `${Math.min(200, Math.max(24, nextInput.scrollHeight))}px`;
+      nextInput.focus({ preventScroll: true });
+      if (activeComposerSelection && nextInput.setSelectionRange) nextInput.setSelectionRange(...activeComposerSelection);
+    }
   }
   if (view.page === "skills") applySkillFilter($("[data-skill-filter=library]", nextContent));
   const overlay = $("#overlay");
@@ -903,7 +929,7 @@ function chatPage() {
         <div class="codex-composer-rail">
           <div class="codex-rail-bar">
             <div class="codex-rail-left">
-              ${workspaces.length ? `<details class="codex-pop-menu is-up">
+              ${workspaces.length ? `<details class="codex-pop-menu is-up" data-pop-id="home-workspace">
                 <summary class="codex-rail-pill" title="Chọn dự án (Workspace)">
                   ${icon("folder", 14)}
                   <span>${esc(activeWorkspace?.name || "Chọn dự án")}${activeWorkspace?.runtime?.branch ? ` (${esc(activeWorkspace.runtime.branch)})` : ""}</span>
@@ -960,7 +986,7 @@ function chatPage() {
             </div>
             <div class="home-composer-actions">
               ${!isArena && quickAgentItems.length ? `<div class="codex-inline-model-bar">
-                <details class="codex-pop-menu is-up is-right">
+                <details class="codex-pop-menu is-up is-right" data-pop-id="home-model">
                   <summary class="codex-inline-trigger is-model" title="Chọn nhanh Agent & Model">
                     <span>${esc(activeAgentLabel)}</span>
                     ${icon("chevron-down", 12)}
@@ -970,7 +996,7 @@ function chatPage() {
                     <div class="codex-pop-scroll">${quickAgentItems.join("")}</div>
                   </div>
                 </details>
-                <details class="codex-pop-menu is-up is-right">
+                <details class="codex-pop-menu is-up is-right" data-pop-id="home-effort">
                   <summary class="codex-inline-trigger is-effort" title="Mức suy luận (Reasoning Effort)">
                     <span>${esc(effortDisplay[chatSelection.effort] || chatSelection.effort || "Medium")}</span>
                     ${icon("chevron-down", 12)}
@@ -1208,7 +1234,7 @@ function taskConversationPage() {
       ${taskArenaBanner(task)}
       ${taskConversationPipelineStrip(task, busy)}
       <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">${transcriptHtml}${taskInlineToolStream(task)}${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}</div>
-      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button type="button" class="codex-config-gear" data-action="task-instruction" data-id="${task.id}" title="Cấu hình nâng cao">${icon("settings-2", 14)}</button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
+      <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button type="button" class="codex-config-gear" data-action="task-instruction" data-id="${task.id}" title="Cấu hình nâng cao">${icon("settings-2", 14)}</button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
     </section>
     ${chatContextDrawer(task)}
   </section>`;
@@ -1339,7 +1365,7 @@ async function openTaskModal() {
   const { workspaces } = view.state;
   if (!providersForRole(view.connectors, "plan").length) { view.page = "settings"; view.selected = null; render(); showToast("Kết nối ít nhất một agent hoặc API rồi bạn có thể tạo task."); return; }
   if (!workspaces.length) return showWorkspaceModal();
-  const options = workspaces.map((w) => `<option value="${w.id}">${esc(w.name)} · ${esc(w.path)}</option>`).join("");
+  const options = workspaces.map((w) => `<option value="${esc(w.id)}">${esc(w.name)} · ${esc(w.path)}</option>`).join("");
   const hasBuild = providersForRole(view.connectors, "build").length > 0;
   const canPlanOnly = providersForRole(view.connectors, "plan").length > 0;
   const body = `${taskPresetToolsMarkup()}<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="5" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea><small>Nếu chọn provider API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới endpoint đã cấu hình.</small></label><label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label><label>Quyền<select name="permissionPreset"><option value="workspace-write">Đọc và sửa workspace</option><option value="read-only">Chỉ đọc workspace</option><option value="full-access" selected>Toàn quyền trên máy</option></select><small>CLI cục bộ chạy mặc định ngoài sandbox theo quyền tài khoản Windows. API không có quyền máy cục bộ. Bạn có thể chọn quyền thấp hơn ở đây.</small></label><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 17)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò. Skill có thể được gửi tới API provider nếu bạn chọn agent API.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
@@ -1426,7 +1452,7 @@ function showProjectSectionModal(workspace) {
   $(".modal").dataset.id = workspace.id;
 }
 function showMemoryModal() {
-  const options = '<option value="all">Dùng chung</option>' + view.state.workspaces.map((w) => '<option value="' + w.id + '">' + esc(w.name) + '</option>').join("");
+  const options = '<option value="all">Dùng chung</option>' + view.state.workspaces.map((w) => '<option value="' + esc(w.id) + '">' + esc(w.name) + '</option>').join("");
   const body = '<label>Tên ghi nhớ<input name="title" maxlength="120" required placeholder="Ví dụ: Cách chạy kiểm thử dự án"></label>' + contentFileImportField("content") + '<label>Nội dung<textarea name="content" maxlength="5000" rows="4" required placeholder="Một ghi chú đã kiểm chứng, hữu ích cho các task sau"></textarea></label><label>Phạm vi<select name="workspaceId">' + options + '</select></label><div class="form-note">Mỗi task chỉ nạp tối đa 3 ghi chú có từ khóa khớp yêu cầu.</div>';
   showModal("Ghi nhớ mới", body, "Lưu ghi nhớ");
 }
@@ -1790,6 +1816,7 @@ async function handleWorkbenchClick(event) {
     return;
   }
   const action = button.dataset.action; const id = button.dataset.id;
+  button.closest(".codex-pop-menu")?.removeAttribute("open");
   if (action === "pick-home-workspace") {
     view.homeWorkspaceId = id;
     render();
