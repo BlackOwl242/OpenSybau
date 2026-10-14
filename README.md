@@ -12,15 +12,15 @@ OpenSybau brings **Codex CLI**, **Claude Code**, **Antigravity CLI**, and **Anth
 ### 1. Frosted-Glass Desktop Experience & Smart Two-Tier Composer
 - **Windows Mica / Frosted-Glass Shell:** Native translucent sidebar combined with a floating rounded main stage.
 - **Two-Tier Bottom-Docked Composer:**
-  - **Top Context Rail:** Switch workspaces (`Dự án`), toggle execution isolation between **Local Checkout (`Máy tính này`)** and **Isolated Git Worktree (`Git Worktree`)**, and switch work modes (**Chat**, **Code**, **Plan**, **Arena**).
+  - **Top Context Rail:** Switch workspaces (`Dự án`), toggle execution isolation between **Local Checkout (`Máy tính này`)** and **Isolated Git Worktree (`Git Worktree`)**, and switch work modes (**Chat**, **Code**, **Plan**, **Multi-Thread (`Đa luồng`)**).
   - **Bottom Control Bar with Upward Popovers:** Custom upward-opening glass popovers for **Agent & Model**, **Reasoning Effort** (`Low` / `Medium` / `High` / `Max`), file/image attachments (`+` or `@file` mentions), and **Agent Execution Permissions**:
     - 🛡️ **Safe Read-Only (`Chỉ đọc an toàn`):** Analyze code and reply without modifying workspace files.
     - 🧑‍💻 **Read & Edit Project (`Đọc & sửa trong dự án`):** Read, edit files, and run tools scoped to the active workspace.
     - ⚡ **Full Execution Access (`Toàn quyền thực thi`):** Unrestricted command execution, package installation, and file operations on your machine.
 
-### 2. Multi-Slot Parallel Worktree Arena (`Đấu trường`)
+### 2. Multi-Thread Parallel Worktree Execution (`Đa luồng`)
 - **Run 2 to 8 Parallel Branches Simultaneously:** Spawn multiple isolated Git worktrees for the exact same prompt in one click.
-- **Same-Model or Multi-Vendor Competition:** Run **2× or 3× instances of the exact same model** (e.g., 3 parallel Codex or Claude runs to pick the best implementation) or pit different providers/models against each other.
+- **Same-Model or Multi-Vendor Execution:** Run **2× or 3× instances of the exact same model** (e.g., 3 parallel Codex or Claude runs to pick the best implementation) or run different providers/models concurrently.
 - **Side-by-Side Diff Review & One-Click Merge:** Inspect changed files, token usage, and live tool logs per branch in the **Diff Review Studio**, then apply the winning worktree directly back into your main checkout.
 
 ### 3. Multi-Stage Agent Pipelines & Conversation Control

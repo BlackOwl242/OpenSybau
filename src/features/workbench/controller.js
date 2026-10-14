@@ -1361,7 +1361,7 @@ function chatPage() {
   const arenaStrip = isArena ? `<div class="home-arena-strip">
     <div class="home-arena-head">
       <div class="home-arena-title">
-        <strong>${icon("git-branch", 14)}<span>Đấu trường Worktree (${arenaSlots.length} nhánh chạy song song)</span></strong>
+        <strong>${icon("git-branch", 14)}<span>Đa luồng Worktree (${arenaSlots.length} nhánh chạy song song)</span></strong>
         <small>${canIsolateHome ? "Chạy nhiều bản của cùng 1 model hoặc phối hợp nhiều hãng/model khác nhau." : "Workspace cần là Git repository đã có ít nhất 1 commit để tách nhánh Worktree."}</small>
       </div>
       <div class="home-arena-presets">
@@ -1444,7 +1444,7 @@ function chatPage() {
               <button type="button" class="home-mode-tab ${view.homeMode === "chat" ? "active" : ""}" data-home-mode="chat">${icon("message-circle", 13)}<span>Chat</span></button>
               <button type="button" class="home-mode-tab ${view.homeMode === "code" ? "active" : ""}" data-home-mode="code" ${pipelineReady ? "" : "disabled title=\"Cần agent có quyền làm việc trên workspace\""}>${icon("square-terminal", 13)}<span>Code</span></button>
               <button type="button" class="home-mode-tab ${view.homeMode === "plan" ? "active" : ""}" data-home-mode="plan" ${planReady ? "" : "disabled"}>${icon("list-checks", 13)}<span>Kế hoạch</span></button>
-              <button type="button" class="home-mode-tab ${view.homeMode === "arena" ? "active" : ""}" data-home-mode="arena" title="Chạy song song nhiều agent (cùng hoặc khác model) trên các Git worktree riêng">${icon("git-branch", 13)}<span>Đấu trường</span></button>
+              <button type="button" class="home-mode-tab ${view.homeMode === "arena" ? "active" : ""}" data-home-mode="arena" title="Chạy đa luồng nhiều agent (cùng hoặc khác model) trên các Git worktree riêng">${icon("git-branch", 13)}<span>Đa luồng</span></button>
             </div>
           </div>
           ${arenaStrip}
@@ -1491,7 +1491,7 @@ function chatPage() {
               <button type="button" class="codex-config-gear" data-action="toggle-home-config" aria-label="Cấu hình nâng cao" aria-expanded="${view.homeConfigOpen}" title="Cấu hình Pipeline & Nâng cao">
                 ${icon("settings-2", 14)}
               </button>
-              <button class="home-submit" type="submit" aria-label="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${canRun || !workspaces.length ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>
+              <button class="home-submit" type="submit" aria-label="${isArena ? "Khởi chạy Đa luồng" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${isArena ? "Khởi chạy Đa luồng" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${canRun || !workspaces.length ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>
             </div>
           </footer>
           <div class="composer-config-backdrop home-config-backdrop" ${view.homeConfigOpen ? "" : "hidden"}><section class="composer-config-dialog app-dialog-shell" role="dialog" aria-modal="true" aria-label="Cấu hình tác vụ"><header class="app-dialog-header"><div><small>OPENSYBAU</small><h2>Cấu hình tác vụ</h2></div><button type="button" class="icon-button" data-action="close-composer-config" aria-label="Đóng">${icon("x", 16)}</button></header><div class="app-dialog-content composer-config-content"><div class="composer-config-grid"><label>Workspace<select name="workspaceId" data-home-workspace required ${workspaces.length ? "" : "disabled"}>${workspaces.length ? workspaces.map((workspace) => `<option value="${workspace.id}" ${workspace.id === activeWorkspaceId ? "selected" : ""}>${esc(workspace.name)}</option>`).join("") : `<option value="">Thêm workspace để bắt đầu</option>`}</select></label><label>Luồng<select name="workflow" data-home-workflow>${workflowOptions}</select></label></div><div class="composer-config-grid"><label>Quyền truy cập<select name="permissionPreset" data-home-permission><option value="full-access" ${homePermissionPreset === "full-access" ? "selected" : ""}>Toàn quyền trên máy</option><option value="workspace-write" ${homePermissionPreset === "workspace-write" ? "selected" : ""}>Đọc và sửa workspace</option><option value="read-only" ${homePermissionPreset === "read-only" ? "selected" : ""}>Chỉ đọc workspace</option></select></label><label class="check-row home-isolation-row"><input type="checkbox" name="isolated" data-home-isolated ${homeIsolated ? "checked" : ""} ${canIsolateHome ? "" : "disabled"}><span><strong>Tách Git worktree riêng</strong><small>${canIsolateHome ? `Nhánh ${esc(activeWorkspace?.runtime?.branch || "HEAD")} · chạy song song an toàn` : "Cần Git repo có ít nhất 1 commit"}</small></span></label></div><div class="chat-agent-role" ${workflow === "chat-only" ? "" : "hidden"}>${chatAgentEditor({ provider: chatSelection.provider, model: chatSelection.model?.id, effort: chatSelection.effort })}</div><div class="agent-role-grid home-role-grid" ${workflow === "chat-only" ? "hidden" : ""}>${workflowRoles.map((role) => roleEditor(role.id, roleSelections[role.id])).join("")}</div></div><footer class="app-dialog-footer"><span>${icon("notebook-tabs", 14)} Skill tự chọn · ${view.skills.length} · Tối đa ${view.state.settings.maxConcurrent} task song song</span><button type="button" class="button primary" data-action="close-composer-config">Xong</button></footer></section></div>
@@ -1539,10 +1539,10 @@ function taskArenaBanner(task) {
   if (!task.fanoutId) return "";
   const siblings = (view.state?.tasks || []).filter((item) => item.fanoutId === task.fanoutId && !item.archived);
   if (siblings.length < 2) return "";
-  return `<section class="arena-banner" aria-label="Đấu trường Agent">
+  return `<section class="arena-banner" aria-label="Đa luồng Agent">
     <header class="arena-banner-head">
       <div>
-        <span class="arena-badge">${icon("git-branch", 12)} ĐẤU TRƯỜNG WORKTREE</span>
+        <span class="arena-badge">${icon("git-branch", 12)} ĐA LUỒNG WORKTREE</span>
         <strong>${siblings.length} agent đang giải cùng yêu cầu trên nhánh cô lập</strong>
       </div>
       <button type="button" class="button primary small" data-action="compare-fanout" data-fanout-id="${esc(task.fanoutId)}">${icon("list-checks", 13)}<span>So sánh & Chọn bản thắng</span></button>
@@ -2043,7 +2043,7 @@ function showDiffModal(data, taskId = view.selected, preferredFile = "") {
 async function openArenaCompareModal(fanoutId) {
   const siblings = (view.state?.tasks || []).filter((item) => item.fanoutId === fanoutId && !item.archived);
   if (!siblings.length) return;
-  showModal("Đấu trường Agent · Đang tải Diff…", `<p class="form-note">Đang thu thập kết quả và diff từ ${siblings.length} Git worktree…</p>`, "Đóng", "dismiss");
+  showModal("Đa luồng Agent · Đang tải Diff…", `<p class="form-note">Đang thu thập kết quả và diff từ ${siblings.length} Git worktree…</p>`, "Đóng", "dismiss");
   const diffs = await Promise.all(siblings.map((t) => api(`/api/tasks/${encodeURIComponent(t.id)}/diff`).catch(() => ({ files: [], diff: "" }))));
   const cardsHtml = siblings.map((item, idx) => {
     const diffData = diffs[idx] || { files: [] };
@@ -2078,7 +2078,7 @@ async function openArenaCompareModal(fanoutId) {
       </footer>
     </article>`;
   }).join("");
-  showModal("So sánh Đấu trường Agent (Worktree Fan-Out)", `<div class="arena-compare-grid">${cardsHtml}</div>`, "Đóng", "dismiss");
+  showModal("So sánh Đa luồng Agent (Worktree Fan-Out)", `<div class="arena-compare-grid">${cardsHtml}</div>`, "Đóng", "dismiss");
   $("#overlay .modal")?.classList.add("arena-compare-modal");
 }
 function closeOverlay() { $("#overlay").innerHTML = ""; }
@@ -2183,7 +2183,7 @@ async function handleSubmit(event) {
           view.chatDraft = "";
           clearComposerAttachments(form);
         }
-        showToast(`Đã khởi chạy Đấu trường với ${result.tasks?.length || competitors.length} nhánh Git worktree song song!`);
+        showToast(`Đã khởi chạy Đa luồng với ${result.tasks?.length || competitors.length} nhánh Git worktree song song!`);
       } else {
         const workflow = object.workflow || "chat-only";
         const payload = { ...object, prompt: String(object.prompt || "").trim(), workflow, isolated: data.has("isolated") || Boolean(view.homeIsolated), permissionPreset: view.homePermissionPreset || object.permissionPreset || "full-access" };
@@ -2391,7 +2391,7 @@ async function handleWorkbenchClick(event) {
   }
   if (action === "arena-add-slot") {
     const slots = ensureHomeArenaSlots();
-    if (slots.length >= 8) { showToast("Đấu trường hỗ trợ tối đa 8 nhánh Git worktree song song."); return; }
+    if (slots.length >= 8) { showToast("Đa luồng hỗ trợ tối đa 8 nhánh Git worktree song song."); return; }
     const last = slots[slots.length - 1] || { provider: "codex", model: "", effort: "medium" };
     view.homeArenaSlots = [...slots, { ...last }];
     render();
@@ -2399,7 +2399,7 @@ async function handleWorkbenchClick(event) {
   }
   if (action === "arena-clone-slot") {
     const slots = ensureHomeArenaSlots();
-    if (slots.length >= 8) { showToast("Đấu trường hỗ trợ tối đa 8 nhánh Git worktree song song."); return; }
+    if (slots.length >= 8) { showToast("Đa luồng hỗ trợ tối đa 8 nhánh Git worktree song song."); return; }
     const idx = Number(button.dataset.index || 0);
     const source = slots[idx] || slots[0];
     const next = [...slots];
@@ -2410,7 +2410,7 @@ async function handleWorkbenchClick(event) {
   }
   if (action === "arena-remove-slot") {
     const slots = ensureHomeArenaSlots();
-    if (slots.length <= 2) { showToast("Đấu trường cần ít nhất 2 nhánh để chạy song song."); return; }
+    if (slots.length <= 2) { showToast("Đa luồng cần ít nhất 2 nhánh để chạy song song."); return; }
     const idx = Number(button.dataset.index || 0);
     view.homeArenaSlots = slots.filter((_, i) => i !== idx);
     render();

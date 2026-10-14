@@ -5,6 +5,14 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.68] - 2026-10-14
+
+### Changed (Tinh chỉnh thuật ngữ giao diện: Đổi "Đấu trường" thành "Đa luồng")
+- **Đổi tên chế độ "Đấu trường" sang "Đa luồng"**:
+  - Cập nhật nhãn nút chuyển chế độ trên thanh công cụ khung chat, tiêu đề khay cấu hình Worktree song song, banner trạng thái trong cuộc hội thoại, hộp thoại so sánh Diff và thông báo hệ thống từ `Đấu trường` sang `Đa luồng` để phản ánh đúng bản chất chạy đa luồng song song trên các nhánh Git worktree cô lập.
+
+---
+
 ## [0.2.67] - 2026-10-14
 
 ### Added & Fixed (Tri thức Obsidian Vault & Biểu đồ Mạng Nơ-ron Tri thức)

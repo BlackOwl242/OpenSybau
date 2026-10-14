@@ -1,6 +1,6 @@
 # <img src="public/opensybau.svg" alt="OpenSybau Logo" width="36" height="36" align="top" /> OpenSybau
 
-**Trung tâm điều phối AI Coding Agent & Đấu trường Git Worktree song song chạy trực tiếp trên máy của bạn.**  
+**Trung tâm điều phối AI Coding Agent & Thực thi Đa luồng Git Worktree chạy trực tiếp trên máy của bạn.**  
 OpenSybau kết hợp **Codex CLI**, **Claude Code**, **Antigravity CLI** cùng các nguồn **API tương thích Anthropic / OpenAI** (bao gồm cả Ollama, LM Studio, LocalAI) trong một giao diện Desktop kính mờ hiện đại. Mọi tác vụ, cuộc trò chuyện và nhánh Git worktree đều thực thi trực tiếp trên máy tính của bạn — minh bạch, tốc độ cao và toàn quyền kiểm soát dữ liệu.
 
 **Tài liệu:** [English](README.md) · **Nhật ký thay đổi:** [CHANGELOG.md](CHANGELOG.md) · **Giấy phép:** [MIT License](LICENSE)
@@ -12,15 +12,15 @@ OpenSybau kết hợp **Codex CLI**, **Claude Code**, **Antigravity CLI** cùng 
 ### 1. Giao diện Kính mờ (Frosted-Glass) & Khung nhập liệu thông minh 2 tầng
 - **Khung ứng dụng Windows Mica / Kính mờ:** Thanh điều hướng bên trái hiệu ứng kính mờ trong suốt kết hợp cùng khung làm việc chính bo góc nổi tinh tế.
 - **Khung nhập liệu 2 tầng bám sát cạnh dưới (Bottom-Docked Two-Tier Composer):**
-  - **Thanh ngữ cảnh tầng trên:** Chọn nhanh **Dự án (Workspace)**, chuyển đổi môi trường thực thi giữa **Máy tính này** (chạy trực tiếp trên nhánh hiện tại) và **Git Worktree** (tách nhánh cô lập an toàn), cùng 4 chế độ làm việc: **Chat**, **Code**, **Kế hoạch**, **Đấu trường**.
+  - **Thanh ngữ cảnh tầng trên:** Chọn nhanh **Dự án (Workspace)**, chuyển đổi môi trường thực thi giữa **Máy tính này** (chạy trực tiếp trên nhánh hiện tại) và **Git Worktree** (tách nhánh cô lập an toàn), cùng 4 chế độ làm việc: **Chat**, **Code**, **Kế hoạch**, **Đa luồng**.
   - **Thanh điều khiển tầng dưới với Popover mở hướng lên:** Chọn nhanh **Agent & Model**, **Mức suy luận (Reasoning Effort)** (`Low` / `Medium` / `High` / `Max`), đính kèm tệp/ảnh (`+` hoặc gõ `@tên-tệp`), và **Popover Quyền thực thi của Agent**:
     - 🛡️ **Chỉ đọc an toàn (`read-only`):** Chỉ phân tích mã nguồn và trả lời, không tự ý sửa tệp trong dự án.
     - 🧑‍💻 **Đọc & sửa trong dự án (`workspace-write`):** Cho phép đọc, chỉnh sửa tệp và chạy công cụ trong phạm vi workspace.
     - ⚡ **Toàn quyền thực thi (`full-access`):** Tự động chạy lệnh, cài gói và thao tác tệp trên máy không giới hạn.
 
-### 2. Đấu trường Đa nhánh Song song (`Đấu trường` / Parallel Worktree Arena)
+### 2. Thực thi Đa luồng Song song (`Đa luồng` / Parallel Worktree Execution)
 - **Chạy song song từ 2 đến 8 nhánh Git Worktree cô lập:** Giao cùng một yêu cầu cho nhiều nhánh Agent giải quyết đồng thời mà không bao giờ đụng độ mã nguồn.
-- **Hỗ trợ cả Cùng Model lẫn Đa Hãng:** Chạy **2× hoặc 3× bản của cùng một model** (ví dụ 3 nhánh cùng chạy một model để chọn ra lời giải tốt nhất như Orca) hoặc cho nhiều hãng (**Codex**, **Claude Code**, **Antigravity**, **API**) thi đấu với nhau.
+- **Hỗ trợ cả Cùng Model lẫn Đa Hãng:** Chạy **2× hoặc 3× bản của cùng một model** (ví dụ 3 nhánh cùng chạy một model để chọn ra lời giải tốt nhất) hoặc kết hợp nhiều hãng (**Codex**, **Claude Code**, **Antigravity**, **API**) chạy song song.
 - **Diff Review Studio & Gộp nhánh thắng chỉ với 1 cú nhấp:** So sánh trực tiếp số tệp thay đổi, lượng token tiêu thụ, nhật ký công cụ và bảng Diff của từng nhánh trước khi bấm **Gộp vào dự án**.
 
 ### 3. Định tuyến Pipeline Đa vai trò & Quản lý Hội thoại chuyên sâu

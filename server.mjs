@@ -2485,10 +2485,10 @@ async function api(request, response, pathname) {
     }
     if (attachmentBytes > 1_000_000) return json(response, 400, { error: "Tổng nội dung tệp đính kèm tối đa 1 MB." });
     const workspace = state.workspaces.find((w) => w.id === body.workspaceId);
-    if (!workspace) return json(response, 400, { error: "Chọn workspace thật trước khi chạy Đấu trường Agent." });
+    if (!workspace) return json(response, 400, { error: "Chọn workspace thật trước khi chạy Đa luồng Agent." });
     if ((prompt.length < 6 && !safeAttachments.length) || prompt.length > 50000) return json(response, 400, { error: "Nhập ít nhất 6 ký tự hoặc đính kèm tệp." });
     const info = await inspectWorkspace(workspace.path);
-    if (!info.isGit || !info.head) return json(response, 400, { error: "Đấu trường Agent cần Git repository có ít nhất 1 commit để tách Git worktree cô lập cho từng đối thủ." });
+    if (!info.isGit || !info.head) return json(response, 400, { error: "Đa luồng Agent cần Git repository có ít nhất 1 commit để tách Git worktree cô lập cho từng nhánh." });
     const competitors = Array.isArray(body.competitors) ? body.competitors : [];
     if (competitors.length < 2 || competitors.length > 8) return json(response, 400, { error: "Chọn từ 2 đến 8 nhánh agent để chạy song song trên các Git worktree." });
     const connectors = await loadModels();
@@ -2509,7 +2509,7 @@ async function api(request, response, pathname) {
       normalizedCompetitors.push({ provider, model, effort, customLabel: String(entry?.label || "").trim() });
     }
     const fanoutId = `fanout-${randomUUID().slice(0, 8)}`;
-    const baseTitle = String(body.title || prompt.split(/\r?\n/)[0]).trim().slice(0, 96) || safeAttachments[0]?.name || "Đấu trường Agent";
+    const baseTitle = String(body.title || prompt.split(/\r?\n/)[0]).trim().slice(0, 96) || safeAttachments[0]?.name || "Đa luồng Agent";
     const createdTasks = [];
     for (const [idx, comp] of normalizedCompetitors.entries()) {
       const id = `task-${randomUUID().slice(0, 8)}`;
@@ -2545,7 +2545,7 @@ async function api(request, response, pathname) {
         goalChecklist: [],
         createdAt: now,
         updatedAt: now,
-        events: [{ at: now, kind: "success", text: `Khởi tạo trong Đấu trường Song song (${fanoutId} · Nhánh #${idx + 1}) trên Git worktree riêng.` }],
+        events: [{ at: now, kind: "success", text: `Khởi tạo trong Đa luồng Song song (${fanoutId} · Nhánh #${idx + 1}) trên Git worktree riêng.` }],
         skillSelectionMode: "auto",
         skillSelectionCompleted: false,
         skillIds: [],

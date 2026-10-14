@@ -8,7 +8,7 @@
   },
   "private": true,
   "license": "MIT",
-  "version": "0.2.67",
+  "version": "0.2.68",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
