@@ -3440,7 +3440,8 @@ summary:hover svg.lucide-animated .la-dot-3 {
    Smart 3-Pane Codex / ORCA Knowledge Workspace (.knowledge-orca-shell)
    ========================================================================== */
 .wb-page-content.is-knowledge-detail,
-.wb-page-content:has(> .knowledge-orca-shell) {
+.wb-page-content:has(> .knowledge-orca-shell),
+.wb-page-content:has(> .minimal-center-stage) {
   padding: 0 !important;
   overflow: hidden !important;
   display: flex !important;
@@ -5769,8 +5770,7 @@ body.is-resizing-dock .orca-dock-resizer {
 .wb-topbar,
 .wb-topbar.orca-tabbar,
 .orca-dock-topbar,
-.kb-pane-head,
-.kb-stage-topbar {
+.kb-pane-head {
   height: 40px !important;
   min-height: 40px !important;
   max-height: 40px !important;
@@ -5790,14 +5790,15 @@ body.is-resizing-dock .orca-dock-resizer {
   padding: 0 11px !important;
 }
 
-/* 2. Row 2 Alignment: Lock File Viewer Toolbar & Right Dock Subheader to exact 34px single-line height */
+/* 2. Row 2 Alignment: Lock File Viewer Toolbar, Stage Topbar & Right Dock Subheader to exact 34px single-line height */
 .orca-viewer-toolbar,
-.orca-dock-subheader {
+.orca-dock-subheader,
+.kb-stage-topbar {
   height: 34px !important;
   min-height: 34px !important;
   max-height: 34px !important;
   flex: 0 0 34px !important;
-  padding: 0 10px !important;
+  padding: 0 12px !important;
   flex-wrap: nowrap !important;
   box-sizing: border-box !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
@@ -6674,12 +6675,59 @@ textarea::placeholder,
   flex-shrink: 0;
 }
 
-/* 7. Compact Hover-Only Action Menu Button (...) inside Orca Right Dock */
+/* 7. Compact Ghost Action Menu Button (...) & 34px Stage Subheader Controls */
+summary.vault-more-btn,
+.vault-action-menu > summary.vault-more-btn {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.56) !important;
+  cursor: pointer !important;
+  list-style: none !important;
+  transition: background-color 120ms ease, color 120ms ease, opacity 120ms ease !important;
+}
+
+summary.vault-more-btn:hover,
+.vault-action-menu[open] > summary.vault-more-btn {
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: #ffffff !important;
+}
+
+.kb-stage-topbar .vault-mode-tabs {
+  padding: 2px !important;
+  border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.07) !important;
+}
+
+.kb-stage-topbar .vault-mode-tab {
+  height: 22px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+  border-radius: 4px !important;
+}
+
+.kb-stage-topbar .button.small {
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 9px !important;
+  font-size: 11.5px !important;
+  border-radius: 6px !important;
+}
+
 body .orca-right-dock .icon-button {
-  width: 26px !important;
-  height: 26px !important;
-  min-width: 26px !important;
-  min-height: 26px !important;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
   padding: 0 !important;
   display: inline-grid !important;
   place-items: center !important;
@@ -6697,34 +6745,32 @@ body .orca-right-dock .icon-button:hover:not(:disabled) {
 }
 
 .orca-tree-item:has(.vault-action-menu) .orca-tree-row {
-  padding-right: 28px !important;
+  padding-right: 26px !important;
 }
 
 .orca-tree-item .vault-action-menu {
   position: absolute !important;
-  right: 6px !important;
+  right: 5px !important;
   top: 50% !important;
   transform: translateY(-50%) !important;
   z-index: 4;
 }
 
 .orca-tree-item .vault-action-menu > summary.vault-more-btn {
-  width: 22px !important;
-  height: 22px !important;
-  min-width: 22px !important;
-  min-height: 22px !important;
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
+  min-height: 20px !important;
   padding: 0 !important;
   border: 0 !important;
   border-radius: 5px !important;
   background: transparent !important;
   box-shadow: none !important;
-  color: rgba(255, 255, 255, 0.55) !important;
+  color: rgba(255, 255, 255, 0.52) !important;
   opacity: 0;
-  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease !important;
 }
 
 .orca-tree-item:hover .vault-action-menu > summary.vault-more-btn,
-.orca-tree-item.is-selected .vault-action-menu > summary.vault-more-btn,
 .orca-tree-item .vault-action-menu[open] > summary.vault-more-btn {
   opacity: 1;
 }
@@ -6733,3 +6779,131 @@ body .orca-right-dock .icon-button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.1) !important;
   color: #ffffff !important;
 }
+
+/* 8. Unified System Layout for Skills, Memory, and Settings Pages */
+.page-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wb-page-content .settings-form {
+  max-width: none !important;
+  width: 100% !important;
+}
+
+.wb-page-content .settings-actions {
+  border-top: 0 !important;
+  padding-top: 4px !important;
+  margin-top: 12px !important;
+}
+
+.wb-page-content .quick-stats,
+.wb-page-content .flow-summary,
+.wb-page-content .empty-state {
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 14px !important;
+  background: rgba(24, 25, 29, 0.72) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+.wb-page-content .knowledge-empty,
+.wb-page-content .workflow-empty {
+  max-width: none !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+.wb-page-content .task-list > .empty-state,
+.wb-page-content .memory-list > .empty-state {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.wb-page-content .memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.wb-page-content .memory-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(24, 25, 29, 0.72) !important;
+}
+
+.wb-page-content .memory-card p {
+  margin: 0;
+  color: #e4e4e7;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.wb-page-content .memory-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.wb-page-content .skill-stage-hero {
+  padding: 16px 20px !important;
+  margin-bottom: 4px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.025) !important;
+}
+
+.wb-page-content .skill-hero-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wb-page-content .skill-hero-title-row h1 {
+  margin: 0;
+  font-size: 18px !important;
+  font-weight: 650 !important;
+  color: #fafafa !important;
+}
+
+.wb-page-content .skill-stage-hero p {
+  margin: 6px 0 0 !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+  color: #a1a1aa !important;
+}
+
+.wb-page-content .skill-doc-card {
+  padding: 0 !important;
+  overflow: hidden !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.wb-page-content .skill-doc-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 18px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.wb-page-content .skill-doc-card .kb-doc-body {
+  padding: 18px 22px 24px !important;
+}
+
+

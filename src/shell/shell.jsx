@@ -144,7 +144,7 @@ export function AppShell({ snapshot, pageMarkup }) {
       <div class={`wb-workspace-split ${hasRightDock ? "has-right-dock" : ""}`}>
         <div class="wb-stage-column">
           <TopBar snapshot={snapshot} onOpenNavigation={() => setMobileSidebarOpen(true)} />
-          <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${(page === "chat" && snapshot.selected) || isViewingFileTab ? "is-task-detail" : ""} ${isViewingFileTab ? "is-orca-tab-stage" : ""} ${page === "knowledge" && snapshot.state?.settings?.vaultPath ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
+          <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${(page === "chat" && snapshot.selected) || isViewingFileTab ? "is-task-detail" : ""} ${isViewingFileTab ? "is-orca-tab-stage" : ""} ${(page === "knowledge" && snapshot.state?.settings?.vaultPath) || page === "skills" || (page === "workspaces" && (snapshot.selected || snapshot.state?.workspaces?.length)) ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
         </div>
         {hasRightDock ? (
           <aside

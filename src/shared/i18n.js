@@ -456,6 +456,18 @@ const english = {
   "+ Nhận xét": "+ Comment",
   "Gửi": "Send",
   "Mức suy luận": "Reasoning effort",
+  "BỘ NHỚ CỤC BỘ": "LOCAL MEMORY",
+  "HỆ THỐNG & NHÀ CUNG CẤP": "SYSTEM & PROVIDERS",
+  "Đang hiển thị": "Showing",
+  "Tổng ghi nhớ": "Total memories",
+  "ghi nhớ đã lưu trên máy này": "memories saved on this computer",
+  "Định tuyến model mặc định cho từng vai trò điều phối, kết nối Agent CLI cục bộ và quản lý nguồn API.": "Route default models for each orchestration role, connect local CLI agents, and manage API sources.",
+  "Agent CLI sẵn sàng": "Ready CLI agents",
+  "Nguồn API / Local": "API / Local sources",
+  "Chạy đồng thời": "Concurrency",
+  "Khóa API và cấu hình điều phối chỉ lưu cục bộ trên máy này.": "API keys and orchestration settings are stored locally on this computer only.",
+  "plugin đã cài": "installed plugin",
+  "bản tùy chỉnh": "custom",
 };
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));

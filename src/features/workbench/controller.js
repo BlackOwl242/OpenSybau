@@ -392,7 +392,7 @@ function breadcrumbButtons(path, action) {
 }
 function vaultNoteOptionsMenu(filePath, { showRead = false, showGraph = false, direction = "down" } = {}) {
   return `<details class="codex-pop-menu is-right is-${direction} vault-action-menu">
-    <summary class="icon-button vault-more-btn" aria-label="Tùy chọn tệp" title="Tùy chọn tệp">${icon("ellipsis", 15)}</summary>
+    <summary class="vault-more-btn" aria-label="Tùy chọn tệp" title="Tùy chọn tệp">${icon("ellipsis", 14)}</summary>
     <div class="codex-pop-card vault-action-pop">
       ${showRead ? `<button type="button" class="codex-pop-item" data-action="vault-open-from-graph" data-path="${esc(filePath)}"><span class="codex-pop-item-main">${icon("book-open-text", 14)}<span>Đọc ghi chú</span></span></button>` : ""}
       <button type="button" class="codex-pop-item" data-action="vault-edit-note" data-path="${esc(filePath)}"><span class="codex-pop-item-main">${icon("square-pen", 14)}<span>Chỉnh sửa ghi chú</span></span></button>
@@ -1619,8 +1619,8 @@ function projectDetailPage(workspace) {
 }
 
 function knowledgePage() {
-  const vaultPath = view.state.settings.vaultPath || "";
-  if (!vaultPath) return `<div class="page-head"><div><div class="eyebrow">OBSIDIAN · LOCAL VAULT</div><h1>Tri thức</h1><p>Kết nối vault để duyệt, chỉnh sửa ghi chú Markdown và xem đồ thị liên kết tri thức trực tiếp trên máy.</p></div></div><section class="empty-state knowledge-empty"><strong>Chưa kết nối Obsidian vault</strong><p>OpenSybau chỉ đọc/ghi thư mục bạn chỉ định; nội dung không được đưa vào prompt tự động.</p><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></section>`;
+  const vaultPath = view.state?.settings?.vaultPath || "";
+  if (!vaultPath) return `<div class="page-head"><div><div class="eyebrow">OBSIDIAN · LOCAL VAULT</div><h1>Tri thức</h1><p>Kết nối vault để duyệt, chỉnh sửa ghi chú Markdown và xem đồ thị liên kết tri thức trực tiếp trên máy.</p></div><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></div><section class="empty-state knowledge-empty"><div class="empty-symbol">${icon("book-open-text", 18)}</div><strong>Chưa kết nối Obsidian vault</strong><p>OpenSybau chỉ đọc/ghi thư mục bạn chỉ định; nội dung không được đưa vào prompt tự động.</p><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></section>`;
 
   const mode = view.vaultViewMode || "files";
   const vaultName = vaultPath.split(/[\\/]/).filter(Boolean).at(-1) || "Obsidian Vault";
@@ -1758,12 +1758,33 @@ function skillPage() {
   } else if (activeSkill) {
     const rawContent = activeDetail?.content || "";
     const strippedBody = rawContent.trimStart().replace(/^(?:---[\r\n]+[\s\S]*?[\r\n]+---[\r\n\s]*)+/, "").trim();
+    const skillSourceLabel = (activeSkill.sources || [activeSkill.source]).filter(Boolean).join(" · ");
     centerBodyHtml = `<div class="kb-doc-scroll">
       <div class="kb-doc-container is-full-stage">
-        ${activeSkill.description ? `<div class="kb-skill-summary-banner">${icon("notebook-tabs", 14)}<span>${esc(activeSkill.description)}</span></div>` : ""}
-        ${rawContent
-          ? `<article class="markdown-preview kb-markdown-doc">${renderMarkdown(strippedBody || rawContent)}</article>`
-          : `<p class="neural-muted">Đang tải nội dung SKILL.md…</p>`}
+        <section class="minimal-stage-hero skill-stage-hero">
+          <div class="minimal-stage-title">
+            <span class="minimal-stage-icon">${icon("notebook-tabs", 18)}</span>
+            <div>
+              <div class="skill-hero-title-row">
+                <h1>${esc(activeSkill.name)}</h1>
+                <span class="kb-tag-chip is-inline-badge">${activeSkill.editable ? "Cá nhân · Có thể sửa" : "Plugin / CLI · Chỉ đọc"}</span>
+              </div>
+              <p>${esc(activeSkill.description || skillSourceLabel)}</p>
+            </div>
+          </div>
+        </section>
+        <section class="settings-card skill-doc-card">
+          <header class="skill-doc-card-head">
+            <div class="skill-doc-card-title">
+              ${icon("file-text", 14)}
+              <strong>SKILL.md</strong>
+              ${skillSourceLabel ? `<small>${esc(skillSourceLabel)}</small>` : ""}
+            </div>
+          </header>
+          ${rawContent
+            ? `<article class="markdown-preview kb-markdown-doc">${renderMarkdown(strippedBody || rawContent)}</article>`
+            : `<p class="neural-muted">Đang tải nội dung SKILL.md…</p>`}
+        </section>
       </div>
     </div>`;
   } else {
@@ -2006,63 +2027,60 @@ function workflowPage() {
   return `<div class="page-head"><div><div class="eyebrow">TASK ORCHESTRATION</div><h1>Luồng</h1><p>Xem sơ đồ từng bước, log hoạt động và đầu ra được ghi nhận cho mỗi cuộc trò chuyện.</p></div><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task</button></div><div class="flow-summary"><div><small>Đang hoạt động</small><strong>${active.length}</strong></div><div><small>Có bản ghi</small><strong>${tasks.length}</strong></div><p>Chọn một luồng để xem chi tiết điều phối và đầu ra từng agent.</p></div>${tasks.length ? `<section class="workflow-board">${tasks.map((task) => `<article class="workflow-card"><header><button data-action="open-task-flow" data-id="${task.id}" class="workflow-task-title"><strong>${esc(task.title)}</strong><small>${esc(view.state.workspaces.find((workspace) => workspace.id === task.workspaceId)?.name || task.workspacePath)} · ${esc(taskProgress(task))}</small></button><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span></header><div class="workflow-lane">${workflowNodes(task)}</div><footer><span>${task.config.workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, task.config.chatProvider)}` : task.config.workflow === "plan-only" ? `${providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider)} · chỉ lập kế hoạch` : workflowSummary(task)}</span><button class="workflow-record-link" data-action="open-task-flow" data-id="${task.id}">${icon("workflow", 14)} Mở bản ghi</button><time>${fmtDate(task.updatedAt)}</time></footer></article>`).join("")}</section>` : `<section class="empty-state workflow-empty"><strong>Chưa có bản ghi luồng</strong><p>Bản ghi điều phối sẽ xuất hiện tại đây khi một cuộc trò chuyện hoặc task được tạo trong workspace.</p><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button></section>`}`;
 }
 function memoryPage() {
-  const notes = view.state.memories || [];
-  const workspaces = view.state.workspaces || [];
+  const notes = view.state?.memories || [];
+  const workspaces = view.state?.workspaces || [];
   const scopeFilter = view.memoryWorkspaceFilter || "all";
+  const sharedCount = notes.filter((m) => m.workspaceId === "all").length;
   const filteredNotes = notes.filter((m) => {
     if (scopeFilter === "all") return true;
     if (scopeFilter === "global") return m.workspaceId === "all";
     return m.workspaceId === scopeFilter;
   });
 
-  const scopePillsHtml = `<div class="filters memory-scope-filters" role="tablist" aria-label="Phạm vi bộ nhớ" style="margin-bottom: 14px;">
-    <button type="button" class="filter ${scopeFilter === "all" ? "active" : ""}" data-action="memory-scope-filter" data-scope="all">Tất cả (${notes.length})</button>
-    <button type="button" class="filter ${scopeFilter === "global" ? "active" : ""}" data-action="memory-scope-filter" data-scope="global">Dùng chung (${notes.filter((m) => m.workspaceId === "all").length})</button>
-    ${workspaces.map((ws) => {
-      const count = notes.filter((m) => m.workspaceId === ws.id).length;
-      return `<button type="button" class="filter ${scopeFilter === ws.id ? "active" : ""}" data-action="memory-scope-filter" data-scope="${esc(ws.id)}">${esc(ws.name)} (${count})</button>`;
-    }).join("")}
-  </div>`;
-
-  return `<section class="minimal-center-stage" aria-label="Không gian Bộ nhớ">
-    <header class="kb-stage-topbar">
-      <div class="kb-topbar-left">
-        <div class="kb-active-doc-info">
-          <strong>Bộ nhớ cục bộ</strong>
-          <small>${filteredNotes.length} ghi nhớ đang hiển thị · Tối đa 3 ghi nhớ được nạp tự động mỗi task</small>
-        </div>
-      </div>
-      <div class="kb-topbar-right">
-        <button type="button" class="button primary small" data-action="new-memory">${icon("plus", 13)}<span>Thêm ghi nhớ</span></button>
-      </div>
-    </header>
-    <div class="kb-stage-body">
-      <div class="kb-doc-scroll">
-        <div class="kb-doc-container">
-          ${workspaces.length || notes.length ? scopePillsHtml : ""}
-          <section class="memory-list">
-            ${filteredNotes.length ? filteredNotes.map((m) => `<article class="memory-card">
-              <div>
-                <strong>${esc(m.title)}</strong>
-                <small>${m.workspaceId === "all" ? "Dùng chung" : esc(workspaces.find((w) => w.id === m.workspaceId)?.name || "Workspace đã gỡ")} · ${fmtDate(m.createdAt)}</small>
-              </div>
-              <p>${esc(m.content)}</p>
-              <button class="icon-button" data-action="delete-memory" data-id="${m.id}" title="Xóa ghi nhớ" aria-label="Xóa ghi nhớ">${icon("x", 16)}</button>
-            </article>`).join("") : `<div class="empty-state">
-              <div class="empty-symbol">${icon("brain", 18)}</div>
-              <strong>Chưa có ghi nhớ lưu trong phạm vi này</strong>
-              <p>Mọi ghi nhớ đều bắt đầu từ nội dung bạn tự lưu. Chọn phạm vi dự án phía trên hoặc tạo ghi nhớ mới.</p>
-              <button class="button primary" data-action="new-memory">${icon("plus", 15)} Thêm ghi nhớ</button>
-            </div>`}
-          </section>
-        </div>
-      </div>
+  return `<div class="page-head">
+    <div>
+      <div class="eyebrow">LOCAL MEMORY</div>
+      <h1>Bộ nhớ</h1>
+      <p>Ghi chú lưu trong máy này. Task chỉ nhận tối đa ba ghi chú có từ khóa phù hợp.</p>
     </div>
-  </section>`;
+    <button class="button primary" data-action="new-memory">${icon("plus", 15)} Thêm ghi nhớ</button>
+  </div>
+  <div class="flow-summary">
+    <div><small>Đang hiển thị</small><strong>${filteredNotes.length}</strong></div>
+    <div><small>Tổng ghi nhớ</small><strong>${notes.length}</strong></div>
+    <p>Mọi ghi nhớ đều bắt đầu từ nội dung bạn tự lưu. OpenSybau không bịa dữ liệu hoặc tự lấy toàn bộ vault vào prompt.</p>
+  </div>
+  <div class="list-toolbar">
+    <div class="filters" role="tablist" aria-label="Phạm vi bộ nhớ">
+      <button type="button" class="filter ${scopeFilter === "all" ? "active" : ""}" data-action="memory-scope-filter" data-scope="all">Tất cả (${notes.length})</button>
+      <button type="button" class="filter ${scopeFilter === "global" ? "active" : ""}" data-action="memory-scope-filter" data-scope="global">Dùng chung (${sharedCount})</button>
+      ${workspaces.map((ws) => {
+        const count = notes.filter((m) => m.workspaceId === ws.id).length;
+        return `<button type="button" class="filter ${scopeFilter === ws.id ? "active" : ""}" data-action="memory-scope-filter" data-scope="${esc(ws.id)}">${esc(ws.name)} (${count})</button>`;
+      }).join("")}
+    </div>
+    <span>${notes.length} ghi nhớ đã lưu trên máy này</span>
+  </div>
+  ${filteredNotes.length ? `<section class="memory-list">
+    ${filteredNotes.map((m) => `<article class="memory-card">
+      <div>
+        <strong>${esc(m.title)}</strong>
+        <small>${m.workspaceId === "all" ? "Dùng chung" : esc(workspaces.find((w) => w.id === m.workspaceId)?.name || "Workspace đã gỡ")} · ${fmtDate(m.createdAt)}</small>
+      </div>
+      <p>${esc(m.content)}</p>
+      <button class="icon-button" data-action="delete-memory" data-id="${m.id}" title="Xóa ghi nhớ" aria-label="Xóa ghi nhớ">${icon("x", 16)}</button>
+    </article>`).join("")}
+  </section>` : `<section class="empty-state">
+    <div class="empty-symbol">${icon("brain", 18)}</div>
+    <strong>Chưa có ghi nhớ lưu</strong>
+    <p>Mọi ghi nhớ đều bắt đầu từ nội dung bạn tự lưu. OpenSybau không bịa dữ liệu hoặc tự lấy toàn bộ vault vào prompt.</p>
+    <button class="button primary" data-action="new-memory">${icon("plus", 15)} Thêm ghi nhớ</button>
+  </section>`}`;
 }
 
 function settingsPage() {
-  const defaults = view.state.settings.defaults || {};
+  const defaults = view.state?.settings?.defaults || {};
+  const maxConcurrent = view.state?.settings?.maxConcurrent || 2;
   const canSaveRoles = workflowRoles.every((role) => providersForRole(view.connectors, role.id).length > 0);
   const apiSetup = (view.providers || []).map((provider) => `<div class="provider-setup-row"><span class="provider-status-dot ${provider.available ? "ready" : "missing"}"></span><div><strong>${esc(provider.name)} <span class="provider-protocol">${provider.managedBy === "local" ? "OpenSybau" : "Từ biến môi trường"}</span></strong><small>${provider.available ? `${provider.models.length} model · đã cấu hình${provider.apiKeyConfigured ? " · API key đã lưu" : ""}` : esc(provider.error || "Chưa đủ cấu hình")} · ${esc(provider.baseUrl)}</small></div><div class="provider-row-actions">${provider.managedBy === "local" ? `<button class="button quiet small" type="button" data-action="provider-edit" data-id="${esc(provider.id)}">Sửa</button><button class="button quiet small" type="button" data-action="provider-delete" data-id="${esc(provider.id)}">Xóa</button>` : `<button class="button quiet small" type="button" data-action="provider-import-env" data-id="${esc(provider.id)}">Quản lý trong app</button>`}</div></div>`).join("");
   const cliSetup = cliProviderGuides.map((agent) => {
@@ -2079,41 +2097,40 @@ function settingsPage() {
     return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${status.tone}">${status.label}</span></strong><small>${esc(detail)}</small></div><div class="cli-guide-actions">${action}</div></article>`;
   }).join("");
   const noReadyConnector = !Object.values(view.connectors || {}).some((connector) => connector?.available && connector.capabilities?.plan);
+  const readyCliCount = cliProviderGuides.filter((agent) => cliConnectionStatus(view.connectors?.[agent.id]).tone === "ready").length;
+  const readyApiCount = (view.providers || []).filter((p) => p.available).length;
 
-  return `<section class="minimal-center-stage" aria-label="Không gian Cài đặt">
-    <header class="kb-stage-topbar">
-      <div class="kb-topbar-left">
-        <div class="kb-active-doc-info">
-          <strong>Cài đặt & Nguồn AI</strong>
-          <small>Định tuyến model mặc định cho từng vai trò và kết nối CLI / API</small>
-        </div>
-      </div>
-      <div class="kb-topbar-right">
-        ${cliRefreshButton()}
-        <button type="button" class="button primary small" data-action="provider-add">${icon("plus", 13)}<span>Thêm nguồn AI</span></button>
-      </div>
-    </header>
-    <div class="kb-stage-body">
-      <div class="kb-doc-scroll">
-        <div class="kb-doc-container">
-          <form class="settings-form" data-modal data-form="settings">
-            <section class="settings-card" id="settings-roles"><header><div><h2>Ai ra lệnh, ai thực hiện</h2><p>Chọn model lập kế hoạch (ra lệnh), model triển khai (thực hiện) và model review. Mỗi task vẫn có thể dùng bộ model khác.</p></div></header>
-                ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và review.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API / model local</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI agent</button></div></div>` : ""}
-              <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
-              <div class="form-note">Khi chọn model API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới dịch vụ đó. Model CLI chạy cục bộ theo quyền của CLI.</div>
-              ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Model vẫn chọn theo từng task; hãy khởi động lại server để bật lưu model mặc định và gắn skill.</div>`}
-              <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu định tuyến mặc định</button></footer>
-            </section>
-            <section class="settings-card cli-setup-card" id="cli-setup"><header><div><h2>Agent CLI</h2><p>OpenSybau tự dò Codex, Antigravity và Claude Code trên máy. Nếu CLI đã cài nhưng chưa đăng nhập, mở terminal đăng nhập ngay tại đây.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div><p class="form-note">Terminal được mở trên máy đang chạy OpenSybau. Hoàn tất OAuth hoặc đăng nhập ở đó rồi chọn Quét lại; CLI không cần khai báo API key riêng.</p></section>
-            <section class="settings-card provider-setup-card" id="settings-api"><header><div><h2>Nguồn API và model local</h2><p>Kết nối OpenAI/ChatGPT API, Google Gemini API, Claude API, Ollama, LM Studio hoặc endpoint tương thích.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa có API hoặc model local</strong><p>Chọn cấu hình nhanh để nhập API key và model, hoặc kết nối Ollama/LM Studio. Bạn không cần API nếu dùng CLI.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm API hoặc model local</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div><details class="provider-env-help"><summary>Hướng dẫn kết nối cloud và model local</summary><p><strong>OpenAI / ChatGPT API:</strong> chọn cấu hình sẵn, nhập API key OpenAI rồi tải model. <strong>Google Gemini API:</strong> chọn Google Gemini, nhập key Google AI Studio rồi tải model. <strong>Claude API:</strong> chọn Claude API, nhập Anthropic key và model.</p><p><strong>Ollama:</strong> dùng endpoint <code>http://localhost:11434/v1</code> và ID từ <code>ollama list</code>. <strong>LM Studio:</strong> dùng endpoint <code>http://localhost:1234/v1</code>. Thường không cần API key.</p><p>API key được lưu trong thư mục dữ liệu riêng của OpenSybau, không hiển thị lại trong giao diện. Chỉ nhập key qua localhost hoặc HTTPS; provider API không có quyền chạy lệnh trong workspace.</p></details></section>
-            <section class="settings-card concurrency-card" id="settings-concurrency"><header><div><h2>Tác vụ chạy đồng thời</h2><p>Giới hạn số task có thể chạy cùng lúc trên các workspace.</p></div></header>
-              <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${view.state.settings.maxConcurrent || 2}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
-            </section>
-          </form>
-        </div>
-      </div>
+  return `<div class="page-head">
+    <div>
+      <div class="eyebrow">SYSTEM & PROVIDERS</div>
+      <h1>Cài đặt</h1>
+      <p>Định tuyến model mặc định cho từng vai trò điều phối, kết nối Agent CLI cục bộ và quản lý nguồn API.</p>
     </div>
-  </section>`;
+    <div class="page-head-actions">
+      ${cliRefreshButton()}
+      <button class="button primary" type="button" data-action="provider-add">${icon("plus", 15)} Thêm nguồn AI</button>
+    </div>
+  </div>
+  <div class="quick-stats">
+    <div><small>Agent CLI sẵn sàng</small><strong>${readyCliCount}/${cliProviderGuides.length}</strong></div>
+    <div><small>Nguồn API / Local</small><strong>${readyApiCount}</strong></div>
+    <div><small>Chạy đồng thời</small><strong>${maxConcurrent}</strong></div>
+    <div class="stats-note">Khóa API và cấu hình điều phối chỉ lưu cục bộ trên máy này.</div>
+  </div>
+  <form class="settings-form" data-modal data-form="settings">
+    <section class="settings-card" id="settings-roles"><header><div><h2>Ai ra lệnh, ai thực hiện</h2><p>Chọn model lập kế hoạch (ra lệnh), model triển khai (thực hiện) và model review. Mỗi task vẫn có thể dùng bộ model khác.</p></div></header>
+        ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và review.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API / model local</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI agent</button></div></div>` : ""}
+      <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
+      <div class="form-note">Khi chọn model API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới dịch vụ đó. Model CLI chạy cục bộ theo quyền của CLI.</div>
+      ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Model vẫn chọn theo từng task; hãy khởi động lại server để bật lưu model mặc định và gắn skill.</div>`}
+      <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu định tuyến mặc định</button></footer>
+    </section>
+    <section class="settings-card cli-setup-card" id="cli-setup"><header><div><h2>Agent CLI</h2><p>OpenSybau tự dò Codex, Antigravity và Claude Code trên máy. Nếu CLI đã cài nhưng chưa đăng nhập, mở terminal đăng nhập ngay tại đây.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div><p class="form-note">Terminal được mở trên máy đang chạy OpenSybau. Hoàn tất OAuth hoặc đăng nhập ở đó rồi chọn Quét lại; CLI không cần khai báo API key riêng.</p></section>
+    <section class="settings-card provider-setup-card" id="settings-api"><header><div><h2>Nguồn API và model local</h2><p>Kết nối OpenAI/ChatGPT API, Google Gemini API, Claude API, Ollama, LM Studio hoặc endpoint tương thích.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa có API hoặc model local</strong><p>Chọn cấu hình nhanh để nhập API key và model, hoặc kết nối Ollama/LM Studio. Bạn không cần API nếu dùng CLI.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm API hoặc model local</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div><details class="provider-env-help"><summary>Hướng dẫn kết nối cloud và model local</summary><p><strong>OpenAI / ChatGPT API:</strong> chọn cấu hình sẵn, nhập API key OpenAI rồi tải model. <strong>Google Gemini API:</strong> chọn Google Gemini, nhập key Google AI Studio rồi tải model. <strong>Claude API:</strong> chọn Claude API, nhập Anthropic key và model.</p><p><strong>Ollama:</strong> dùng endpoint <code>http://localhost:11434/v1</code> và ID từ <code>ollama list</code>. <strong>LM Studio:</strong> dùng endpoint <code>http://localhost:1234/v1</code>. Thường không cần API key.</p><p>API key được lưu trong thư mục dữ liệu riêng của OpenSybau, không hiển thị lại trong giao diện. Chỉ nhập key qua localhost hoặc HTTPS; provider API không có quyền chạy lệnh trong workspace.</p></details></section>
+    <section class="settings-card concurrency-card" id="settings-concurrency"><header><div><h2>Tác vụ chạy đồng thời</h2><p>Giới hạn số task có thể chạy cùng lúc trên các workspace.</p></div></header>
+      <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${maxConcurrent}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
+    </section>
+  </form>`;
 }
 
 function showApiProviderModal(provider = null) {
