@@ -93,7 +93,7 @@ function WindowChrome({ snapshot, sidebarCollapsed, onToggleSidebar }) {
     </div>
     <div class="wb-window-chrome-right">
       <button class="wb-chrome-pill" type="button" data-action="toggle-language" title="Chuyển ngôn ngữ VI / EN">
-        {snapshot.language === "en" ? "VI" : "EN"}
+        {snapshot.language === "en" ? "EN" : "VI"}
       </button>
       {desktop?.supportsAutoUpdate ? (
         <button
@@ -115,7 +115,7 @@ export function AppShell({ snapshot, pageMarkup }) {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const page = snapshot.page || "chat";
-  const hasStageTabs = (snapshot.stageTabs?.length || 0) > 0;
+  const hasStageTabs = (page === "chat" || page === "workspaces") && (snapshot.stageTabs?.length || 0) > 0;
   const isViewingFileTab = hasStageTabs && (snapshot.activeStageTabId !== "chat" || snapshot.stageSplit);
   const home = page === "chat" && !snapshot.selected && !isViewingFileTab;
   const hasContextSidebar = pageLayouts[page]?.sidebar === "context" && !sidebarCollapsed;

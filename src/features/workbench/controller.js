@@ -1757,7 +1757,7 @@ function skillPage() {
     </div>`;
   } else if (activeSkill) {
     const rawContent = activeDetail?.content || "";
-    const strippedBody = rawContent.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
+    const strippedBody = rawContent.trimStart().replace(/^(?:---[\r\n]+[\s\S]*?[\r\n]+---[\r\n\s]*)+/, "").trim();
     centerBodyHtml = `<div class="kb-doc-scroll">
       <div class="kb-doc-container is-full-stage">
         ${activeSkill.description ? `<div class="kb-skill-summary-banner">${icon("notebook-tabs", 14)}<span>${esc(activeSkill.description)}</span></div>` : ""}
@@ -2682,12 +2682,7 @@ function taskConversationPage() {
     const messageError = message.status === "failed" ? `<button type="button" class="chat-message-error" data-action="view-error-details" data-error="${esc(message.error || "Không nhận được phản hồi từ agent.")}">Xem nguyên nhân lỗi</button>` : "";
     const messageAttachments = message.attachments?.length ? `<div class="chat-message-attachments">${message.attachments.map((file) => `<span class="chat-message-attachment">${icon("file", 14)}<span title="${esc(file.name)}">${esc(file.name)}</span></span>`).join("")}</div>` : "";
     if (isUser) {
-      return `<article class="chat-message from-user">
-        <div class="user-bubble-card">
-          <div class="chat-message-content user-message-content">${content}${messageAttachments}</div>
-        </div>
-        ${(forkButton || pending || messageError) ? `<div class="user-message-meta ${pending || messageError ? "is-visible" : ""}">${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}${forkButton}</div>` : ""}
-      </article>`;
+      return `<article class="chat-message from-user"><div class="user-bubble-card"><div class="chat-message-content user-message-content">${content}${messageAttachments}</div></div>${(forkButton || pending || messageError) ? `<div class="user-message-meta ${pending || messageError ? "is-visible" : ""}">${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}${forkButton}</div>` : ""}</article>`;
     }
     return `<article class="chat-message from-agent"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small></header><div class="chat-message-content agent-message-content">${content}${messageAttachments}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}</div></article>`;
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
@@ -3481,7 +3476,7 @@ async function handleWorkbenchClick(event) {
       return;
     }
     if (action === "app-update-restart") { await window.opensybauDesktop?.restartToUpdate(); return; }
-    if (action === "new-chat") { view.page = "chat"; view.selected = null; view.activeStageTabId = "chat"; view.chatDraft = ""; view.homeWorkspaceId = button.dataset.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id || ""; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; clearSidebarSearch(); view.homeConfigOpen = false; closeOverlay(); render(); }
+    if (action === "new-chat") { view.page = "chat"; view.selected = null; view.activeStageTabId = "chat"; view.stageSplit = false; view.chatDraft = ""; view.homeWorkspaceId = button.dataset.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || ""; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; clearSidebarSearch(); view.homeConfigOpen = false; closeOverlay(); render(); }
     if (action === "refresh") { await scanCliProviders(button); }
     if (action === "scan-skills") {
       button.disabled = true;

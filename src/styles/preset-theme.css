@@ -6191,6 +6191,7 @@ textarea::placeholder,
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: #f4f4f5;
   font-size: 11.5px;
+  white-space: nowrap;
 }
 
 /* 2. Unified Zinc Dark Tool Stream (.chat-tool-stream) */
@@ -6423,27 +6424,39 @@ textarea::placeholder,
   gap: 3px !important;
 }
 
+.wb-page-content .task-conversation-page.is-unified-chat .chat-message.from-user,
+.wb-page-content .task-conversation-page.is-unified-chat .chat-message.from-user > div {
+  white-space: normal !important;
+}
+
 .wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card {
-  padding: 9px 15px !important;
-  border: 1px solid rgba(255, 255, 255, 0.085) !important;
-  border-radius: 18px 18px 4px 18px !important;
-  background: #23252a !important;
-  color: #f4f4f5 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18) !important;
+  display: inline-block !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  padding: 6px 14px !important;
+  border: 1px solid rgba(96, 152, 235, 0.22) !important;
+  border-radius: 16px !important;
+  background: #1a3a66 !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2) !important;
+  white-space: normal !important;
 }
 
 .wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card .user-message-content {
-  font-size: 13.5px !important;
-  line-height: 1.55 !important;
-  color: #f4f4f5 !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  color: #f1f5f9 !important;
+  white-space: normal !important;
 }
 
 .wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card .user-message-content p {
   margin: 0 !important;
+  padding: 0 !important;
+  white-space: pre-wrap !important;
 }
 
 .wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card .user-message-content p + p {
-  margin-top: 6px !important;
+  margin-top: 4px !important;
 }
 
 .wb-page-content .task-conversation-page.is-unified-chat .user-message-meta {
@@ -6661,3 +6674,62 @@ textarea::placeholder,
   flex-shrink: 0;
 }
 
+/* 7. Compact Hover-Only Action Menu Button (...) inside Orca Right Dock */
+body .orca-right-dock .icon-button {
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+  min-height: 26px !important;
+  padding: 0 !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.56) !important;
+}
+
+body .orca-right-dock .icon-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+}
+
+.orca-tree-item:has(.vault-action-menu) .orca-tree-row {
+  padding-right: 28px !important;
+}
+
+.orca-tree-item .vault-action-menu {
+  position: absolute !important;
+  right: 6px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  z-index: 4;
+}
+
+.orca-tree-item .vault-action-menu > summary.vault-more-btn {
+  width: 22px !important;
+  height: 22px !important;
+  min-width: 22px !important;
+  min-height: 22px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 5px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+  opacity: 0;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease !important;
+}
+
+.orca-tree-item:hover .vault-action-menu > summary.vault-more-btn,
+.orca-tree-item.is-selected .vault-action-menu > summary.vault-more-btn,
+.orca-tree-item .vault-action-menu[open] > summary.vault-more-btn {
+  opacity: 1;
+}
+
+.orca-tree-item .vault-action-menu > summary.vault-more-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+}

@@ -9,11 +9,17 @@ OpenSybau kết hợp **Codex CLI**, **Claude Code**, **Antigravity CLI** cùng 
 
 ## 🖼️ Giao diện Hệ thống (System Screenshots)
 
-| Màn hình Chính & Khung nhập liệu 2 tầng | Trò chuyện, Bảng Markdown & Xem Mã nguồn Chia đôi |
-| :---: | :---: |
-| ![Màn hình Chính & Khung nhập liệu](docs/screenshots/home-composer-workbench.png) | ![Trò chuyện & Xem tệp chia đôi](docs/screenshots/chat-split-review.png) |
-| **Kho Tri thức Markdown & Đồ thị Liên kết (Neural Graph)** | **Thư viện Kỹ năng Agent & Sidebar Ngữ cảnh** |
-| ![Kho Tri thức & Đồ thị Liên kết](docs/screenshots/knowledge-vault.png) | ![Thư viện Kỹ năng Agent](docs/screenshots/skills-library.png) |
+### 1. Màn hình Chính & Khung nhập liệu thông minh 2 tầng
+![Màn hình Chính & Khung nhập liệu](docs/screenshots/home-composer-workbench.png)
+
+### 2. Luồng Trò chuyện Đồng nhất, Bảng Markdown & Xem Mã nguồn Chia đôi (Split View)
+![Trò chuyện & Xem tệp chia đôi](docs/screenshots/chat-split-review.png)
+
+### 3. Kho Tri thức Markdown & Đồ thị Liên kết (Neural Graph)
+![Kho Tri thức & Đồ thị Liên kết](docs/screenshots/knowledge-vault.png)
+
+### 4. Thư viện Kỹ năng Agent & Sidebar Ngữ cảnh
+![Thư viện Kỹ năng Agent](docs/screenshots/skills-library.png)
 
 ---
 

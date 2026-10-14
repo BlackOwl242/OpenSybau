@@ -9,11 +9,17 @@ OpenSybau brings **Codex CLI**, **Claude Code**, **Antigravity CLI**, and **Anth
 
 ## 🖼️ System Overview
 
-| Home Workbench & Two-Tier Smart Composer | Unified Chat, Markdown Tables & Split Code Viewer |
-| :---: | :---: |
-| ![Home Workbench & Composer](docs/screenshots/home-composer-workbench.png) | ![Unified Chat & Split Viewer](docs/screenshots/chat-split-review.png) |
-| **Knowledge Vault & Neural Graph** | **Agent Skills Library & Page-Aware Sidebar** |
-| ![Knowledge Vault & Neural Graph](docs/screenshots/knowledge-vault.png) | ![Agent Skills Library](docs/screenshots/skills-library.png) |
+### 1. Home Workbench & Two-Tier Smart Composer
+![Home Workbench & Two-Tier Smart Composer](docs/screenshots/home-composer-workbench.png)
+
+### 2. Unified Chat, GFM Markdown Tables & Side-by-Side Split Code Viewer
+![Unified Chat, Markdown Tables & Split Code Viewer](docs/screenshots/chat-split-review.png)
+
+### 3. Knowledge Vault & Interactive Neural Link Graph
+![Knowledge Vault & Neural Graph](docs/screenshots/knowledge-vault.png)
+
+### 4. Agent Skills Library & Context-Aware Sidebar
+![Agent Skills Library & Context-Aware Sidebar](docs/screenshots/skills-library.png)
 
 ---
 

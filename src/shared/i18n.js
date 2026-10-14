@@ -421,8 +421,41 @@ const english = {
   "Đọc & sửa dự án": "Read & edit project",
   "Đọc & sửa trong dự án": "Read & edit inside project",
   "Cho phép đọc, chỉnh sửa tệp và chạy công cụ trong phạm vi workspace": "Allow reading, editing files, and running tools within the workspace",
-  "Toàn quyền thực thi": "Full execution access",
+  "Toàn quyền thực thi": "Full access",
   "Tự động chạy lệnh, cài gói và thao tác tệp trên máy không giới hạn": "Automatically run commands, install packages, and modify files without restrictions",
+  "Bạn muốn xây dựng gì?": "What would you like to build?",
+  "Làm bất cứ điều gì…": "Ask or build anything…",
+  "Máy tính này": "This computer",
+  "Kế hoạch": "Plan",
+  "Đa luồng": "Multi-agent",
+  "Chọn dự án": "Select project",
+  "Dự án (Workspace)": "Project (Workspace)",
+  "Thêm dự án mới…": "Add new project…",
+  "Thêm thư mục dự án…": "Add project folder…",
+  "Đã ghim": "Pinned",
+  "mới": "now",
+  "0 đang chạy": "0 running",
+  "Đang kết nối lại…": "Reconnecting…",
+  "Ghi chú": "Notes",
+  "Đồ thị": "Graph",
+  "Sửa": "Edit",
+  "Xóa": "Delete",
+  "Lưu": "Save",
+  "Lưu thay đổi": "Save changes",
+  "Ghi chú mới": "New note",
+  "Tạo skill": "New skill",
+  "Sao chép để sửa": "Duplicate to edit",
+  "Cá nhân · Có thể sửa": "Personal · Editable",
+  "Plugin / CLI · Chỉ đọc": "Plugin / CLI · Read-only",
+  "Cá nhân": "Personal",
+  "Thư viện Kỹ năng": "Skills Library",
+  "Hoạt động công cụ": "Tool Activity",
+  "Tệp sửa đổi": "Modified files",
+  "Nhánh lại": "Fork",
+  "Xem": "Preview",
+  "+ Nhận xét": "+ Comment",
+  "Gửi": "Send",
+  "Mức suy luận": "Reasoning effort",
 };
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));
@@ -461,6 +494,7 @@ function dynamicTranslation(value, language) {
     match = value.match(/^(\d+) model( · .*)?$/i); if (match) return `${match[1]} models${match[2] || ""}`;
     match = value.match(/^(\d+) skill · (\d+) nguồn$/i); if (match) return `${match[1]} skills · ${match[2]} sources`;
     match = value.match(/^Bạn muốn làm gì trong (.+)\?$/); if (match) return `What would you like to do in ${match[1]}?`;
+    match = value.match(/^Bạn muốn xây dựng gì trong (.+)\?$/); if (match) return `What would you like to build in ${match[1]}?`;
     match = value.match(/^Nhắn (.+)…$/); if (match) return `Message ${match[1]}…`;
     match = value.match(/^Mở dự án (.+)$/); if (match) return `Open project ${match[1]}`;
     match = value.match(/^Mở (.+)$/); if (match) return `Open ${match[1]}`;
@@ -469,6 +503,17 @@ function dynamicTranslation(value, language) {
     match = value.match(/^(\d+) sự kiện công cụ quan sát được$/); if (match) return `${match[1]} observed tool events`;
     match = value.match(/^Xem (\d+) tệp thay đổi$/); if (match) return `View ${match[1]} changed files`;
     match = value.match(/^(.+) đang (lập kế hoạch|triển khai|review)$/); if (match) return `${match[1]} ${({ "lập kế hoạch": "is planning", "triển khai": "is implementing", review: "is reviewing" })[match[2]]}`;
+    match = value.match(/^(\d+) bước thực thi · (\d+) tệp thay đổi$/); if (match) return `${match[1]} steps executed · ${match[2]} files modified`;
+    match = value.match(/^(\d+) bước thực thi$/); if (match) return `${match[1]} steps executed`;
+    match = value.match(/^(\d+) dòng · (.+)$/); if (match) return `${match[1]} lines · ${match[2]}`;
+    match = value.match(/^(\d+) dòng$/); if (match) return `${match[1]} lines`;
+    match = value.match(/^Đồ thị \((\d+)\)$/); if (match) return `Graph (${match[1]})`;
+    match = value.match(/^Kỹ năng \((\d+)\)$/); if (match) return `Skills (${match[1]})`;
+    match = value.match(/^(\d+) ghi chú trong Vault$/); if (match) return `${match[1]} notes in Vault`;
+    match = value.match(/^(\d+) skill cục bộ$/); if (match) return `${match[1]} local skills`;
+    match = value.match(/^(\d+)p$/); if (match) return `${match[1]}m`;
+    match = value.match(/^(\d+)g$/); if (match) return `${match[1]}h`;
+    match = value.match(/^(\d+)n$/); if (match) return `${match[1]}d`;
   } else {
     let match = value.match(/^(\d+) tasks$/i); if (match) return `${match[1]} task`;
     match = value.match(/^(\d+) skills$/i); if (match) return `${match[1]} skill`;
@@ -481,13 +526,20 @@ function dynamicTranslation(value, language) {
     match = value.match(/^(\d+) models( · .*)?$/i); if (match) return `${match[1]} model${match[2] || ""}`;
     match = value.match(/^(\d+) skills · (\d+) sources$/i); if (match) return `${match[1]} skill · ${match[2]} nguồn`;
     match = value.match(/^What would you like to do in (.+)\?$/); if (match) return `Bạn muốn làm gì trong ${match[1]}?`;
+    match = value.match(/^What would you like to build in (.+)\?$/); if (match) return `Bạn muốn xây dựng gì trong ${match[1]}?`;
     match = value.match(/^Message (.+)…$/); if (match) return `Nhắn ${match[1]}…`;
     match = value.match(/^Open project (.+)$/); if (match) return `Mở dự án ${match[1]}`;
     match = value.match(/^Open (.+)$/); if (match) return `Mở ${match[1]}`;
     match = value.match(/^Auto-selected skills · (\d+) · Up to (\d+) parallel tasks$/); if (match) return `Skill tự chọn · ${match[1]} · Tối đa ${match[2]} task song song`;
-    match = value.match(/^(\d+) events · (\d+) nodes$/); if (match) return `${match[1]} sự kiện · ${match[2]} node`;
+    match = value.match(/^(\d+) events · (\d+) nodes$/); if (match) return `${match[1]} events · ${match[2]} node`;
     match = value.match(/^(\d+) observed tool events$/); if (match) return `${match[1]} sự kiện công cụ quan sát được`;
     match = value.match(/^View (\d+) changed files$/); if (match) return `Xem ${match[1]} tệp thay đổi`;
+    match = value.match(/^(\d+) steps executed · (\d+) files modified$/); if (match) return `${match[1]} bước thực thi · ${match[2]} tệp thay đổi`;
+    match = value.match(/^(\d+) steps executed$/); if (match) return `${match[1]} bước thực thi`;
+    match = value.match(/^(\d+) lines · (.+)$/); if (match) return `${match[1]} dòng · ${match[2]}`;
+    match = value.match(/^(\d+) lines$/); if (match) return `${match[1]} dòng`;
+    match = value.match(/^Graph \((\d+)\)$/); if (match) return `Đồ thị (${match[1]})`;
+    match = value.match(/^Skills \((\d+)\)$/); if (match) return `Kỹ năng (${match[1]})`;
   }
   return value;
 }
