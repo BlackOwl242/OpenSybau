@@ -5,9 +5,11 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
-## [0.2.65] - 2026-10-14
+## [0.2.66] - 2026-10-14
 
-### Fixed & Improved (Đồng nhất nút màu trắng, Hiệu ứng Hover & Dọn dẹp mã nguồn)
+### Fixed & Improved (Đồng nhất nút màu trắng, Hiệu ứng Hover, Dọn dẹp & Hotfix đóng gói)
+- **Khắc phục lỗi thiếu `src/domain/agent-roles.js` khi khởi động Desktop (`app.asar`)**:
+  - Giữ đầy đủ `src/**/*` trong cấu hình `build.files` của `package.json` để `server.mjs` luôn nạp được các module dùng chung tại `src/domain/` và `src/server/`.
 - **Thống nhất màu trắng đơn sắc cho toàn bộ nút hành động chính**:
   - Chuyển tất cả các nút chính (`.button.primary`, nút gửi tin nhắn tròn `.home-submit` / `.chat-send-button`, `.arena-preset-btn.is-primary`, `.wb-chrome-pill.is-ready`) sang tông trắng sáng (`#f4f4f5` → `#ffffff` khi hover, chữ đen `#09090b`), loại bỏ hoàn toàn các nút màu xanh rời rạc.
 - **Hiệu ứng Hover đổi màu nhẹ, không nảy/bay lên**:
@@ -15,8 +17,7 @@ All notable changes to **OpenSybau** are documented in this file.
 - **Loại bỏ nốt `scrollbar-color` và `scrollbar-width` còn sót**:
   - Xóa `scrollbar-color: #545454 #2b2c2e` tại `#overlay .modal-body` (`legacy-dark-theme.css`) và `scrollbar-width: thin` tại `.workflow-lane` (`feature-views.css`) để thanh cuộn mảnh 5px hoạt động đồng nhất 100%.
 - **Dọn dẹp tệp công cụ dư thừa & các bản cài đặt cũ**:
-  - Xóa các tệp không còn sử dụng trong mã nguồn (`public/lucide-icons.js`, `lucide-icons.LICENSE`, `scripts/generate-icons.mjs`).
-  - Dọn dẹp toàn bộ các tệp cài đặt `.exe` / `.blockmap` cũ trong thư mục `release/` (giải phóng hơn 415 MB dung lượng ổ đĩa) và tối ưu cấu hình đóng gói `electron-builder` chỉ giữ lại `src/server/**/*` thay vì đóng gói trùng lặp toàn bộ mã nguồn giao diện.
+  - Xóa các tệp không còn sử dụng trong mã nguồn (`public/lucide-icons.js`, `lucide-icons.LICENSE`, `scripts/generate-icons.mjs`) và dọn sạch các bộ cài `.exe` / `.blockmap` cũ trong thư mục `release/` (giải phóng hơn 415 MB dung lượng ổ đĩa).
 
 ---
 

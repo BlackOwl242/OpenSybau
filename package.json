@@ -8,7 +8,7 @@
   },
   "private": true,
   "license": "MIT",
-  "version": "0.2.65",
+  "version": "0.2.66",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -52,7 +52,7 @@
     "files": [
       "desktop/**/*",
       "server.mjs",
-      "src/server/**/*",
+      "src/**/*",
       "dist/**/*",
       "package.json"
     ],
