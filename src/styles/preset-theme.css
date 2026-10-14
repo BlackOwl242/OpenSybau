@@ -6525,3 +6525,139 @@ textarea::placeholder,
   border-radius: 1px;
   pointer-events: none;
 }
+
+/* 5. Compact Single-Row Chat Composer in Split/Narrow View & No Empty Scrollbar */
+.wb-page-content .command-home-page {
+  min-height: 0 !important;
+  height: 100% !important;
+}
+
+.wb-page-content .home-composer,
+.wb-page-content .task-conversation-page .chat-composer {
+  container-type: inline-size;
+  padding: 10px 12px 10px !important;
+  gap: 6px !important;
+}
+
+.wb-page-content .home-composer textarea,
+.wb-page-content .chat-composer textarea,
+.composer-input-wrap > textarea {
+  min-height: 28px !important;
+  padding: 2px 2px !important;
+  overflow-x: hidden !important;
+}
+
+.wb-page-content .home-composer textarea:placeholder-shown,
+.wb-page-content .chat-composer textarea:placeholder-shown,
+.composer-input-wrap > textarea:placeholder-shown {
+  overflow-y: hidden !important;
+}
+
+.wb-page-content .home-composer-controls,
+.wb-page-content .chat-composer-controls {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+}
+
+.composer-add-wrap {
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+  flex: 0 1 auto !important;
+}
+
+.home-composer-actions {
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 4px !important;
+  margin-left: auto !important;
+  min-width: 0 !important;
+  flex: 0 1 auto !important;
+}
+
+.codex-inline-model-bar {
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+}
+
+@container (max-width: 480px) {
+  .codex-perm-pill {
+    padding: 0 8px !important;
+    gap: 4px !important;
+  }
+  .codex-perm-pill > span {
+    display: none !important;
+  }
+  .codex-inline-trigger {
+    padding: 0 6px !important;
+    font-size: 12.5px !important;
+  }
+  .codex-inline-trigger.is-model > span {
+    max-width: 120px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* 6. Full-Stage Space Utilization for Skills & Knowledge Vault */
+.kb-doc-scroll {
+  padding: 16px 22px 28px !important;
+}
+
+.kb-doc-container,
+.kb-doc-container.is-full-stage {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  gap: 12px !important;
+}
+
+.kb-active-doc-info {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: nowrap !important;
+  min-width: 0 !important;
+}
+
+.kb-tag-chip.is-inline-badge {
+  height: 20px !important;
+  padding: 0 7px !important;
+  font-size: 10.5px !important;
+  border-radius: 5px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  color: #a1a1aa !important;
+  cursor: default !important;
+  flex-shrink: 0 !important;
+}
+
+.kb-skill-summary-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.025);
+  color: #d4d4d8;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.kb-skill-summary-banner svg {
+  color: #a1a1aa;
+  flex-shrink: 0;
+}
+

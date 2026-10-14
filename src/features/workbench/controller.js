@@ -1759,12 +1759,8 @@ function skillPage() {
     const rawContent = activeDetail?.content || "";
     const strippedBody = rawContent.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "").trim();
     centerBodyHtml = `<div class="kb-doc-scroll">
-      <div class="kb-doc-container">
-        <div class="kb-doc-context-bar">
-          <span class="kb-tag-chip">${esc((activeSkill.sources || [activeSkill.source]).join(" · "))}</span>
-          <span class="kb-tag-chip">${activeSkill.editable ? "Skill cá nhân · Có thể sửa" : "Plugin / CLI · Chỉ đọc"}</span>
-        </div>
-        <p class="kb-skill-lead">${esc(activeSkill.description || "")}</p>
+      <div class="kb-doc-container is-full-stage">
+        ${activeSkill.description ? `<div class="kb-skill-summary-banner">${icon("notebook-tabs", 14)}<span>${esc(activeSkill.description)}</span></div>` : ""}
         ${rawContent
           ? `<article class="markdown-preview kb-markdown-doc">${renderMarkdown(strippedBody || rawContent)}</article>`
           : `<p class="neural-muted">Đang tải nội dung SKILL.md…</p>`}
@@ -1785,6 +1781,7 @@ function skillPage() {
         <div class="kb-active-doc-info">
           <strong>${esc(activeSkill ? activeSkill.name : "Thư viện Kỹ năng")}</strong>
           <small>${activeSkill ? esc((activeSkill.sources || [activeSkill.source]).join(" · ")) : `${allSkills.length} skill cục bộ`}</small>
+          ${activeSkill ? `<span class="kb-tag-chip is-inline-badge">${activeSkill.editable ? "Cá nhân · Có thể sửa" : "Plugin / CLI · Chỉ đọc"}</span>` : ""}
         </div>
       </div>
       <div class="kb-topbar-right">
@@ -2435,7 +2432,7 @@ function chatPage() {
         <form class="home-composer" data-modal data-form="home-task">
           ${composerAttachmentsMarkup("home")}
           <div class="composer-input-wrap">
-            <textarea name="prompt" data-home-prompt maxlength="50000" rows="1" placeholder="${isArena ? `Làm bất cứ điều gì trên ${arenaSlots.length} nhánh song song (gõ @ để đính kèm tệp)…` : "Làm bất cứ điều gì… (gõ @ để đính kèm tệp)"}">${esc(view.chatDraft)}</textarea>
+            <textarea name="prompt" data-home-prompt maxlength="50000" rows="1" placeholder="${isArena ? `Làm bất cứ điều gì trên ${arenaSlots.length} nhánh song song…` : "Làm bất cứ điều gì…"}">${esc(view.chatDraft)}</textarea>
             <div class="mention-popover" data-mention-popover hidden></div>
           </div>
           <footer class="home-composer-controls">
@@ -2723,7 +2720,7 @@ function taskConversationPage() {
             ${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}
           </div>
         </div>
-        <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này (gõ @ để đính kèm đường dẫn tệp)…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
+        <form class="chat-composer" data-modal data-form="task-chat" data-id="${task.id}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button></div></footer></form>
       </section>
   </section>`;
 }
