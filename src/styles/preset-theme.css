@@ -1618,7 +1618,7 @@ body,
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  padding: 0 144px 0 10px !important;
+  padding: 0 144px 0 8px !important;
   background: transparent !important;
   -webkit-app-region: drag;
   user-select: none;
@@ -1628,11 +1628,11 @@ body,
 .wb-window-chrome-right {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   -webkit-app-region: no-drag;
 }
 .wb-chrome-icon {
-  width: 28px;
+  width: 26px;
   height: 26px;
   display: inline-grid;
   place-items: center;
@@ -1640,9 +1640,12 @@ body,
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.58);
+  color: rgba(255, 255, 255, 0.62);
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease;
+}
+.wb-chrome-icon:nth-child(2) {
+  margin-right: 4px;
 }
 .wb-chrome-icon:hover,
 .wb-chrome-icon.is-active {
@@ -1701,18 +1704,20 @@ body,
   background: transparent !important;
   border-right: 0 !important;
   padding: 6px 6px 12px !important;
-  gap: 10px !important;
+  gap: 8px !important;
 }
 .wb-mark {
   width: 34px !important;
   height: 34px !important;
+  border: 0 !important;
   border-radius: 10px !important;
-  background: rgba(255, 255, 255, 0.12) !important;
-  color: #ffffff !important;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #f4f4f5 !important;
+  box-shadow: none !important;
 }
 .wb-mark:hover {
-  background: rgba(255, 255, 255, 0.2) !important;
+  background: rgba(255, 255, 255, 0.13) !important;
+  color: #ffffff !important;
 }
 .wb-rail-group {
   border-bottom: 0 !important;
@@ -1722,7 +1727,7 @@ body,
 .wb-rail-link {
   width: 36px !important;
   height: 36px !important;
-  color: rgba(255, 255, 255, 0.56) !important;
+  color: rgba(255, 255, 255, 0.54) !important;
   border-radius: 10px !important;
 }
 .wb-rail-link:hover {
@@ -1735,6 +1740,16 @@ body,
 }
 .wb-rail-link.is-active::before {
   display: none !important;
+}
+.wb-avatar {
+  width: 30px !important;
+  height: 30px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
 }
 
 /* 3. Rounded Inner Frame & Frosted Glass Left Sidebar (Codex Style) */
@@ -1955,14 +1970,27 @@ body,
 
 /* 5. TopBar & StatusBar inside .wb-main */
 .wb-topbar {
-  height: 46px !important;
+  height: 44px !important;
   background: transparent !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
   padding: 0 14px !important;
 }
 .wb-topbar.is-home-topbar {
   border-bottom: 0 !important;
-  height: 40px !important;
+  height: 38px !important;
+}
+body .wb-top-icon {
+  width: 30px !important;
+  height: 30px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.62) !important;
+  box-shadow: none !important;
+}
+body .wb-top-icon:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
 }
 .wb-statusbar {
   height: 24px !important;
@@ -1973,12 +2001,12 @@ body,
   padding: 0 14px !important;
 }
 
-/* 6. Codex Home Stage: Center Emblem Hero + Bottom-Docked Two-Tier Composer */
+/* 6. Codex Home Stage: Balanced Center Emblem Hero + Bottom-Docked Two-Tier Composer */
 .wb-page-content.is-home {
   display: flex !important;
   flex-direction: column !important;
   justify-content: stretch !important;
-  padding: 0 24px 8px !important;
+  padding: 0 28px 6px !important;
 }
 .wb-page-content .command-home {
   flex: 1 !important;
@@ -1990,9 +2018,9 @@ body,
 .wb-page-content .command-stage {
   flex: 1 !important;
   min-height: 0 !important;
-  width: min(760px, 100%) !important;
+  width: min(740px, 100%) !important;
   margin: 0 auto !important;
-  padding: 0 !important;
+  padding: 20px 0 clamp(22px, 4.2vh, 42px) !important;
   display: flex !important;
   flex-direction: column !important;
   justify-content: space-between !important;
@@ -2000,21 +2028,27 @@ body,
 }
 .wb-page-content .home-welcome {
   margin: auto 0 !important;
+  transform: translateY(12px);
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  gap: 14px !important;
+  gap: 16px !important;
   text-align: center !important;
 }
 .codex-hero-emblem {
-  color: rgba(255, 255, 255, 0.78);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #f4f4f5;
+  display: inline-grid;
+  place-items: center;
 }
 .wb-page-content .home-welcome h1 {
-  color: #f3f4f6 !important;
-  font-size: clamp(24px, 2.6vw, 29px) !important;
+  color: #f4f4f5 !important;
+  font-size: clamp(24px, 2.5vw, 28px) !important;
   font-weight: 500 !important;
   letter-spacing: -0.022em !important;
   margin: 0 !important;
@@ -2024,7 +2058,6 @@ body,
 .codex-composer-stack {
   width: 100%;
   margin-top: auto;
-  padding-bottom: 6px;
   display: flex;
   flex-direction: column;
 }
@@ -2032,7 +2065,7 @@ body,
 /* Tier 1: Attached Top Context Rail (.codex-composer-rail) */
 .codex-composer-rail {
   margin: 0 14px -16px;
-  padding: 7px 14px 23px;
+  padding: 7px 12px 23px;
   background: #1b1c20;
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-bottom: 0;
@@ -2041,7 +2074,7 @@ body,
   flex-direction: column;
   gap: 8px;
   position: relative;
-  z-index: 1;
+  z-index: 3;
 }
 .codex-rail-bar {
   display: flex;
@@ -2058,21 +2091,27 @@ body,
   gap: 4px;
 }
 .codex-rail-pill {
-  height: 26px;
+  height: 27px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 0 9px;
+  padding: 0 10px;
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.66);
+  color: rgba(255, 255, 255, 0.68);
   font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
+  list-style: none;
+  user-select: none;
   transition: background-color 120ms ease, color 120ms ease;
 }
-.codex-rail-pill:hover:not(:disabled) {
+.codex-rail-pill::-webkit-details-marker {
+  display: none;
+}
+.codex-rail-pill:hover:not(:disabled),
+.codex-pop-menu[open] > .codex-rail-pill {
   background: rgba(255, 255, 255, 0.07);
   color: #ffffff;
 }
@@ -2080,59 +2119,47 @@ body,
   color: #f3f4f6;
   background: rgba(255, 255, 255, 0.08);
 }
-.codex-rail-select {
-  height: 24px !important;
-  min-height: 0 !important;
-  padding: 0 2px !important;
-  border: 0 !important;
-  outline: none !important;
-  background: transparent !important;
-  color: inherit !important;
-  font-size: 12.5px !important;
-  font-weight: 500 !important;
-  cursor: pointer;
-}
-.codex-rail-select option {
-  background: #1b1c20;
-  color: #f3f4f6;
-}
 
-/* Mode tabs inside the right of the top rail */
-.codex-rail-right .home-mode-tab {
-  height: 25px !important;
-  min-height: 25px !important;
+/* Mode tabs inside the right of the top rail — higher specificity than .wb-page-content .home-mode-tab */
+.wb-page-content .codex-rail-right .home-mode-tab {
+  height: 27px !important;
+  min-height: 27px !important;
   display: inline-flex !important;
   flex-direction: row !important;
   align-items: center !important;
-  gap: 5px !important;
-  padding: 0 9px !important;
+  gap: 6px !important;
+  padding: 0 10px !important;
   border: 0 !important;
-  border-radius: 6px !important;
+  border-radius: 7px !important;
   background: transparent !important;
-  color: rgba(255, 255, 255, 0.55) !important;
-  font-size: 12px !important;
+  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.56) !important;
+  font-size: 12.5px !important;
   font-weight: 500 !important;
   cursor: pointer;
-  transition: all 120ms ease !important;
+  transition: background-color 120ms ease, color 120ms ease !important;
 }
-.codex-rail-right .home-mode-tab:hover:not(:disabled) {
+.wb-page-content .codex-rail-right .home-mode-tab:hover:not(:disabled) {
   color: #f3f4f6 !important;
   background: rgba(255, 255, 255, 0.06) !important;
+  border: 0 !important;
 }
-.codex-rail-right .home-mode-tab.active {
+.wb-page-content .codex-rail-right .home-mode-tab.active {
   color: #ffffff !important;
-  background: rgba(255, 255, 255, 0.11) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 /* Tier 2: Main Smart Composer Pill Card (.home-composer) */
 .wb-page-content .home-composer,
 .wb-page-content .task-conversation-page .chat-composer {
   position: relative;
-  z-index: 2;
+  z-index: 4;
   display: flex !important;
   flex-direction: column !important;
-  gap: 10px !important;
-  padding: 14px 16px 10px !important;
+  gap: 12px !important;
+  padding: 16px 18px 12px !important;
   border: 1px solid rgba(255, 255, 255, 0.09) !important;
   border-radius: 22px !important;
   background: #222327 !important;
@@ -2160,7 +2187,7 @@ body,
 .composer-input-wrap > textarea:focus,
 .composer-input-wrap > textarea:focus-visible {
   width: 100% !important;
-  min-height: 36px !important;
+  min-height: 44px !important;
   max-height: 200px !important;
   padding: 4px 2px !important;
   margin: 0 !important;
@@ -2179,7 +2206,7 @@ body,
   color: rgba(255, 255, 255, 0.38) !important;
 }
 
-/* 7. Smart Composer Bottom Action Bar (Matching Codex '+  ✋ Ask for approval ... Model High ⌄  (↑)') */
+/* 7. Smart Composer Bottom Action Bar & Upward-Opening Codex Popover Menus */
 .wb-page-content .home-composer-controls,
 .wb-page-content .chat-composer-controls {
   display: flex !important;
@@ -2233,58 +2260,149 @@ body,
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 0 4px;
-  border-radius: 8px;
-  transition: background-color 120ms ease;
 }
-.codex-inline-model-bar:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-.codex-inline-model-wrap,
-.codex-inline-effort-wrap {
+
+/* Upward-Opening Codex Popover Menu (.codex-pop-menu) */
+.codex-pop-menu {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  cursor: pointer;
 }
-.codex-inline-model-select {
-  height: 28px !important;
-  min-height: 0 !important;
-  max-width: 210px !important;
-  padding: 0 4px !important;
-  border: 0 !important;
-  outline: none !important;
-  background: transparent !important;
-  color: #f3f4f6 !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-}
-.codex-inline-effort-select {
-  height: 28px !important;
-  min-height: 0 !important;
-  padding: 0 2px !important;
-  border: 0 !important;
-  outline: none !important;
-  background: transparent !important;
-  color: rgba(255, 255, 255, 0.55) !important;
-  font-size: 13px !important;
-  font-weight: 450 !important;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-}
-.codex-inline-model-select option,
-.codex-inline-effort-select option {
-  background: #1f2024;
+.codex-inline-trigger {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
   color: #f3f4f6;
+  font-size: 13px;
+  font-weight: 560;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  white-space: nowrap;
+  transition: background-color 120ms ease, color 120ms ease;
 }
-.codex-inline-effort-wrap svg {
-  color: rgba(255, 255, 255, 0.5);
-  pointer-events: none;
+.codex-inline-trigger::-webkit-details-marker {
+  display: none;
 }
+.codex-inline-trigger.is-effort {
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 480;
+}
+.codex-inline-trigger svg,
+.codex-rail-pill svg:last-child {
+  color: rgba(255, 255, 255, 0.48);
+  transition: transform 140ms ease;
+}
+.codex-pop-menu[open] > summary svg:last-child {
+  transform: rotate(180deg);
+}
+.codex-inline-trigger:hover,
+.codex-pop-menu[open] > .codex-inline-trigger {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+.codex-pop-card {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 60;
+  min-width: 220px;
+  max-width: 300px;
+  padding: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 12px;
+  background: #1c1d22;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.codex-pop-menu.is-right > .codex-pop-card {
+  left: auto;
+  right: 0;
+}
+.codex-pop-card.is-effort-list {
+  min-width: 148px;
+}
+.codex-pop-head {
+  padding: 5px 9px 4px;
+  color: rgba(255, 255, 255, 0.44);
+  font-size: 11px;
+  font-weight: 560;
+  letter-spacing: 0.01em;
+}
+.codex-pop-scroll {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+.codex-pop-sep {
+  height: 1px;
+  margin: 3px 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.codex-pop-item {
+  width: 100%;
+  min-height: 31px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #d4d4d8;
+  font-size: 12.5px;
+  font-weight: 480;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 110ms ease, color 110ms ease;
+}
+.codex-pop-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+.codex-pop-item.is-selected {
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+  font-weight: 560;
+}
+.codex-pop-item-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.codex-pop-item-main small {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+}
+
+/* Global base-select fallback improvements for Settings & Modals */
+@supports (appearance: base-select) {
+  body .wb-page-content select::picker(select),
+  body #overlay select::picker(select),
+  body .desktop-setup-dialog select::picker(select),
+  body .wb-app-shell select::picker(select) {
+    position-try-fallbacks: flip-block;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
+}
+
 .codex-config-gear {
   width: 28px;
   height: 28px;

@@ -42,6 +42,9 @@ const iconData = {
   archive: Archive01Icon,
   "archive-restore": ArchiveRestoreIcon,
   "arrow-left": ArrowLeft01Icon,
+  "arrow-right": [
+    ["path", { d: "M9 6C9 6 15 10.4189 15 12C15 13.5812 9 18 9 18", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }],
+  ],
   "arrow-up-right": ArrowUpRight01Icon,
   "book-open-text": BookOpenTextIcon,
   "book-check": BookCheckIcon,
@@ -60,6 +63,10 @@ const iconData = {
   "folder-plus": FolderAddIcon,
   "git-branch": GitBranchIcon,
   "circle-question-mark": HelpCircleIcon,
+  laptop: [
+    ["rect", { x: "3", y: "4", width: "18", height: "12", rx: "2", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }],
+    ["path", { d: "M2 20H22", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round" }],
+  ],
   list: ListIcon,
   "list-checks": CheckListIcon,
   "message-circle": MessageCircleIcon,
@@ -72,8 +79,16 @@ const iconData = {
   search: Search01Icon,
   "settings-2": Settings01Icon,
   shield: Shield01Icon,
+  "sidebar-left": [
+    ["rect", { x: "3", y: "4", width: "18", height: "16", rx: "3", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round", strokeLinejoin: "round" }],
+    ["path", { d: "M9 4V20", stroke: "currentColor", strokeWidth: "1.8", strokeLinecap: "round" }],
+  ],
   square: Square01Icon,
   "square-pen": SquarePenIcon,
+  "square-plus": [
+    ["rect", { x: "3.5", y: "3.5", width: "17", height: "17", rx: "4", stroke: "currentColor", strokeWidth: "1.75", strokeLinecap: "round", strokeLinejoin: "round" }],
+    ["path", { d: "M12 8.5V15.5M8.5 12H15.5", stroke: "currentColor", strokeWidth: "1.75", strokeLinecap: "round" }],
+  ],
   "square-terminal": CommandLineIcon,
   target: Target01Icon,
   workflow: WorkflowSquare01Icon,

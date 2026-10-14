@@ -826,7 +826,8 @@ function chatPage() {
     "read-only": { icon: "shield", text: "Chỉ đọc an toàn" },
   };
   const currentPerm = permissionLabels[homePermissionPreset] || permissionLabels["full-access"];
-  const quickAgentOptions = [];
+  const quickAgentItems = [];
+  let activeAgentLabel = compactAgentLabel;
   for (const [provId, conn] of Object.entries(view.connectors || {})) {
     if (!conn?.available) continue;
     const models = conn.models?.length ? conn.models : [{ id: "", name: conn.name || provId }];
@@ -834,7 +835,11 @@ function chatPage() {
       const val = `${provId}::${m.id || ""}`;
       const isSelected = provId === chatSelection.provider && (m.id || "") === (chatSelection.model?.id || "");
       const label = m.name || m.id ? `${providerTitle(view.connectors, provId)} · ${m.name || m.id}` : providerTitle(view.connectors, provId);
-      quickAgentOptions.push(`<option value="${esc(val)}" ${isSelected ? "selected" : ""}>${esc(label)}</option>`);
+      if (isSelected) activeAgentLabel = label;
+      quickAgentItems.push(`<button type="button" class="codex-pop-item ${isSelected ? "is-selected" : ""}" data-action="pick-home-agent" data-agent="${esc(val)}">
+        <span class="codex-pop-item-main"><span>${esc(label)}</span></span>
+        ${isSelected ? icon("check", 13) : ""}
+      </button>`);
     }
   }
   const activeEfforts = chatSelection.model?.efforts?.length ? chatSelection.model.efforts : ["low", "medium", "high"];
@@ -878,10 +883,10 @@ function chatPage() {
   </div>` : "";
 
   const heroEmblem = `<div class="codex-hero-emblem" aria-hidden="true">
-    <svg viewBox="0 0 48 48" width="46" height="46" fill="none">
-      <path d="M16.5 36.5H32.2C36.78 36.5 40.5 32.78 40.5 28.2C40.5 24.16 37.61 20.8 33.78 20.05C32.42 14.56 27.47 10.5 21.55 10.5C14.62 10.5 9 16.12 9 23.05C9 23.62 9.04 24.18 9.12 24.73C6.98 26.15 5.5 28.58 5.5 31.35C5.5 35.75 9.05 36.5 16.5 36.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.38"/>
-      <path d="M18.5 22L22.5 25.5L18.5 29" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
-      <line x1="25" y1="29" x2="30" y2="29" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/>
+    <svg viewBox="0 0 64 64" width="30" height="30" fill="none">
+      <circle cx="19.6" cy="19.8" r="6.8" fill="currentColor" />
+      <circle cx="44.4" cy="44.2" r="6.8" fill="currentColor" />
+      <path d="M29.8 24.2C29.8 23.45 30.22 22.76 30.89 22.43L48.72 13.51C49.91 12.92 51.2 13.78 51.2 15.11V24.9C51.2 25.65 50.78 26.34 50.11 26.67L35.09 34.18C34.55 34.45 34.2 35 34.2 35.61V39.8C34.2 40.55 33.78 41.24 33.11 41.57L15.28 50.49C14.09 51.08 12.8 50.22 12.8 48.89V39.1C12.8 38.35 13.22 37.66 13.89 37.33L28.91 29.82C29.45 29.55 29.8 29 29.8 28.39V24.2Z" fill="currentColor" />
     </svg>
   </div>`;
 
@@ -896,12 +901,24 @@ function chatPage() {
         <div class="codex-composer-rail">
           <div class="codex-rail-bar">
             <div class="codex-rail-left">
-              ${workspaces.length ? `<label class="codex-rail-pill" title="Chọn dự án (Workspace)">
-                ${icon("folder", 14)}
-                <select class="codex-rail-select" data-home-workspace aria-label="Chọn dự án">
-                  ${workspaces.map((ws) => `<option value="${esc(ws.id)}" ${ws.id === activeWorkspaceId ? "selected" : ""}>${esc(ws.name)}${ws.runtime?.branch ? ` (${esc(ws.runtime.branch)})` : ""}</option>`).join("")}
-                </select>
-              </label>` : `<button type="button" class="codex-rail-pill" data-action="add-workspace" title="Thêm thư mục dự án">
+              ${workspaces.length ? `<details class="codex-pop-menu is-up">
+                <summary class="codex-rail-pill" title="Chọn dự án (Workspace)">
+                  ${icon("folder", 14)}
+                  <span>${esc(activeWorkspace?.name || "Chọn dự án")}${activeWorkspace?.runtime?.branch ? ` (${esc(activeWorkspace.runtime.branch)})` : ""}</span>
+                  ${icon("chevron-down", 12)}
+                </summary>
+                <div class="codex-pop-card">
+                  <div class="codex-pop-head">Dự án (Workspace)</div>
+                  ${workspaces.map((ws) => `<button type="button" class="codex-pop-item ${ws.id === activeWorkspaceId ? "is-selected" : ""}" data-action="pick-home-workspace" data-id="${esc(ws.id)}">
+                    <span class="codex-pop-item-main">${icon("folder", 13)}<span>${esc(ws.name)}${ws.runtime?.branch ? ` <small>(${esc(ws.runtime.branch)})</small>` : ""}</span></span>
+                    ${ws.id === activeWorkspaceId ? icon("check", 13) : ""}
+                  </button>`).join("")}
+                  <div class="codex-pop-sep"></div>
+                  <button type="button" class="codex-pop-item" data-action="add-workspace">
+                    <span class="codex-pop-item-main">${icon("folder-plus", 13)}<span>Thêm dự án mới…</span></span>
+                  </button>
+                </div>
+              </details>` : `<button type="button" class="codex-rail-pill" data-action="add-workspace" title="Thêm thư mục dự án">
                 ${icon("folder", 14)}
                 <span>Chọn dự án</span>
               </button>`}
@@ -940,23 +957,37 @@ function chatPage() {
               </button>
             </div>
             <div class="home-composer-actions">
-              ${!isArena && quickAgentOptions.length ? `<div class="codex-inline-model-bar">
-                <label class="codex-inline-model-wrap" title="Chọn nhanh Agent & Model">
-                  <select class="codex-inline-model-select" data-home-quick-agent aria-label="Chọn Agent và Model">
-                    ${quickAgentOptions.join("")}
-                  </select>
-                </label>
-                <label class="codex-inline-effort-wrap" title="Mức suy luận (Reasoning Effort)">
-                  <select class="codex-inline-effort-select" data-home-quick-effort aria-label="Mức suy luận">
-                    ${activeEfforts.map((ef) => `<option value="${esc(ef)}" ${ef === chatSelection.effort ? "selected" : ""}>${esc(effortDisplay[ef] || ef)}</option>`).join("")}
-                  </select>
-                  ${icon("chevron-down", 12)}
-                </label>
+              ${!isArena && quickAgentItems.length ? `<div class="codex-inline-model-bar">
+                <details class="codex-pop-menu is-up is-right">
+                  <summary class="codex-inline-trigger is-model" title="Chọn nhanh Agent & Model">
+                    <span>${esc(activeAgentLabel)}</span>
+                    ${icon("chevron-down", 12)}
+                  </summary>
+                  <div class="codex-pop-card is-model-list">
+                    <div class="codex-pop-head">Agent & Model</div>
+                    <div class="codex-pop-scroll">${quickAgentItems.join("")}</div>
+                  </div>
+                </details>
+                <details class="codex-pop-menu is-up is-right">
+                  <summary class="codex-inline-trigger is-effort" title="Mức suy luận (Reasoning Effort)">
+                    <span>${esc(effortDisplay[chatSelection.effort] || chatSelection.effort || "Medium")}</span>
+                    ${icon("chevron-down", 12)}
+                  </summary>
+                  <div class="codex-pop-card is-effort-list">
+                    <div class="codex-pop-head">Mức suy luận</div>
+                    <div class="codex-pop-scroll">
+                      ${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === chatSelection.effort ? "is-selected" : ""}" data-action="pick-home-effort" data-effort="${esc(ef)}">
+                        <span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>
+                        ${ef === chatSelection.effort ? icon("check", 13) : ""}
+                      </button>`).join("")}
+                    </div>
+                  </div>
+                </details>
               </div>` : `<button type="button" class="codex-footer-btn" data-action="toggle-home-config">${esc(compactAgentLabel)} ${icon("chevron-down", 12)}</button>`}
               <button type="button" class="codex-config-gear" data-action="toggle-home-config" aria-label="Cấu hình nâng cao" aria-expanded="${view.homeConfigOpen}" title="Cấu hình Pipeline & Nâng cao">
                 ${icon("settings-2", 14)}
               </button>
-              <button class="home-submit" type="submit" aria-label="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${workspaces.length && canRun ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>
+              <button class="home-submit" type="submit" aria-label="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" title="${isArena ? "Khởi chạy Đấu trường" : workflow === "chat-only" ? "Gửi tin nhắn" : "Chạy task"}" ${canRun || !workspaces.length ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>
             </div>
           </footer>
           <div class="composer-config-backdrop home-config-backdrop" ${view.homeConfigOpen ? "" : "hidden"}><section class="composer-config-dialog app-dialog-shell" role="dialog" aria-modal="true" aria-label="Cấu hình tác vụ"><header class="app-dialog-header"><div><small>OPENSYBAU</small><h2>Cấu hình tác vụ</h2></div><button type="button" class="icon-button" data-action="close-composer-config" aria-label="Đóng">${icon("x", 16)}</button></header><div class="app-dialog-content composer-config-content"><div class="composer-config-grid"><label>Workspace<select name="workspaceId" data-home-workspace required ${workspaces.length ? "" : "disabled"}>${workspaces.length ? workspaces.map((workspace) => `<option value="${workspace.id}" ${workspace.id === activeWorkspaceId ? "selected" : ""}>${esc(workspace.name)}</option>`).join("") : `<option value="">Thêm workspace để bắt đầu</option>`}</select></label><label>Luồng<select name="workflow" data-home-workflow>${workflowOptions}</select></label></div><div class="composer-config-grid"><label>Quyền truy cập<select name="permissionPreset" data-home-permission><option value="full-access" ${homePermissionPreset === "full-access" ? "selected" : ""}>Toàn quyền trên máy</option><option value="workspace-write" ${homePermissionPreset === "workspace-write" ? "selected" : ""}>Đọc và sửa workspace</option><option value="read-only" ${homePermissionPreset === "read-only" ? "selected" : ""}>Chỉ đọc workspace</option></select></label><label class="check-row home-isolation-row"><input type="checkbox" name="isolated" data-home-isolated ${homeIsolated ? "checked" : ""} ${canIsolateHome ? "" : "disabled"}><span><strong>Tách Git worktree riêng</strong><small>${canIsolateHome ? `Nhánh ${esc(activeWorkspace?.runtime?.branch || "HEAD")} · chạy song song an toàn` : "Cần Git repo có ít nhất 1 commit"}</small></span></label></div><div class="chat-agent-role" ${workflow === "chat-only" ? "" : "hidden"}>${chatAgentEditor({ provider: chatSelection.provider, model: chatSelection.model?.id, effort: chatSelection.effort })}</div><div class="agent-role-grid home-role-grid" ${workflow === "chat-only" ? "hidden" : ""}>${workflowRoles.map((role) => roleEditor(role.id, roleSelections[role.id])).join("")}</div></div><footer class="app-dialog-footer"><span>${icon("notebook-tabs", 14)} Skill tự chọn · ${view.skills.length} · Tối đa ${view.state.settings.maxConcurrent} task song song</span><button type="button" class="button primary" data-action="close-composer-config">Xong</button></footer></section></div>
@@ -1570,7 +1601,8 @@ async function handleSubmit(event) {
   const form = event.target.closest("[data-modal]");
   if (!form) return;
   event.preventDefault(); if (view.busy) return;
-  view.busy = true; const submit = $("[type=submit]", form); submit.disabled = true; submit.textContent = "Đang xử lý…";
+  if (form.dataset.form === "home-task" && !view.state?.workspaces?.length) { showWorkspaceModal(); showToast("Chọn thư mục dự án (Workspace) trước khi bắt đầu."); return; }
+  view.busy = true; const submit = $("[type=submit]", form); const isIconSubmit = Boolean(submit?.classList.contains("home-submit") || submit?.classList.contains("chat-send-button")); if (submit) { submit.disabled = true; if (!isIconSubmit) submit.textContent = "Đang xử lý…"; }
   const data = new FormData(form); const object = Object.fromEntries(data.entries());
   try {
     if (["home-task", "task-chat"].includes(form.dataset.form)) {
@@ -1687,10 +1719,12 @@ async function handleSubmit(event) {
     if (view.page === "skills" && !view.skillsLoaded) {
       const result = await api("/api/skills"); view.skills = result.skills || []; view.skillsLoaded = true; render();
     }
-  } catch (error) { if (form.dataset.form === "task-chat") view.forceChatScroll = false; showToast(error.message); submit.disabled = false; submit.textContent = "Thử lại"; }
+  } catch (error) { if (form.dataset.form === "task-chat") view.forceChatScroll = false; showToast(error.message); if (submit) { submit.disabled = false; if (!isIconSubmit) submit.textContent = "Thử lại"; } }
   finally { view.busy = false; }
 }
 async function handleWorkbenchClick(event) {
+  const clickedPop = event.target.closest?.(".codex-pop-menu, .composer-add");
+  document.querySelectorAll(".codex-pop-menu[open], .composer-add[open]").forEach((menu) => { if (menu !== clickedPop) menu.open = false; });
   if (event.target.matches?.(".home-config-backdrop")) { view.homeConfigOpen = false; render(); return; }
   if (event.target.matches?.(".task-chat-config-backdrop")) { view.chatConfigOpen = false; render(); return; }
   const page = event.target.closest("[data-page]");
@@ -1735,6 +1769,40 @@ async function handleWorkbenchClick(event) {
     return;
   }
   const action = button.dataset.action; const id = button.dataset.id;
+  if (action === "pick-home-workspace") {
+    view.homeWorkspaceId = id;
+    render();
+    return;
+  }
+  if (action === "pick-home-agent") {
+    const [prov, mod] = String(button.dataset.agent || "").split("::");
+    if (prov) {
+      view.homeChatProvider = prov;
+      view.homeChatModel = mod || "";
+      const conn = view.connectors?.[prov];
+      const modelObj = conn?.models?.find((m) => m.id === mod) || conn?.models?.[0];
+      const nextEffort = modelObj?.efforts?.includes(view.homeChatEffort)
+        ? view.homeChatEffort
+        : (modelObj?.efforts?.includes("medium") ? "medium" : modelObj?.efforts?.[0] || "medium");
+      view.homeChatEffort = nextEffort;
+      if (view.homeRoles) {
+        view.homeRoles.plan = { provider: prov, model: mod || "", effort: nextEffort };
+        view.homeRoles.build = { provider: prov, model: mod || "", effort: nextEffort };
+      }
+      render();
+    }
+    return;
+  }
+  if (action === "pick-home-effort") {
+    const nextEffort = button.dataset.effort || "medium";
+    view.homeChatEffort = nextEffort;
+    if (view.homeRoles) {
+      if (view.homeRoles.plan) view.homeRoles.plan.effort = nextEffort;
+      if (view.homeRoles.build) view.homeRoles.build.effort = nextEffort;
+    }
+    render();
+    return;
+  }
   if (action === "toggle-home-isolated") {
     view.homeIsolated = !view.homeIsolated;
     render();
