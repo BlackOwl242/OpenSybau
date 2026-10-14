@@ -777,7 +777,6 @@ body.launch-home .main {
   padding: 3px 4px 6px;
   overscroll-behavior: contain;
   scroll-padding: 6px;
-  scrollbar-color: #545454 #2b2c2e;
 }
 
 #overlay .modal-actions {

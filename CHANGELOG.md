@@ -5,6 +5,21 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.65] - 2026-10-14
+
+### Fixed & Improved (Đồng nhất nút màu trắng, Hiệu ứng Hover & Dọn dẹp mã nguồn)
+- **Thống nhất màu trắng đơn sắc cho toàn bộ nút hành động chính**:
+  - Chuyển tất cả các nút chính (`.button.primary`, nút gửi tin nhắn tròn `.home-submit` / `.chat-send-button`, `.arena-preset-btn.is-primary`, `.wb-chrome-pill.is-ready`) sang tông trắng sáng (`#f4f4f5` → `#ffffff` khi hover, chữ đen `#09090b`), loại bỏ hoàn toàn các nút màu xanh rời rạc.
+- **Hiệu ứng Hover đổi màu nhẹ, không nảy/bay lên**:
+  - Loại bỏ toàn bộ hiệu ứng `transform: translateY(...)` và `transform: scale(...)` khi di chuột qua nút bấm hoặc thẻ trên toàn hệ thống; chỉ chuyển màu nền và viền nhẹ nhàng, đằm mắt.
+- **Loại bỏ nốt `scrollbar-color` và `scrollbar-width` còn sót**:
+  - Xóa `scrollbar-color: #545454 #2b2c2e` tại `#overlay .modal-body` (`legacy-dark-theme.css`) và `scrollbar-width: thin` tại `.workflow-lane` (`feature-views.css`) để thanh cuộn mảnh 5px hoạt động đồng nhất 100%.
+- **Dọn dẹp tệp công cụ dư thừa & các bản cài đặt cũ**:
+  - Xóa các tệp không còn sử dụng trong mã nguồn (`public/lucide-icons.js`, `lucide-icons.LICENSE`, `scripts/generate-icons.mjs`).
+  - Dọn dẹp toàn bộ các tệp cài đặt `.exe` / `.blockmap` cũ trong thư mục `release/` (giải phóng hơn 415 MB dung lượng ổ đĩa) và tối ưu cấu hình đóng gói `electron-builder` chỉ giữ lại `src/server/**/*` thay vì đóng gói trùng lặp toàn bộ mã nguồn giao diện.
+
+---
+
 ## [0.2.64] - 2026-10-14
 
 ### Fixed & Improved (Chuẩn hóa Modal, Nút bấm & Thanh cuộn)

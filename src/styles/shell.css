@@ -241,11 +241,11 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .workflow-card .pill { padding: 6px 10px; font-size: 11px; font-weight: 600; }
 .wb-page-content .workflow-lane { gap: 10px; padding: 15px 12px; border-radius: 8px; }
 .wb-page-content .workflow-step { flex-basis: 166px; gap: 9px; }
-.wb-page-content .workflow-node { min-height: 104px; gap: 6px; padding: 11px 9px; border-radius: 8px; transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease; }
+.wb-page-content .workflow-node { min-height: 104px; gap: 6px; padding: 11px 9px; border-radius: 8px; transition: border-color .14s ease, box-shadow .14s ease, background-color .14s ease; }
 .wb-page-content .workflow-node strong { font-size: 13px; font-weight: 620; line-height: 1.4; }
 .wb-page-content .workflow-node small { font-size: 11px; line-height: 1.35; }
 .wb-page-content .workflow-node em { font-size: 11px; font-weight: 550; line-height: 1.35; }
-.wb-page-content .workflow-node:hover, .wb-page-content .workflow-node:focus-visible { z-index: 1; border-color: var(--wb-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-accent) 24%, transparent); transform: translateY(-1px); }
+.wb-page-content .workflow-node:hover, .wb-page-content .workflow-node:focus-visible { z-index: 1; border-color: var(--wb-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--wb-accent) 24%, transparent); }
 .wb-page-content .workflow-card > footer { align-items: center; padding-top: 12px; font-size: 12px; line-height: 1.45; }
 .wb-page-content .workflow-card > footer time { font-size: 11px; }
 .wb-page-content .workflow-record-link { min-height: 30px; padding: 4px 7px; border-radius: 6px; font-size: 12px; transition: color .14s ease, background-color .14s ease; }
