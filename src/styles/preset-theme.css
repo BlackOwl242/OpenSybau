@@ -7008,13 +7008,15 @@ pre > code {
 .orca-viewer-address.is-url-bar {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 5px !important;
+  gap: 6px !important;
   height: 24px !important;
   padding: 0 10px !important;
   border-radius: 6px !important;
-  background: #181a1f !important;
+  background: #17191f !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   color: #a1a1aa !important;
+  min-width: 0 !important;
+  max-width: 560px !important;
 }
 
 .orca-viewer-address.is-url-bar svg {
@@ -7032,10 +7034,12 @@ pre > code {
 .orca-viewer-address.is-url-bar .orca-address-path {
   color: #71717a !important;
   font-size: 12px !important;
-  margin-left: -3px !important;
+  margin-left: -4px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
-.orca-inspect-crosshair-btn,
 .orca-inspect-comment-btn {
   width: 26px !important;
   height: 24px !important;
@@ -7052,22 +7056,16 @@ pre > code {
   transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease !important;
 }
 
-.orca-inspect-crosshair-btn:hover,
 .orca-inspect-comment-btn:hover {
   background: rgba(255, 255, 255, 0.08) !important;
   color: #f4f4f5 !important;
 }
 
-.orca-inspect-crosshair-btn.is-active {
-  color: #f4f4f5 !important;
-  background: rgba(255, 255, 255, 0.08) !important;
-}
-
 .orca-inspect-comment-btn.is-active {
-  background: #e4e4e7 !important;
+  background: #f4f4f5 !important;
   color: #09090b !important;
-  border-color: #e4e4e7 !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28) !important;
+  border-color: #f4f4f5 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
 }
 
 .orca-inspect-banner {
@@ -7077,12 +7075,13 @@ pre > code {
   gap: 12px !important;
   height: 32px !important;
   min-height: 32px !important;
-  padding: 0 14px !important;
-  background: #0a2018 !important;
-  border-bottom: 1px solid rgba(52, 211, 153, 0.22) !important;
+  padding: 0 12px !important;
+  background: #0d1f18 !important;
+  border-bottom: 1px solid rgba(52, 211, 153, 0.18) !important;
   color: #d1fae5 !important;
+  font-family: var(--wb-font-sans) !important;
   font-size: 12px !important;
-  font-weight: 500 !important;
+  font-weight: 520 !important;
   flex: 0 0 auto !important;
 }
 
@@ -7102,18 +7101,20 @@ pre > code {
   align-items: center !important;
   gap: 8px !important;
   min-width: 0 !important;
+  flex: 0 1 auto !important;
 }
 
 .orca-inspect-selected-chip {
   display: inline-block !important;
   max-width: 240px !important;
-  padding: 1px 7px !important;
+  padding: 1px 8px !important;
   border-radius: 5px !important;
-  background: rgba(16, 185, 129, 0.16) !important;
-  border: 1px solid rgba(52, 211, 153, 0.28) !important;
-  color: #a7f3d0 !important;
-  font-family: var(--wb-font-mono) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #ecfdf5 !important;
+  font-family: var(--wb-font-sans) !important;
   font-size: 11px !important;
+  font-weight: 540 !important;
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
@@ -7122,10 +7123,11 @@ pre > code {
 .orca-inspect-banner-close {
   height: 20px !important;
   padding: 0 7px !important;
-  border-radius: 4px !important;
+  border-radius: 5px !important;
   border: 1px solid rgba(255, 255, 255, 0.14) !important;
   background: rgba(255, 255, 255, 0.06) !important;
   color: #d1fae5 !important;
+  font-family: var(--wb-font-sans) !important;
   font-size: 10.5px !important;
   font-weight: 600 !important;
   cursor: pointer !important;
@@ -7141,7 +7143,7 @@ pre > code {
   inset: 0 !important;
   pointer-events: none !important;
   z-index: 30 !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .orca-element-comment-layer[hidden] {
@@ -7150,17 +7152,15 @@ pre > code {
 
 .orca-element-comment-popover {
   position: absolute !important;
-  width: min(372px, calc(100% - 24px)) !important;
+  width: min(384px, calc(100% - 24px)) !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 8px !important;
-  padding: 11px 12px !important;
-  border-radius: 12px !important;
-  background: rgba(20, 21, 26, 0.96) !important;
-  backdrop-filter: blur(16px) saturate(140%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(140%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.14) !important;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.28) !important;
+  padding: 12px 13px !important;
+  border-radius: 14px !important;
+  background: #18191e !important;
+  border: 1px solid rgba(255, 255, 255, 0.13) !important;
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.65), 0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
   color: #f4f4f5 !important;
   pointer-events: auto !important;
   animation: orcaPopFadeIn 130ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -7182,12 +7182,13 @@ pre > code {
   align-items: center !important;
   justify-content: space-between !important;
   gap: 8px !important;
+  min-width: 0 !important;
 }
 
 .orca-el-pop-title {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 6px !important;
+  gap: 7px !important;
   min-width: 0 !important;
   flex: 1 1 auto !important;
 }
@@ -7196,9 +7197,9 @@ pre > code {
   flex: 0 0 auto !important;
   padding: 1px 6px !important;
   border-radius: 5px !important;
-  background: rgba(52, 211, 153, 0.15) !important;
-  border: 1px solid rgba(52, 211, 153, 0.3) !important;
-  color: #6ee7b7 !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #e4e4e7 !important;
   font-family: var(--wb-font-mono) !important;
   font-size: 11px !important;
   font-weight: 600 !important;
@@ -7209,9 +7210,10 @@ pre > code {
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
+  font-family: var(--wb-font-sans) !important;
   font-size: 12.5px !important;
   font-weight: 600 !important;
-  color: #fafafa !important;
+  color: #f4f4f5 !important;
 }
 
 .orca-el-pop-close {
@@ -7220,17 +7222,18 @@ pre > code {
   min-width: 22px !important;
   min-height: 22px !important;
   padding: 0 !important;
-  border-radius: 5px !important;
+  border-radius: 6px !important;
   border: 0 !important;
   background: transparent !important;
   color: #a1a1aa !important;
   display: inline-grid !important;
   place-items: center !important;
   cursor: pointer !important;
+  flex: 0 0 auto !important;
 }
 
 .orca-el-pop-close:hover {
-  background: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
   color: #ffffff !important;
 }
 
@@ -7239,38 +7242,45 @@ pre > code {
   align-items: center !important;
   justify-content: space-between !important;
   gap: 8px !important;
-  font-size: 11px !important;
-  color: #8b8d96 !important;
+  min-width: 0 !important;
 }
 
-.orca-el-pop-meta code {
+.orca-el-selector-chip {
+  flex: 0 1 auto !important;
   min-width: 0 !important;
+  max-width: 215px !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
-  padding: 1px 6px !important;
-  border-radius: 4px !important;
-  background: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid rgba(255, 255, 255, 0.07) !important;
-  color: #d4d4d8 !important;
+  padding: 1px 7px !important;
+  border-radius: 5px !important;
+  background: rgba(255, 255, 255, 0.045) !important;
+  border: 1px solid rgba(255, 255, 255, 0.075) !important;
+  color: #a1a1aa !important;
   font-family: var(--wb-font-mono) !important;
-  font-size: 10.5px !important;
+  font-size: 11px !important;
 }
 
-.orca-el-pop-meta span {
+.orca-el-file-chip {
   flex: 0 0 auto !important;
+  max-width: 140px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
   color: #71717a !important;
-  font-size: 10.5px !important;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 11px !important;
+  font-weight: 520 !important;
 }
 
 .orca-el-comment-input {
   width: 100% !important;
-  min-height: 58px !important;
+  min-height: 62px !important;
   max-height: 130px !important;
   padding: 8px 10px !important;
-  border-radius: 8px !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  background: #0d0e12 !important;
+  border-radius: 9px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: #101115 !important;
   color: #f4f4f5 !important;
   font-family: var(--wb-font-sans) !important;
   font-size: 12.5px !important;
@@ -7281,8 +7291,8 @@ pre > code {
 }
 
 .orca-el-comment-input:focus {
-  border-color: rgba(52, 211, 153, 0.5) !important;
-  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.24) !important;
+  background: #0d0e12 !important;
 }
 
 .orca-el-pop-foot {
@@ -7291,49 +7301,33 @@ pre > code {
   justify-content: space-between !important;
   gap: 8px !important;
   margin-top: 2px !important;
+  min-width: 0 !important;
 }
 
-.orca-el-agent-bar {
+.orca-el-model-bar {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 5px !important;
+  gap: 2px !important;
   min-width: 0 !important;
   flex: 1 1 auto !important;
 }
 
-.orca-el-agent-select,
-.orca-el-effort-select {
+.orca-el-model-bar .codex-inline-trigger {
   height: 26px !important;
   padding: 0 7px !important;
+  font-size: 12px !important;
   border-radius: 6px !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  background: #14161b !important;
-  color: #e4e4e7 !important;
-  font-family: var(--wb-font-sans) !important;
-  font-size: 11.5px !important;
-  font-weight: 540 !important;
-  outline: none !important;
-  cursor: pointer !important;
 }
 
-.orca-el-agent-select {
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  max-width: 162px !important;
+.orca-el-model-bar .codex-inline-trigger.is-model > span {
+  max-width: 136px !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
 }
 
-.orca-el-effort-select {
-  flex: 0 0 auto !important;
-  width: 66px !important;
-}
-
-.orca-el-agent-select:hover,
-.orca-el-effort-select:hover {
-  border-color: rgba(255, 255, 255, 0.22) !important;
-  background: #1a1d24 !important;
+.orca-el-model-bar .codex-pop-card {
+  z-index: 80 !important;
 }
 
 .orca-el-pop-actions {
@@ -7348,6 +7342,205 @@ pre > code {
   min-height: 26px !important;
   padding: 0 10px !important;
   font-size: 11.5px !important;
-  border-radius: 6px !important;
+  border-radius: 7px !important;
 }
 
+/* Keep the web-element inspection controls on the same neutral surface system. */
+.orca-viewer-actions { gap: 6px !important; }
+.orca-mode-switch {
+  gap: 2px !important;
+  padding: 2px !important;
+  border-color: var(--wb-line) !important;
+  border-radius: 7px !important;
+  background: var(--wb-surface-soft) !important;
+}
+.orca-mode-btn {
+  min-width: 42px !important;
+  height: 26px !important;
+  justify-content: center !important;
+  padding: 0 9px !important;
+  border-radius: 5px !important;
+  color: var(--wb-muted) !important;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 12px !important;
+  font-weight: 550 !important;
+}
+.orca-mode-btn:hover:not(.is-active) { background: var(--wb-control-hover) !important; color: var(--wb-ink) !important; }
+.orca-mode-btn.is-active {
+  background: var(--wb-control-hover) !important;
+  color: var(--wb-ink-strong) !important;
+  box-shadow: inset 0 0 0 1px var(--wb-border-subtle) !important;
+}
+.orca-inspect-comment-btn {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  min-height: 28px !important;
+  border-color: var(--wb-line) !important;
+  border-radius: 7px !important;
+  color: var(--wb-muted) !important;
+  background: transparent !important;
+}
+.orca-inspect-comment-btn:hover,
+.orca-inspect-comment-btn.is-active {
+  border-color: var(--wb-border-strong) !important;
+  color: var(--wb-ink-strong) !important;
+  background: var(--wb-control-hover) !important;
+  box-shadow: none !important;
+}
+.orca-inspect-banner {
+  min-height: 34px !important;
+  height: auto !important;
+  padding: 4px 10px !important;
+  border-bottom-color: var(--wb-line) !important;
+  color: var(--wb-ink) !important;
+  background: var(--wb-surface) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+.orca-inspect-banner-text { color: var(--wb-ink) !important; }
+.orca-inspect-selected-chip {
+  padding: 2px 8px !important;
+  border-color: var(--wb-border-subtle) !important;
+  border-radius: 6px !important;
+  color: var(--wb-ink) !important;
+  background: var(--wb-control) !important;
+  font-size: 11px !important;
+}
+.orca-inspect-banner-close {
+  min-width: 36px !important;
+  height: 26px !important;
+  padding: 0 8px !important;
+  border-color: var(--wb-border-strong) !important;
+  border-radius: 6px !important;
+  color: var(--wb-ink) !important;
+  background: var(--wb-control) !important;
+  font-size: 11px !important;
+}
+.orca-inspect-banner-close:hover { color: var(--wb-ink-strong) !important; background: var(--wb-control-hover) !important; }
+.orca-element-comment-popover {
+  border-color: var(--wb-border-strong) !important;
+  border-radius: 12px !important;
+  color: var(--wb-ink-strong) !important;
+  background: var(--wb-surface) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .48) !important;
+  box-sizing: border-box !important;
+}
+.orca-el-pop-head,
+.orca-el-pop-title,
+.orca-el-pop-meta,
+.orca-el-pop-foot { min-width: 0 !important; box-sizing: border-box !important; }
+.orca-el-pop-meta {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto) !important;
+  justify-content: initial !important;
+  gap: 8px !important;
+}
+.orca-el-selector-chip {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+}
+.orca-el-file-chip {
+  display: block !important;
+  min-width: 0 !important;
+  max-width: min(140px, 34vw) !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.orca-el-tag,
+.orca-el-selector-chip {
+  border-color: var(--wb-border-subtle) !important;
+  border-radius: 6px !important;
+  color: var(--wb-ink) !important;
+  background: var(--wb-control) !important;
+}
+.orca-el-comment-input {
+  border-color: var(--wb-border-strong) !important;
+  border-radius: 8px !important;
+  color: var(--wb-ink-strong) !important;
+  background: var(--wb-field) !important;
+}
+.orca-el-comment-input:focus {
+  border-color: #83aaff !important;
+  background: var(--wb-field) !important;
+  box-shadow: 0 0 0 2px rgba(131, 170, 255, .18) !important;
+}
+.orca-el-pop-foot {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+.orca-el-model-bar {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  gap: 5px !important;
+}
+.orca-el-model-bar [data-pop-id="html-comment-model"] { min-width: 0 !important; }
+.orca-el-model-bar [data-pop-id="html-comment-model"] > summary { width: 100% !important; min-width: 0 !important; }
+.orca-el-model-bar [data-pop-id="html-comment-model"] > summary > span { min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.orca-el-model-bar .codex-inline-trigger {
+  height: 28px !important;
+  min-width: 0 !important;
+  padding: 0 8px !important;
+  border: 1px solid var(--wb-border-strong) !important;
+  border-radius: 6px !important;
+  color: var(--wb-ink) !important;
+  background: var(--wb-control) !important;
+  font-size: 11.5px !important;
+  font-weight: 550 !important;
+}
+.orca-el-model-bar .codex-inline-trigger.is-effort { color: var(--wb-ink) !important; }
+.orca-el-model-bar .codex-inline-trigger:hover,
+.orca-el-model-bar .codex-pop-menu[open] > .codex-inline-trigger {
+  border-color: var(--wb-border-strong) !important;
+  color: var(--wb-ink-strong) !important;
+  background: var(--wb-control-hover) !important;
+}
+.orca-el-model-bar .codex-inline-trigger svg { color: var(--wb-muted) !important; }
+.orca-el-model-bar .codex-pop-card {
+  border-color: var(--wb-border-strong) !important;
+  border-radius: 9px !important;
+  background: var(--wb-surface) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .42) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.orca-el-model-bar .codex-pop-head { color: var(--wb-muted) !important; }
+.orca-el-model-bar .codex-pop-item { border-radius: 6px !important; color: var(--wb-ink) !important; }
+.orca-el-model-bar .codex-pop-item:hover,
+.orca-el-model-bar .codex-pop-item.is-selected {
+  color: var(--wb-ink-strong) !important;
+  background: var(--wb-control-hover) !important;
+}
+.orca-el-model-bar .codex-pop-item.is-selected > .wb-icon { display: none !important; }
+.orca-el-pop-actions { gap: 6px !important; }
+.orca-el-pop-actions .button.small {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 10px !important;
+  border-radius: 6px !important;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 12px !important;
+  font-weight: 550 !important;
+}
+.orca-element-comment-popover :focus-visible {
+  outline: 2px solid #83aaff !important;
+  outline-offset: 2px !important;
+}
+@media (max-width: 480px) {
+  .orca-inspect-banner { flex-wrap: wrap !important; }
+  .orca-inspect-banner-text { flex: 1 1 180px !important; }
+  .orca-inspect-banner-right { flex: 0 0 auto !important; margin-left: auto !important; }
+  .orca-element-comment-popover { width: min(384px, calc(100vw - 24px)) !important; }
+  .orca-el-pop-meta { grid-template-columns: minmax(0, 1fr) minmax(0, auto) !important; }
+  .orca-el-pop-foot { grid-template-columns: minmax(0, 1fr) !important; align-items: stretch !important; }
+  .orca-el-model-bar { width: 100% !important; }
+  .orca-el-model-bar [data-pop-id="html-comment-model"] { flex: 1 1 auto !important; min-width: 0 !important; }
+  .orca-el-model-bar [data-pop-id="html-comment-model"] > summary { width: 100% !important; justify-content: space-between !important; }
+  .orca-el-pop-actions { width: 100% !important; justify-content: flex-end !important; }
+}

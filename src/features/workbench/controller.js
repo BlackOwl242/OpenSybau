@@ -1087,38 +1087,57 @@ function resolveHtmlCommentAgentSelection() {
   const effort = effortsList.includes(fallbackEffort) ? fallbackEffort : (effortsList.includes("medium") ? "medium" : effortsList[0] || "medium");
 
   const effortDisplay = { low: "Low", medium: "Medium", high: "High", minimal: "Min", standard: "Std", max: "Max", xhigh: "xHigh", ultra: "Ultra" };
-  const optgroups = availableEntries.map(([provId, c]) => {
+  let activeAgentLabel = modelObj.name || modelObj.id || providerTitle(view.connectors, provider);
+  const agentItemsMarkup = [];
+  for (const [provId, c] of availableEntries) {
     const provName = providerTitle(view.connectors, provId);
     const provModels = c.models?.length ? c.models : [{ id: "", name: c.name || provName }];
-    const options = provModels.map((m) => {
+    agentItemsMarkup.push(`<div class="codex-pop-group-label">${esc(provName)}</div>`);
+    for (const m of provModels) {
       const val = `${provId}::${m.id || ""}`;
-      const selected = provId === provider && (m.id || "") === model;
+      const isSelected = provId === provider && (m.id || "") === model;
       const title = m.name || m.id || provName;
-      return `<option value="${esc(val)}" ${selected ? "selected" : ""}>${esc(`${provName} · ${title}`)}</option>`;
-    }).join("");
-    return `<optgroup label="${esc(provName)}">${options}</optgroup>`;
-  }).join("");
+      if (isSelected) activeAgentLabel = title;
+      agentItemsMarkup.push(`<button type="button" class="codex-pop-item ${isSelected ? "is-selected" : ""}" data-action="pick-html-comment-agent" data-agent="${esc(val)}">
+        <span class="codex-pop-item-main"><span>${esc(title)}</span></span>
+        ${isSelected ? icon("check", 13) : ""}
+      </button>`);
+    }
+  }
 
-  const effortOptionsMarkup = effortsList.map((ef) => `<option value="${esc(ef)}" ${ef === effort ? "selected" : ""}>${esc(effortDisplay[ef] || ef)}</option>`).join("");
+  const effortItemsMarkup = effortsList.map((ef) => {
+    const isSelected = ef === effort;
+    return `<button type="button" class="codex-pop-item ${isSelected ? "is-selected" : ""}" data-action="pick-html-comment-effort" data-effort="${esc(ef)}">
+      <span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>
+      ${isSelected ? icon("check", 13) : ""}
+    </button>`;
+  }).join("");
 
   return {
     provider,
     model,
     effort,
-    agentOptionsMarkup: optgroups || `<option value="codex::">Codex</option>`,
-    effortOptionsMarkup,
+    activeAgentLabel,
+    activeEffortLabel: effortDisplay[effort] || effort || "Medium",
+    agentItemsMarkup: agentItemsMarkup.join(""),
+    effortItemsMarkup,
   };
 }
 
 function renderHtmlElementCommentPopoverMarkup(tab) {
   const el = view.stageHtmlSelectedElement;
   if (!el) return "";
-  const { agentOptionsMarkup, effortOptionsMarkup } = resolveHtmlCommentAgentSelection();
+  const {
+    activeAgentLabel,
+    activeEffortLabel,
+    agentItemsMarkup,
+    effortItemsMarkup,
+  } = resolveHtmlCommentAgentSelection();
   const r = el.rect || {};
   const vw = r.viewportWidth || 800;
   const vh = r.viewportHeight || 600;
-  const popWidth = 370;
-  const popHeight = 190;
+  const popWidth = 376;
+  const popHeight = 196;
   let left = Math.max(12, Math.min((r.left || 24), Math.max(12, vw - popWidth - 16)));
   let top = (r.bottom || 80) + 10;
   if (top + popHeight > vh - 12 && (r.top || 0) > popHeight + 16) {
@@ -1127,23 +1146,44 @@ function renderHtmlElementCommentPopoverMarkup(tab) {
     top = Math.max(12, Math.min(top, Math.max(12, vh - popHeight - 12)));
   }
 
+  const fileName = tab?.name || (tab?.path ? tab.path.split("/").at(-1) : "index.html");
+  const selectorDisplay = el.selector || `<${el.tagName || "element"}>`;
+
   return `<div class="orca-element-comment-popover" style="top:${Math.round(top)}px;left:${Math.round(left)}px;">
     <header class="orca-el-pop-head">
       <div class="orca-el-pop-title">
         <span class="orca-el-tag">&lt;${esc(el.tagName || "div")}&gt;</span>
-        <strong title="${esc(el.label || el.selector || "")}">${esc(el.label || el.selector || "Phần tử HTML")}</strong>
+        <strong title="${esc(el.label || selectorDisplay)}">${esc(el.label || selectorDisplay)}</strong>
       </div>
       <button type="button" class="icon-button orca-el-pop-close" data-action="cancel-html-element-comment" title="Đóng khung nhận xét">${icon("x", 13)}</button>
     </header>
     <div class="orca-el-pop-meta">
-      <code title="${esc(el.selector || "")}">${esc(el.selector || `<${el.tagName || "element"}>`)}</code>
-      ${tab?.path ? `<span>@${esc(tab.path)}</span>` : ""}
+      <code class="orca-el-selector-chip" title="${esc(selectorDisplay)}">${esc(selectorDisplay)}</code>
+      ${tab?.path ? `<span class="orca-el-file-chip" title="@${esc(tab.path)}">@${esc(fileName)}</span>` : ""}
     </div>
     <textarea class="orca-el-comment-input" data-html-element-comment-input rows="2" placeholder="Nhập nhận xét hoặc yêu cầu chỉnh sửa phần tử này cho Agent…">${esc(view.stageHtmlCommentDraft || "")}</textarea>
     <footer class="orca-el-pop-foot">
-      <div class="orca-el-agent-bar">
-        <select class="orca-el-agent-select" data-html-comment-agent title="Chọn Agent & Model xử lý">${agentOptionsMarkup}</select>
-        <select class="orca-el-effort-select" data-html-comment-effort title="Mức suy luận">${effortOptionsMarkup}</select>
+      <div class="codex-inline-model-bar orca-el-model-bar">
+        <details class="codex-pop-menu is-up" data-pop-id="html-comment-model">
+          <summary class="codex-inline-trigger is-model" title="Chọn Agent & Model xử lý">
+            <span>${esc(activeAgentLabel)}</span>
+            ${icon("chevron-down", 12)}
+          </summary>
+          <div class="codex-pop-card is-model-list">
+            <div class="codex-pop-head">Agent & Model</div>
+            <div class="codex-pop-scroll">${agentItemsMarkup}</div>
+          </div>
+        </details>
+        <details class="codex-pop-menu is-up" data-pop-id="html-comment-effort">
+          <summary class="codex-inline-trigger is-effort" title="Mức suy luận">
+            <span>${esc(activeEffortLabel)}</span>
+            ${icon("chevron-down", 12)}
+          </summary>
+          <div class="codex-pop-card is-effort-list">
+            <div class="codex-pop-head">Mức suy luận</div>
+            <div class="codex-pop-scroll">${effortItemsMarkup}</div>
+          </div>
+        </details>
       </div>
       <div class="orca-el-pop-actions">
         <button type="button" class="button quiet small" data-action="cancel-html-element-comment">Hủy</button>
@@ -4108,6 +4148,27 @@ async function handleWorkbenchClick(event) {
       syncHtmlInspectUi();
       return;
     }
+    if (action === "pick-html-comment-agent") {
+      const [prov, mod] = String(button.dataset.agent || "").split("::");
+      if (prov) {
+        view.stageHtmlCommentProvider = prov;
+        view.stageHtmlCommentModel = mod || "";
+        const conn = view.connectors?.[prov];
+        const modelObj = conn?.models?.find((m) => m.id === mod) || conn?.models?.[0];
+        view.stageHtmlCommentEffort = modelObj?.efforts?.includes(view.stageHtmlCommentEffort)
+          ? view.stageHtmlCommentEffort
+          : (modelObj?.efforts?.includes("medium") ? "medium" : modelObj?.efforts?.[0] || "medium");
+        view.stageHtmlCommentDraft = String($("[data-html-element-comment-input]")?.value ?? view.stageHtmlCommentDraft ?? "");
+        syncHtmlInspectUi();
+      }
+      return;
+    }
+    if (action === "pick-html-comment-effort") {
+      view.stageHtmlCommentEffort = button.dataset.effort || "medium";
+      view.stageHtmlCommentDraft = String($("[data-html-element-comment-input]")?.value ?? view.stageHtmlCommentDraft ?? "");
+      syncHtmlInspectUi();
+      return;
+    }
     if (action === "send-html-element-comment") {
       const comment = String($("[data-html-element-comment-input]")?.value || view.stageHtmlCommentDraft || "").trim();
       const el = view.stageHtmlSelectedElement;
@@ -4115,12 +4176,10 @@ async function handleWorkbenchClick(event) {
         showToast("Nhập nội dung nhận xét cho phần tử HTML này trước khi gửi.");
         return;
       }
-      const agentSelectVal = String($("[data-html-comment-agent]")?.value || "");
-      const [pickedProv, pickedModel] = agentSelectVal.includes("::") ? agentSelectVal.split("::") : [agentSelectVal, ""];
       const fallback = resolveHtmlCommentAgentSelection();
-      const provider = pickedProv || fallback.provider || "codex";
-      const model = pickedModel || fallback.model || "";
-      const effort = String($("[data-html-comment-effort]")?.value || fallback.effort || "medium");
+      const provider = fallback.provider || "codex";
+      const model = fallback.model || "";
+      const effort = fallback.effort || "medium";
       view.stageHtmlCommentProvider = provider;
       view.stageHtmlCommentModel = model;
       view.stageHtmlCommentEffort = effort;
