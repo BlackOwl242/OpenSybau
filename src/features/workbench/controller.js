@@ -517,39 +517,38 @@ function composerPermissionMenuMarkup(currentPreset = "full-access", scope = "ho
   const options = [
     {
       id: "read-only",
-      pillLabel: "Hỏi quyền phê duyệt",
-      title: "Hỏi quyền phê duyệt",
-      desc: "Luôn hỏi trước khi sửa tệp ngoài và sử dụng mạng",
+      pillLabel: "Chỉ đọc an toàn",
+      title: "Chỉ đọc an toàn",
+      desc: "Chỉ phân tích mã nguồn và trả lời, không tự ý sửa tệp trong dự án",
       tone: "default",
     },
     {
       id: "workspace-write",
-      pillLabel: "Tự duyệt cho tôi",
-      title: "Tự duyệt cho tôi",
-      desc: "Chỉ hỏi với các hành động được phát hiện có nguy cơ mất an toàn",
+      pillLabel: "Đọc & sửa dự án",
+      title: "Đọc & sửa trong dự án",
+      desc: "Cho phép đọc, chỉnh sửa tệp và chạy công cụ trong phạm vi workspace",
       tone: "default",
     },
     {
       id: "full-access",
-      pillLabel: "Toàn quyền (Full access)",
-      title: "Toàn quyền (Full access)",
-      desc: "Truy cập không giới hạn mạng và mọi tệp trên máy tính của bạn",
+      pillLabel: "Toàn quyền thực thi",
+      title: "Toàn quyền thực thi",
+      desc: "Tự động chạy lệnh, cài gói và thao tác tệp trên máy không giới hạn",
       tone: "danger-warn",
     },
   ];
   const current = options.find((item) => item.id === currentPreset) || options[2];
   const popId = scope === "task" ? "task-permission" : "home-permission";
   const action = scope === "task" ? "pick-task-permission" : "pick-home-permission";
-  const learnAction = scope === "task" ? "task-permissions" : "toggle-home-config";
   return `<details class="codex-pop-menu is-up codex-perm-menu" data-pop-id="${popId}">
-    <summary class="codex-perm-pill ${current.id === "full-access" ? "is-full-access" : ""}" title="Chọn cách phê duyệt hành động của Agent">
+    <summary class="codex-perm-pill ${current.id === "full-access" ? "is-full-access" : ""}" title="Chọn quyền thực thi của Agent">
       ${permissionModeIcon(current.id, 15)}
       <span>${esc(current.pillLabel)}</span>
+      ${icon("chevron-down", 12)}
     </summary>
-    <div class="codex-pop-card is-permission-card" role="menu" aria-label="Cách phê duyệt hành động của Agent?">
+    <div class="codex-pop-card is-permission-card" role="menu" aria-label="Quyền thực thi của Agent">
       <div class="codex-perm-header">
-        <span>Cách phê duyệt hành động của Agent?</span>
-        <button type="button" class="codex-perm-learn" data-action="${learnAction}" ${taskId ? `data-id="${esc(taskId)}"` : ""}>Tìm hiểu thêm</button>
+        <span class="codex-perm-title">Quyền thực thi của Agent</span>
       </div>
       <div class="codex-perm-list">
         ${options.map((opt) => {

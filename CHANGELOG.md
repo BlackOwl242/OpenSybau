@@ -1,0 +1,64 @@
+# Changelog
+
+Tất cả những thay đổi đáng chú ý của dự án **OpenSybau** sẽ được ghi lại tại tệp này.  
+All notable changes to **OpenSybau** are documented in this file.
+
+---
+
+## [0.2.63] - 2026-10-14
+
+### Fixed & Improved (Giao diện & Tài liệu)
+- **Menu Quyền thực thi của Agent (Agent Execution Permissions)**:
+  - Loại bỏ nút *"Tìm hiểu thêm"* thừa ở góc phải tiêu đề popover.
+  - Chuẩn hóa lại tên gọi và mô tả 3 mức quyền riêng biệt của OpenSybau:
+    1. **Chỉ đọc an toàn** (`read-only`): *Chỉ phân tích mã nguồn và trả lời, không tự ý sửa tệp trong dự án.*
+    2. **Đọc & sửa trong dự án** (`workspace-write`): *Cho phép đọc, chỉnh sửa tệp và chạy công cụ trong phạm vi workspace.*
+    3. **Toàn quyền thực thi** (`full-access`): *Tự động chạy lệnh, cài gói và thao tác tệp trên máy không giới hạn.*
+  - Khắc phục triệt để lỗi CSS khiến chữ tiêu đề (`<strong>`) và mô tả phụ (`<small>`) bị dính liền trên cùng một dòng; tách thành 2 dòng rõ ràng, dễ đọc.
+- **Tài liệu & Giấy phép**:
+  - Viết lại toàn bộ `README.md` (Tiếng Anh) và `README.vi.md` (Tiếng Việt) phản ánh kiến trúc giao diện kính mờ mới, Đấu trường song song đa nhánh (2–8 Git worktrees), cơ chế bảo mật và hiệu năng mới.
+  - Bổ sung tệp `CHANGELOG.md` chính thức và giấy phép nguồn mở `LICENSE` (MIT).
+
+---
+
+## [0.2.62] - 2026-10-14
+
+### Added & Changed (UI/UX)
+- **Popover chọn quyền thực thi ngay dưới khung chat**:
+  - Thay thế nút bấm xoay vòng quyền thủ công bằng menu popover mở hướng lên (`.codex-perm-menu`) ở cả màn hình Home và màn hình Hội thoại Task.
+- **Hạ thấp vị trí khung nhập liệu (Bottom-Docked Composer)**:
+  - Loại bỏ khoảng đệm đáy dư thừa trong `.command-stage` và ẩn thanh trạng thái tĩnh ở trang Home để khung chat bám sát cạnh dưới cửa sổ một cách cân đối.
+
+---
+
+## [0.2.61] - 2026-10-14
+
+### Security (Bảo mật hệ thống)
+- **Chống CSRF đa tầng trên `/api/*`**: Kiểm tra nghiêm ngặt header `Sec-Fetch-Site` (chặn mọi request `cross-site`) kết hợp xác thực `Origin` đối với mọi phương thức thay đổi dữ liệu (`POST`, `PUT`, `PATCH`, `DELETE`).
+- **Security Headers toàn cục**: Bổ sung `Content-Security-Policy` (CSP), `X-Frame-Options: DENY` và `Referrer-Policy: no-referrer` trên toàn bộ phản hồi HTTP.
+- **Ràng buộc tệp thực thi CLI**: Kiểm tra định dạng phần mở rộng (`.exe`, `.cmd`, `.bat`, `.ps1`, `.mjs`, `.js`, `.cjs`) khi cấu hình đường dẫn thủ công tại `/api/connectors/claude/path` và `/api/connectors/antigravity/path`.
+- **Cô lập biến môi trường `ELECTRON_RUN_AS_NODE`**: Xóa bỏ thiết lập toàn cục trên tiến trình chính Electron (`desktop/main.cjs`), tránh làm ảnh hưởng các ứng dụng con như VS Code hoặc trình duyệt khi mở từ OpenSybau; chỉ truyền biến này khi gọi trực tiếp binary Node đi kèm.
+- **Chống SSRF mở rộng**: Chặn thêm dải địa chỉ link-local/cloud metadata (`169.254.x.x`, `fe80::/10`, `0.0.0.0`, `metadata.google.internal`) đối với các API provider từ xa.
+- **Chống XSS**: Escape đầy đủ thuộc tính `workspace.id` trong modal và siết biểu thức chính quy liên kết Markdown trong `renderMarkdown()`.
+
+### Performance (Chống lag & Tối ưu tốc độ)
+- **Bộ nhớ đệm (TTL Cache 60s) cho dò tìm CLI & Windows Registry**: Loại bỏ tình trạng gọi đồng bộ `reg.exe` và `where.exe` liên tục làm nghẽn Event Loop trên Windows.
+- **Gom nhóm ghi đĩa (Coalesced Persistence)**: Thay thế `persist()` ghi đĩa tức thời trên mỗi dòng log `record()` bằng `schedulePersist(60)` và lược bỏ nội dung thô của tệp đính kèm (`attachments[].content`) khỏi gói tin SSE `publicState()`.
+- **Quét Workspace & File song song**: Chạy `Promise.all` khi kiểm tra Git workspace lúc khởi động và khi `fs.stat` danh sách tệp; bổ sung bỏ qua các thư mục nặng (`release`, `out`, `target`, `.venv`, `venv`, `.cache`, `.turbo`).
+- **Tối ưu DOM Render & Giữ trạng thái Popover/Con trỏ**: Bỏ qua bước quét dịch DOM (`localizeDom`) khi ngôn ngữ đang là Tiếng Việt gốc (`0ms`); bảo toàn các menu popover đang mở và vị trí con trỏ khung chat khi nhận dữ liệu thời gian thực qua SSE.
+
+---
+
+## [0.2.55 - 0.2.60] - 2026-10-14
+
+### Added & Changed
+- **Đồng bộ nhận diện thương hiệu OpenSybau**: Thay thế biểu tượng tại màn hình chính bằng emblem hai nút kết nối đặc trưng của OpenSybau; khắc phục lỗi biến chiếu trong `desktop/main.cjs`.
+- **Menu chọn Agent/Model & Mức suy luận (Reasoning Effort) tự chế**:
+  - Thay thế thẻ `<select>` mặc định của hệ điều hành bằng menu kính mờ mở hướng lên (`.codex-pop-menu`), có thanh cuộn mảnh gọn và không bao giờ tràn khỏi đáy cửa sổ.
+- **Tinh gọn thanh bên trái (Sidebar)**:
+  - Loại bỏ các mục điều hướng trùng lặp, giữ lại hệ thống điều hướng tối giản, danh sách dự án theo nhóm và bộ lọc trạng thái tác vụ.
+- **Khung ứng dụng Kính mờ (Frosted Glass Shell) & Khung nhập liệu 2 tầng**:
+  - Tích hợp hiệu ứng kính mờ (`backdrop-filter` + Windows Mica/Acrylic) cho thanh bên trái và bo góc nổi cho khung nội dung chính.
+  - Thiết kế khung nhập liệu thông minh 2 tầng: Thanh ngữ cảnh phía trên (Chọn dự án, Môi trường `Máy tính này` / `Git Worktree`, Chế độ `Chat` / `Code` / `Kế hoạch` / `Đấu trường`) gắn liền với thẻ nhập liệu bo tròn phía dưới.
+- **Đấu trường Đa nhánh Song song (Multi-Slot Worktree Arena)**:
+  - Hỗ trợ chạy song song từ **2 đến 8 nhánh Git Worktree cô lập** cho cùng một yêu cầu, cho phép chạy **nhiều bản của cùng 1 model** (`2× Cùng model`, `3× Cùng model`) hoặc phối hợp **đa hãng** (Codex, Claude Code, Antigravity, API) tương tự Orca.
