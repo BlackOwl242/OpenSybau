@@ -5,6 +5,15 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.83] - 2026-10-15
+
+### Sửa bộ chọn chế độ Chat và giao diện nhập liệu
+- Gộp Chat, Code, Kế hoạch và Đa luồng vào một menu chọn gọn; giữ nguyên điều kiện khả dụng của từng chế độ.
+- Sửa xung đột tên class khiến menu chế độ nhận nhầm nền trắng, hiện đúng giao diện tối.
+- Giữ vị trí chữ trong ô nhập ổn định khi focus và tinh chỉnh khoảng cách, trạng thái chọn trên thanh điều hướng mobile.
+
+---
+
 ## [0.2.82] - 2026-10-15
 
 ### Cải thiện điều hướng hội thoại, thống kê lượt trả lời và giao diện mobile
