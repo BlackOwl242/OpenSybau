@@ -40,6 +40,10 @@ export function findClaudeCode({ env = process.env, platform = process.platform,
       ? { executable: process.execPath, prefixArgs: [installed] }
       : { executable: installed, prefixArgs: [] };
   }
+  if (platform === "linux") {
+    const local = resolve(home, ".local/bin/claude");
+    if (fileExists(local)) return { executable: local, prefixArgs: [] };
+  }
   const native = findExecutable(platform === "win32" ? "claude.exe" : "claude");
   if (native) return { executable: native, prefixArgs: [] };
   return { executable: "", prefixArgs: [] };

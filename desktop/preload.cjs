@@ -2,7 +2,9 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("opensybauDesktop", Object.freeze({
   isDesktop: true,
-  supportsAutoUpdate: process.platform === "win32",
+  supportsAutoUpdate: process.platform === "win32" || process.platform === "linux",
+  supportsCliInstall: process.platform === "win32" || process.platform === "linux",
+  installCli: (providerId, language) => ipcRenderer.invoke("opensybau:cli:install", providerId, language),
   openConfigFolder: () => ipcRenderer.invoke("opensybau:open-config-folder"),
   getUpdateState: () => ipcRenderer.invoke("opensybau:update:get-state"),
   checkForUpdates: () => ipcRenderer.invoke("opensybau:update:check"),

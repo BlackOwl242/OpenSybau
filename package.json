@@ -1,14 +1,15 @@
 {
   "name": "opensybau",
-  "description": "A local-first multi-agent coding workspace for Windows and the browser.",
+  "description": "A local-first multi-agent coding workspace for Windows, Linux, and the browser.",
   "author": "OpenSybau",
+  "desktopName": "OpenSybau",
   "repository": {
     "type": "git",
     "url": "https://github.com/BlackOwl242/OpenSybau.git"
   },
   "private": true,
   "license": "MIT",
-  "version": "0.2.83",
+  "version": "0.2.84",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -21,6 +22,7 @@
     "start": "node scripts/run.mjs production",
     "desktop:dev": "npm run build && electron .",
     "desktop:dist": "npm run build && electron-builder --win nsis --publish never",
+    "desktop:dist:linux": "npm run build && electron-builder --linux deb rpm --x64 --publish never --config.directories.output=release/linux",
     "desktop:release": "npm run build && electron-builder --win nsis --publish always"
   },
   "dependencies": {
@@ -76,6 +78,28 @@
         }
       ],
       "artifactName": "OpenSybau-Setup-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "icon": "desktop/icon.png",
+      "category": "Development",
+      "maintainer": "OpenSybau",
+      "syncDesktopName": true,
+      "synopsis": "Local-first multi-agent coding workspace",
+      "target": [
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "OpenSybau-${version}-${arch}.${ext}"
     },
     "nsis": {
       "installerIcon": "desktop/icon.ico",

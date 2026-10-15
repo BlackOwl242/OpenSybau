@@ -59,7 +59,7 @@ OpenSybau brings **Codex CLI**, **Claude Code**, **Antigravity CLI**, and **Anth
 
 ## 📦 Requirements
 
-- **Windows Desktop Installer users:** No need to install Node.js or npm (the runtime is bundled).
+- **Windows and Linux desktop installer users:** No need to install Node.js or npm (the runtime is bundled). On first launch, choose whether to install Codex CLI, Antigravity CLI, or Claude Code CLI.
 - **Running from source / building the installer:** Node.js **20.19+** and npm.
 - **Git:** Required for workspace status inspection and isolated Git worktrees / Arena mode.
 - **Agents (install any combination you use):**
@@ -99,6 +99,19 @@ npm run desktop:dist
 - Generates the per-user NSIS installer (`release/OpenSybau-Setup-<version>-x64.exe`) and unpacked desktop bundle (`release/win-unpacked/`).
 - Creates Desktop and Start Menu shortcuts, keeps its local server bound to `127.0.0.1`, and stores user data separately in `%APPDATA%\OpenSybau`.
 - Checks GitHub Releases for updates in the background.
+
+## 🐧 Build Linux Desktop Packages (`.deb` and `.rpm`)
+
+Run this on a Linux x64 build host:
+
+```sh
+npm ci
+npm run desktop:dist:linux
+```
+
+- Generates `release/linux/OpenSybau-<version>-amd64.deb` for Debian/Ubuntu and `release/linux/OpenSybau-<version>-x86_64.rpm` for Fedora/RHEL-compatible distributions.
+- Keeps the local server bound to `127.0.0.1`, stores user data under the Linux user configuration directory, and checks GitHub Releases for updates.
+- The same first-run CLI setup is available in the Windows and Linux desktop apps.
 
 ---
 
@@ -178,6 +191,7 @@ LICENSE         MIT License
 | `npm run build` | Build production frontend into `dist/`. |
 | `npm start` | Start production server. |
 | `npm run desktop:dist` | Build production frontend and package Windows NSIS installer (`release/`). |
+| `npm run desktop:dist:linux` | Build production frontend and package Linux x64 `.deb` and `.rpm` installers (`release/linux/`). |
 
 ---
 

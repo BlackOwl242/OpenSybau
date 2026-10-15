@@ -96,6 +96,8 @@ function findCodex() {
     }
     return findOnPath("codex.exe") || "codex.exe";
   }
+  const localInstall = resolve(homedir(), ".local/bin/codex");
+  if (process.platform === "linux" && existsSync(localInstall)) return localInstall;
   return findOnPath("codex") || "codex";
 }
 
@@ -399,7 +401,25 @@ function powershellLiteral(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 function openCliLoginTerminal(executable, args, title) {
-  if (process.platform !== "win32") throw new Error("Tự mở terminal đăng nhập hiện được hỗ trợ trên Windows. Hãy mở terminal trên máy chủ và chạy lệnh được hiển thị trong OpenSybau.");
+  if (process.platform === "linux") {
+    const candidates = [
+      { names: ["x-terminal-emulator", "xterm"], args: (command) => ["-e", ...command] },
+      { names: ["gnome-terminal"], args: (command) => ["--wait", "--", ...command] },
+      { names: ["konsole"], args: (command) => ["--separate", "-e", ...command] },
+    ];
+    const terminal = candidates.flatMap((candidate) => candidate.names.map((name) => ({ candidate, name, path: findOnPath(name) }))).find((item) => item.path);
+    if (!terminal) throw new Error("Không tìm thấy ứng dụng terminal. Cài xterm, GNOME Terminal hoặc Konsole rồi thử lại.");
+    const command = executable === process.execPath
+      ? [findOnPath("node") || "node", ...args]
+      : [executable, ...args];
+    const launcherArgs = terminal.candidate.args(command);
+    return new Promise((resolvePromise, rejectPromise) => {
+      const child = spawn(terminal.path, launcherArgs, { cwd: homedir(), detached: true, stdio: "ignore", windowsHide: true });
+      child.once("spawn", () => { child.unref(); resolvePromise(); });
+      child.once("error", rejectPromise);
+    });
+  }
+  if (process.platform !== "win32") throw new Error("Tự mở terminal đăng nhập hiện được hỗ trợ trên Windows và Linux.");
   const windowsRoot = process.env.WINDIR || "C:\\Windows";
   const powershell = resolve(windowsRoot, "System32/WindowsPowerShell/v1.0/powershell.exe");
   if (!existsSync(powershell)) throw new Error("Không tìm thấy Windows PowerShell. Hãy mở PowerShell thủ công và chạy lệnh đăng nhập trong hướng dẫn.");

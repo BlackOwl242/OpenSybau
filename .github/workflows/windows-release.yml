@@ -1,4 +1,4 @@
-name: Publish Windows release
+name: Publish desktop release
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  windows:
     runs-on: windows-latest
     steps:
       - name: Check out tagged source
@@ -53,19 +53,66 @@ jobs:
           releaseDate: '$releaseDate'
           "@
           [System.IO.File]::WriteAllText((Join-Path $PWD "release/latest.yml"), $metadata, [System.Text.UTF8Encoding]::new($false))
-      - name: Publish installer and updater metadata
-        shell: pwsh
+      - name: Upload Windows build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows
+          path: |
+            release/OpenSybau-Setup-*.exe
+            release/OpenSybau-Setup-*.exe.blockmap
+            release/latest.yml
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Linux packages
+        run: npm run desktop:dist:linux
+      - name: Upload Linux build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux
+          path: |
+            release/linux/OpenSybau-*.deb
+            release/linux/OpenSybau-*.rpm
+            release/linux/latest-linux.yml
+          if-no-files-found: error
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: [windows, linux]
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: release
+          merge-multiple: true
+      - name: Verify release version
         run: |
-          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $installer = "release/OpenSybau-Setup-$version-x64.exe"
-          $blockmap = "${installer}.blockmap"
-          gh release create "$env:GITHUB_REF_NAME" `
-            $installer `
-            $blockmap `
-            "release/latest.yml" `
-            --title "OpenSybau $env:GITHUB_REF_NAME" `
-            --notes "Windows x64 installer and verified updater metadata." `
-            --verify-tag `
+          version=$(node -p "require('./package.json').version")
+          test "$GITHUB_REF_NAME" = "v$version"
+      - name: Publish Windows and Linux installers
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --title "OpenSybau $GITHUB_REF_NAME" \
+            --notes "Windows x64, Debian/Ubuntu x64, and Fedora/RHEL x64 desktop installers." \
+            --verify-tag \
             --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,5 +1,6 @@
 const { app, BrowserWindow, dialog, ipcMain, nativeTheme, shell } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const { spawn } = require("node:child_process");
 const { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, promises: fs } = require("node:fs");
 const path = require("node:path");
 const { findDesktopAntigravityPath } = require("./antigravity-path.cjs");
@@ -13,6 +14,27 @@ let stopping = false;
 let workbenchUrl;
 let updateState = { status: "idle", currentVersion: app.getVersion() };
 let updateCheckRunning = false;
+
+const cliInstallers = Object.freeze({
+  codex: {
+    name: "Codex CLI",
+    windows: "https://chatgpt.com/codex/install.ps1",
+    linux: "https://chatgpt.com/codex/install.sh",
+    hosts: ["chatgpt.com", "openai.com", "releases.openai.com", "github.com", "raw.githubusercontent.com"],
+  },
+  antigravity: {
+    name: "Antigravity CLI",
+    windows: "https://antigravity.google/cli/install.ps1",
+    linux: "https://antigravity.google/cli/install.sh",
+    hosts: ["antigravity.google"],
+  },
+  claude: {
+    name: "Claude Code CLI",
+    windows: "https://claude.ai/install.ps1",
+    linux: "https://claude.ai/install.sh",
+    hosts: ["claude.ai", "downloads.claude.ai", "anthropic.com"],
+  },
+});
 
 app.setName("OpenSybau");
 app.setPath("userData", path.join(app.getPath("appData"), "OpenSybau"));
@@ -81,6 +103,7 @@ function registerIpcHandlers() {
   if (ipcRegistered) return;
   ipcRegistered = true;
   ipcMain.handle("opensybau:open-config-folder", async () => shell.openPath(userData));
+  ipcMain.handle("opensybau:cli:install", async (_event, providerId, language) => installCli(providerId, language));
   ipcMain.handle("opensybau:update:get-state", () => updateState);
   ipcMain.handle("opensybau:update:check", () => checkForAppUpdate());
   ipcMain.handle("opensybau:update:restart", () => {
@@ -90,12 +113,110 @@ function registerIpcHandlers() {
   });
 }
 
+async function downloadCliInstaller(url, allowedHosts) {
+  const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(60_000) });
+  const finalUrl = new URL(response.url || url);
+  if (finalUrl.protocol !== "https:" || !allowedHosts.includes(finalUrl.hostname.toLowerCase())) {
+    throw new Error("The vendor installer URL redirected to an unapproved host.");
+  }
+  if (!response.ok) throw new Error(`The vendor installer returned HTTP ${response.status}.`);
+
+  const chunks = [];
+  let totalBytes = 0;
+  for await (const chunk of response.body || []) {
+    totalBytes += chunk.byteLength;
+    if (totalBytes > 1_000_000) throw new Error("The installer script is larger than the 1 MB limit.");
+    chunks.push(Buffer.from(chunk));
+  }
+  if (!totalBytes) throw new Error("The vendor installer was empty.");
+  return Buffer.concat(chunks);
+}
+
+function runCliInstaller(command, args, cwd) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(command, args, {
+      cwd,
+      shell: false,
+      windowsHide: true,
+      stdio: "ignore",
+      env: { ...process.env, NO_COLOR: "1" },
+    });
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, 15 * 60 * 1000);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      rejectPromise(new Error(`Could not start the ${command} installer (${error.message}).`));
+    });
+    child.once("close", (code) => {
+      clearTimeout(timer);
+      if (timedOut) rejectPromise(new Error("CLI installation took longer than 15 minutes and was stopped."));
+      else if (code !== 0) rejectPromise(new Error(`The vendor installer exited with code ${code ?? "unknown"}.`));
+      else resolvePromise();
+    });
+  });
+}
+
+async function installCli(providerId, language) {
+  const installer = cliInstallers[providerId];
+  if (!installer) throw new Error("Choose Codex, Antigravity, or Claude Code to install.");
+  if (process.platform !== "win32" && process.platform !== "linux") throw new Error("CLI installation is supported by the Windows and Linux desktop apps.");
+
+  const english = language === "en";
+  const isWindows = process.platform === "win32";
+  const scriptUrl = isWindows ? installer.windows : installer.linux;
+  const confirmation = {
+    type: "warning",
+    title: english ? `Install ${installer.name}` : `Cài ${installer.name}`,
+    message: english
+      ? `OpenSybau will download and run the official ${installer.name} installer.`
+      : `OpenSybau sẽ tải và chạy trình cài đặt chính thức của ${installer.name}.`,
+    detail: english
+      ? "The installer will run with your current user permissions. Do you want to continue?"
+      : "Trình cài đặt chạy với quyền hiện tại của tài khoản bạn. Bạn có muốn tiếp tục không?",
+    buttons: english ? ["Install", "Cancel"] : ["Cài đặt", "Hủy"],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  };
+  const choice = mainWindow && !mainWindow.isDestroyed()
+    ? await dialog.showMessageBox(mainWindow, confirmation)
+    : await dialog.showMessageBox(confirmation);
+  if (choice.response !== 0) return { ok: false, cancelled: true };
+
+  let installerDirectory = "";
+  try {
+    installerDirectory = await fs.mkdtemp(path.join(app.getPath("temp"), "opensybau-cli-"));
+    if (!isWindows) await fs.chmod(installerDirectory, 0o700);
+    const scriptPath = path.join(installerDirectory, isWindows ? "install.ps1" : "install.sh");
+    const script = await downloadCliInstaller(scriptUrl, installer.hosts);
+    await fs.writeFile(scriptPath, script, { mode: 0o700 });
+    if (!isWindows) await fs.chmod(scriptPath, 0o700);
+
+    if (isWindows) {
+      const systemRoot = process.env.SystemRoot || process.env.WINDIR || "C:\\Windows";
+      const powershell = path.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+      if (!existsSync(powershell)) throw new Error("Windows PowerShell could not be found.");
+      await runCliInstaller(powershell, ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], app.getPath("home"));
+    } else {
+      await runCliInstaller("/bin/bash", [scriptPath], app.getPath("home"));
+    }
+    return { ok: true, providerId };
+  } finally {
+    if (installerDirectory) await fs.rm(installerDirectory, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 async function createMainWindow() {
   initializeUserConfig();
   registerIpcHandlers();
 
-  const unpackedIconPath = path.join(__dirname.replace("app.asar", "app.asar.unpacked"), "icon.ico");
-  const windowIconPath = existsSync(unpackedIconPath) ? unpackedIconPath : path.join(__dirname, "icon.ico");
+  const iconFile = process.platform === "win32" ? "icon.ico" : "icon.png";
+  const unpackedIconPath = path.join(__dirname.replace("app.asar", "app.asar.unpacked"), iconFile);
+  const windowIconPath = existsSync(unpackedIconPath) ? unpackedIconPath : path.join(__dirname, iconFile);
+  const usesNativeOverlay = process.platform === "win32" || process.platform === "linux";
   if (!mainWindow || mainWindow.isDestroyed()) {
     mainWindow = new BrowserWindow({
       title: "OpenSybau",
@@ -106,17 +227,17 @@ async function createMainWindow() {
       show: true,
       icon: windowIconPath,
       backgroundColor: process.platform === "win32" ? "#00000000" : "#111214",
-      ...(process.platform === "win32"
+      ...(usesNativeOverlay
         ? {
-            backgroundMaterial: "acrylic",
             titleBarStyle: "hidden",
             titleBarOverlay: {
-              color: "#00000000",
+              color: process.platform === "win32" ? "#00000000" : "#111214",
               symbolColor: "#d4d4d8",
               height: 38,
             },
           }
         : {}),
+      ...(process.platform === "win32" ? { backgroundMaterial: "acrylic" } : {}),
       autoHideMenuBar: true,
       webPreferences: {
         preload: path.join(__dirname, "preload.cjs"),
@@ -164,7 +285,7 @@ function publishUpdateState(nextState) {
 let updatesInitialized = false;
 
 async function initializeAutoUpdates() {
-  if (!app.isPackaged || process.platform !== "win32" || updatesInitialized) return;
+  if (!app.isPackaged || !["win32", "linux"].includes(process.platform) || updatesInitialized) return;
   updatesInitialized = true;
   await cleanupInstalledUpdateCache();
   autoUpdater.autoDownload = true;
@@ -221,7 +342,7 @@ async function cleanupInstalledUpdateCache() {
 }
 
 async function checkForAppUpdate() {
-  if (!app.isPackaged || process.platform !== "win32") return updateState;
+  if (!app.isPackaged || !["win32", "linux"].includes(process.platform)) return updateState;
   if (updateCheckRunning || updateState.status === "downloading" || updateState.status === "downloaded") return updateState;
   updateCheckRunning = true;
   publishUpdateState({ status: "checking" });

@@ -130,7 +130,7 @@ function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, colla
 
 function SideContent({ snapshot }) {
   const state = snapshot.state;
-  if (!state) return <div class="wb-side-placeholder">Đang đọc dữ liệu…</div>;
+  if (!state) return null;
 
   const workspaces = state.workspaces || [];
   const tasks = state.tasks || [];

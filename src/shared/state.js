@@ -89,6 +89,7 @@ export const view = {
   renderedPage: "",
   renderedSelection: "",
   desktopSetupOpen: !setupAlreadyDismissed(),
+  cliInstallProvider: "",
 };
 
 export const statuses = {

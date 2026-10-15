@@ -2486,7 +2486,9 @@ function settingsPage() {
     const connector = view.connectors?.[agent.id];
     const status = cliConnectionStatus(connector);
     const action = status.tone === "missing"
-      ? `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
+      ? window.opensybauDesktop?.supportsCliInstall
+        ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${agent.id}" ${view.cliInstallProvider ? "disabled" : ""}>${view.cliInstallProvider === agent.id ? "Đang cài đặt…" : "Cài CLI"}</button>`
+        : `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
       : status.action === "refresh"
         ? cliRefreshButton()
         : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${agent.id}">Mở terminal đăng nhập</button>`;
@@ -2549,7 +2551,9 @@ function showCliProviderModal() {
       ? `${modelCount} model khả dụng${connector?.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
       : status.tone === "missing" ? agent.installHelp : connector?.error || agent.summary;
     const primary = status.tone === "missing"
-      ? `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
+      ? window.opensybauDesktop?.supportsCliInstall
+        ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${agent.id}">Cài CLI</button>`
+        : `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
       : status.action === "refresh"
         ? cliRefreshButton(status.tone === "ready" ? "Đã kết nối · quét lại" : "Quét lại")
         : `<button class="button primary small" type="button" data-action="provider-cli-login" data-id="${agent.id}">${icon("square-terminal", 13)} ${status.tone === "needs-action" && connector?.authenticated ? "Mở CLI để kiểm tra" : "Bắt đầu đăng nhập"}</button>`;
@@ -2603,7 +2607,7 @@ function render() {
   const rawPageMarkup = (pages[view.page] || taskPage)();
   const pageMarkup = wrapStageWithOrcaTabs(rawPageMarkup);
   const rightDockMarkup = view.chatDrawerOpen ? orcaRightDockMarkup() : "";
-  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit) }, pageMarkup);
+  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit) }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
   localizeDom(document.querySelector("#overlay"), view.language);
   const nextContent = $("#content");
@@ -4228,6 +4232,28 @@ async function handleWorkbenchClick(event) {
     if (action === "provider-connect-cli") { showCliProviderModal(); return; }
     if (action === "provider-cli-refresh") {
       await scanCliProviders(button, { openModal: Boolean(button.closest("#overlay")) });
+      return;
+    }
+    if (action === "provider-cli-install") {
+      const install = window.opensybauDesktop?.installCli;
+      if (!install || view.cliInstallProvider) return;
+      const buttonLabel = button.innerHTML;
+      button.disabled = true;
+      button.textContent = "Đang cài đặt…";
+      view.cliInstallProvider = id;
+      render();
+      try {
+        const result = await install(id, view.language);
+        if (result?.cancelled) return;
+        if (!result?.ok) throw new Error("Trình cài đặt chưa hoàn tất.");
+        await scanCliProviders();
+      } catch (error) {
+        showToast(`Cài CLI thất bại: ${error.message}`);
+      } finally {
+        view.cliInstallProvider = "";
+        if (button.isConnected) { button.disabled = false; button.innerHTML = buttonLabel; }
+        render();
+      }
       return;
     }
     if (action === "provider-cli-login") {

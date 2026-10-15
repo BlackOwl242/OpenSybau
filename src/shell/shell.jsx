@@ -179,6 +179,6 @@ export function AppShell({ snapshot, pageMarkup }) {
       <StatusBar snapshot={snapshot} />
     </main>
     <MobileNav page={page} />
-    {snapshot.desktopSetupOpen && <DesktopSetupDialog connectors={snapshot.connectors} />}
+    {snapshot.desktopSetupOpen && <DesktopSetupDialog connectors={snapshot.connectors} installingProvider={snapshot.cliInstallProvider} />}
   </div>;
 }
