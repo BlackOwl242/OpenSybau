@@ -2753,6 +2753,19 @@ function chatPage() {
   }
   const activeEfforts = chatSelection.model?.efforts?.length ? chatSelection.model.efforts : ["low", "medium", "high"];
   const effortDisplay = { low: "Low", medium: "Medium", high: "High", minimal: "Min", standard: "Std", max: "Max" };
+  const homeModeOptions = [
+    { id: "chat", label: "Chat", icon: "message-circle" },
+    { id: "code", label: "Code", icon: "square-terminal", disabled: !pipelineReady },
+    { id: "plan", label: "Kế hoạch", icon: "list-checks", disabled: !planReady },
+    { id: "arena", label: "Đa luồng", icon: "git-branch", title: "Chạy đa luồng nhiều agent (cùng hoặc khác model) trên các Git worktree riêng" },
+  ];
+  const activeHomeMode = homeModeOptions.find((mode) => mode.id === view.homeMode) || homeModeOptions[0];
+  const homeModeMenu = `<details class="codex-pop-menu is-up is-right home-mode-picker" data-pop-id="home-mode">
+    <summary class="codex-rail-pill" title="Chế độ làm việc" aria-label="Chế độ làm việc" aria-haspopup="menu">${icon(activeHomeMode.icon, 14)}<span>${activeHomeMode.label}</span>${icon("chevron-down", 12)}</summary>
+    <div class="codex-pop-card home-mode-popover" role="menu" aria-label="Chế độ làm việc"><div class="codex-pop-head">Chế độ làm việc</div>
+      ${homeModeOptions.map((mode) => `<button type="button" role="menuitemradio" aria-checked="${mode.id === activeHomeMode.id}" class="codex-pop-item ${mode.id === activeHomeMode.id ? "is-selected" : ""}" data-home-mode="${mode.id}" ${mode.disabled ? "disabled title=\"Cần agent phù hợp để dùng chế độ này\"" : mode.title ? `title="${mode.title}"` : ""}><span class="codex-pop-item-main">${icon(mode.icon, 14)}<span>${mode.label}</span></span>${mode.id === activeHomeMode.id ? icon("check", 13) : ""}</button>`).join("")}
+    </div>
+  </details>`;
 
   const arenaStrip = isArena ? `<div class="home-arena-strip">
     <div class="home-arena-head">
@@ -2836,12 +2849,7 @@ function chatPage() {
                 <span>${homeIsolated ? "Git Worktree" : "Máy tính này"}</span>
               </button>
             </div>
-            <div class="codex-rail-right" role="tablist" aria-label="Chế độ làm việc">
-              <button type="button" class="home-mode-tab ${view.homeMode === "chat" ? "active" : ""}" data-home-mode="chat">${icon("message-circle", 13)}<span>Chat</span></button>
-              <button type="button" class="home-mode-tab ${view.homeMode === "code" ? "active" : ""}" data-home-mode="code" ${pipelineReady ? "" : "disabled title=\"Cần agent có quyền làm việc trên workspace\""}>${icon("square-terminal", 13)}<span>Code</span></button>
-              <button type="button" class="home-mode-tab ${view.homeMode === "plan" ? "active" : ""}" data-home-mode="plan" ${planReady ? "" : "disabled"}>${icon("list-checks", 13)}<span>Kế hoạch</span></button>
-              <button type="button" class="home-mode-tab ${view.homeMode === "arena" ? "active" : ""}" data-home-mode="arena" title="Chạy đa luồng nhiều agent (cùng hoặc khác model) trên các Git worktree riêng">${icon("git-branch", 13)}<span>Đa luồng</span></button>
-            </div>
+            <div class="codex-rail-right">${homeModeMenu}</div>
           </div>
           ${arenaStrip}
         </div>
@@ -3957,6 +3965,7 @@ async function handleWorkbenchClick(event) {
   }
   const homeMode = event.target.closest("[data-home-mode]");
   if (homeMode) {
+    homeMode.closest(".home-mode-picker")?.removeAttribute("open");
     view.homeMode = homeMode.dataset.homeMode;
     if (view.homeMode === "chat") view.homeWorkflow = "chat-only";
     if (view.homeMode === "plan") view.homeWorkflow = "plan-only";

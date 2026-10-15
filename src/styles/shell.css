@@ -534,15 +534,16 @@ button:disabled { cursor: not-allowed; }
   .wb-page-content .command-stage { width: 100%; padding-bottom: 20px; }
   .wb-page-content .home-composer-controls { align-items: center; }
   .wb-page-content select, #overlay .modal select { min-height: 44px; font-size: 16px !important; }
-  .wb-mobile-nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 19; height: calc(61px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: stretch; padding: 4px 7px calc(4px + env(safe-area-inset-bottom)); border-top: 1px solid #383a3d; background: #202122f5; backdrop-filter: blur(18px); }
-  .wb-mobile-nav > button { min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; border: 0; border-radius: 9px; color: #a7aaaf; background: transparent; font-size: 10px; line-height: 1.1; -webkit-tap-highlight-color: transparent; }
-  .wb-mobile-nav > button.is-active { color: #dce6ff; background: #30343b; }
+  .wb-mobile-nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 19; height: calc(61px + env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: stretch; gap: 5px; padding: 4px 10px calc(4px + env(safe-area-inset-bottom)); border-top: 1px solid #383a3d; background: #202122f5; backdrop-filter: blur(18px); }
+  .wb-mobile-nav > button { width: min(100%, 76px); height: 48px; min-width: 0; justify-self: center; align-self: center; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 0; border-radius: 11px; color: #a7aaaf; background: transparent; font-size: 10px; line-height: 1.1; -webkit-tap-highlight-color: transparent; transition: color 140ms ease, background-color 140ms ease; }
+  .wb-mobile-nav > button.is-active { color: #f2f2f2; background: #343638; }
   .wb-mobile-nav > button:active { background: #383a3d; }
+  .wb-mobile-nav > button:focus-visible, .wb-mobile-more-menu button:focus-visible { outline-color: #d5d6d8 !important; }
   .wb-mobile-more-backdrop { position: fixed; inset: 0; z-index: 39; display: block; background: #0008; }
   .wb-mobile-more-menu { position: absolute; right: 10px; bottom: calc(69px + env(safe-area-inset-bottom)); width: min(260px, calc(100vw - 20px)); display: grid; gap: 4px; padding: 8px; border: 1px solid #414346; border-radius: 14px; background: #292a2c; box-shadow: 0 18px 48px #0009; }
   .wb-mobile-more-menu button { min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 13px; border: 0; border-radius: 9px; color: #dedfe1; background: transparent; text-align: left; font-size: 14px; }
   .wb-mobile-more-menu button.is-active, .wb-mobile-more-menu button:active { background: #383a3d; }
-  .wb-mobile-more-menu .wb-icon { color: #aebfdf; }
+  .wb-mobile-more-menu .wb-icon { color: #c5c7ca; }
   .wb-page-content .home-composer-settings { min-height: 40px; }
   .wb-page-content .home-composer-settings > span, .wb-page-content .home-composer-settings > .wb-icon:last-child { display: none; }
   .wb-page-content .home-composer-settings::after { content: "Cấu hình"; font-size: 12px; }

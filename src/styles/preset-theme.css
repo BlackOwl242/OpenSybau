@@ -2237,7 +2237,7 @@ body .wb-top-icon:hover {
 .wb-page-content .home-composer:focus-within,
 .wb-page-content .task-conversation-page .chat-composer:focus-within {
   border-color: rgba(255, 255, 255, 0.16) !important;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
 }
 .composer-input-wrap {
   position: relative;
@@ -2255,9 +2255,9 @@ body .wb-top-icon:hover {
 .composer-input-wrap > textarea:focus,
 .composer-input-wrap > textarea:focus-visible {
   width: 100% !important;
-  min-height: 44px !important;
+  min-height: 28px !important;
   max-height: 200px !important;
-  padding: 4px 2px !important;
+  padding: 2px 2px !important;
   margin: 0 !important;
   border: 0 !important;
   border-radius: 0 !important;
@@ -6811,6 +6811,7 @@ textarea::placeholder,
 .wb-page-content .chat-composer textarea:placeholder-shown,
 .composer-input-wrap > textarea:placeholder-shown {
   height: 28px !important;
+  min-height: 28px !important;
   overflow-y: hidden !important;
 }
 
