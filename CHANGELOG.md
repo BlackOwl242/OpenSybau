@@ -5,6 +5,24 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.85] - 2026-10-16
+
+### English
+- Matched the background of parallel chat panes to the regular conversation view.
+- Right-aligned the language control in the web title bar while preserving space for native desktop window controls.
+- Limited standard dropdowns to five visible choices, opened them downward, and kept the selected choice in view. Model and reasoning menus retain their flexible direction and list sizing.
+- Improved parallel chat tabs and workspace navigation, including clearer chat previews, status indicators, and tree branches.
+- Refined task setup, permission controls, modal spacing and typography, and full-panel image previews.
+
+### Tiếng Việt
+- Đồng bộ màu nền của các khung chat song song với giao diện cuộc trò chuyện thông thường.
+- Đưa nút đổi ngôn ngữ sát mép phải trên thanh tiêu đề web, đồng thời giữ khoảng trống cho nút điều khiển cửa sổ desktop.
+- Giới hạn dropdown thông thường còn tối đa 5 lựa chọn nhìn thấy, mở xuống và tự cuộn tới lựa chọn đang dùng. Menu model và mức suy nghĩ giữ cách mở linh hoạt và kích thước danh sách riêng.
+- Cải thiện tab chat song song và điều hướng workspace, gồm preview đoạn chat, trạng thái tác vụ và nhánh cây dễ nhìn hơn.
+- Tinh chỉnh cấu hình tác vụ, quyền truy cập, khoảng cách và kiểu chữ trong modal, cùng phần xem ảnh toàn khung.
+
+---
+
 ## [0.2.83] - 2026-10-15
 
 ### Sửa bộ chọn chế độ Chat và giao diện nhập liệu

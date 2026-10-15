@@ -89,7 +89,7 @@ function WindowChrome({ snapshot, sidebarCollapsed, onToggleSidebar }) {
         ? "..."
         : snapshot.language === "en" ? "Update" : "Cập nhật";
 
-  return <header class="wb-window-chrome" aria-label="Thanh tiêu đề cửa sổ">
+  return <header class={`wb-window-chrome ${desktop ? "is-desktop" : "is-web"}`} aria-label="Thanh tiêu đề cửa sổ">
     <div class="wb-window-chrome-left">
       <button type="button" class="wb-chrome-icon" onClick={() => window.history.back()} title="Quay lại" aria-label="Quay lại">
         <Icon name="arrow-left" size={14} />
@@ -133,7 +133,8 @@ export function AppShell({ snapshot, pageMarkup }) {
   const page = snapshot.page || "chat";
   const hasStageTabs = (page === "chat" || page === "workspaces") && (snapshot.stageTabs?.length || 0) > 0;
   const isViewingFileTab = hasStageTabs && (snapshot.activeStageTabId !== "chat" || snapshot.stageSplit);
-  const home = page === "chat" && !snapshot.selected && !isViewingFileTab;
+  const chatSplit = page === "chat" && Boolean(snapshot.chatSplitWorkspaceId);
+  const home = page === "chat" && !snapshot.selected && !isViewingFileTab && !chatSplit;
   const hasContextSidebar = pageLayouts[page]?.sidebar === "context" && !sidebarCollapsed;
   const hasPageSidebar = Boolean(snapshot.pageSidebarMarkup);
   const hasRightDock = Boolean(snapshot.chatDrawerOpen && snapshot.rightDockMarkup);
@@ -159,11 +160,11 @@ export function AppShell({ snapshot, pageMarkup }) {
     <ContextSidebar snapshot={snapshot} mobileOpen={mobileSidebarOpen} mobileOnly={!hasContextSidebar} onNavigate={() => setMobileSidebarOpen(false)} />
     {mobileSidebarOpen ? <button class="wb-mobile-sidebar-backdrop" type="button" aria-label="Đóng danh sách workspace" onClick={() => setMobileSidebarOpen(false)} /> : null}
     {hasPageSidebar && <aside class="wb-page-sidebar" dangerouslySetInnerHTML={{ __html: snapshot.pageSidebarMarkup }} />}
-    <main class={`wb-main ${home && !hasStageTabs ? "is-home-stage" : ""}`}>
+    <main class={`wb-main ${home && !hasStageTabs ? "is-home-stage" : ""} ${chatSplit ? "is-chat-split" : ""}`}>
       <div class={`wb-workspace-split ${hasRightDock ? "has-right-dock" : ""}`}>
         <div class="wb-stage-column">
       <TopBar snapshot={snapshot} />
-          <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${(page === "chat" && snapshot.selected) || isViewingFileTab ? "is-task-detail" : ""} ${isViewingFileTab ? "is-orca-tab-stage" : ""} ${(page === "knowledge" && snapshot.state?.settings?.vaultPath) || page === "skills" || (page === "workspaces" && (snapshot.selected || snapshot.state?.workspaces?.length)) ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
+          <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${(page === "chat" && snapshot.selected) || isViewingFileTab || chatSplit ? "is-task-detail" : ""} ${isViewingFileTab ? "is-orca-tab-stage" : ""} ${(page === "knowledge" && snapshot.state?.settings?.vaultPath) || page === "skills" || (page === "workspaces" && (snapshot.selected || snapshot.state?.workspaces?.length)) ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
         </div>
         {hasRightDock ? (
           <>

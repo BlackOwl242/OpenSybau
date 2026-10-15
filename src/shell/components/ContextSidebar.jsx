@@ -1,5 +1,6 @@
 import { h } from "preact";
 import { Icon } from "../../shared/ui/Icon.jsx";
+import { compactChatTitle } from "../../shared/chat-labels.js";
 
 function TaskMenu({ task, archived = false }) {
   return <div class="wb-task-menu" role="menu" aria-label={`Thao tác với ${task.title}`}>
@@ -7,7 +8,8 @@ function TaskMenu({ task, archived = false }) {
     {!archived ? <button role="menuitem" data-action="toggle-task-pin" data-id={task.id}><Icon name="pin" size={14} />{task.pinned ? "Bỏ ghim" : "Ghim"}</button> : null}
     <button role="menuitem" data-action={archived ? "restore-task" : "archive-task"} data-id={task.id}><Icon name={archived ? "archive-restore" : "archive"} size={14} />{archived ? "Khôi phục" : "Lưu trữ"}</button>
     <button role="menuitem" data-action="copy-task-prompt" data-id={task.id}><Icon name="copy" size={14} />Sao chép yêu cầu</button>
-    {archived ? <><div class="wb-task-menu-divider" /><button class="is-danger" role="menuitem" data-action="delete-chat" data-id={task.id}><Icon name="delete" size={14} />Xóa vĩnh viễn</button></> : null}
+    <div class="wb-task-menu-divider" />
+    <button class="is-danger" role="menuitem" data-action="delete-chat" data-id={task.id}><Icon name="delete" size={14} />Xóa vĩnh viễn</button>
   </div>;
 }
 
@@ -30,7 +32,7 @@ function TaskLink({ task, selected, archived = false, taskMenuId = "", menuKey =
       <span class="wb-task-copy">
         <span class="wb-task-title-row">
           {task.pinned ? <Icon name="pin" size={11} /> : null}
-          <strong>{task.title}</strong>
+          <strong>{compactChatTitle(task)}</strong>
           {relTime ? <time class="wb-task-time">{relTime}</time> : null}
         </span>
       </span>
@@ -44,6 +46,8 @@ function TaskLink({ task, selected, archived = false, taskMenuId = "", menuKey =
 
 function ProjectMenu({ workspace }) {
   return <div class="wb-project-menu" role="menu" aria-label={`Thao tác với ${workspace.name}`}>
+    <button role="menuitem" data-action="open-chat-split" data-workspace-id={workspace.id}><Icon name="columns-2" size={14} />Mở nhiều chat song song</button>
+    <div class="wb-project-menu-divider" />
     <button role="menuitem" data-action="toggle-project-pin" data-id={workspace.id}><Icon name="pin" size={14} />{workspace.pinned ? "Bỏ ghim" : "Ghim"}</button>
     <button role="menuitem" data-action="edit-project" data-id={workspace.id}><Icon name="settings-2" size={14} />Sửa dự án</button>
     <button role="menuitem" data-action="edit-project-section" data-id={workspace.id}><Icon name="list" size={14} />Section <Icon name="chevron-right" size={13} /></button>
@@ -57,7 +61,7 @@ function ProjectMenu({ workspace }) {
 function FanoutFleetGroup({ fanoutId, tasks, selected, collapsedFanouts = [], taskMenuId }) {
   const expanded = !collapsedFanouts.includes(fanoutId);
   const first = tasks[0];
-  const rawTitle = String(first?.title || "Đa luồng Agent").replace(/\s*\[[^\]]+\]\s*$/, "");
+  const rawTitle = String(first?.title || "Đa luồng Agent").replace(/^\[#\d+\s+[^\]]+\]\s*/, "").replace(/\s*\[[^\]]+\]\s*$/, "");
   const runningCount = tasks.filter((t) => ["running", "queued"].includes(t.status)).length;
   const hasSelected = tasks.some((t) => t.id === selected);
   const groupStatus = runningCount > 0 ? "running" : tasks.some((t) => t.status === "failed") ? "failed" : "done";
@@ -113,6 +117,7 @@ function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, colla
         {workspace.pinned ? <Icon name="pin" size={12} /> : null}
       </button>
       <div class="wb-project-actions">
+        <button class="wb-project-action" data-action="open-chat-split" data-workspace-id={workspace.id} title="Chia khung chat song song" aria-label={`Chia khung chat song song trong ${workspace.name}`}><Icon name="columns-2" size={14} /></button>
         <button class="wb-project-action" data-action="new-chat" data-workspace-id={workspace.id} title="Chat mới trong dự án" aria-label={`Chat mới trong ${workspace.name}`}><Icon name="plus" size={14} /></button>
         <button class="wb-project-action" data-action="edit-project" data-id={workspace.id} title="Sửa dự án" aria-label={`Sửa dự án ${workspace.name}`}><Icon name="square-pen" size={14} /></button>
         <button class="wb-project-action" data-action="toggle-project-menu" data-id={workspace.id} aria-expanded={menuOpen} title="Thao tác dự án" aria-label={`Thao tác dự án ${workspace.name}`}><Icon name="ellipsis" size={15} /></button>

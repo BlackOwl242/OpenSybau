@@ -63,10 +63,10 @@ button:disabled { cursor: not-allowed; }
 .wb-side-heading { min-height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 8px; color: #b5b7bb; font-size: 10px; font-weight: 650; letter-spacing: .055em; text-transform: uppercase; }
 .wb-small-icon { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 7px; color: #bfc1c4; background: transparent; }
 .wb-small-icon:hover { color: #fff; background: var(--wb-hover); border-color: #484a4d; }
-.wb-side-list { display: grid; gap: 2px; margin-top: 4px; }
+.wb-side-list { display: grid; gap: 4px; margin-top: 6px; }
 .wb-project-section { display: grid; gap: 2px; }
 .wb-project-section-title { padding: 9px 8px 3px; color: #878b90; font-size: 9px; font-weight: 620; letter-spacing: .04em; }
-.wb-project-group { position: relative; min-width: 0; display: grid; gap: 1px; margin: 0 0 3px; }
+.wb-project-group { position: relative; min-width: 0; display: grid; gap: 4px; margin: 0 0 6px; }
 .wb-project-row { min-width: 0; display: flex; align-items: center; border-radius: 7px; }
 .wb-project-row:hover, .wb-project-row:focus-within { background: #292a2c; }
 .wb-project-toggle { min-width: 0; min-height: 34px; flex: 1; display: flex; align-items: center; gap: 8px; padding: 5px 3px 5px 7px; border: 0; border-radius: 7px; color: #d4d5d7; background: transparent; text-align: left; }
@@ -78,8 +78,8 @@ button:disabled { cursor: not-allowed; }
 .wb-project-actions { flex: 0 0 auto; display: flex; align-items: center; padding-right: 3px; opacity: 0; pointer-events: none; }
 .wb-project-row:hover .wb-project-actions, .wb-project-row:focus-within .wb-project-actions, .wb-project-group.has-menu-open .wb-project-actions { opacity: 1; pointer-events: auto; }
 .wb-project-action, .wb-task-action { width: 25px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 5px; color: #a7aaaf; background: transparent; }
-.wb-task-action { width: 32px; height: 32px; }
-.wb-project-action:hover, .wb-task-action:hover { color: #fff; background: #3a3c3f; }
+.wb-task-action { width: 26px; height: 24px; }
+.wb-project-action:hover, .wb-task-action:hover { color: #fff; background: rgba(255,255,255,.06); }
 .wb-project-menu { position: absolute; top: 32px; right: 1px; z-index: 12; width: 190px; display: grid; gap: 2px; padding: 5px; border: 1px solid #414346; border-radius: 8px; background: #292a2c; box-shadow: 0 12px 30px #0009; }
 .wb-project-menu button { min-height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 5px; color: #e1e2e3; background: transparent; font-size: 10px; text-align: left; }
 .wb-project-menu button:hover { background: #3a3c3f; }
@@ -161,6 +161,8 @@ button:disabled { cursor: not-allowed; }
 .wb-top-icon { width: 35px; height: 35px; flex: 0 0 auto; display: inline-grid; place-items: center; border: 1px solid #3d3f42; border-radius: 8px; color: #c4c6c9; background: #292a2c; transition: border-color .14s ease, background-color .14s ease, color .14s ease; }
 .wb-top-icon:hover { border-color: #585b60; color: #f0f1f2; background: #3a3c3f; }
 .wb-top-icon:active { background: #44474b; }
+.wb-split-chat-launch { width: auto; min-width: 35px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 10px; color: #dce7ff; border-color: #425475; background: #252d3b; font-size: 11px; white-space: nowrap; }
+.wb-split-chat-launch:hover { border-color: #6686ba; background: #303b4d; }
 .wb-mobile-nav, .wb-mobile-more-backdrop, .wb-mobile-sidebar-backdrop { display: none; }
 .wb-page-content { width: 100%; height: auto; min-height: 0; flex: 1; max-width: none; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; margin: 0; padding: 26px clamp(20px, 3vw, 40px) 42px; color: var(--wb-ink); background: var(--wb-main); scrollbar-gutter: stable; }
 .wb-page-content.is-home { padding: 0 clamp(18px, 3vw, 42px); }
@@ -324,7 +326,7 @@ button:disabled { cursor: not-allowed; }
 .wb-task-item { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-radius: 6px; }
 .wb-task-item .wb-task-actions { gap: 2px; padding-right: 0; }
 .wb-task-item:hover, .wb-task-item.is-selected { background: #303234; }
-.wb-task-item .wb-task-link { min-width: 0; min-height: 30px; padding-right: 3px; border-radius: 6px 0 0 6px; background: transparent; }
+.wb-task-item .wb-task-link { width: auto; min-width: 0; min-height: 30px; padding-right: 3px; border-radius: 6px 0 0 6px; background: transparent; }
 .wb-task-item .wb-task-link:hover, .wb-task-item.is-selected .wb-task-link { background: transparent; }
 .wb-task-item .wb-task-link.is-selected { color: #f1f2f3; }
 .wb-task-flow { width: 25px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 5px; color: #a4a7ad; background: transparent; opacity: 0; }
@@ -697,78 +699,4 @@ body .desktop-setup-dialog select optgroup,
 body .wb-app-shell select optgroup {
   color: #ececed;
   background-color: #252628;
-}
-
-@supports (appearance: base-select) {
-  body .wb-page-content select,
-  body #overlay select,
-  body .desktop-setup-dialog select,
-  body .wb-app-shell select {
-    appearance: base-select;
-    align-items: center;
-    text-align: start;
-  }
-
-  body .wb-page-content select::picker(select),
-  body #overlay select::picker(select),
-  body .desktop-setup-dialog select::picker(select),
-  body .wb-app-shell select::picker(select) {
-    appearance: base-select;
-    color: #ececed;
-    background: #252628;
-    border: 1px solid #484a4e;
-    border-radius: 8px;
-    box-shadow: 0 10px 28px rgb(0 0 0 / 38%);
-    padding: 4px;
-    position-try-order: normal;
-  }
-
-  body .wb-page-content select option,
-  body #overlay select option,
-  body .desktop-setup-dialog select option,
-  body .wb-app-shell select option {
-    display: flex;
-    align-items: center;
-    min-height: 36px;
-    border-radius: 5px;
-    padding: 7px 10px;
-    line-height: 1.35;
-    transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
-  }
-
-  body .wb-page-content select option:checked,
-  body #overlay select option:checked,
-  body .desktop-setup-dialog select option:checked,
-  body .wb-app-shell select option:checked {
-    color: #f2f2f2;
-    background-color: #383a3d !important;
-  }
-
-  body .wb-page-content select option::checkmark,
-  body #overlay select option::checkmark,
-  body .desktop-setup-dialog select option::checkmark,
-  body .wb-app-shell select option::checkmark {
-    display: none;
-  }
-
-  body .wb-page-content select option:hover,
-  body #overlay select option:hover,
-  body .desktop-setup-dialog select option:hover,
-  body .wb-app-shell select option:hover {
-    color: #f5f5f5;
-    background-color: #303234 !important;
-  }
-
-  body .wb-page-content select::picker-icon,
-  body #overlay select::picker-icon,
-  body .desktop-setup-dialog select::picker-icon,
-  body .wb-app-shell select::picker-icon {
-    content: "";
-    width: 6px;
-    height: 6px;
-    margin-top: -3px;
-    border-right: 1px solid #c6c8cc;
-    border-bottom: 1px solid #c6c8cc;
-    transform: rotate(45deg);
-  }
 }
