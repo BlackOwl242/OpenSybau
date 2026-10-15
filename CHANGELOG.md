@@ -5,6 +5,20 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.86] - 2026-10-16
+
+### English
+- Create additional worktree chat panes from within the parallel chat view, keeping existing panes open and adding the new chat directly to the split layout.
+- Reworked the parallel chat picker and added an in-place chat setup dialog with prompt, agent, model, reasoning, and permission choices.
+- Fixed composer controls being clipped at the bottom of narrow split panes by allowing the controls to wrap within each pane.
+
+### Tiếng Việt
+- Tạo thêm khung chat worktree ngay trong giao diện đa cửa sổ, giữ nguyên các khung đang mở và thêm chat mới trực tiếp vào bố cục chia khung.
+- Thiết kế lại danh sách thêm chat và bổ sung hộp cấu hình ngay tại giao diện chia khung, gồm yêu cầu, agent, model, mức suy nghĩ và quyền truy cập.
+- Sửa các nút composer bị cắt ở cuối những khung chat hẹp bằng cách cho phép các điều khiển tự xuống dòng bên trong từng khung.
+
+---
+
 ## [0.2.85] - 2026-10-16
 
 ### English

@@ -32,6 +32,8 @@ export const view = {
   chatSplitTaskIds: [],
   chatSplitActiveTaskId: "",
   chatSplitPickerOpen: false,
+  chatSplitCreateOpen: false,
+  chatSplitCreateDraft: "",
   chatSplitDrafts: {},
   chatSplitReturnWorkspaceId: "",
   filter: "all",

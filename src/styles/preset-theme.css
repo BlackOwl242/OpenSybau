@@ -7255,6 +7255,109 @@ textarea::placeholder,
   flex-shrink: 0;
 }
 
+/* Parallel chat creation stays inside the split workspace and adapts to narrow panes. */
+.wb-main.is-chat-split .multi-chat-picker {
+  top: 8px !important;
+  right: 10px !important;
+  width: min(360px, calc(100% - 20px)) !important;
+  max-height: min(420px, calc(100% - 16px)) !important;
+  padding: 10px !important;
+  overflow: hidden !important;
+  border-color: color-mix(in srgb, var(--wb-line) 86%, white 14%) !important;
+  border-radius: 14px !important;
+  background: var(--wb-surface, #191a1e) !important;
+  box-shadow: 0 20px 56px #0009 !important;
+}
+.multi-chat-picker > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 3px 10px;
+  border-bottom: 1px solid var(--wb-line);
+}
+.multi-chat-picker > header > div { display: grid; gap: 3px; min-width: 0; }
+.multi-chat-picker > header strong { font-size: 13px; font-weight: 650; }
+.multi-chat-picker > header small { color: var(--wb-muted); font-size: 11px; }
+.multi-chat-picker-list { max-height: min(280px, 48vh); overflow: auto; padding: 6px 0; }
+.multi-chat-picker-list > button:not(.button) { min-height: 38px; padding: 8px; }
+.multi-chat-picker-list > button:not(.button) small { flex: 0 0 auto; }
+.multi-chat-picker-list > p,
+.multi-chat-picker-limit { margin: 0; padding: 14px 8px; color: var(--wb-muted); font-size: 12px; line-height: 1.5; }
+.multi-chat-picker-create {
+  min-height: 38px;
+  margin: 2px 0 0 !important;
+  padding: 0 10px !important;
+  border-color: var(--wb-line) !important;
+  border-radius: 9px !important;
+  background: var(--wb-surface-raised, #25262b) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+.multi-chat-picker-create:hover { background: color-mix(in srgb, var(--wb-surface-raised, #25262b) 80%, white 20%) !important; }
+.multi-chat-create-backdrop {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 20px;
+  background: #07080bc9;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+.multi-chat-create-form {
+  display: grid;
+  gap: 14px;
+  width: min(560px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 20px !important;
+  border: 1px solid var(--wb-line) !important;
+  border-radius: 16px !important;
+  background: var(--wb-surface, #191a1e) !important;
+  box-shadow: 0 28px 90px #000a !important;
+}
+.multi-chat-create-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.multi-chat-create-header > div { min-width: 0; }
+.multi-chat-create-header > div > span { color: var(--wb-muted); font-size: 10px; font-weight: 700; letter-spacing: .08em; }
+.multi-chat-create-header h2 { margin: 4px 0 6px; color: var(--wb-ink-strong); font-size: 18px; line-height: 1.3; }
+.multi-chat-create-header p { margin: 0; color: var(--wb-muted); font-size: 12px; line-height: 1.5; }
+.multi-chat-create-prompt { display: grid; gap: 7px; color: var(--wb-ink-strong); font-size: 12px; font-weight: 600; }
+.multi-chat-create-prompt textarea { width: 100%; min-height: 86px; resize: vertical; padding: 10px 11px; border: 1px solid var(--wb-line); border-radius: 10px; background: var(--wb-field, #111216); color: var(--wb-ink); font: inherit; font-weight: 400; line-height: 1.5; }
+.multi-chat-create-prompt textarea:focus { outline: 2px solid color-mix(in srgb, var(--wb-accent) 65%, transparent); outline-offset: 1px; }
+.multi-chat-create-form .chat-agent-card { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 12px; }
+.multi-chat-create-form .chat-agent-card > header { grid-column: 1 / -1; }
+.multi-chat-create-form .home-config-select { min-width: 0; }
+.multi-chat-create-form > .home-config-select-field { display: grid; gap: 6px; color: var(--wb-ink-strong); font-size: 12px; font-weight: 600; }
+.multi-chat-create-form > .home-config-select-field .codex-inline-trigger { width: 100%; justify-content: space-between; }
+.multi-chat-create-footer { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid var(--wb-line); }
+.multi-chat-create-footer .button { min-height: 36px; }
+.multi-chat-create-footer .button.primary { display: inline-flex; align-items: center; gap: 7px; }
+
+@media (max-width: 800px) {
+  .multi-chat-create-backdrop { padding: 12px; }
+  .multi-chat-create-form .chat-agent-card { grid-template-columns: minmax(0, 1fr); }
+  .multi-chat-create-form .chat-agent-card > header { grid-column: 1; }
+}
+@media (max-width: 420px) {
+  .multi-chat-create-form { padding: 15px !important; }
+  .multi-chat-create-header h2 { font-size: 16px; }
+}
+.multi-chat-pane .task-conversation-page.is-unified-chat .chat-composer,
+.multi-chat-pane .chat-composer,
+.multi-chat-pane .chat-composer-controls,
+.multi-chat-pane .composer-add-wrap,
+.multi-chat-pane .home-composer-actions,
+.multi-chat-pane .codex-inline-model-bar { min-width: 0 !important; max-width: 100% !important; box-sizing: border-box !important; }
+.multi-chat-pane .chat-composer-controls { flex-wrap: wrap !important; row-gap: 4px !important; }
+.multi-chat-pane .composer-add-wrap { flex: 0 1 auto !important; }
+.multi-chat-pane .home-composer-actions { flex: 1 1 190px !important; justify-content: flex-end !important; margin-left: auto !important; }
+.multi-chat-pane .codex-inline-model-bar { flex: 1 1 auto !important; justify-content: flex-end !important; }
+.multi-chat-pane .chat-send-button { flex: 0 0 34px !important; }
+.multi-chat-pane .codex-inline-trigger.is-model > span { max-width: clamp(64px, 18vw, 120px) !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+
 /* 7. Compact Ghost Action Menu Button (...) & 34px Stage Subheader Controls */
 summary.vault-more-btn,
 .vault-action-menu > summary.vault-more-btn {

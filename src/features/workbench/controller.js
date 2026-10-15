@@ -2955,10 +2955,13 @@ function chatPage() {
 function multiChatPage() {
   const workspace = view.state.workspaces.find((item) => item.id === view.chatSplitWorkspaceId);
   if (!workspace) { view.chatSplitWorkspaceId = ""; return chatPage(); }
+  const en = view.language === "en";
   const taskIds = (view.chatSplitTaskIds || []).filter((id, index, all) => all.indexOf(id) === index);
   view.chatSplitTaskIds = taskIds;
   const tasks = taskIds.map((id) => view.state.tasks.find((task) => task.id === id)).filter((task) => task?.workspaceId === workspace.id);
   const candidates = view.state.tasks.filter((task) => task.workspaceId === workspace.id && task.isolated && !task.archived && !task.worktreeCleaned && !task.worktreeAppliedAt);
+  const activeTask = tasks.find((task) => task.id === view.chatSplitActiveTaskId) || tasks[0];
+  const createSelection = normalizedChatSelection({ provider: view.homeChatProvider || activeTask?.config?.chatProvider, model: view.homeChatModel || activeTask?.config?.chatModel, effort: view.homeChatEffort || activeTask?.config?.chatEffort });
   view.chatSplitSelections ||= {};
   const panes = tasks.map((task) => {
     const role = task.config?.workflow === "chat-only" ? task.config : task.config?.roles?.plan || {};
@@ -2970,8 +2973,9 @@ function multiChatPage() {
     const usableWorktree = task.isolated && !task.worktreeCleaned && !task.worktreeAppliedAt;
     return `<section class="multi-chat-pane ${(view.chatSplitActiveTaskId || tasks[0]?.id) === task.id ? "is-active" : ""}" data-task-id="${esc(task.id)}"><header><div><strong title="${esc(task.title)}">${esc(compactChatTitle(task))}</strong><small>${esc(statuses[task.status] || task.status || "")}</small></div><button type="button" class="icon-button" data-action="remove-chat-pane" data-id="${esc(task.id)}" aria-label="Đóng khung chat">${icon("x", 15)}</button></header>${taskConversationPage(task.id, { splitPane: true, selection, draft: view.chatSplitDrafts?.[task.id] || "", locked: !usableWorktree })}</section>`;
   }).join("");
-  const picker = view.chatSplitPickerOpen ? `<div class="multi-chat-picker"><strong>Thêm chat đã tách worktree</strong>${candidates.filter((task) => !taskIds.includes(task.id)).map((task) => `<button type="button" data-action="add-chat-pane" data-id="${esc(task.id)}">${icon("git-branch", 14)}<span>${esc(task.title)}</span><small>${esc(statuses[task.status] || task.status)}</small></button>`).join("") || `<p>Chưa có chat worktree nào khác trong project.</p>`}${taskIds.length < 4 ? `<button type="button" class="multi-chat-picker-create" data-action="create-split-chat" data-workspace-id="${esc(workspace.id)}">${icon("plus", 14)} Tạo chat song song mới</button>` : `<p>Đã đạt tối đa 4 khung chat.</p>`}<button type="button" class="button quiet small" data-action="close-chat-picker">Đóng</button></div>` : "";
-  return `<section class="multi-chat-page">${picker}<div class="multi-chat-grid ${tasks.length < 2 ? "is-single" : tasks.length === 3 ? "is-three" : tasks.length > 3 ? "is-four" : ""}">${panes || `<div class="multi-chat-start"><strong>Chưa có chat để chia khung</strong><p>Bấm dấu + trên thanh tab để mở chat.</p></div>`}</div></section>`;
+  const picker = view.chatSplitPickerOpen ? `<div class="multi-chat-picker"><header><div><strong>${en ? "Add chat to panes" : "Thêm chat vào khung"}</strong><small>${esc(workspace.name)} · ${taskIds.length}/4 ${en ? "panes" : "khung"}</small></div><button type="button" class="icon-button" data-action="close-chat-picker" aria-label="${en ? "Close" : "Đóng"}">${icon("x", 14)}</button></header><div class="multi-chat-picker-list">${candidates.filter((task) => !taskIds.includes(task.id)).map((task) => `<button type="button" data-action="add-chat-pane" data-id="${esc(task.id)}">${icon("git-branch", 14)}<span>${esc(compactChatTitle(task))}</span><small>${esc(statuses[task.status] || task.status)}</small></button>`).join("") || `<p>${en ? "There are no other worktree chats in this project." : "Chưa có chat worktree nào khác trong project."}</p>`}</div>${taskIds.length < 4 ? `<button type="button" class="multi-chat-picker-create" data-action="create-split-chat" data-workspace-id="${esc(workspace.id)}">${icon("plus", 14)} ${en ? "Create parallel chat" : "Tạo chat song song mới"}</button>` : `<p class="multi-chat-picker-limit">${en ? "You have reached the 4 pane limit." : "Đã đạt tối đa 4 khung chat."}</p>`}</div>` : "";
+  const createModal = view.chatSplitCreateOpen ? `<div class="multi-chat-create-backdrop"><form class="home-composer multi-chat-create-form" data-modal data-form="home-task" data-split-chat-create="true" role="dialog" aria-modal="true" aria-label="${en ? "Create parallel chat" : "Tạo chat song song"}"><header class="multi-chat-create-header"><div><span>${en ? "PARALLEL CHAT" : "CHAT SONG SONG"}</span><h2>${en ? "Create a chat pane" : "Tạo chat trong khung mới"}</h2><p>${en ? "This chat will run in a separate Git worktree for" : "Chat mới sẽ chạy trên Git worktree riêng của"} <strong>${esc(workspace.name)}</strong>.</p></div><button type="button" class="icon-button" data-action="close-split-chat-create" aria-label="${en ? "Close" : "Đóng"}">${icon("x", 16)}</button></header><input type="hidden" name="workspaceId" value="${esc(workspace.id)}"><input type="hidden" name="workflow" value="chat-only"><input type="hidden" name="isolated" value="true"><label class="multi-chat-create-prompt">${en ? "Prompt" : "Yêu cầu"}<textarea name="prompt" data-home-prompt minlength="6" maxlength="50000" rows="3" autofocus placeholder="${en ? "What should the agent do in this chat?" : "Bạn muốn agent làm gì trong đoạn chat mới?"}">${esc(view.chatSplitCreateDraft)}</textarea></label>${chatAgentEditor({ provider: createSelection.provider, model: createSelection.model?.id, effort: createSelection.effort })}${homeSelectField(en ? "Access" : "Quyền truy cập", "permissionPreset", "data-home-permission", [{ value: "workspace-write", label: en ? "Read and edit workspace" : "Đọc và sửa workspace" }, { value: "read-only", label: en ? "Read only" : "Chỉ đọc workspace" }, { value: "full-access", label: en ? "Full machine access" : "Toàn quyền trên máy" }], view.homePermissionPreset || activeTask?.permissionPreset || "workspace-write")}<footer class="multi-chat-create-footer"><button type="button" class="button quiet" data-action="close-split-chat-create">${en ? "Cancel" : "Hủy"}</button><button type="submit" class="button primary">${icon("arrow-up-right", 15)} ${en ? "Create chat pane" : "Tạo khung chat"}</button></footer></form></div>` : "";
+  return `<section class="multi-chat-page">${picker}${createModal}<div class="multi-chat-grid ${tasks.length < 2 ? "is-single" : tasks.length === 3 ? "is-three" : tasks.length > 3 ? "is-four" : ""}">${panes || `<div class="multi-chat-start"><strong>Chưa có chat để chia khung</strong><p>Bấm dấu + trên thanh tab để mở chat.</p></div>`}</div></section>`;
 }
 function orderedConversationMessages(messages) {
   const users = messages.filter((message) => message.role === "user");
@@ -3946,14 +3950,17 @@ async function handleSubmit(event) {
         const payload = { ...object, workspaceId: view.chatSplitReturnWorkspaceId || object.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id, prompt: String(object.prompt || "").trim(), workflow, isolated: Boolean(view.chatSplitReturnWorkspaceId) || data.has("isolated") || Boolean(view.homeIsolated), permissionPreset: view.homePermissionPreset || object.permissionPreset || "full-access" };
         const task = await api("/api/tasks", { method: "POST", body: JSON.stringify(payload) });
         const splitWorkspaceId = view.chatSplitReturnWorkspaceId;
-        const returnToSplit = Boolean(splitWorkspaceId && splitWorkspaceId === task.task.workspaceId);
+        const returnToSplit = Boolean(splitWorkspaceId && (splitWorkspaceId === task.task.workspaceId || form.dataset.splitChatCreate === "true"));
         view.selected = task.task.id; view.page = "chat"; view.chatProvider = workflow === "chat-only" ? task.task.config.chatProvider : task.task.config.roles?.plan?.provider || "codex"; view.chatModel = workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; clearComposerAttachments(form);
         if (returnToSplit) {
-          view.chatSplitWorkspaceId = task.task.workspaceId;
+          view.chatSplitWorkspaceId = splitWorkspaceId;
           view.chatSplitTaskIds = [...new Set([...(view.chatSplitTaskIds || []), task.task.id])].slice(-4);
           view.chatSplitActiveTaskId = task.task.id;
           view.selected = null;
           view.chatSplitReturnWorkspaceId = "";
+          view.chatSplitCreateOpen = false;
+          view.chatSplitCreateDraft = "";
+          view.chatSplitPickerOpen = false;
         }
         showToast(workflow === "chat-only" ? "Đã gửi tin nhắn cho agent." : "Task thật đã vào hàng đợi.");
       }
@@ -4376,16 +4383,17 @@ async function handleWorkbenchClick(event) {
       const requestedTask = isolatedChats.find((task) => task.id === button.dataset.taskId);
       view.chatSplitTaskIds = [...new Set([requestedTask?.id, ...isolatedChats.map((task) => task.id)].filter(Boolean))].slice(0, 2);
       view.chatSplitActiveTaskId = view.chatSplitTaskIds[0] || "";
-      view.chatSplitPickerOpen = false; view.page = "chat"; view.selected = null; view.activeStageTabId = "chat"; view.stageSplit = false; view.chatDrawerOpen = false; clearSidebarSearch(); render(); return;
+      view.chatSplitPickerOpen = false; view.chatSplitCreateOpen = false; view.page = "chat"; view.selected = null; view.activeStageTabId = "chat"; view.stageSplit = false; view.chatDrawerOpen = false; clearSidebarSearch(); render(); return;
     }
-    if (action === "create-split-chat") { if ((view.chatSplitTaskIds || []).length >= 4) { showToast("Đã đạt giới hạn 4 khung chat."); return; } view.chatSplitReturnWorkspaceId = button.dataset.workspaceId || view.chatSplitWorkspaceId; view.homeIsolated = true; view.homeWorkspaceId = view.chatSplitReturnWorkspaceId; view.chatSplitWorkspaceId = ""; view.page = "chat"; view.selected = null; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; view.homeConfigOpen = true; render(); return; }
-    if (action === "exit-chat-split") { view.selected = view.chatSplitActiveTaskId || view.chatSplitTaskIds[0] || null; view.chatSplitWorkspaceId = ""; view.chatSplitTaskIds = []; view.activeStageTabId = "chat"; view.stageSplit = false; render(); return; }
+    if (action === "create-split-chat") { if ((view.chatSplitTaskIds || []).length >= 4) { showToast("Đã đạt giới hạn 4 khung chat."); return; } const active = view.state.tasks.find((task) => task.id === view.chatSplitActiveTaskId); view.chatSplitReturnWorkspaceId = button.dataset.workspaceId || view.chatSplitWorkspaceId; view.homeWorkspaceId = view.chatSplitReturnWorkspaceId; view.homeChatProvider = active?.config?.chatProvider || view.homeChatProvider; view.homeChatModel = active?.config?.chatModel || view.homeChatModel; view.homeChatEffort = active?.config?.chatEffort || view.homeChatEffort; view.homePermissionPreset = active?.permissionPreset || view.homePermissionPreset || "workspace-write"; view.chatSplitCreateDraft = ""; view.homeMode = "chat"; view.chatSplitCreateOpen = true; view.chatSplitPickerOpen = false; render(); return; }
+    if (action === "close-split-chat-create") { view.chatSplitCreateOpen = false; view.chatSplitCreateDraft = ""; view.chatSplitReturnWorkspaceId = ""; render(); return; }
+    if (action === "exit-chat-split") { view.selected = view.chatSplitActiveTaskId || view.chatSplitTaskIds[0] || null; view.chatSplitWorkspaceId = ""; view.chatSplitTaskIds = []; view.chatSplitCreateOpen = false; view.chatSplitReturnWorkspaceId = ""; view.activeStageTabId = "chat"; view.stageSplit = false; render(); return; }
     if (action === "focus-chat-pane") { view.chatSplitActiveTaskId = id; view.activeStageTabId = "chat"; render(); return; }
     if (action === "toggle-chat-picker") { view.chatSplitPickerOpen = !view.chatSplitPickerOpen; render(); return; }
     if (action === "close-chat-picker") { view.chatSplitPickerOpen = false; render(); return; }
     if (action === "add-chat-pane") { if (!view.chatSplitTaskIds.includes(id) && view.chatSplitTaskIds.length < 4) view.chatSplitTaskIds.push(id); view.chatSplitPickerOpen = false; render(); return; }
     if (action === "remove-chat-pane") { view.chatSplitTaskIds = view.chatSplitTaskIds.filter((taskId) => taskId !== id); if (view.chatSplitActiveTaskId === id) view.chatSplitActiveTaskId = view.chatSplitTaskIds[0] || ""; render(); return; }
-    if (action === "new-chat") { view.chatSplitWorkspaceId = ""; view.chatSplitReturnWorkspaceId = ""; view.page = "chat"; view.selected = null; view.activeStageTabId = "chat"; view.stageSplit = false; view.chatDraft = ""; view.homeWorkspaceId = button.dataset.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || ""; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; clearSidebarSearch(); view.homeConfigOpen = false; closeOverlay(); render(); }
+    if (action === "new-chat") { view.chatSplitWorkspaceId = ""; view.chatSplitCreateOpen = false; view.chatSplitReturnWorkspaceId = ""; view.page = "chat"; view.selected = null; view.activeStageTabId = "chat"; view.stageSplit = false; view.chatDraft = ""; view.homeWorkspaceId = button.dataset.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || ""; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; clearSidebarSearch(); view.homeConfigOpen = false; closeOverlay(); render(); }
     if (action === "refresh") { await scanCliProviders(button); }
     if (action === "scan-skills") {
       button.disabled = true;
@@ -5320,7 +5328,8 @@ document.addEventListener("input", (event) => {
   }
   const homePrompt = event.target.closest("[data-home-prompt]");
   if (homePrompt) {
-    view.chatDraft = homePrompt.value;
+    if (homePrompt.closest("[data-split-chat-create]")) view.chatSplitCreateDraft = homePrompt.value;
+    else view.chatDraft = homePrompt.value;
     resizeComposerTextarea(homePrompt);
     void updateComposerMentionMenu(homePrompt);
     return;
