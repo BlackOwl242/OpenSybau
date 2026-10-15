@@ -480,18 +480,234 @@ const english = {
   "Hãy chọn một dự án trước khi gửi nhận xét phần tử.": "Select a project before sending element feedback.",
   "Đã thêm nhận xét phần tử vào hàng chờ của Agent.": "Added element feedback to the agent queue.",
   "Đã gửi nhận xét phần tử cho Agent xử lý.": "Sent element feedback to the agent.",
+  "Lưu trữ": "Archive",
+  "Khôi phục": "Restore",
+  "Xóa vĩnh viễn": "Delete permanently",
+  "Chưa có dự án nào được chọn.": "No project selected.",
+  "Làm mới": "Refresh",
+  "Quay lại": "Back",
+  "Tiến tới": "Forward",
+  "Đóng/mở thanh bên trái": "Toggle left sidebar",
+  "Thanh tiêu đề cửa sổ": "Window title bar",
+  "Thanh tab đa cửa sổ": "Workspace tabs",
+  "Điều hướng chính": "Main navigation",
+  "Thêm trang": "More pages",
+  "Thao tác chat": "Chat actions",
+  "Thư mục & Tệp": "Folders & files",
+  "Cây thư mục & Tệp": "Folders & files",
+  "Tìm kiếm tệp": "Search files",
+  "Thay đổi (Changes) & Worktree": "Changes & worktrees",
+  "Mục tiêu & Công cụ phiên": "Goals & session tools",
+  "Thanh công cụ mở rộng bên phải": "Right sidebar",
+  "Công cụ thanh bên phải": "Sidebar tools",
+  "Đóng thanh bên phải": "Close right sidebar",
+  "Mở thanh bên phải": "Open right sidebar",
+  "Tìm kiếm": "Search",
+  "Phiên trò chuyện": "Chat session",
+  "Luồng điều phối": "Agent workflow",
+  "Quyền truy cập": "Access permissions",
+  "Mục tiêu & Checklist": "Goal & checklist",
+  "Cấu hình Agent / Model": "Agent / model settings",
+  "Sửa cấu hình dự án": "Edit project settings",
+  "Chưa kết nối Obsidian Vault.": "No Obsidian vault connected.",
+  "Kết nối Vault": "Connect vault",
+  "Đổi thư mục Vault…": "Change vault folder…",
+  "Ngắt kết nối Vault": "Disconnect vault",
+  "Chưa có ghi chú Markdown.": "No Markdown notes yet.",
+  "Đang tải cây tệp dự án…": "Loading project files…",
+  "Không có ghi chú khớp từ khóa.": "No notes match your search.",
+  "Không có kỹ năng phù hợp.": "No matching skills.",
+  "Không tìm thấy tệp phù hợp.": "No matching files.",
+  "Chưa có liên kết": "No links yet",
+  "cho ghi chú này.": "for this note.",
+  "THẺ CHỦ ĐỀ (#TAGS)": "TOPIC TAGS (#TAGS)",
+  "Gộp vào dự án": "Merge into project",
+  "Hủy worktree": "Discard worktree",
+  "So sánh": "Compare",
+  "THÔNG TIN & CÔNG CỤ PHIÊN": "SESSION DETAILS & TOOLS",
+  "Quyền": "Permissions",
+  "Mục tiêu": "Goal",
+  "Mở thư mục": "Open folder",
+  "Dừng": "Stop",
+  "Chưa có checklist nghiệm thu.": "No acceptance checklist yet.",
+  "Thêm checklist": "Add checklist",
+  "Đóng xem tệp": "Close file preview",
+  "Chat mới": "New chat",
+  "Mở Explorer": "Open Explorer",
+  "Cấu hình": "Settings",
+  "Chọn tệp ở thanh bên phải để đọc mã nguồn": "Select a file in the right sidebar to view its source",
+  "Cây thư mục dự án, tìm kiếm tệp và quản lý nhánh Git Worktree nằm gọn trong thanh công cụ bên phải.": "Browse project files, search, and manage Git worktrees from the right sidebar.",
+  "Đang chọn": "Selected",
+  "Nút liên kết": "Linked nodes",
+  "Kéo để xoay · Cuộn để thu phóng · Nhấp đúp để đọc": "Drag to rotate · Scroll to zoom · Double-click to read",
+  "Chọn ghi chú từ thanh bên phải": "Select a note from the right sidebar",
+  "Chọn kỹ năng từ thanh bên phải": "Select a skill from the right sidebar",
+  "Chỉnh sửa trực tiếp": "Edit directly",
+  "cục bộ của skill": "local skill file",
+  "Lưu SKILL.md": "Save SKILL.md",
+  "Đang tải nội dung SKILL.md…": "Loading SKILL.md…",
+  "hoặc tạo kỹ năng mới.": "or create a new skill.",
+  "Mục tiêu cuộc trò chuyện": "Conversation goal",
+  "Agent và model": "Agent and model",
+  "Thêm vào cuộc trò chuyện": "Add to conversation",
+  "Thêm tệp và tính năng": "Add files and tools",
+  "Chọn Agent & Model": "Choose agent & model",
+  "Tệp văn bản được gửi riêng kèm tin nhắn. Tối đa 20 tệp, tổng 1 MB.": "Text files are attached separately to your message. Up to 20 files, 1 MB total.",
+  "Thêm tệp nội dung": "Attach files",
+  "OpenSybau · mọi agent, gồm API": "OpenSybau · all agents, including APIs",
+  "Tất cả CLI · Codex, Antigravity, Claude": "All CLIs · Codex, Antigravity, Claude",
+  "Dùng Codex, Antigravity hoặc Claude CLI?": "Using Codex, Antigravity, or Claude CLI?",
+  "OpenSybau tự dò CLI đã cài và đăng nhập qua terminal, không cần nhập API key.": "OpenSybau detects installed CLIs and opens a sign-in terminal. No API key required.",
+  "Kết nối CLI": "Connect CLI",
+  "Kiểm tra kết nối CLI": "Check CLI connection",
+  "CLI đã có trên máy. Bấm Quét lại để thử đọc danh sách model.": "The CLI is installed. Select Scan again to load its models.",
+  "CLI đã cài sẽ tự kết nối. Bấm Quét lại nếu vừa cài hoặc đăng nhập.": "Installed CLIs connect automatically. Scan again after installing or signing in.",
+  "2× Cùng model": "2× Same model",
+  "3× Cùng model": "3× Same model",
+  "Đa hãng": "Multiple providers",
+  "Thêm nhánh": "Add branch",
+  "Mặc định": "Default",
+  "Toàn quyền trên máy": "Full computer access",
+  "Đọc và sửa workspace": "Read & edit workspace",
+  "Chỉ đọc workspace": "Read-only workspace",
+  "So sánh & Chọn bản thắng": "Compare & choose winner",
+  "Chèn @file": "Insert @file",
+  "Tạo nhánh": "Fork",
+  "Xem nguyên nhân lỗi": "View error details",
+  "Tiến độ checklist": "Checklist progress",
+  "Checklist nghiệm thu": "Acceptance checklist",
+  "Xem lỗi": "View error",
+  "Nguyên nhân được trả về từ agent hoặc tiến trình:": "Error returned by the agent or process:",
+  "Mục tiêu dài hạn": "Long-term goal",
+  "OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò.": "OpenSybau finds relevant skills and passes them to each role's agent.",
+  "Gộp Worktree vào dự án": "Merge worktree into project",
+  "Hủy Worktree": "Discard worktree",
+  "Lưu nhận xét": "Save comment",
+  "Nhấn vào dòng bất kỳ để gắn nhận xét cho Agent sửa": "Click a line to add feedback for the agent",
+  "Tệp nhị phân hoặc không có dòng thay đổi văn bản.": "Binary file or no text changes.",
+  "tệp sửa": "modified files",
+  "Chưa có tệp thay đổi.": "No changed files yet.",
+  "Mở Chat": "Open chat",
+  "Chèn tệp dự án (@file)": "Insert project file (@file)",
+  "Thử lại": "Retry",
+  "Tệp dữ liệu trống.": "The data file is empty.",
+  "Tóm tắt và điều hướng câu trả lời": "Answer summary and navigation",
+  "Tóm tắt câu trả lời": "Answer summaries",
+  "Tệp văn bản, Markdown, mã nguồn": "Text, Markdown, and source files",
+  "Thư mục tệp văn bản": "Folder of text files",
+  "Trạng thái hệ thống và hạn mức": "System status and usage",
+  "Xem danh sách tác vụ": "View tasks",
+  "Số Git worktree cô lập đang mở": "Open isolated Git worktrees",
+  "Chuyển ngôn ngữ VI / EN": "Switch language: VI / EN",
+  "So sánh Đa luồng & Chọn bản thắng": "Compare agents & choose winner",
+  "So sánh Đa luồng": "Compare agents",
+  "Chat mới trong dự án": "New chat in project",
+  "Thêm hoặc quản lý dự án": "Add or manage projects",
+  "Thêm thư mục dự án": "Add project folder",
+  "Workspace và cuộc trò chuyện": "Workspaces and chats",
+  "Tìm kiếm cuộc trò chuyện": "Search chats",
+  "Thêm dự án mới": "Add new project",
+  "Tìm cuộc trò chuyện…": "Search chats…",
+  "OPENSYBAU · THIẾT LẬP": "OPENSYBAU · SETUP",
+  "Đóng hướng dẫn": "Close setup guide",
+  "OpenSybau tự tìm và kết nối CLI đã cài trên máy. Nếu vừa cài hoặc đăng nhập, bấm Quét lại để cập nhật trạng thái.": "OpenSybau finds and connects installed CLIs automatically. Scan again after installing or signing in.",
+  "Mở cuộc trò chuyện mới": "Open new chat",
+  "Chia đôi màn hình: Chat + Xem File song song": "Split view: chat and file preview",
+  "Tắt chế độ chia đôi màn hình": "Exit split view",
+  "Biểu đồ sự kiện task theo giờ trong 24 giờ qua": "Hourly task events over the last 24 hours",
+  "Tùy chọn tệp": "File options",
+  "Đọc ghi chú": "Read note",
+  "Chỉnh sửa ghi chú": "Edit note",
+  "Xem trên đồ thị": "View in graph",
+  "Xóa ghi chú": "Delete note",
+  "Đường dẫn tệp ghi chú (.md)": "Note file path (.md)",
+  "Ví dụ: kien-truc/he-thong.md": "Example: architecture/system.md",
+  "Nội dung Markdown": "Markdown content",
+  "Sử dụng cú pháp": "Use",
+  "hoặc": "or",
+  "để tạo liên kết trên đồ thị tri thức.": "to create links in the knowledge graph.",
+  "Quay về cửa sổ Chat": "Back to chat",
+  "Tải lại trang web": "Reload page",
+  "Chế độ xem tệp": "File view mode",
+  "Kéo để thay đổi tỷ lệ giữa Chat và Trình xem tệp": "Drag to resize chat and file preview",
+  "Tùy chọn Vault": "Vault options",
+  "Ghi chú Markdown mới": "New Markdown note",
+  "Tạo skill mới": "Create skill",
+  "Tùy chọn dự án & phiên": "Project & session options",
+  "Thêm tiêu đề": "Add headings",
+  "để tạo mục lục tự động.": "to generate a table of contents.",
+  "Sửa mục tiêu": "Edit goal",
+  "Kéo để thay đổi độ rộng thanh bên phải": "Drag to resize the right sidebar",
+  "Không gian Dự án": "Project workspace",
+  "Kết nối vault để duyệt, chỉnh sửa ghi chú Markdown và xem đồ thị liên kết tri thức trực tiếp trên máy.": "Connect a vault to browse and edit Markdown notes and explore their knowledge graph locally.",
+  "OpenSybau chỉ đọc/ghi thư mục bạn chỉ định; nội dung không được đưa vào prompt tự động.": "OpenSybau only reads and writes the folder you choose. Its contents are not added to prompts automatically.",
+  "Căn giữa đồ thị": "Center graph",
+  "Làm mới đồ thị": "Refresh graph",
+  "Chưa có ghi chú nào trong vault": "No notes in this vault yet",
+  "Tạo ghi chú Markdown mới và dùng": "Create a Markdown note and use",
+  "để xây dựng mạng tri thức.": "to build your knowledge network.",
+  "Nhập nội dung Markdown… Dùng [[Tên ghi chú]] để tạo liên kết và #tag để phân nhóm.": "Enter Markdown… Use [[Note name]] for links and #tags to organize notes.",
+  "Hỗ trợ": "Supports",
+  "và": "and",
+  "· Nhấn": "· Press",
+  "để lưu nhanh.": "to save.",
+  "Duyệt cây thư mục ghi chú, tìm kiếm": "Browse notes and search",
+  "ở thanh bên phải hoặc xem mạng đồ thị nơ-ron.": "in the right sidebar, or explore the knowledge graph.",
+  "Không gian Tri thức": "Knowledge workspace",
+  "Chế độ xem Tri thức": "Knowledge view mode",
+  "Nội dung SKILL.md…": "SKILL.md content…",
+  "Duyệt danh sách kỹ năng theo nhóm ở thanh bên phải để đọc hướng dẫn": "Browse skills by group in the right sidebar to read their instructions",
+  "Không gian Kỹ năng": "Skills workspace",
+  "Tệp đính kèm": "Attachments",
+  "Gỡ tệp": "Remove attachment",
+  "Chọn quyền thực thi của Agent": "Choose agent permissions",
+  "Chọn nhiều tệp văn bản cùng lúc, gồm Markdown (.md), TXT, JSON, YAML, CSV, HTML và mã nguồn. Tệp được nối vào nội dung, không lưu riêng.": "Select multiple text files, including Markdown (.md), TXT, JSON, YAML, CSV, HTML, and source code. Their contents are imported without storing separate copies.",
+  "Ví dụ: review-api": "Example: review-api",
+  "Khi nào và cách nào nên dùng skill này": "When and how to use this skill",
+  "Quy trình, quy tắc và kết quả mong muốn…": "Steps, rules, and expected results…",
+  "OpenSybau lưu skill dùng chung trong dữ liệu riêng của ứng dụng và đưa hướng dẫn vào prompt của agent đã chọn, kể cả API. Chọn một CLI để cài skill trực tiếp vào thư mục cá nhân của CLI đó. OpenSybau không ghi đè skill trùng tên.": "Shared skills are stored in OpenSybau's app data and included in prompts for the selected agent, including API agents. Choose a CLI to install directly in its personal skills folder. Existing skills with the same name are preserved.",
+  "Phạm vi bộ nhớ": "Memory scope",
+  "Xóa ghi nhớ": "Delete memory",
+  "dùng endpoint": "use endpoint",
+  "API key được lưu trong thư mục dữ liệu riêng của OpenSybau, không hiển thị lại trong giao diện. Chỉ nhập key qua localhost hoặc HTTPS; provider API không có quyền chạy lệnh trong workspace.": "API keys are stored in OpenSybau's private app data and are not shown again. Enter keys only over localhost or HTTPS. API providers cannot run workspace commands.",
+  "Tạo API key": "Create API key",
+  "Chọn dịch vụ rồi bấm tải danh sách, hoặc nhập mỗi dòng một model ID": "Choose a service and load its models, or enter one model ID per line",
+  "API key được lưu cục bộ trong thư mục dữ liệu riêng của OpenSybau; API OpenAI tính phí riêng với gói ChatGPT.": "API keys are stored locally in OpenSybau's private app data. OpenAI API billing is separate from a ChatGPT subscription.",
+  "Chạy 2 nhánh song song cùng dùng 1 model": "Run 2 parallel agents with the same model",
+  "Chạy 3 nhánh song song cùng dùng 1 model": "Run 3 parallel agents with the same model",
+  "Mỗi hãng CLI 1 nhánh": "One agent per CLI provider",
+  "Thêm 1 nhánh Agent song song (tối đa 8)": "Add a parallel agent (up to 8)",
+  "Nhân bản thêm 1 nhánh giống hệt nhánh này": "Duplicate this agent",
+  "Xóa nhánh này": "Remove this agent",
+  "Chọn dự án (Workspace)": "Select project (workspace)",
+  "Chạy đa luồng nhiều agent (cùng hoặc khác model) trên các Git worktree riêng": "Run multiple agents with the same or different models in separate Git worktrees",
+  "Chọn nhanh Agent & Model": "Quickly choose agent & model",
+  "Mức suy luận (Reasoning Effort)": "Reasoning effort",
+  "Áp dụng thay đổi từ worktree cô lập này vào nhánh chính của dự án": "Apply this isolated worktree's changes to the project's main branch",
+  "Hủy bỏ và xóa nhánh Git worktree cô lập này": "Discard and remove this isolated Git worktree",
+  "Đa luồng Agent": "Parallel agents",
+  "Cây thư mục và Tệp thay đổi": "File tree and changes",
+  "Đóng ngăn tệp": "Close files pane",
+  "Lọc nhanh tên tệp…": "Filter file names…",
+  "Tạo nhánh hội thoại từ đây; workspace vẫn dùng chung": "Fork this conversation; the workspace remains shared",
+  "Kết quả dài hạn cần đạt": "Long-term outcome",
+  "Mỗi dòng là một tiêu chí hoàn tất": "One acceptance criterion per line",
+  "Tối đa 20 mục, mỗi mục tối đa 300 ký tự. Agent sẽ nhận checklist ở các lượt sau.": "Up to 20 items, 300 characters each. The agent receives this checklist in future turns.",
+  "Toàn quyền tắt sandbox và bước duyệt của CLI cục bộ (Codex, Antigravity hoặc Claude Code), cho phép agent chạy lệnh và truy cập tệp ngoài workspace theo quyền tài khoản Windows của bạn. Chỉ chọn khi bạn tin cậy yêu cầu và nội dung trong workspace. Provider API vẫn không có quyền chạy lệnh trên máy.": "Full access disables the local CLI sandbox and approval prompts for Codex, Antigravity, or Claude Code. Agents can run commands and access files outside the workspace with your Windows account's permissions. Use this only for trusted requests and workspace content. API providers still cannot execute local commands.",
+  "Điều phối task": "Task orchestration",
+  "Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…": "Describe the task, scope, and acceptance criteria…",
+  "Không bắt buộc": "Optional",
+  "Dán đường dẫn hoặc kéo thả một thư mục từ Explorer vào ô này. OpenSybau sẽ dùng đúng thư mục bạn chọn.": "Paste a path or drag a folder from Explorer into this field. OpenSybau uses the exact folder you choose.",
+  "Ví dụ: Cách chạy kiểm thử dự án": "Example: How to run project tests",
+  "Một ghi chú đã kiểm chứng, hữu ích cho các task sau": "A verified note for future tasks",
+  "Xóa nhận xét": "Delete comment",
+  "Danh sách tệp thay đổi": "Changed files",
 };
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));
 const englishDictionary = new Map(Object.entries(english));
-const englishPhrases = [...Object.entries(english)].filter(([vi, en]) => vi !== en).sort((a, b) => b[0].length - a[0].length);
-const vietnamesePhrases = [...vietnamese.entries()].filter(([en, vi]) => en !== vi).sort((a, b) => b[0].length - a[0].length);
-const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const englishPhraseLookup = new Map(englishPhrases.map(([vi, en]) => [vi.toLocaleLowerCase(), en]));
-const vietnamesePhraseLookup = new Map(vietnamesePhrases.map(([en, vi]) => [en.toLocaleLowerCase(), vi]));
-const phrasePattern = (phrases) => new RegExp(`(^|[^\\p{L}\\p{N}])(${phrases.map(([phrase]) => escapeRegex(phrase)).join("|")})(?=$|[^\\p{L}\\p{N}])`, "giu");
-const englishPhrasePattern = phrasePattern(englishPhrases);
-const vietnamesePhrasePattern = phrasePattern(vietnamesePhrases);
+const sourceTexts = new WeakMap();
+const sourceAttributes = new WeakMap();
 
 export function getLanguage() {
   try { return localStorage.getItem(LANGUAGE_KEY) === "en" ? "en" : "vi"; }
@@ -507,6 +723,18 @@ export function setLanguage(language) {
 
 function dynamicTranslation(value, language) {
   if (language === "en") {
+    for (const [pattern, label] of [
+      [/^Thao tác chat (.+)$/, "Chat actions"],
+      [/^Thao tác với (.+)$/, "Actions for"],
+      [/^Thao tác dự án (.+)$/, "Project actions"],
+      [/^Chat mới trong (.+)$/, "New chat in"],
+      [/^Sửa dự án (.+)$/, "Edit project"],
+      [/^Đóng tab (.+)$/, "Close tab"],
+      [/^Gỡ tệp (.+)$/, "Remove attachment"],
+    ]) {
+      const match = value.match(pattern);
+      if (match) return `${label} ${match[1]}`;
+    }
     let match = value.match(/^(\d+) task$/i); if (match) return `${match[1]} tasks`;
     match = value.match(/^(\d+) skill$/i); if (match) return `${match[1]} skills`;
     match = value.match(/^(\d+) task đã ghi trên máy này$/i); if (match) return `${match[1]} tasks recorded on this computer`;
@@ -579,10 +807,15 @@ export function translateText(input, language = getLanguage()) {
   if (exact) return `${leading}${exact}${trailing}`;
   const dynamic = dynamicTranslation(core, language);
   if (dynamic !== core) return `${leading}${dynamic}${trailing}`;
-  const lookup = language === "en" ? englishPhraseLookup : vietnamesePhraseLookup;
-  const pattern = language === "en" ? englishPhrasePattern : vietnamesePhrasePattern;
-  const translated = core.replace(pattern, (match, boundary, phrase) => boundary + (lookup.get(phrase.toLocaleLowerCase()) || phrase));
-  return `${leading}${translated}${trailing}`;
+  // Translate complete labels, never individual words inside an unknown sentence.
+  // A metadata row may contain several independent labels separated by a middle dot.
+  const parts = core.split(/(\s+·\s+|\n+)/);
+  if (parts.length > 1) return `${leading}${parts.map((part, index) => index % 2 ? part : translateText(part, language)).join("")}${trailing}`;
+  if (core.endsWith(":")) {
+    const label = dictionary.get(core.slice(0, -1));
+    if (label) return `${leading}${label}:${trailing}`;
+  }
+  return value;
 }
 
 const translatableAttributes = ["aria-label", "aria-description", "title", "placeholder", "alt"];
@@ -592,18 +825,21 @@ const dynamicContentSelector = [
   ".task-primary strong", ".task-title", ".wb-task-copy strong", ".wb-project-toggle strong", ".wb-project-preview strong",
   ".wb-project-preview li span", ".file-row strong", ".file-preview-head strong", ".source-folder-row input",
   ".chat-home-card strong", ".workflow-task-title strong", ".workspace-card-main strong", ".wb-task-heading strong",
+  ".chat-outline-preview", "[data-localize-skip=true]", ".orca-tree-label", ".orca-dock-title",
 ].join(",");
 
 export function localizeDom(root, language = getLanguage()) {
   if (!root || typeof document === "undefined") return;
-  if (language === "vi" && root.dataset?.localizedLang !== "en") return;
   if (root.dataset) root.dataset.localizedLang = language;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes = [];
   while (walker.nextNode()) nodes.push(walker.currentNode);
   for (const node of nodes) {
     if (node.parentElement?.closest(dynamicContentSelector)) continue;
-    const translated = translateText(node.nodeValue, language);
+    const previous = sourceTexts.get(node);
+    const source = previous && node.nodeValue === previous.translated ? previous.source : node.nodeValue;
+    const translated = translateText(source, language);
+    sourceTexts.set(node, { source, translated });
     if (translated !== node.nodeValue) node.nodeValue = translated;
   }
   const elements = root.querySelectorAll?.("*") || [];
@@ -612,10 +848,30 @@ export function localizeDom(root, language = getLanguage()) {
     for (const attribute of translatableAttributes) {
       const value = element.getAttribute(attribute);
       if (value == null) continue;
-      const translated = translateText(value, language);
+      const attributes = sourceAttributes.get(element) || new Map();
+      const previous = attributes.get(attribute);
+      const source = previous && value === previous.translated ? previous.source : value;
+      const translated = translateText(source, language);
+      attributes.set(attribute, { source, translated });
+      sourceAttributes.set(element, attributes);
       if (translated !== value) element.setAttribute(attribute, translated);
     }
   }
+}
+
+// Preact menus can render independently of the controller. Localize those updates
+// from their original labels too, without translating user messages or file data.
+export function observeLocalization(root) {
+  if (!root || typeof MutationObserver === "undefined") return () => {};
+  const options = { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: translatableAttributes };
+  const observer = new MutationObserver((records) => {
+    if (!records.some(({ target }) => !(target.nodeType === 1 ? target : target.parentElement)?.closest(dynamicContentSelector))) return;
+    observer.disconnect();
+    localizeDom(root);
+    observer.observe(root, options);
+  });
+  observer.observe(root, options);
+  return () => observer.disconnect();
 }
 
 export function formatNumber(value, language = getLanguage()) {

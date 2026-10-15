@@ -144,7 +144,6 @@ button:disabled { cursor: not-allowed; }
 .wb-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--wb-main); }
 .wb-topbar { position: relative; z-index: 3; height: 60px; flex: 0 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: clamp(14px, 2vw, 28px); padding: 0 clamp(16px, 2.2vw, 30px); border-bottom: 1px solid #383a3d; background: #242526; }
 .wb-topbar-leading { min-width: 0; display: flex; align-items: center; gap: 10px; }
-.wb-mobile-menu-button { display: none; }
 .wb-breadcrumb { min-width: 0; display: flex; align-items: center; gap: 8px; color: #96999e; font-size: 11px; }
 .wb-breadcrumb strong { min-width: 0; overflow: hidden; color: #e2e3e5; font-weight: 580; text-overflow: ellipsis; white-space: nowrap; }
 .wb-task-heading { min-width: 0; display: grid; gap: 3px; }
@@ -521,9 +520,6 @@ button:disabled { cursor: not-allowed; }
   .wb-page-sidebar { display: none; }
   .wb-mobile-sidebar-backdrop { position: fixed; inset: 0; z-index: 41; display: block; border: 0; background: #0009; }
   .wb-topbar { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; height: calc(56px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 11px 0; }
-  .wb-mobile-menu-button { position: relative; width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid #3d3f42; border-radius: 9px; color: #d7d8da; background: #292a2c; }
-  .wb-mobile-menu-button::before { width: 17px; height: 2px; border-radius: 2px; background: currentColor; box-shadow: 0 -5px currentColor, 0 5px currentColor; content: ""; }
-  .wb-mobile-menu-button:active { background: #3a3c3f; }
   .wb-breadcrumb > span, .wb-breadcrumb > .wb-icon { display: none; }
   .wb-task-heading > span { max-width: 100%; }
   .wb-task-heading > strong { max-width: 100%; }

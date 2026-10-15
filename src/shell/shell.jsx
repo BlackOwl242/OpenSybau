@@ -21,7 +21,13 @@ function StatusBar({ snapshot }) {
   const worktreeCount = Number(telemetry.worktreeCount || 0);
   const tokens5h = Number(telemetry.tokens5h || 0);
   const tokens7d = Number(telemetry.tokens7d || 0);
+  const usageProviders = [
+    ["codex", "Codex CLI"],
+    ["claude", "Claude Code"],
+    ["antigravity", "Antigravity"],
+  ];
   const connected = snapshot.streamConnected !== false;
+  const english = snapshot.language === "en";
 
   return <footer class="wb-statusbar" aria-label="Trạng thái hệ thống và hạn mức">
     <div class="wb-status-left">
@@ -43,11 +49,21 @@ function StatusBar({ snapshot }) {
         <Icon name="git-branch" size={12} />
         <span>{worktreeCount} worktree</span>
       </span> : null}
-      <span class="wb-status-item wb-status-quota" title={`Tổng token tiêu thụ cục bộ — 5 giờ qua: ${formatNumber(tokens5h)} · 7 ngày qua: ${formatNumber(tokens7d)}`}>
+      <details class="wb-status-usage">
+      <summary class="wb-status-item wb-status-quota" title="Usage token được OpenSybau ghi nhận theo CLI; không phải hạn mức hoặc số dư tài khoản">
         <span>5h: <strong>{formatNumber(tokens5h)}</strong> tok</span>
         <span class="wb-status-sep">·</span>
         <span>7d: <strong>{formatNumber(tokens7d)}</strong> tok</span>
-      </span>
+      </summary>
+      <div class="wb-usage-popover">
+        <strong>{english ? "Usage by agent" : "Usage theo agent"}</strong>
+        <p>{english ? "Tokens recorded from runs in OpenSybau; account quotas are managed by each CLI/provider." : "Token ghi nhận từ các lượt chạy trong OpenSybau; hạn mức tài khoản do CLI/provider quản lý."}</p>
+        {usageProviders.map(([id, name]) => {
+          const usage = telemetry.byProvider?.[id] || {};
+          return <div class="wb-usage-provider" key={id}><strong>{name}</strong><span>{english ? "5h" : "5 giờ"} <b>{formatNumber(usage.tokens5h || 0)}</b></span><span>{english ? "7d" : "7 ngày"} <b>{formatNumber(usage.tokens7d || 0)}</b></span><span>{english ? "Output" : "Đầu ra"} <b>{formatNumber(usage.outputTokens || 0)}</b></span></div>;
+        })}
+      </div>
+      </details>
     </div>
   </footer>;
 }
@@ -134,7 +150,10 @@ export function AppShell({ snapshot, pageMarkup }) {
     <WindowChrome
       snapshot={snapshot}
       sidebarCollapsed={sidebarCollapsed}
-      onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+      onToggleSidebar={() => {
+        if (window.matchMedia("(max-width: 740px)").matches) setMobileSidebarOpen((prev) => !prev);
+        else setSidebarCollapsed((prev) => !prev);
+      }}
     />
     <NavRail page={page} snapshot={snapshot} />
     <ContextSidebar snapshot={snapshot} mobileOpen={mobileSidebarOpen} mobileOnly={!hasContextSidebar} onNavigate={() => setMobileSidebarOpen(false)} />
@@ -143,15 +162,18 @@ export function AppShell({ snapshot, pageMarkup }) {
     <main class={`wb-main ${home && !hasStageTabs ? "is-home-stage" : ""}`}>
       <div class={`wb-workspace-split ${hasRightDock ? "has-right-dock" : ""}`}>
         <div class="wb-stage-column">
-          <TopBar snapshot={snapshot} onOpenNavigation={() => setMobileSidebarOpen(true)} />
+      <TopBar snapshot={snapshot} />
           <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${(page === "chat" && snapshot.selected) || isViewingFileTab ? "is-task-detail" : ""} ${isViewingFileTab ? "is-orca-tab-stage" : ""} ${(page === "knowledge" && snapshot.state?.settings?.vaultPath) || page === "skills" || (page === "workspaces" && (snapshot.selected || snapshot.state?.workspaces?.length)) ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
         </div>
         {hasRightDock ? (
+          <>
+          <button class="wb-dock-backdrop" type="button" data-action="toggle-chat-drawer" aria-label="Đóng thanh bên phải" />
           <aside
             class="orca-right-dock"
             aria-label="Thanh công cụ mở rộng bên phải"
             dangerouslySetInnerHTML={{ __html: snapshot.rightDockMarkup }}
           />
+          </>
         ) : null}
       </div>
       <StatusBar snapshot={snapshot} />

@@ -7,6 +7,15 @@ import { updateWorkbenchShell } from "../../shell/mount.jsx";
 import { readBrowserRoute, syncBrowserRoute } from "../../shell/router.js";
 
 Object.assign(view, readBrowserRoute());
+const compactLayout = window.matchMedia("(max-width: 1020px)");
+if (compactLayout.matches) view.chatDrawerOpen = false;
+compactLayout.addEventListener("change", ({ matches }) => {
+  if (matches) {
+    view.chatDrawerOpen = false;
+    view.stageSplit = false;
+    render();
+  }
+});
 document.documentElement.lang = view.language;
 if (window.opensybauDesktop?.isDesktop) document.documentElement.classList.add("desktop-glass");
 let browserRouteInitialized = false;
@@ -2612,11 +2621,11 @@ function render() {
   }
   const nextChat = $("#chat-thread", nextContent);
   if (nextChat) nextChat.scrollTop = shouldScrollChatToEnd ? nextChat.scrollHeight : chatScroll;
+  updateChatOutline();
   if (activeComposerForm && activeComposerName) {
     const nextInput = $(`${activeComposerForm} [name="${activeComposerName}"]`, nextContent);
     if (nextInput) {
-      nextInput.style.height = "auto";
-      nextInput.style.height = `${Math.min(200, Math.max(24, nextInput.scrollHeight))}px`;
+      resizeComposerTextarea(nextInput);
       nextInput.focus({ preventScroll: true });
       if (activeComposerSelection && nextInput.setSelectionRange) nextInput.setSelectionRange(...activeComposerSelection);
     }
@@ -3050,6 +3059,163 @@ function chatContextDrawer(task) {
     </section>` : ""}
   </aside>`;
 }
+function plainChatExcerpt(value, maxLength = 220) {
+  const excerpt = String(value || "")
+    .replace(/```[\s\S]*?```/g, " Khối mã ")
+    .replace(/!?\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/[#>*_`~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return excerpt.length > maxLength ? `${excerpt.slice(0, maxLength).trimEnd()}…` : excerpt;
+}
+
+function chatDurationLabel(value) {
+  const milliseconds = Math.max(0, Number(value) || 0);
+  if (milliseconds < 1000) return `${milliseconds} ms`;
+  const seconds = milliseconds / 1000;
+  if (seconds < 60) return `${seconds.toFixed(1)} s`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ${Math.floor(seconds % 60)}s`;
+}
+
+function chatOutputTokenCount(usage) {
+  return Number(usage?.output_tokens ?? usage?.completion_tokens ?? usage?.outputTokens) || 0;
+}
+
+function updateChatOutline() {
+  const thread = $("#chat-thread");
+  const nav = $(".chat-outline-nav");
+  if (!thread || !nav) return;
+  const answers = [...thread.querySelectorAll("[data-chat-answer-index]")];
+  const threadRect = thread.getBoundingClientRect();
+  const paneRect = nav.parentElement.getBoundingClientRect();
+  const links = [...nav.querySelectorAll(".chat-outline-link")];
+  const track = nav.querySelector(".chat-outline-track");
+  const usableHeight = Math.max(80, thread.clientHeight - 32);
+  const markerHeight = 8;
+  // Short chats stay compact. As answers accumulate, increase the spacing
+  // until the rail fills, then keep a natural rhythm and allow scrolling.
+  const step = 8 + Math.max(0, links.length - 1) * 0.8;
+  const contentHeight = links.length ? markerHeight + (links.length - 1) * step : 0;
+  const isScrollable = contentHeight > usableHeight;
+  const centeredOffset = isScrollable ? 0 : Math.max(0, (usableHeight - contentHeight) / 2);
+  nav.style.top = `${threadRect.top - paneRect.top + 16}px`;
+  nav.style.height = `${usableHeight}px`;
+  if (track) {
+    track.style.height = `${usableHeight}px`;
+    track.classList.toggle("is-scrollable", isScrollable);
+  }
+  const anchor = threadRect.top + Math.min(100, thread.clientHeight * 0.25);
+  let current = answers[0];
+  for (const answer of answers) {
+    if (answer.getBoundingClientRect().top <= anchor) current = answer;
+    else break;
+  }
+  const currentIndex = Number(current?.dataset.chatAnswerIndex);
+  for (const [index, link] of links.entries()) {
+    link.style.top = `${centeredOffset + index * step}px`;
+    const firstAnswer = Number(link.dataset.answerIndex);
+    const lastAnswer = Number(link.dataset.answerEndIndex);
+    const active = Number.isFinite(currentIndex) && currentIndex >= firstAnswer && currentIndex <= lastAnswer;
+    link.classList.toggle("is-current", active);
+    if (active) link.setAttribute("aria-current", "location");
+    else link.removeAttribute("aria-current");
+  }
+}
+
+let chatOutlineHoverTimer = 0;
+let chatOutlineHoverTarget = null;
+
+function animateChatOutlineWave(link) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce), (max-width: 740px), (hover: none)").matches) return;
+  const track = link?.closest(".chat-outline-track");
+  if (!track || typeof Element.prototype.animate !== "function") return;
+  const links = [...track.querySelectorAll(".chat-outline-link")];
+  const origin = links.indexOf(link);
+  for (const [index, item] of links.entries()) {
+    if (index > origin) continue;
+    const dot = item.querySelector(".chat-outline-dot");
+    if (!dot) continue;
+    dot.getAnimations().forEach((animation) => animation.cancel());
+    dot.animate([
+      { transform: "scaleX(1)", opacity: 0.72 },
+      { transform: "scaleX(1.45)", opacity: 0.95, offset: 0.45 },
+      { transform: "scaleX(1)", opacity: 0.72 },
+    ], { duration: 420, delay: Math.min(420, (origin - index) * 36), easing: "ease-out" });
+  }
+}
+
+function hideChatOutlinePreview(nav = $(".chat-outline-nav")) {
+  nav?.classList.remove("is-previewing");
+  nav?.querySelector(".chat-outline-tooltip")?.setAttribute("aria-hidden", "true");
+}
+
+function showChatOutlinePreview(link) {
+  if (!link || window.matchMedia("(max-width: 740px), (hover: none)").matches) return;
+  const nav = link.closest(".chat-outline-nav");
+  const tooltip = nav?.querySelector(".chat-outline-tooltip");
+  const pane = nav?.closest(".conversation-chat-pane");
+  if (!tooltip || !pane) return;
+  tooltip.innerHTML = link.querySelector(".chat-outline-preview")?.innerHTML || "";
+  const navRect = nav.getBoundingClientRect();
+  const paneRect = pane.getBoundingClientRect();
+  const linkRect = link.getBoundingClientRect();
+  const height = tooltip.offsetHeight;
+  const top = Math.max(paneRect.top + 8, Math.min(linkRect.top + linkRect.height / 2 - height / 2, paneRect.bottom - height - 8));
+  tooltip.style.top = `${top - navRect.top}px`;
+  tooltip.setAttribute("aria-hidden", "false");
+  nav.classList.add("is-previewing");
+}
+
+let chatOutlineFrame = 0;
+document.addEventListener("scroll", (event) => {
+  if (event.target?.id !== "chat-thread") return;
+  hideChatOutlinePreview();
+  if (chatOutlineFrame) return;
+  chatOutlineFrame = requestAnimationFrame(() => { chatOutlineFrame = 0; updateChatOutline(); });
+}, true);
+window.addEventListener("resize", updateChatOutline);
+document.addEventListener("pointerover", (event) => {
+  const link = event.target.closest?.(".chat-outline-link");
+  if (!link || event.pointerType !== "mouse" || link.contains(event.relatedTarget)) return;
+  showChatOutlinePreview(link);
+  clearTimeout(chatOutlineHoverTimer);
+  chatOutlineHoverTarget = link;
+  chatOutlineHoverTimer = window.setTimeout(() => {
+    chatOutlineHoverTimer = 0;
+    if (chatOutlineHoverTarget === link && link.matches(":hover")) animateChatOutlineWave(link);
+  }, 320);
+});
+document.addEventListener("focusin", (event) => showChatOutlinePreview(event.target.closest?.(".chat-outline-link")));
+document.addEventListener("pointerout", (event) => {
+  const link = event.target.closest?.(".chat-outline-link");
+  if (link && !link.contains(event.relatedTarget) && chatOutlineHoverTarget === link) {
+    clearTimeout(chatOutlineHoverTimer);
+    chatOutlineHoverTimer = 0;
+    chatOutlineHoverTarget = null;
+  }
+  const nav = event.target.closest?.(".chat-outline-nav");
+  if (nav && !nav.contains(event.relatedTarget)) hideChatOutlinePreview(nav);
+});
+document.addEventListener("focusout", (event) => {
+  const nav = event.target.closest?.(".chat-outline-nav");
+  if (nav && !nav.contains(event.relatedTarget)) hideChatOutlinePreview(nav);
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  const nav = $(".chat-outline-nav");
+  hideChatOutlinePreview(nav);
+  nav?.classList.remove("is-open");
+  $(".wb-mobile-outline-toggle")?.setAttribute("aria-expanded", "false");
+});
+document.addEventListener("click", (event) => {
+  const nav = $(".chat-outline-nav.is-open");
+  if (!nav || nav.contains(event.target) || event.target.closest?.('[data-action="toggle-chat-outline"]')) return;
+  nav.classList.remove("is-open");
+  $(".wb-mobile-outline-toggle")?.setAttribute("aria-expanded", "false");
+});
+
 function taskConversationPage() {
   const task = view.state.tasks.find((item) => item.id === view.selected);
   if (!task) return "";
@@ -3062,11 +3228,80 @@ function taskConversationPage() {
   const transcript = [];
   if (!hasInitialMessage && (task.prompt || task.attachments?.length)) transcript.push({ role: "user", provider: "user", content: task.prompt, attachments: (task.attachments || []).map(({ name }) => ({ name })), createdAt: task.createdAt });
   if (workflow !== "chat-only") {
-    if (task.plan) transcript.push({ role: "assistant", provider: planRole.provider, label: `Kế hoạch · ${providerTitle(view.connectors, planRole.provider)}`, model: planRole.model, effort: planRole.effort, content: task.plan, createdAt: task.createdAt });
-    if (task.implementation) transcript.push({ role: "assistant", provider: buildRole.provider, label: `Triển khai · ${providerTitle(view.connectors, buildRole.provider)}`, model: buildRole.model, effort: buildRole.effort, content: task.implementation, createdAt: task.updatedAt });
-    if (task.review) transcript.push({ role: "assistant", provider: reviewRole.provider, label: `Review · ${providerTitle(view.connectors, reviewRole.provider)}`, model: reviewRole.model, effort: reviewRole.effort, content: task.review, createdAt: task.updatedAt });
+    const latestStageMetric = (stage) => [...(task.stageMetrics || [])].reverse().find((metric) => metric.stage === stage);
+    const pipelineStages = [
+      ["plan", task.plan, planRole],
+      ...(workflow === "plan-only" ? [] : [["build", task.implementation, buildRole], ["review", task.review, reviewRole]]),
+    ].filter(([, content]) => content);
+    const pipelineMetrics = pipelineStages.map(([stage]) => latestStageMetric(stage)).filter(Boolean);
+    const measuredPipelineDuration = pipelineMetrics.reduce((sum, metric) => sum + (Number(metric.durationMs) || 0), 0);
+    const legacyPipelineDuration = Math.max(0, (Date.parse(task.completedAt || task.updatedAt || "") || 0) - (Date.parse(task.startedAt || task.createdAt || "") || 0));
+    const hasAllPipelineMetrics = pipelineStages.length > 0 && pipelineStages.every(([stage]) => Boolean(latestStageMetric(stage)));
+    const pipelineDurationMs = hasAllPipelineMetrics ? measuredPipelineDuration : legacyPipelineDuration;
+    const hasAllPipelineOutputCounts = hasAllPipelineMetrics && pipelineStages.every(([stage]) => {
+      const usage = latestStageMetric(stage)?.usage;
+      return usage && (usage.output_tokens !== undefined || usage.completion_tokens !== undefined || usage.outputTokens !== undefined);
+    });
+    const pipelineOutputTokens = hasAllPipelineOutputCounts ? pipelineMetrics.reduce((sum, metric) => sum + chatOutputTokenCount(metric.usage), 0) : 0;
+    const finalPipelineStage = pipelineStages.at(-1)?.[0];
+    for (const [stage, content, role] of pipelineStages) {
+      const metric = latestStageMetric(stage);
+      const isFinalStage = stage === finalPipelineStage;
+      transcript.push({
+        role: "assistant", pipelineStage: true, pipelineGroup: true, pipelineTotal: isFinalStage, stage,
+        provider: role.provider, label: `${({ plan: "Kế hoạch", build: "Triển khai", review: "Review" })[stage]} · ${providerTitle(view.connectors, role.provider)}`,
+        model: role.model, effort: role.effort, content,
+        durationMs: isFinalStage && pipelineDurationMs ? pipelineDurationMs : metric?.durationMs,
+        usage: isFinalStage && pipelineOutputTokens ? { output_tokens: pipelineOutputTokens } : metric?.usage,
+        createdAt: stage === "plan" ? task.createdAt : task.updatedAt,
+      });
+    }
   }
   transcript.push(...orderedConversationMessages(messages));
+  const outlineItems = [];
+  let currentQuestion = plainChatExcerpt(task.prompt || "");
+  let matchedInitialQuestion = false;
+  let activeOutlineItem = null;
+  let pipelineOutlineItem = null;
+  transcript.forEach((message, answerIndex) => {
+    if (message.role === "user") {
+      if (workflow !== "chat-only" && !matchedInitialQuestion && message.initialChat) {
+        matchedInitialQuestion = true;
+        return;
+      }
+      currentQuestion = plainChatExcerpt(message.content || "Tệp đính kèm");
+      activeOutlineItem = null;
+      return;
+    }
+    if (message.role === "assistant" && message.content) {
+      let item;
+      if (message.pipelineGroup) {
+        item = pipelineOutlineItem;
+        if (!item) {
+          item = { answerIndex, answerEndIndex: answerIndex, title: currentQuestion || "Câu trả lời", summary: "" };
+          outlineItems.push(item);
+          pipelineOutlineItem = item;
+        }
+      } else {
+        item = activeOutlineItem;
+        if (!item) {
+          item = { answerIndex, answerEndIndex: answerIndex, title: plainChatExcerpt(message.label || currentQuestion || "Câu trả lời"), summary: "" };
+          outlineItems.push(item);
+          activeOutlineItem = item;
+        }
+      }
+      item.answerEndIndex = answerIndex;
+      item.summary = plainChatExcerpt([item.summary, message.content].filter(Boolean).join(" "));
+    }
+  });
+  const visibleOutlineItems = outlineItems.filter((item) => item.answerIndex !== null);
+  const outlineLabel = view.language === "en" ? "Answer summary and navigation" : "Tóm tắt và điều hướng câu trả lời";
+  const outlineMarkup = visibleOutlineItems.length ? `<nav class="chat-outline-nav" aria-label="${outlineLabel}"><div class="chat-outline-track">${visibleOutlineItems.map((item, index) => {
+    const answerTitle = item.title || (view.language === "en" ? `Answer ${index + 1}` : `Câu trả lời ${index + 1}`);
+    const answerLabel = view.language === "en" ? `Go to answer ${index + 1}` : `Đến câu trả lời ${index + 1}`;
+    const emptySummary = view.language === "en" ? "No answer summary yet." : "Chưa có nội dung tóm tắt.";
+    return `<button type="button" class="chat-outline-link" data-action="jump-chat-answer" data-answer-index="${item.answerIndex}" data-answer-end-index="${item.answerEndIndex}" aria-label="${answerLabel}: ${esc(answerTitle)}" title="${answerLabel}"><span class="chat-outline-dot" aria-hidden="true"></span><span class="chat-outline-preview"><strong>${esc(answerTitle)}</strong><span>${esc(item.summary || emptySummary)}</span></span></button>`;
+  }).join("")}</div><div class="chat-outline-tooltip chat-outline-preview" role="tooltip" aria-hidden="true"></div></nav>` : "";
   const busy = ["queued", "running"].includes(task.status);
   const provider = view.chatProvider || (workflow === "chat-only" ? task.config.chatProvider : planRole.provider) || "codex";
   const models = view.connectors?.[provider]?.models || [];
@@ -3078,8 +3313,11 @@ function taskConversationPage() {
   const hasActiveChatMessage = messages.some((message) => message.role === "user" && message.status === "running");
   const queueSummary = `${hasActiveChatMessage ? (view.language === "en" ? "Agent is replying" : "Agent đang trả lời") : ""}${queuedTurns.length ? `${hasActiveChatMessage ? " · " : ""}${view.language === "en" ? `${queuedTurns.length} queued` : `${queuedTurns.length} tin đang chờ`}` : ""}`;
   const totalUsage = Object.values(task.usage || {}).reduce((sum, item) => sum + tokenCount(item), 0);
-  const transcriptHtml = transcript.length ? transcript.map((message) => {
+  let currentTranscriptUser = null;
+  const latestAssistantMessage = [...messages].reverse().find((item) => item.role === "assistant");
+  const transcriptHtml = transcript.length ? transcript.map((message, messageIndex) => {
     const isUser = message.role === "user";
+    if (isUser) currentTranscriptUser = message;
     const sender = isUser ? "Bạn" : message.label || providerTitle(view.connectors, message.provider);
     const modelLabel = [message.model, message.effort].filter(Boolean).join(" · ");
     const queuePosition = message.status === "queued" ? queuedTurns.findIndex((turn) => turn.messageId === message.id) : -1;
@@ -3088,10 +3326,29 @@ function taskConversationPage() {
     const forkButton = isUser && message.id && (!message.status || message.status === "done") ? `<button type="button" class="chat-fork-button" data-action="fork-chat" data-id="${task.id}" data-message-id="${esc(message.id)}" title="Tạo nhánh hội thoại từ đây; workspace vẫn dùng chung">${icon("git-branch", 12)}<span>Tạo nhánh</span></button>` : "";
     const messageError = message.status === "failed" ? `<button type="button" class="chat-message-error" data-action="view-error-details" data-error="${esc(message.error || "Không nhận được phản hồi từ agent.")}">Xem nguyên nhân lỗi</button>` : "";
     const messageAttachments = message.attachments?.length ? `<div class="chat-message-attachments">${message.attachments.map((file) => `<span class="chat-message-attachment">${icon("file", 14)}<span title="${esc(file.name)}">${esc(file.name)}</span></span>`).join("")}</div>` : "";
+    const isLatestSavedReply = message.role === "assistant" && message.id && message.id === latestAssistantMessage?.id;
+    const taskUsageTime = Date.parse(task.updatedAt || "");
+    const replyTime = Date.parse(message.createdAt || "");
+    const latestTaskUsage = isLatestSavedReply && task.usage?.[message.provider] && taskUsageTime && replyTime && Math.abs(taskUsageTime - replyTime) <= 120_000
+      ? task.usage[message.provider]
+      : null;
+    const messageUsage = message.usage || latestTaskUsage;
+    const outputTokens = chatOutputTokenCount(messageUsage);
+    const repliedTo = message.role === "assistant"
+      ? messages.find((item) => item.id === message.replyToMessageId) || currentTranscriptUser
+      : null;
+    const fallbackDuration = message.role === "assistant" && message.createdAt
+      ? Math.max(0, Date.parse(message.createdAt) - Date.parse(repliedTo?.createdAt || task.startedAt || task.createdAt || message.createdAt))
+      : 0;
+    const responseDuration = Number(message.durationMs) || fallbackDuration;
+    const displayDuration = message.pipelineStage && !message.pipelineTotal ? 0 : responseDuration;
+    const responseMeta = message.role === "assistant" && message.status !== "running" && (displayDuration || outputTokens)
+      ? `<div class="chat-response-meta"><span>${message.pipelineStage ? (view.language === "en" ? "Pipeline time" : "Thời gian luồng") : (view.language === "en" ? "Response time" : "Thời gian trả lời")}: ${chatDurationLabel(displayDuration)}</span><span aria-hidden="true">·</span><span title="${latestTaskUsage ? (view.language === "en" ? "Recovered from the latest saved CLI usage record for this reply." : "Khôi phục từ bản ghi usage CLI gần nhất khớp thời điểm trả lời.") : ""}">${outputTokens ? `${formatNumber(outputTokens)} ${view.language === "en" ? "tokens" : "token"}` : `— ${view.language === "en" ? "tokens" : "token"}`}</span></div>`
+      : "";
     if (isUser) {
       return `<article class="chat-message from-user"><div class="user-bubble-card"><div class="chat-message-content user-message-content">${content}${messageAttachments}</div></div>${(forkButton || pending || messageError) ? `<div class="user-message-meta ${pending || messageError ? "is-visible" : ""}">${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}${forkButton}</div>` : ""}</article>`;
     }
-    return `<article class="chat-message from-agent"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small></header><div class="chat-message-content agent-message-content">${content}${messageAttachments}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}</div></article>`;
+    return `<article class="chat-message from-agent" id="chat-answer-${messageIndex}" data-chat-answer-index="${messageIndex}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small></header><div class="chat-message-content agent-message-content">${content}${messageAttachments}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}${responseMeta}</div></article>`;
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
   const effortDisplay = { low: "Low", medium: "Medium", high: "High", minimal: "Min", standard: "Std", max: "Max" };
   const activeEfforts = model?.efforts?.length ? model.efforts : ["low", "medium", "high"];
@@ -3115,6 +3372,7 @@ function taskConversationPage() {
   }
   return `<section class="task-conversation-page is-unified-chat" aria-label="Cuộc trò chuyện">
       <section class="task-chat-pane conversation-chat-pane">
+        ${outlineMarkup}
         <div class="chat-thread" id="chat-thread" data-task-id="${esc(task.id)}" aria-live="polite">
           <div class="chat-thread-stream">
             ${transcriptHtml}
@@ -3719,6 +3977,19 @@ async function handleWorkbenchClick(event) {
   }
   const action = button.dataset.action; const id = button.dataset.id;
   button.closest(".codex-pop-menu")?.removeAttribute("open");
+  if (action === "jump-chat-answer") {
+    const answer = $(`#chat-answer-${Number(button.dataset.answerIndex)}`, $("#chat-thread"));
+    answer?.scrollIntoView({ behavior: "smooth", block: "start" });
+    button.closest(".chat-outline-nav")?.classList.remove("is-open");
+    $(".wb-mobile-outline-toggle")?.setAttribute("aria-expanded", "false");
+    return;
+  }
+  if (action === "toggle-chat-outline") {
+    const nav = button.closest(".chat-outline-nav") || $(".chat-outline-nav");
+    const isOpen = nav?.classList.toggle("is-open");
+    button.setAttribute("aria-expanded", String(Boolean(isOpen)));
+    return;
+  }
   if (action === "pick-home-workspace") {
     view.homeWorkspaceId = id;
     render();
@@ -4706,6 +4977,16 @@ async function handleWorkbenchClick(event) {
     if (action === "delete-memory") { if (confirm("Xóa ghi nhớ này?")) { await api(`/api/memory/${encodeURIComponent(id)}`, { method: "DELETE" }); await refresh(); } }
   } catch (error) { showToast(error.message); }
 }
+function resizeComposerTextarea(textarea) {
+  if (!textarea) return;
+  if (!textarea.value) {
+    textarea.style.height = "28px";
+    return;
+  }
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.min(200, Math.max(28, textarea.scrollHeight))}px`;
+}
+
 async function updateComposerMentionMenu(textarea) {
   const wrap = textarea.closest(".composer-input-wrap");
   const pop = wrap?.querySelector("[data-mention-popover]");
@@ -4779,16 +5060,14 @@ document.addEventListener("input", (event) => {
   const chatInput = event.target.closest(".chat-input");
   if (chatInput) {
     view.chatDraft = chatInput.value;
-    chatInput.style.height = "auto";
-    chatInput.style.height = `${Math.min(200, Math.max(36, chatInput.scrollHeight))}px`;
+    resizeComposerTextarea(chatInput);
     void updateComposerMentionMenu(chatInput);
     return;
   }
   const homePrompt = event.target.closest("[data-home-prompt]");
   if (homePrompt) {
     view.chatDraft = homePrompt.value;
-    homePrompt.style.height = "auto";
-    homePrompt.style.height = `${Math.min(200, Math.max(36, homePrompt.scrollHeight))}px`;
+    resizeComposerTextarea(homePrompt);
     void updateComposerMentionMenu(homePrompt);
     return;
   }

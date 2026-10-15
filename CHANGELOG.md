@@ -5,6 +5,17 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.82] - 2026-10-15
+
+### Cải thiện điều hướng hội thoại, thống kê lượt trả lời và giao diện mobile
+- Thêm thanh tóm tắt và điều hướng nhanh theo từng câu trả lời; nhóm các bước trong pipeline vào cùng một mục để số mục khớp với số prompt.
+- Ghi nhận thời gian xử lý và số token đầu ra theo từng lượt trả lời khi CLI/API cung cấp usage; bổ sung thống kê usage theo nhà cung cấp và dùng dữ liệu task đã lưu cho các lượt cũ khi có thể đối chiếu.
+- Rút gọn thông tin dưới câu trả lời: giữ thời gian và số token, bỏ nhãn “Generated/Đã sinh”; lượt cũ không có token riêng hiển thị `— tokens`.
+- Sửa một số bố cục hội thoại trên màn hình nhỏ, điều chỉnh chiều cao composer và bổ sung bản dịch tiếng Anh cho các nhãn điều hướng, thao tác và cài đặt.
+- Cải thiện nhãn trợ năng và trạng thái điều hướng/đóng mở ở thanh tiêu đề và sidebar.
+
+---
+
 ## [0.2.81] - 2026-10-15
 
 ### Sửa chiều cao dropdown trong popup nhận xét HTML

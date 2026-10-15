@@ -1122,6 +1122,13 @@ function countUsageTokens(usage) {
   if (!usage || typeof usage !== "object") return 0;
   return Number(usage.total_tokens ?? ((usage.input_tokens || usage.prompt_tokens || 0) + (usage.output_tokens || usage.completion_tokens || 0))) || 0;
 }
+function usageParts(usage) {
+  if (!usage || typeof usage !== "object") return { inputTokens: 0, outputTokens: 0 };
+  return {
+    inputTokens: Number(usage.input_tokens ?? usage.prompt_tokens ?? usage.inputTokens) || 0,
+    outputTokens: Number(usage.output_tokens ?? usage.completion_tokens ?? usage.outputTokens) || 0,
+  };
+}
 function buildTelemetrySummary() {
   const now = Date.now();
   const fiveHoursAgo = now - 5 * 3600_000;
@@ -1132,14 +1139,50 @@ function buildTelemetrySummary() {
   const byProvider = {};
   for (const task of state.tasks) {
     if (task.isolated && task.worktreePath && !task.worktreeCleaned) worktreeCount++;
-    if (!task.usage || typeof task.usage !== "object") continue;
-    const ts = Date.parse(task.updatedAt || task.createdAt || "") || 0;
-    for (const [provider, u] of Object.entries(task.usage)) {
-      const tok = countUsageTokens(u);
-      if (!tok) continue;
-      byProvider[provider] = (byProvider[provider] || 0) + tok;
-      if (ts >= fiveHoursAgo) tokens5h += tok;
-      if (ts >= sevenDaysAgo) tokens7d += tok;
+    const stageMetrics = Array.isArray(task.stageMetrics) ? task.stageMetrics : [];
+    if (stageMetrics.length) {
+      const meteredProviders = new Set();
+      for (const metric of stageMetrics) {
+        const ts = Date.parse(metric.completedAt || "") || 0;
+        const parts = usageParts(metric.usage);
+        const tok = countUsageTokens(metric.usage);
+        if (!tok && !metric.durationMs) continue;
+        if (tok || parts.inputTokens || parts.outputTokens) meteredProviders.add(metric.provider);
+        const entry = byProvider[metric.provider] ||= { totalTokens: 0, inputTokens: 0, outputTokens: 0, tokens5h: 0, tokens7d: 0, responses: 0 };
+        entry.totalTokens += tok;
+        entry.inputTokens += parts.inputTokens;
+        entry.outputTokens += parts.outputTokens;
+        entry.responses++;
+        if (ts >= fiveHoursAgo) { entry.tokens5h += tok; tokens5h += tok; }
+        if (ts >= sevenDaysAgo) { entry.tokens7d += tok; tokens7d += tok; }
+      }
+      const ts = Date.parse(task.updatedAt || task.createdAt || "") || 0;
+      for (const [provider, usage] of Object.entries(task.usage || {})) {
+        if (meteredProviders.has(provider)) continue;
+        const tok = countUsageTokens(usage);
+        if (!tok) continue;
+        const parts = usageParts(usage);
+        const entry = byProvider[provider] ||= { totalTokens: 0, inputTokens: 0, outputTokens: 0, tokens5h: 0, tokens7d: 0, responses: 0 };
+        entry.totalTokens += tok; entry.inputTokens += parts.inputTokens; entry.outputTokens += parts.outputTokens; entry.responses++;
+        if (ts >= fiveHoursAgo) { entry.tokens5h += tok; tokens5h += tok; }
+        if (ts >= sevenDaysAgo) { entry.tokens7d += tok; tokens7d += tok; }
+      }
+      continue;
+    }
+    if (task.usage && typeof task.usage === "object") {
+      const ts = Date.parse(task.updatedAt || task.createdAt || "") || 0;
+      for (const [provider, u] of Object.entries(task.usage)) {
+        const tok = countUsageTokens(u);
+        if (!tok) continue;
+        const parts = usageParts(u);
+        const entry = byProvider[provider] ||= { totalTokens: 0, inputTokens: 0, outputTokens: 0, tokens5h: 0, tokens7d: 0, responses: 0 };
+        entry.totalTokens += tok;
+        entry.inputTokens += parts.inputTokens;
+        entry.outputTokens += parts.outputTokens;
+        entry.responses++;
+        if (ts >= fiveHoursAgo) { entry.tokens5h += tok; tokens5h += tok; }
+        if (ts >= sevenDaysAgo) { entry.tokens7d += tok; tokens7d += tok; }
+      }
     }
   }
   return {
@@ -1156,14 +1199,16 @@ function publicState() {
     frontendVersion: "preact-vite",
     settings: state.settings,
     workspaces: state.workspaces.map((w) => ({ ...w, status: w.runtime || null })),
-    tasks: state.tasks.map((task) => ({
-      ...task,
+    tasks: state.tasks.map((task) => {
+      const { _currentStageUsage, ...publicTask } = task;
+      return {
+      ...publicTask,
       attachments: task.attachments?.length ? task.attachments.map(({ name }) => ({ name })) : task.attachments,
       chatMessages: task.chatMessages?.length
         ? task.chatMessages.map((msg) => (msg.attachments?.length ? { ...msg, attachments: msg.attachments.map(({ name }) => ({ name })) } : msg))
         : task.chatMessages,
       processRunning: running.has(task.id),
-    })),
+    }; }),
     memories,
     memoryCount: memories.length,
     telemetry: buildTelemetrySummary(),
@@ -1521,7 +1566,7 @@ function parseCodexEvent(line, task, outputParts) {
   }
   if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text) { outputParts.push(event.item.text); record(task, event.item.text.slice(-1500), "output"); }
   if (event.type === "item.completed" && event.item?.type === "agent_message" && /(?:shell tool failed to start|could(?:n't| not) read (?:the )?workspace|unable to read (?:the )?workspace|tool access.{0,40}workspace.{0,40}error|không thể đọc được tệp.{0,60}workspace.{0,60}lỗi)/i.test(event.item.text)) task.stageFailure = event.item.text;
-  if (event.type === "turn.completed" && event.usage) task.usage = { ...(task.usage || {}), codex: event.usage };
+  if (event.type === "turn.completed" && event.usage) { task.usage = { ...(task.usage || {}), codex: event.usage }; task._currentStageUsage = event.usage; }
   if (event.type === "error") record(task, event.message || "Codex reported an error", "error");
 }
 function parseAgyEvent(line, task, outputParts) {
@@ -1532,11 +1577,11 @@ function parseAgyEvent(line, task, outputParts) {
   const message = event.message;
   const text = event.text || (typeof event.content === "string" ? event.content : "") || event.response || event.delta?.text || update.text_delta || (typeof message === "string" ? message : message?.text || message?.content?.map?.((part) => part.text || "").join(""));
   if (text && typeof text === "string") { outputParts.push(text); record(task, text.slice(-1500), "output"); }
-  if (event.usage) task.usage = { ...(task.usage || {}), antigravity: event.usage };
-  if (update.usage) task.usage = { ...(task.usage || {}), antigravity: update.usage };
+  if (event.usage) { task.usage = { ...(task.usage || {}), antigravity: event.usage }; task._currentStageUsage = event.usage; }
+  if (update.usage) { task.usage = { ...(task.usage || {}), antigravity: update.usage }; task._currentStageUsage = update.usage; }
   if (update.tool_info?.error) { task.stageFailure = String(update.tool_info.error.message || update.tool_info.error); record(task, task.stageFailure, "error"); }
   if (type === "result" && event.result) {
-    if (event.result.usage) task.usage = { ...(task.usage || {}), antigravity: event.result.usage };
+    if (event.result.usage) { task.usage = { ...(task.usage || {}), antigravity: event.result.usage }; task._currentStageUsage = event.result.usage; }
     if (event.result.response && !outputParts.length) { outputParts.push(event.result.response); record(task, event.result.response.slice(-1500), "output"); }
     if (event.result.status && event.result.status !== "SUCCESS") task.stageFailure = event.result.error || `Antigravity status: ${event.result.status}`;
   }
@@ -1554,6 +1599,8 @@ function parseAgyEvent(line, task, outputParts) {
   }
 }
 async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride = null) {
+  const stageStartedAt = Date.now();
+  task._currentStageUsage = null;
   assertTaskActive(task);
   const selection = selectionOverride || (workflowRoles.some((role) => role.id === stage) ? stageSelection(task, stage) : {
     provider: task.config.chatProvider || "codex", model: task.config.chatModel || task.config.codexModel, effort: task.config.chatEffort || task.config.codexEffort,
@@ -1581,9 +1628,13 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
       const remotePrompt = remoteContext ? `${prompt}${remoteContext.text}` : prompt;
       const result = await completeWithApi(providerRuntime, selection.model, remotePrompt, controller.signal);
       task.usage = { ...(task.usage || {}), [provider]: result.usage || {} };
+      task._currentStageUsage = result.usage || null;
       const output = stage === "build" ? await applyApiBuildResult(cwd, result.content, remoteContext?.buildSnapshotHashes || new Map()) : String(result.content || "").trim();
       await fs.writeFile(resolve(task.storagePath, `${stage}.md`), output, "utf8");
       record(task, output.slice(-1500), "output");
+      task.stageMetrics ||= [];
+      task.stageMetrics.push({ provider, stage, durationMs: Date.now() - stageStartedAt, usage: task._currentStageUsage, completedAt: new Date().toISOString() });
+      task.stageMetrics = task.stageMetrics.slice(-500);
       return output;
     } finally {
       clearTimeout(timeout);
@@ -1650,12 +1701,15 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
         try {
           const data = JSON.parse(stdoutRaw);
           output = String(data.result || data.message || "").trim();
-          if (data.usage) task.usage = { ...(task.usage || {}), claude: data.usage };
+          if (data.usage) { task.usage = { ...(task.usage || {}), claude: data.usage }; task._currentStageUsage = data.usage; }
         } catch { output = stdoutRaw.trim(); }
       }
       const outputPath = resolve(task.storagePath, `${stage}.md`);
       if (!output) { try { output = (await fs.readFile(outputPath, "utf8")).trim(); } catch { } }
       if (!output) output = outputParts.join("").trim();
+      task.stageMetrics ||= [];
+      task.stageMetrics.push({ provider, stage, durationMs: Date.now() - stageStartedAt, usage: task._currentStageUsage || null, completedAt: new Date().toISOString() });
+      task.stageMetrics = task.stageMetrics.slice(-500);
       resolvePromise(output);
     });
     child.stdin.end(prompt);
@@ -1806,6 +1860,9 @@ async function executeTask(task) {
       assertTaskActive(task);
       message.status = "done";
       task.chatMessages.push({ id: randomUUID(), role: "assistant", replyToMessageId: message.id, provider, model: task.config.chatModel, effort: task.config.chatEffort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
+      const answer = task.chatMessages.at(-1);
+      const metric = task.stageMetrics?.at(-1);
+      if (metric?.stage === "chat-initial") { answer.durationMs = metric.durationMs; answer.usage = metric.usage; }
       task.artifacts = mergeTaskArtifacts(task.artifacts, await changedFilesSince(cwd, Date.parse(task.startedAt)));
       assertTaskActive(task);
       task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
@@ -1894,7 +1951,10 @@ async function processTaskChatQueue(task) {
         if (turnChanges.length) task.artifacts = mergeTaskArtifacts(task.artifacts, turnChanges);
         if (userMessage) userMessage.status = "done";
         task.chatMessages ||= [];
-        task.chatMessages.push({ id: randomUUID(), role: "assistant", replyToMessageId: userMessage?.id, provider: turn.provider, model: turn.model, effort: turn.effort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
+        const answer = { id: randomUUID(), role: "assistant", replyToMessageId: userMessage?.id, provider: turn.provider, model: turn.model, effort: turn.effort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() };
+        const metric = task.stageMetrics?.at(-1);
+        if (metric?.stage === `chat-${turn.id}`) { answer.durationMs = metric.durationMs; answer.usage = metric.usage; }
+        task.chatMessages.push(answer);
         record(task, `${publicProviderName(turn.provider)} đã trả lời trong chat.`, "success");
       } catch (error) {
         const messageError = safeError(error);
