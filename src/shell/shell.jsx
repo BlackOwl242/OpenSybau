@@ -1,5 +1,6 @@
 import { h } from "preact";
 import { useEffect, useState } from "preact/hooks";
+import { StableHtml } from "./components/StableHtml.jsx";
 import { NavRail } from "./components/NavRail.jsx";
 import { ContextSidebar } from "./components/ContextSidebar.jsx";
 import { MobileNav } from "./components/MobileNav.jsx";
@@ -164,15 +165,17 @@ export function AppShell({ snapshot, pageMarkup }) {
       <div class={`wb-workspace-split ${hasRightDock ? "has-right-dock" : ""}`}>
         <div class="wb-stage-column">
       <TopBar snapshot={snapshot} />
-          <section id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${(page === "chat" && snapshot.selected) || isViewingFileTab || chatSplit ? "is-task-detail" : ""} ${isViewingFileTab ? "is-orca-tab-stage" : ""} ${(page === "knowledge" && snapshot.state?.settings?.vaultPath) || page === "skills" || (page === "workspaces" && (snapshot.selected || snapshot.state?.workspaces?.length)) ? "is-knowledge-detail" : ""}`} dangerouslySetInnerHTML={{ __html: pageMarkup }} />
+          <StableHtml id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${(page === "chat" && snapshot.selected) || isViewingFileTab || chatSplit ? "is-task-detail" : ""} ${isViewingFileTab ? "is-orca-tab-stage" : ""} ${(page === "knowledge" && snapshot.state?.settings?.vaultPath) || page === "skills" || (page === "workspaces" && (snapshot.selected || snapshot.state?.workspaces?.length)) ? "is-knowledge-detail" : ""}`} html={pageMarkup} background={snapshot.backgroundUpdate} scope={`${page}:${snapshot.chatSplitWorkspaceId || snapshot.selected || ""}`} />
         </div>
         {hasRightDock ? (
           <>
           <button class="wb-dock-backdrop" type="button" data-action="toggle-chat-drawer" aria-label="Đóng thanh bên phải" />
-          <aside
+          <StableHtml as="aside"
             class="orca-right-dock"
             aria-label="Thanh công cụ mở rộng bên phải"
-            dangerouslySetInnerHTML={{ __html: snapshot.rightDockMarkup }}
+            html={snapshot.rightDockMarkup}
+            background={snapshot.backgroundUpdate}
+            scope={snapshot.homeWorkspaceId}
           />
           </>
         ) : null}

@@ -835,7 +835,12 @@ const dynamicContentSelector = [
 export function localizeDom(root, language = getLanguage()) {
   if (!root || typeof document === "undefined") return;
   if (root.dataset) root.dataset.localizedLang = language;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (node.nodeType === 1) return node.matches(dynamicContentSelector) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
   const nodes = [];
   while (walker.nextNode()) nodes.push(walker.currentNode);
   for (const node of nodes) {
@@ -846,7 +851,8 @@ export function localizeDom(root, language = getLanguage()) {
     sourceTexts.set(node, { source, translated });
     if (translated !== node.nodeValue) node.nodeValue = translated;
   }
-  const elements = root.querySelectorAll?.("*") || [];
+  const selector = translatableAttributes.map((attribute) => `[${attribute}]`).join(",");
+  const elements = [...(root.matches?.(selector) ? [root] : []), ...(root.querySelectorAll?.(selector) || [])];
   for (const element of elements) {
     if (element.matches("[data-task], [data-workspace], .wb-task-heading")) continue;
     for (const attribute of translatableAttributes) {
@@ -869,9 +875,22 @@ export function observeLocalization(root) {
   if (!root || typeof MutationObserver === "undefined") return () => {};
   const options = { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: translatableAttributes };
   const observer = new MutationObserver((records) => {
-    if (!records.some(({ target }) => !(target.nodeType === 1 ? target : target.parentElement)?.closest(dynamicContentSelector))) return;
+    const changed = new Set();
+    for (const record of records) {
+      const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+      if (!target || target.closest(dynamicContentSelector)) continue;
+      if (record.type === "childList") {
+        for (const node of record.addedNodes) {
+          const candidate = node.nodeType === 1 ? node : node.parentElement;
+          if (candidate && !candidate.closest(dynamicContentSelector)) changed.add(candidate);
+        }
+      } else changed.add(target);
+    }
+    if (!changed.size) return;
     observer.disconnect();
-    localizeDom(root);
+    for (const candidate of changed) {
+      if (candidate.isConnected && ![...changed].some((other) => other !== candidate && other.contains(candidate))) localizeDom(candidate);
+    }
     observer.observe(root, options);
   });
   observer.observe(root, options);

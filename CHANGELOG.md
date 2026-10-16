@@ -5,6 +5,26 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.88] - 2026-10-17
+
+### English
+- Update chat and dock content in place instead of recreating it on each task event, preserving drafts, focus, open dropdowns, per-pane scroll positions, and preview documents without changing the interface design.
+- Add revision-based state snapshots and conditional requests so unchanged data returns HTTP 304 without retransmitting task history or triggering a render.
+- Coalesce background updates and log persistence, pause event-driven fetching in hidden tabs, and add SSE heartbeat, reconnection timing, and slow-client backpressure handling.
+- Exclude runtime/worktree and packaging output from development file watching to prevent generated files from triggering page reloads.
+- Cache Markdown with a memory bound, localize changed DOM branches, and keep unchanged knowledge graph canvases mounted.
+- Add synchronization and DOM regression checks and document the next performance improvements in `docs/performance-plan.md`.
+
+### Tiếng Việt
+- Cập nhật nội dung chat và dock tại chỗ thay vì tạo lại sau mỗi sự kiện task, giữ bản nháp, focus, dropdown đang mở, vị trí cuộn từng khung và tài liệu preview; không thay đổi thiết kế giao diện.
+- Bổ sung snapshot trạng thái theo revision và yêu cầu có điều kiện: dữ liệu không đổi trả HTTP 304, không truyền lại lịch sử task hoặc render lại.
+- Gộp các lượt cập nhật nền và ghi log, tạm ngưng tải theo sự kiện khi tab bị ẩn, bổ sung heartbeat SSE, thời gian nối lại và xử lý backpressure cho client chậm.
+- Loại runtime/worktree và đầu ra đóng gói khỏi bộ theo dõi tệp ở môi trường phát triển để tệp sinh ra không kích hoạt tải lại trang.
+- Cache Markdown có giới hạn bộ nhớ, chỉ dịch nhánh DOM thay đổi và giữ canvas đồ thị tri thức khi dữ liệu không đổi.
+- Bổ sung kiểm tra hồi quy đồng bộ/DOM và ghi phương án tối ưu tiếp theo trong `docs/performance-plan.md`.
+
+---
+
 ## [0.2.87] - 2026-10-16
 
 ### English

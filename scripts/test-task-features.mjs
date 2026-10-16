@@ -95,7 +95,7 @@ try {
       headers: { authorization: "Basic " + Buffer.from("test:test-password").toString("base64"), ...(body === undefined ? {} : { "content-type": "application/json" }) },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    return { status: response.status, body: await response.json() };
+    return { status: response.status, headers: response.headers, body: await response.json() };
   };
 
   const nestedWorkspace = await request("/api/workspaces", "POST", { path: path.join(root, "src", "domain") });
@@ -212,6 +212,25 @@ try {
   assert.equal(stateRes.status, 200);
   assert.equal(typeof stateRes.body.telemetry?.runningCount, "number", "State payload must include live telemetry summary.");
   assert.equal(typeof stateRes.body.telemetry?.tokens5h, "number", "Telemetry must include 5h token counter.");
+  const stateTag = stateRes.headers.get("etag");
+  assert.ok(stateTag, "Snapshots must have an ETag for background revalidation.");
+  const revalidated = await fetch(serverUrl + "/api/state", { headers: { authorization: "Basic " + Buffer.from("test:test-password").toString("base64"), "If-None-Match": stateTag } });
+  assert.equal(revalidated.status, 304, "Unchanged state must not transfer task history again.");
+  assert.equal(await revalidated.text(), "");
+  const streamController = new AbortController();
+  const stream = await fetch(serverUrl + "/__events", { headers: { authorization: "Basic " + Buffer.from("test:test-password").toString("base64") }, signal: streamController.signal });
+  const reader = stream.body.getReader();
+  const connected = new TextDecoder().decode((await reader.read()).value);
+  assert.match(connected, /retry: 3000/);
+  assert.match(connected, /event: connected/);
+  await request("/api/tasks/task-feature-test/pin", "POST", { pinned: true });
+  const update = new TextDecoder().decode((await reader.read()).value);
+  assert.match(update, /event: update/, "A mutation must update the existing event connection.");
+  streamController.abort();
+  const changedState = await fetch(serverUrl + "/api/state", { headers: { authorization: "Basic " + Buffer.from("test:test-password").toString("base64"), "If-None-Match": stateTag } });
+  assert.equal(changedState.status, 200, "Mutating a task must invalidate the cached state.");
+  assert.notEqual(changedState.headers.get("etag"), stateTag);
+  assert.equal((await changedState.json()).tasks.find((task) => task.id === "task-feature-test").pinned, true);
 
   const fileIndexRes = await request("/api/workspaces/workspace-test/file-index");
   assert.equal(fileIndexRes.status, 200);

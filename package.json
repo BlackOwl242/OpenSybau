@@ -9,7 +9,7 @@
   },
   "private": true,
   "license": "MIT",
-  "version": "0.2.87",
+  "version": "0.2.88",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -19,6 +19,7 @@
     "dev": "node scripts/run.mjs dev",
     "build": "vite build",
     "test": "node scripts/test-cli-detection.mjs && node scripts/test-task-features.mjs && node scripts/test-ui-localization.mjs",
+    "test:performance": "node scripts/test-live-updates.mjs && node scripts/test-dev-watch.mjs",
     "start": "node scripts/run.mjs production",
     "desktop:dev": "npm run build && electron .",
     "desktop:dist": "npm run build && electron-builder --win nsis --publish never",
@@ -27,6 +28,7 @@
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
+    "morphdom": "^2.7.8",
     "preact": "^11.0.0"
   },
   "devDependencies": {

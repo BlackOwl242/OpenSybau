@@ -6,6 +6,7 @@ import { localizeDom, setLanguage, translateText } from "../../shared/i18n.js";
 import { updateWorkbenchShell } from "../../shell/mount.jsx";
 import { readBrowserRoute, syncBrowserRoute } from "../../shell/router.js";
 import { compactChatTitle } from "../../shared/chat-labels.js";
+import { createStateLoader } from "../../shared/state-sync.js";
 
 Object.assign(view, readBrowserRoute());
 const compactLayout = window.matchMedia("(max-width: 1020px)");
@@ -25,7 +26,10 @@ let routeNeedsHydration = view.page === "knowledge" || view.page === "workspaces
 let refreshPromise = null;
 let refreshAgain = false;
 let refreshConfiguration = false;
+let refreshForeground = false;
 let refreshTimer = null;
+let lastSnapshotRefresh = 0;
+const loadState = createStateLoader();
 let lastConfigurationRefresh = 0;
 let cliScanPromise = null;
 let cliScanInProgress = false;
@@ -61,12 +65,14 @@ async function api(path, options = {}) {
   if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
   return data;
 }
-async function refreshSnapshot(includeConfiguration) {
-  const statePromise = api("/api/state");
+async function refreshSnapshot(includeConfiguration, background) {
+  const statePromise = loadState();
   const configurationPromise = includeConfiguration
     ? Promise.all([api("/api/connectors"), api("/api/providers").catch(() => ({ providers: [] }))])
     : Promise.resolve(null);
-  const [state, configuration] = await Promise.all([statePromise, configurationPromise]);
+  const [{ state, changed }, configuration] = await Promise.all([statePromise, configurationPromise]);
+  lastSnapshotRefresh = Date.now();
+  if (!changed && !configuration && background && view.skillsLoaded) return;
   const skills = view.skillsLoaded ? { skills: view.skills } : await api("/api/skills").catch(() => ({ skills: [] }));
   view.state = state;
   if (configuration) {
@@ -78,14 +84,15 @@ async function refreshSnapshot(includeConfiguration) {
   view.skillsLoaded = true;
   view.settingsSupported = Object.hasOwn(state.settings, "defaults");
   normalizeRouteSelection();
-  render();
+  render({ background });
   if (routeNeedsHydration) {
     routeNeedsHydration = false;
     hydrateRouteData().catch((error) => showToast(error.message));
   }
 }
-function refresh({ configuration = false } = {}) {
+function refresh({ configuration = false, background = false } = {}) {
   refreshAgain = true;
+  refreshForeground ||= !background;
   refreshConfiguration ||= configuration || !view.connectors;
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
@@ -93,8 +100,14 @@ function refresh({ configuration = false } = {}) {
       while (refreshAgain) {
         refreshAgain = false;
         const includeConfiguration = refreshConfiguration;
+        const foreground = refreshForeground;
         refreshConfiguration = false;
-        await refreshSnapshot(includeConfiguration);
+        refreshForeground = false;
+        if (!foreground) {
+          const wait = 600 - (Date.now() - lastSnapshotRefresh);
+          if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+        }
+        await refreshSnapshot(includeConfiguration, !foreground);
       }
     } catch (error) {
       refreshAgain = false;
@@ -104,8 +117,9 @@ function refresh({ configuration = false } = {}) {
   return refreshPromise;
 }
 function scheduleRefresh(delay = 160) {
+  if (document.hidden) return;
   if (refreshTimer) return;
-  refreshTimer = setTimeout(() => { refreshTimer = null; void refresh(); }, delay);
+  refreshTimer = setTimeout(() => { refreshTimer = null; void refresh({ background: true }); }, delay);
 }
 // SSE reloads only task state. CLI discovery can start several processes, so it runs on demand.
 function applySkillFilter(input) {
@@ -493,7 +507,30 @@ function isMarkdownTableDelimiter(line) {
   const cells = splitMarkdownTableRow(trimmed);
   return cells.length >= 1 && cells.every((c) => /^:?-{2,}:?$/.test(c));
 }
+const markdownCache = new Map();
+let markdownCacheSize = 0;
 function renderMarkdown(source) {
+  const key = String(source || "");
+  if (markdownCache.has(key)) {
+    const cached = markdownCache.get(key);
+    markdownCache.delete(key);
+    markdownCache.set(key, cached);
+    return cached;
+  }
+  const html = buildMarkdown(key);
+  const size = key.length + html.length;
+  if (size <= 256_000) {
+    while (markdownCache.size && (markdownCache.size >= 128 || markdownCacheSize + size > 2_000_000)) {
+      const oldest = markdownCache.keys().next().value;
+      markdownCacheSize -= oldest.length + markdownCache.get(oldest).length;
+      markdownCache.delete(oldest);
+    }
+    markdownCache.set(key, html);
+    markdownCacheSize += size;
+  }
+  return html;
+}
+function buildMarkdown(source) {
   const lines = String(source || "").split(/\r?\n/);
   const html = [];
   let paragraph = [], listType = "", codeLines = [], inCode = false, codeIndent = 0;
@@ -657,8 +694,14 @@ function showNewVaultNoteModal() {
   showModal("Ghi chú tri thức mới", body, "Tạo ghi chú", "vault-note-create");
 }
 let neuralGraphCleanup = null;
+let mountedGraphCanvas = null;
+let mountedGraphData = null;
 function mountKnowledgeGraphCanvas() {
+  const currentCanvas = view.page === "knowledge" && view.vaultViewMode === "graph" ? document.getElementById("vault-neural-canvas") : null;
+  if (currentCanvas && currentCanvas === mountedGraphCanvas && view.vaultGraph === mountedGraphData) return;
   if (neuralGraphCleanup) { neuralGraphCleanup(); neuralGraphCleanup = null; }
+  mountedGraphCanvas = null;
+  mountedGraphData = null;
   if (view.page !== "knowledge" || view.vaultViewMode !== "graph") return;
   const canvas = document.getElementById("vault-neural-canvas");
   if (!canvas) return;
@@ -666,6 +709,8 @@ function mountKnowledgeGraphCanvas() {
   if (!graph.nodes?.length) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
+  mountedGraphCanvas = canvas;
+  mountedGraphData = view.vaultGraph;
 
   view.vaultGraphPositions ||= new Map();
   const simNodes = graph.nodes.map((n, i) => {
@@ -2618,7 +2663,7 @@ function cliRefreshButton(label = "Quét lại") {
 function apiProviderId(name) {
   return String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 }
-function render() {
+function render({ background = false } = {}) {
   if (!view.state) return;
   syncLocation();
   const pages = { chat: chatPage, tasks: taskPage, flows: workflowPage, workspaces: workspacePage, knowledge: knowledgePage, skills: skillPage, memory: memoryPage, settings: settingsPage };
@@ -2650,7 +2695,7 @@ function render() {
   const rawPageMarkup = (pages[view.page] || taskPage)();
   const pageMarkup = wrapStageWithOrcaTabs(rawPageMarkup);
   const rightDockMarkup = view.chatDrawerOpen ? orcaRightDockMarkup() : "";
-  updateWorkbenchShell({ page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
+  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
   localizeDom(document.querySelector("#overlay"), view.language);
   const nextContent = $("#content");
@@ -2667,7 +2712,7 @@ function render() {
     }
   }
   const nextChat = $("#chat-thread", nextContent) || $(".chat-thread", nextContent);
-  if (nextChat) nextChat.scrollTop = shouldScrollChatToEnd ? nextChat.scrollHeight : chatScroll;
+  if (nextChat && !view.chatSplitWorkspaceId) nextChat.scrollTop = shouldScrollChatToEnd ? nextChat.scrollHeight : chatScroll;
   updateChatOutline();
   if (activeComposerForm && activeComposerName) {
     const nextComposer = activeComposerTaskId ? nextContent.querySelector(`${activeComposerForm}[data-id="${CSS.escape(activeComposerTaskId)}"]`) : $(activeComposerForm, nextContent);
@@ -5636,9 +5681,17 @@ window.addEventListener("popstate", () => {
 });
 const events = new EventSource("/__events");
 events.addEventListener("update", () => scheduleRefresh(220));
-events.addEventListener("reload", () => location.reload());
-events.addEventListener("open", () => { view.streamConnected = true; if (["tasks", "chat"].includes(view.page)) render(); scheduleRefresh(0); });
-events.addEventListener("error", () => { view.streamConnected = false; if (["tasks", "chat"].includes(view.page)) render(); });
+events.addEventListener("open", () => {
+  const changed = !view.streamConnected;
+  view.streamConnected = true;
+  if (changed && ["tasks", "chat"].includes(view.page)) render({ background: true });
+  if (view.state) scheduleRefresh(0);
+});
+events.addEventListener("error", () => {
+  if (!view.streamConnected) return;
+  view.streamConnected = false;
+  if (["tasks", "chat"].includes(view.page)) render({ background: true });
+});
 document.addEventListener("visibilitychange", () => { if (!document.hidden) scheduleRefresh(80); });
 
 (() => {
@@ -5710,7 +5763,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) sche
 refresh({ configuration: true });
 setInterval(() => {
   if (document.hidden) return;
-  scheduleRefresh(0);
-  if (view.page === "settings" && Date.now() - lastConfigurationRefresh > 300_000) void refresh({ configuration: true });
+  if (!view.streamConnected || Date.now() - lastSnapshotRefresh >= 60_000) scheduleRefresh(0);
+  if (view.page === "settings" && Date.now() - lastConfigurationRefresh > 300_000) void refresh({ configuration: true, background: true });
 }, 30_000);
 

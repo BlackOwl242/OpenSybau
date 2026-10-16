@@ -13,5 +13,8 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 4173,
     strictPort: true,
+    watch: {
+      ignored: ["**/.runtime/**", "**/release/**", "**/dist/**", ...(process.env.WORKBENCH_DATA_DIR ? [`${process.env.WORKBENCH_DATA_DIR.replaceAll("\\", "/")}/**`] : [])],
+    },
   },
 });

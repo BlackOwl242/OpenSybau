@@ -12,6 +12,7 @@ import { completeWithApi, configuredApiProviders, findClaudeCode, listProviderMo
 import { cliIsInstalled } from "./src/server/cli-status.mjs";
 import { findAntigravityCli, parseWindowsRegisteredEnvironmentValue, probeAntigravityCli } from "./src/server/antigravity-cli.mjs";
 import { roleConfig, workflowRoles } from "./src/domain/agent-roles.js";
+import { createStateSnapshot } from "./src/server/state-snapshot.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const host = process.env.WORKBENCH_HOST || "127.0.0.1";
@@ -25,6 +26,7 @@ const providerConfigFile = resolve(runtime, "providers.json");
 const providerSecretsFile = resolve(runtime, "provider-secrets.json");
 const cliPathsFile = resolve(runtime, "cli-paths.json");
 const clients = new Set();
+const pendingClientUpdates = new WeakSet();
 const running = new Map();
 const busyWorkspaces = new Set();
 const isolatedWorkspaces = new Map();
@@ -56,6 +58,7 @@ let pendingPublishType = null;
 const skillCatalogCache = new Map();
 const SKILL_CACHE_TTL_MS = 60_000;
 const gitRepoLocks = new Map();
+const stateSnapshot = createStateSnapshot(publicState);
 
 async function withGitRepoLock(repoKey, fn) {
   const key = String(repoKey || "").toLowerCase();
@@ -234,6 +237,7 @@ for (const task of state.tasks) {
 }
 let memories = loadJson(memoryFile, []);
 function persist() {
+  stateSnapshot.invalidate();
   if (persistTimer) {
     clearTimeout(persistTimer);
     persistTimer = null;
@@ -242,7 +246,8 @@ function persist() {
   writeFileSync(temporary, JSON.stringify(state, null, 2), "utf8");
   renameSync(temporary, stateFile);
 }
-function schedulePersist(delayMs = 160) {
+function schedulePersist(delayMs = 750) {
+  stateSnapshot.invalidate();
   if (persistTimer) return;
   persistTimer = setTimeout(() => {
     persistTimer = null;
@@ -251,6 +256,7 @@ function schedulePersist(delayMs = 160) {
   persistTimer.unref?.();
 }
 function persistMemory() {
+  stateSnapshot.invalidate();
   const temporary = `${memoryFile}.tmp`;
   writeFileSync(temporary, JSON.stringify(memories, null, 2), "utf8");
   renameSync(temporary, memoryFile);
@@ -279,15 +285,30 @@ function isLoopbackClient(request) {
   return address === "::1" || address === "127.0.0.1" || address.startsWith("127.");
 }
 function publish(type = "state") {
+  stateSnapshot.invalidate();
   if (publishTimer) {
     clearTimeout(publishTimer);
     publishTimer = null;
     pendingPublishType = null;
   }
   const payload = JSON.stringify({ type });
-  for (const client of clients) client.write(`event: update\ndata: ${payload}\n\n`);
+  for (const client of clients) {
+    if (client.destroyed || client.writableEnded) { clients.delete(client); continue; }
+    if (client.writableNeedDrain) {
+      if (!pendingClientUpdates.has(client)) {
+        pendingClientUpdates.add(client);
+        client.once("drain", () => {
+          pendingClientUpdates.delete(client);
+          if (!client.destroyed && !client.writableEnded) client.write('event: update\ndata: {"type":"state"}\n\n');
+        });
+      }
+      continue;
+    }
+    client.write(`event: update\ndata: ${payload}\n\n`);
+  }
 }
-function schedulePublish(type = "task", delayMs = 120) {
+function schedulePublish(type = "task", delayMs = 250) {
+  stateSnapshot.invalidate();
   pendingPublishType = type;
   if (publishTimer) return;
   publishTimer = setTimeout(() => {
@@ -2211,7 +2232,20 @@ async function changedFilesSince(cwd, startTime) {
   return changed.sort();
 }
 async function api(request, response, pathname) {
-  if (request.method === "GET" && pathname === "/api/state") return json(response, 200, publicState());
+  if (request.method === "GET" && pathname === "/api/state") {
+    const snapshot = stateSnapshot.read();
+    const unchanged = request.headers["if-none-match"]?.split(",").map((tag) => tag.trim()).includes(snapshot.etag);
+    response.writeHead(unchanged ? 304 : 200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "private, no-cache",
+      "ETag": snapshot.etag,
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "Referrer-Policy": "no-referrer",
+    });
+    response.end(unchanged ? undefined : snapshot.body);
+    return;
+  }
   if (request.method === "POST" && pathname === "/api/connectors/antigravity/path") {
     const body = await readBody(request);
     const requestedPath = String(body.path || "").trim();
@@ -3387,7 +3421,14 @@ return serverFactory(serverOptions, async (request, response) => {
   catch { return json(response, 400, { error: "Invalid request URL" }); }
   if (pathname === "/__events") {
     response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no", ...securityHeaders });
-    response.write("event: connected\ndata: ready\n\n"); clients.add(response); request.on("close", () => clients.delete(response)); return;
+    response.write("retry: 3000\nevent: connected\ndata: ready\n\n");
+    clients.add(response);
+    const heartbeat = setInterval(() => {
+      if (!response.destroyed && !response.writableNeedDrain) response.write(": heartbeat\n\n");
+    }, 20_000);
+    heartbeat.unref?.();
+    response.on("close", () => { clearInterval(heartbeat); clients.delete(response); });
+    return;
   }
   if (pathname.startsWith("/api/")) {
     try { await api(request, response, pathname); }
