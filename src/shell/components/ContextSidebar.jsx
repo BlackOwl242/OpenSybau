@@ -88,7 +88,6 @@ function FanoutFleetGroup({ fanoutId, tasks, selected, collapsedFanouts = [], ta
 function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, collapsedFanouts = [], projectMenuId, taskMenuId }) {
   const expanded = !collapsedWorkspaces.includes(workspace.id);
   const activeTasks = tasks.filter((task) => !task.archived);
-  const runningCount = activeTasks.filter((task) => ["running", "queued"].includes(task.status)).length;
   const sortedTasks = [...activeTasks].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
   const menuOpen = projectMenuId === workspace.id;
 
@@ -113,7 +112,6 @@ function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, colla
         <span class={`wb-project-chevron ${expanded ? "is-expanded" : ""}`}><Icon name="chevron-right" size={13} /></span>
         <Icon name="folder-code" size={15} />
         <strong>{workspace.name}</strong>
-        {runningCount > 0 ? <span class="wb-project-active-count" title={`${runningCount} tác vụ đang chạy`}>{runningCount}</span> : null}
         {workspace.pinned ? <Icon name="pin" size={12} /> : null}
       </button>
       <div class="wb-project-actions">

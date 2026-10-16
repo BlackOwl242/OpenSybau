@@ -5,6 +5,20 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.87] - 2026-10-16
+
+### English
+- Keep newly created worktree chats in the parallel split view without reloading workspace state, and provide a stop control while a chat is running.
+- Refine the parallel chat picker and setup dialog, including clearer task status, consistent composer styling, and less rounded prompt input corners.
+- Remove the running-task count badge beside workspace names.
+
+### Tiếng Việt
+- Giữ chat worktree mới ngay trong giao diện chia khung mà không tải lại trạng thái workspace, đồng thời bổ sung nút dừng khi chat đang chạy.
+- Tinh chỉnh danh sách chọn chat và hộp cấu hình chat song song, gồm trạng thái tác vụ rõ hơn, ô nhập đồng bộ với composer và giảm độ bo góc.
+- Bỏ badge đếm tác vụ đang chạy bên cạnh tên workspace.
+
+---
+
 ## [0.2.86] - 2026-10-16
 
 ### English
