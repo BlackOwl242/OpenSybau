@@ -5,6 +5,18 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.90] - 2026-10-19
+
+### English
+- Refresh system overview documentation (`README.md` & `README.vi.md`) with clean demo workspace screenshots showcasing `Antigravity Cosmic`, `Synthwave Pulse`, `Daylight Frost`, `Editorial Stone`, and the Settings Theme Gallery.
+- Package updated Windows NSIS (`x64`) and Linux (`deb`, `rpm`) installers with the complete 13-theme system and brand asset suite.
+
+### Tiếng Việt
+- Cập nhật tài liệu giới thiệu hệ thống (`README.md` & `README.vi.md`) với bộ ảnh chụp giao diện mẫu sạch cho các chủ đề `Antigravity Cosmic`, `Synthwave Pulse`, `Daylight Frost`, `Editorial Stone` và Thư viện Chủ đề trong Cài đặt.
+- Đóng gói bản cài đặt Windows NSIS (`x64`) và Linux (`deb`, `rpm`) mới nhất tích hợp đầy đủ hệ thống 13 chủ đề màu và bộ nhận diện thương hiệu.
+
+---
+
 ## [0.2.89] - 2026-10-19
 
 ### English
