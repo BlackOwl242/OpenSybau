@@ -5,6 +5,22 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.89] - 2026-10-19
+
+### English
+- Introduce a 13-theme appearance system spanning Original Dark (`Obsidian Dark`, `Carbon OLED`), Antigravity Chromatic (`Antigravity Cosmic`, `Tokyo Night`, `Synthwave Pulse`, `Catppuccin Mocha`, `Emerald Matrix`, `Rosé Pine`, `Amber Forge`, `Nordic Aurora`), and Elegant Light (`Daylight Frost`, `Editorial Stone`, `Sakura Daylight`).
+- Add a quick theme switcher in the top window chrome and a visual Theme Gallery with miniature window previews in Settings, syncing the native desktop titlebar overlay and color scheme.
+- Unify CSS surface, border, and contrast tokens across all layout panes, composers, right dock, modals, and knowledge graphs for seamless dark, chromatic, and light rendering.
+- Ship complete dark and monochrome brand asset variants alongside the heritage OpenSybau logo.
+
+### Tiếng Việt
+- Bổ sung hệ thống 13 chủ đề giao diện (Theme) gồm 3 nhóm: Tối nguyên bản (`Obsidian Dark`, `Carbon OLED`), Đa sắc Antigravity (`Antigravity Cosmic`, `Tokyo Night`, `Synthwave Pulse`, `Catppuccin Mocha`, `Emerald Matrix`, `Rosé Pine`, `Amber Forge`, `Nordic Aurora`) và Sáng thanh lịch (`Daylight Frost`, `Editorial Stone`, `Sakura Daylight`).
+- Thêm bộ chuyển nhanh theme trên thanh tiêu đề cửa sổ và Thư viện Chủ đề trực quan kèm khung preview thu nhỏ trong phần Cài đặt, tự động đồng bộ màu thanh tiêu đề native trên bản Desktop.
+- Đồng bộ toàn bộ biến màu nền, viền và độ tương phản chữ/icon trên mọi thành phần giao diện (rail, sidebar, khung chat, composer, right dock, modal và đồ thị tri thức) cho cả chế độ tối, đa sắc và sáng.
+- Bổ sung trọn bộ biến thể logo bản tối và đơn sắc bên cạnh logo OpenSybau nguyên bản.
+
+---
+
 ## [0.2.88] - 2026-10-17
 
 ### English

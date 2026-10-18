@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("opensybauDesktop", Object.freeze({
   getUpdateState: () => ipcRenderer.invoke("opensybau:update:get-state"),
   checkForUpdates: () => ipcRenderer.invoke("opensybau:update:check"),
   restartToUpdate: () => ipcRenderer.invoke("opensybau:update:restart"),
+  setTheme: (payload) => ipcRenderer.invoke("opensybau:theme:set", payload),
   onUpdateState: (callback) => {
     const listener = (_event, state) => callback(state);
     ipcRenderer.on("opensybau:update:state", listener);

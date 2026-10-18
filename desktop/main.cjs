@@ -111,6 +111,30 @@ function registerIpcHandlers() {
     autoUpdater.quitAndInstall(false, true);
     return true;
   });
+  ipcMain.handle("opensybau:theme:set", (_event, payload = {}) => {
+    const scheme = payload?.scheme === "light" ? "light" : "dark";
+    const bgColor = typeof payload?.bgColor === "string" && /^#[0-9a-f]{6}$/i.test(payload.bgColor)
+      ? payload.bgColor
+      : (scheme === "light" ? "#f8fafc" : "#101114");
+    const symbolColor = typeof payload?.symbolColor === "string" && /^#[0-9a-f]{6}$/i.test(payload.symbolColor)
+      ? payload.symbolColor
+      : (scheme === "light" ? "#0f172a" : "#d4d4d8");
+    try {
+      nativeTheme.themeSource = scheme;
+    } catch {}
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        if (typeof mainWindow.setTitleBarOverlay === "function") {
+          mainWindow.setTitleBarOverlay({
+            color: process.platform === "win32" ? "#00000000" : bgColor,
+            symbolColor,
+            height: 38,
+          });
+        }
+      } catch {}
+    }
+    return { ok: true, scheme };
+  });
 }
 
 async function downloadCliInstaller(url, allowedHosts) {

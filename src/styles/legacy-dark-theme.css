@@ -31,8 +31,8 @@ body.launch-home .main {
 }
 
 .sidebar {
-  background: #1b1b1b;
-  border-color: #2d2d2d;
+  background: var(--wb-sidebar);
+  border-color: var(--wb-raised);
 }
 
 .brand,
@@ -40,12 +40,11 @@ body.launch-home .main {
 .machine-foot strong,
 .connector-name strong,
 .workspace-link strong {
-  color: #e8e8e8;
+  color: var(--wb-ink);
 }
 
 .brand-symbol {
-  background: #e8e8e8;
-  color: #171717;
+  background: var(--wb-primary-bg); color: var(--wb-primary-fg);
 }
 
 .brand small,
@@ -74,11 +73,11 @@ body.launch-home .main {
 .settings-card > header p,
 .skill-library-row p,
 .skill-library-row small {
-  color: #a1a1a1;
+  color: var(--wb-muted);
 }
 
 .live-dot {
-  background: #62b590;
+  background: var(--wb-green);
   box-shadow: 0 0 0 3px #62b59020;
 }
 
@@ -86,26 +85,26 @@ body.launch-home .main {
 .workspace-link,
 .chat-nav-task,
 .chat-nav-more {
-  color: #c7c7c7;
+  color: var(--wb-ink);
 }
 
 .nav-button:hover,
 .workspace-link:hover,
 .chat-nav-task:hover,
 .chat-home-card:hover {
-  background: #282828;
+  background: var(--wb-raised);
 }
 
 .nav-button.active,
 .chat-nav-task.selected {
-  color: #f0f0f0;
-  background: #2b2b2b;
+  color: var(--wb-ink-strong);
+  background: var(--wb-raised);
 }
 
 .nav-button.active .nav-icon,
 .nav-button.active > span:first-child,
 .repo-mark {
-  color: #d7d7d7;
+  color: var(--wb-ink);
 }
 
 .nav-button small,
@@ -114,17 +113,17 @@ body.launch-home .main {
 .chat-home-card small,
 .topbar-right,
 .breadcrumb {
-  color: #929292;
+  color: var(--wb-muted);
 }
 
 .topbar {
-  color: #dedede;
-  background: #1b1b1b;
-  border-color: #303030;
+  color: var(--wb-ink);
+  background: var(--wb-sidebar);
+  border-color: var(--wb-raised);
 }
 
 .breadcrumb strong {
-  color: #e5e5e5;
+  color: var(--wb-ink);
 }
 
 .icon-button,
@@ -133,9 +132,9 @@ body.launch-home .main {
 .filter,
 .side-heading button,
 .parallel-setting button {
-  color: #d8d8d8;
-  background: #232323;
-  border-color: #3a3a3a;
+  color: var(--wb-ink);
+  background: var(--wb-surface);
+  border-color: var(--wb-raised);
 }
 
 .icon-button:hover,
@@ -143,24 +142,22 @@ body.launch-home .main {
 .filter:hover,
 .side-heading button:hover,
 .parallel-setting button:hover {
-  background: #2b2b2b;
-  border-color: #4b4b4b;
+  background: var(--wb-raised);
+  border-color: var(--wb-subtle);
 }
 
 .button.primary {
-  color: #161616;
-  background: #e6e6e6;
-  border-color: #e6e6e6;
+  color: var(--wb-primary-fg); background: var(--wb-primary-bg); border-color: var(--wb-primary-bg);
 }
 
 .button.primary:hover {
-  background: #fff;
-  border-color: #fff;
+  background: var(--wb-ink-strong);
+  border-color: var(--wb-ink-strong);
 }
 
 .button.danger {
-  color: #f09a9a;
-  background: #302020;
+  color: var(--wb-red);
+  background: color-mix(in srgb, var(--wb-red) 14%, var(--wb-panel));
   border-color: #593737;
 }
 
@@ -173,7 +170,7 @@ body.launch-home .main {
 .memory-card strong,
 .task-orchestration-page,
 .chat-home h1 {
-  color: #e7e7e7;
+  color: var(--wb-ink);
 }
 
 .quick-stats,
@@ -211,9 +208,9 @@ body.launch-home .main {
 .check-row,
 .model-provider,
 .task-skill-option {
-  color: #dedede;
-  background-color: #202020;
-  border-color: #333;
+  color: var(--wb-ink);
+  background-color: var(--wb-surface);
+  border-color: var(--wb-raised);
 }
 
 .quick-stats > div,
@@ -230,51 +227,51 @@ body.launch-home .main {
 .machine-foot,
 .connection-list,
 .parallel-setting {
-  border-color: #303030;
+  border-color: var(--wb-raised);
 }
 
 .task-row:hover,
 .task-row.selected,
 .workflow-task-title:hover {
-  background: #282828;
+  background: var(--wb-raised);
 }
 
 .task-primary small b,
 .task-chevron,
 .workflow-edge,
 .conversation-separator {
-  color: #777;
+  color: var(--wb-subtle);
 }
 
 .task-state.state-running {
-  border-color: #62b590;
+  border-color: var(--wb-green);
   box-shadow: 0 0 0 3px #62b59020;
 }
 
 .task-state.state-running i,
 .provider-state.on {
-  background: #62b590;
+  background: var(--wb-green);
 }
 
 .task-state.state-done {
-  border-color: #8ab4f8;
-  background: #8ab4f8;
+  border-color: var(--wb-accent);
+  background: var(--wb-accent);
 }
 
 .task-state.state-queued {
-  border-color: #d0a45f;
+  border-color: var(--wb-amber);
 }
 
 .task-state.state-failed {
-  border-color: #e07878;
-  background: #e07878;
+  border-color: var(--wb-red);
+  background: var(--wb-red);
 }
 
 .task-agent,
 .task-date,
 .conversation-task-id,
 .conversation-context {
-  color: #9d9d9d;
+  color: var(--wb-muted);
 }
 
 .task-orchestration-page {
@@ -282,7 +279,7 @@ body.launch-home .main {
   min-height: 0;
   margin: 0 auto;
   padding: 0 clamp(16px, 2.5vw, 38px) 36px;
-  color: #e7e7e7;
+  color: var(--wb-ink);
   background: transparent;
 }
 
@@ -294,7 +291,7 @@ body.launch-home .main {
   margin: 0;
   padding: 0;
   overflow: visible;
-  background: #171717;
+  background: var(--wb-panel);
 }
 
 .task-orchestration-page > .conversation-top {
@@ -303,15 +300,15 @@ body.launch-home .main {
   min-height: 48px;
   padding: 7px 0;
   background: transparent;
-  border-color: #303030;
+  border-color: var(--wb-raised);
 }
 
 .conversation-repo {
-  color: #dedede;
+  color: var(--wb-ink);
 }
 
 .conversation-repo .ui-icon {
-  color: #aaa;
+  color: var(--wb-muted);
 }
 
 .task-orchestration-page > .detail-title-row {
@@ -321,81 +318,81 @@ body.launch-home .main {
 .task-orchestration-page > .detail-title-row h2 {
   max-width: 1050px;
   margin: 0 0 9px;
-  color: #f0f0f0;
+  color: var(--wb-ink-strong);
   font-size: clamp(19px, 2vw, 25px);
   line-height: 1.32;
   letter-spacing: -.35px;
 }
 
 .detail-meta {
-  color: #9a9a9a;
+  color: var(--wb-muted);
 }
 
 .pill {
-  color: #c5c5c5;
-  background: #292929;
+  color: var(--wb-ink);
+  background: var(--wb-raised);
 }
 
 .pill.status-running {
-  color: #8bd1ad;
-  background: #203329;
+  color: var(--wb-green);
+  background: color-mix(in srgb, var(--wb-green) 14%, var(--wb-panel));
 }
 
 .pill.status-queued {
-  color: #e0bf83;
-  background: #332d20;
+  color: var(--wb-amber);
+  background: color-mix(in srgb, var(--wb-amber) 14%, var(--wb-panel));
 }
 
 .pill.status-done {
-  color: #a9caff;
-  background: #222e40;
+  color: var(--wb-accent);
+  background: color-mix(in srgb, var(--wb-accent) 14%, var(--wb-panel));
 }
 
 .pill.status-failed {
-  color: #f09a9a;
-  background: #382222;
+  color: var(--wb-red);
+  background: color-mix(in srgb, var(--wb-red) 14%, var(--wb-panel));
 }
 
 .pill.status-cancelled {
-  color: #b5b5b5;
-  background: #292929;
+  color: var(--wb-muted);
+  background: var(--wb-raised);
 }
 
 .task-orchestration-page > .skill-used {
   margin: 0 0 14px;
   padding: 9px 11px;
-  color: #b6b6b6;
-  border: 1px solid #333;
+  color: var(--wb-muted);
+  border: 1px solid var(--wb-raised);
   border-radius: 7px;
-  background: #1d1d1d;
+  background: var(--wb-surface);
 }
 
 .skill-search {
-  color: #c8c8c8 !important;
-  background: #242424 !important;
-  border-color: #3a3a3a !important;
+  color: var(--wb-ink) !important;
+  background: var(--wb-raised) !important;
+  border-color: var(--wb-raised) !important;
 }
 
 .skill-search > span,
 .skill-search small {
-  color: #a3a3a3 !important;
+  color: var(--wb-muted) !important;
 }
 
 .skill-search input {
-  color: #ededed !important;
+  color: var(--wb-ink-strong) !important;
 }
 
 .skill-manager-row {
-  border-color: #333;
+  border-color: var(--wb-raised);
 }
 
 .skill-manager-main > strong {
-  color: #e7e7e7;
+  color: var(--wb-ink);
 }
 
 .skill-manager-main > p,
 .skill-manager-main > small {
-  color: #a5a5a5;
+  color: var(--wb-muted);
 }
 
 .orchestration-layout {
@@ -406,29 +403,29 @@ body.launch-home .main {
 
 .orchestration-canvas,
 .orchestration-activity {
-  color: #dedede;
-  border-color: #343434;
+  color: var(--wb-ink);
+  border-color: var(--wb-raised);
   border-radius: 8px;
-  background: #1e1e1e;
+  background: var(--wb-surface);
 }
 
 .orchestration-canvas-head,
 .orchestration-activity-head {
-  background: #202020;
-  border-color: #333;
+  background: var(--wb-surface);
+  border-color: var(--wb-raised);
 }
 
 .orchestration-canvas-head small,
 .orchestration-activity-head small,
 .orchestration-node-card > header small {
-  color: #a3a3a3;
+  color: var(--wb-muted);
   font-size: 10px;
 }
 
 .orchestration-canvas-head h3,
 .orchestration-activity-head h3,
 .orchestration-node-main h3 {
-  color: #e7e7e7;
+  color: var(--wb-ink);
 }
 
 .orchestration-canvas-head h3,
@@ -437,25 +434,25 @@ body.launch-home .main {
 }
 
 .orchestration-flow {
-  background-color: #1a1a1a;
-  background-image: radial-gradient(#343434 .7px, transparent .7px);
+  background-color: var(--wb-panel);
+  background-image: radial-gradient(var(--wb-raised) .7px, transparent .7px);
 }
 
 .orchestration-rail > span {
-  color: #c0c0c0;
-  border-color: #484848;
-  background: #242424;
+  color: var(--wb-ink);
+  border-color: var(--wb-subtle);
+  background: var(--wb-raised);
 }
 
 .orchestration-rail > i {
-  background: #484848;
+  background: var(--wb-subtle);
 }
 
 .orchestration-node-card {
-  color: #ddd;
-  border-color: #3a3a3a;
+  color: var(--wb-ink);
+  border-color: var(--wb-raised);
   border-radius: 7px;
-  background: #222;
+  background: var(--wb-surface);
   box-shadow: none;
 }
 
@@ -468,7 +465,7 @@ body.launch-home .main {
 .orchestration-stage-results > strong,
 .orchestration-artifacts > strong,
 .orchestration-artifacts > div {
-  color: #a7a7a7;
+  color: var(--wb-muted);
 }
 
 .orchestration-node-card > header > span,
@@ -488,14 +485,14 @@ body.launch-home .main {
 
 .orchestration-node-icon,
 .orchestration-event-mark {
-  color: #c4c4c4;
-  background: #2d2d2d;
+  color: var(--wb-ink);
+  background: var(--wb-raised);
 }
 
 .orchestration-node.state-complete .orchestration-rail > span {
-  color: #86c8a7;
+  color: var(--wb-green);
   border-color: #47725d;
-  background: #22362b;
+  background: color-mix(in srgb, var(--wb-green) 14%, var(--wb-panel));
 }
 
 .orchestration-node.state-complete .orchestration-node-card {
@@ -503,13 +500,13 @@ body.launch-home .main {
 }
 
 .orchestration-node.state-complete .orchestration-node-card > header > span {
-  color: #86c8a7;
+  color: var(--wb-green);
 }
 
 .orchestration-node.state-active .orchestration-rail > span {
-  color: #a8c6ff;
+  color: var(--wb-accent);
   border-color: #4e6690;
-  background: #27334a;
+  background: color-mix(in srgb, var(--wb-accent) 14%, var(--wb-panel));
   box-shadow: 0 0 0 3px #8ab4f81a;
 }
 
@@ -519,14 +516,14 @@ body.launch-home .main {
 }
 
 .orchestration-node.state-active .orchestration-node-card > header > span {
-  color: #a8c6ff;
+  color: var(--wb-accent);
 }
 
 .orchestration-node.state-failed .orchestration-rail > span,
 .orchestration-node.state-cancelled .orchestration-rail > span {
-  color: #f09a9a;
+  color: var(--wb-red);
   border-color: #704444;
-  background: #382222;
+  background: color-mix(in srgb, var(--wb-red) 14%, var(--wb-panel));
 }
 
 .orchestration-node.state-failed .orchestration-node-card {
@@ -536,58 +533,58 @@ body.launch-home .main {
 .orchestration-node-details,
 .orchestration-stage-results,
 .orchestration-artifacts {
-  border-color: #333;
+  border-color: var(--wb-raised);
 }
 
 .orchestration-node-details summary,
 .orchestration-stage-results summary,
 .orchestration-event-details summary {
-  color: #abc4f6;
+  color: var(--wb-accent);
   font-size: 10px;
 }
 
 .orchestration-node-details pre,
 .orchestration-event-details pre,
 .orchestration-stage-results pre {
-  color: #d0d0d0;
-  background: #181818;
-  border: 1px solid #303030;
+  color: var(--wb-ink);
+  background: var(--wb-panel);
+  border: 1px solid var(--wb-raised);
 }
 
 .orchestration-node-details > div p,
 .orchestration-node-details time,
 .orchestration-node-details code,
 .orchestration-artifacts code {
-  color: #b0b0b0;
+  color: var(--wb-muted);
 }
 
 .orchestration-activity-note {
-  color: #b1b1b1;
-  background: #292929;
+  color: var(--wb-muted);
+  background: var(--wb-raised);
 }
 
 .orchestration-event {
-  border-color: #303030;
+  border-color: var(--wb-raised);
 }
 
 .orchestration-event.kind-handoff .orchestration-event-mark {
-  color: #a8c6ff;
-  background: #27334a;
+  color: var(--wb-accent);
+  background: color-mix(in srgb, var(--wb-accent) 14%, var(--wb-panel));
 }
 
 .orchestration-event.kind-tool .orchestration-event-mark {
-  color: #e0bf83;
-  background: #332d20;
+  color: var(--wb-amber);
+  background: color-mix(in srgb, var(--wb-amber) 14%, var(--wb-panel));
 }
 
 .orchestration-event.kind-error .orchestration-event-mark {
-  color: #f09a9a;
-  background: #382222;
+  color: var(--wb-red);
+  background: color-mix(in srgb, var(--wb-red) 14%, var(--wb-panel));
 }
 
 .orchestration-event.kind-success .orchestration-event-mark {
-  color: #86c8a7;
-  background: #22362b;
+  color: var(--wb-green);
+  background: color-mix(in srgb, var(--wb-green) 14%, var(--wb-panel));
 }
 
 .orchestration-event-list {
@@ -599,14 +596,14 @@ body.launch-home .main {
   position: static;
   margin: 14px 0 0;
   padding: 12px 0 20px;
-  border-color: #303030;
+  border-color: var(--wb-raised);
   background: transparent;
 }
 
 .task-conversation-page,
 .chat-home {
-  color: #e7e7e7;
-  background: #171717;
+  color: var(--wb-ink);
+  background: var(--wb-panel);
 }
 
 .chat-home h1,
@@ -614,41 +611,41 @@ body.launch-home .main {
 .agent-message-content h2,
 .agent-message-content h3,
 .agent-message-content h4 {
-  color: #e7e7e7;
+  color: var(--wb-ink);
 }
 
 .chat-home-copy,
 .chat-home-section > header,
 .chat-home-card,
 .agent-message-content {
-  color: #c5c5c5;
+  color: var(--wb-ink);
 }
 
 .agent-message-content code,
 .agent-message-content pre {
-  color: #ddd;
-  background: #252525;
-  border-color: #3a3a3a;
+  color: var(--wb-ink);
+  background: var(--wb-raised);
+  border-color: var(--wb-raised);
 }
 
 .agent-message-content a,
 .chat-nav-more {
-  color: #a8c6ff;
+  color: var(--wb-accent);
 }
 
 .home-mode-tab,
 .home-composer-settings,
 .chat-config-trigger,
 .home-search-results button {
-  color: #ddd;
-  background: #242424;
-  border-color: #393939;
+  color: var(--wb-ink);
+  background: var(--wb-raised);
+  border-color: var(--wb-raised);
 }
 
 .home-mode-tab.active {
-  color: #f0f0f0;
-  background: #303030;
-  border-color: #4a4a4a;
+  color: var(--wb-ink-strong);
+  background: var(--wb-raised);
+  border-color: var(--wb-subtle);
 }
 
 .home-composer > textarea,
@@ -658,9 +655,9 @@ body.launch-home .main {
 .modal textarea,
 .model-provider select,
 .skill-search input {
-  color: #ededed;
-  background: #181818;
-  border-color: #3b3b3b;
+  color: var(--wb-ink-strong);
+  background: var(--wb-panel);
+  border-color: var(--wb-raised);
 }
 
 .home-composer > textarea::placeholder,
@@ -668,7 +665,7 @@ body.launch-home .main {
 .modal input::placeholder,
 .modal textarea::placeholder,
 .skill-search input::placeholder {
-  color: #858585;
+  color: var(--wb-muted);
 }
 
 .model-provider,
@@ -677,9 +674,9 @@ body.launch-home .main {
 .check-row,
 .task-skill-option,
 .home-agent-card {
-  color: #ddd;
-  background: #222;
-  border-color: #383838;
+  color: var(--wb-ink);
+  background: var(--wb-surface);
+  border-color: var(--wb-raised);
 }
 
 .model-provider > header strong,
@@ -687,7 +684,7 @@ body.launch-home .main {
 .check-row strong,
 .skill-library-row strong,
 .task-skill-option strong {
-  color: #e2e2e2;
+  color: var(--wb-ink);
 }
 
 .model-provider > header span,
@@ -697,52 +694,52 @@ body.launch-home .main {
 .skill-library-row small,
 .settings-card header p,
 .form-note {
-  color: #a5a5a5;
+  color: var(--wb-muted);
 }
 
 .model-provider select option {
-  color: #e7e7e7;
-  background: #222;
+  color: var(--wb-ink);
+  background: var(--wb-surface);
 }
 
 .settings-status {
-  color: #8bd1ad;
-  background: #203329;
+  color: var(--wb-green);
+  background: color-mix(in srgb, var(--wb-green) 14%, var(--wb-panel));
 }
 
 .settings-actions,
 .modal-actions {
-  border-color: #353535;
+  border-color: var(--wb-raised);
 }
 
 .feature-warning {
-  color: #e0bf83;
-  background: #332d20;
+  color: var(--wb-amber);
+  background: color-mix(in srgb, var(--wb-amber) 14%, var(--wb-panel));
   border-color: #5d4d30;
 }
 
 .workflow-lane,
 .workflow-node {
-  color: #ddd;
+  color: var(--wb-ink);
 }
 
 .workflow-node {
-  background: #242424;
-  border-color: #3a3a3a;
+  background: var(--wb-raised);
+  border-color: var(--wb-raised);
 }
 
 .workflow-node strong,
 .workflow-task-title strong,
 .memory-card p,
 .info-panel strong {
-  color: #e0e0e0;
+  color: var(--wb-ink);
 }
 
 .info-panel,
 .orchestration-activity-note,
 .workflow-empty {
-  background: #222;
-  border-color: #343434;
+  background: var(--wb-surface);
+  border-color: var(--wb-raised);
 }
 
 .detail-backdrop,
@@ -752,9 +749,9 @@ body.launch-home .main {
 
 .detail-panel,
 .modal {
-  color: #e7e7e7;
-  background: #202020;
-  border: 1px solid #363636;
+  color: var(--wb-ink);
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-raised);
   box-shadow: 0 18px 60px #0008;
 }
 
@@ -788,14 +785,14 @@ button[aria-busy="true"] {
 }
 
 .detail-actions {
-  background: #202020;
-  border-color: #353535;
+  background: var(--wb-surface);
+  border-color: var(--wb-raised);
 }
 
 .toast {
-  color: #eee;
-  background: #252525;
-  border-color: #444;
+  color: var(--wb-ink-strong);
+  background: var(--wb-raised);
+  border-color: var(--wb-subtle);
   box-shadow: 0 5px 20px #0007;
 }
 
@@ -811,8 +808,8 @@ button[aria-busy="true"] {
 
 @media (max-width: 700px) {
   .sidebar {
-    background: #1b1b1b;
-    border-color: #303030;
+    background: var(--wb-sidebar);
+    border-color: var(--wb-raised);
   }
 
   .task-detail-content {

@@ -1,4 +1,5 @@
 import { getLanguage, formatNumber } from "./i18n.js";
+import { getSavedThemeId } from "./themes.js";
 import { iconSvg } from "./ui/icons.js";
 
 function readCollapsedWorkspaces() {
@@ -19,6 +20,7 @@ function setupAlreadyDismissed() {
 export const view = {
   page: "chat",
   language: getLanguage(),
+  theme: getSavedThemeId(),
   state: null,
   connectors: null,
   providers: [],

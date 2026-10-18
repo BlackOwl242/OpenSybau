@@ -9,6 +9,7 @@ import { DesktopSetupDialog } from "./components/DesktopSetupDialog.jsx";
 import { pageLayouts } from "./navigation.js";
 import { Icon } from "../shared/ui/Icon.jsx";
 import { formatNumber } from "../shared/i18n.js";
+import { THEMES, THEME_GROUPS, getThemeDefinition } from "../shared/themes.js";
 
 function StatusBar({ snapshot }) {
   const state = snapshot.state;
@@ -80,6 +81,7 @@ function WindowChrome({ snapshot, sidebarCollapsed, onToggleSidebar }) {
     return () => { active = false; unsubscribe?.(); };
   }, [desktop]);
 
+  const activeTheme = getThemeDefinition(snapshot.theme);
   const updateDownloaded = updateState?.status === "downloaded";
   const updateBusy = ["checking", "available", "downloading"].includes(updateState?.status);
   const updateLabel = updateDownloaded
@@ -109,6 +111,64 @@ function WindowChrome({ snapshot, sidebarCollapsed, onToggleSidebar }) {
       </button>
     </div>
     <div class="wb-window-chrome-right">
+      <details class="codex-pop-menu is-down is-right wb-theme-menu">
+        <summary class="wb-chrome-pill wb-theme-trigger" title="Đổi chủ đề màu sắc (Theme)">
+          <span
+            class="wb-theme-dot"
+            style={{
+              backgroundColor: activeTheme.swatches[2] || activeTheme.swatches[0],
+              width: "8px",
+              height: "8px",
+              borderRadius: "999px",
+              display: "inline-block",
+              flexShrink: 0,
+            }}
+          />
+          <span class="wb-theme-trigger-label">{activeTheme.label}</span>
+        </summary>
+        <div class="codex-pop-card wb-theme-pop-card">
+          {THEME_GROUPS.map((group) => {
+            const groupThemes = THEMES.filter((item) => item.group === group.id);
+            return <div class="wb-theme-pop-group" key={group.id}>
+              <div class="codex-pop-title">{group.label}</div>
+              <div class="wb-theme-pop-grid">
+                {groupThemes.map((theme) => {
+                  const isActive = theme.id === activeTheme.id;
+                  return <button
+                    key={theme.id}
+                    type="button"
+                    class={`codex-pop-item wb-theme-pop-item ${isActive ? "is-active is-selected" : ""}`}
+                    data-action="pick-theme"
+                    data-theme-id={theme.id}
+                    title={theme.description}
+                  >
+                    <span class="wb-theme-swatch-mini" aria-hidden="true">
+                      {theme.swatches.map((hex, index) => (
+                        <i
+                          key={index}
+                          style={{
+                            backgroundColor: hex,
+                            display: "block",
+                            width: "100%",
+                            height: "100%",
+                            minWidth: "8px",
+                            minHeight: "20px",
+                          }}
+                        />
+                      ))}
+                    </span>
+                    <span class="wb-theme-pop-copy">
+                      <strong>{theme.label}</strong>
+                      <small>{theme.badge}</small>
+                    </span>
+                    <span class="codex-pop-check wb-theme-pop-check">{isActive ? <Icon name="check" size={13} /> : null}</span>
+                  </button>;
+                })}
+              </div>
+            </div>;
+          })}
+        </div>
+      </details>
       <button class="wb-chrome-pill" type="button" data-action="toggle-language" title="Chuyển ngôn ngữ VI / EN">
         {snapshot.language === "en" ? "EN" : "VI"}
       </button>

@@ -3,6 +3,7 @@ import { orchestrationNodes } from "../../domain/task-flow.js";
 import { connectorSupports, providerTitle, providersForRole, roleConfig, workflowRoles } from "../../domain/agent-roles.js";
 import { cliConnectionStatus, cliProviderGuides } from "../../domain/provider-guides.js";
 import { localizeDom, setLanguage, translateText } from "../../shared/i18n.js";
+import { THEMES, THEME_GROUPS, applyThemeToDom, getThemeDefinition, setSavedThemeId } from "../../shared/themes.js";
 import { updateWorkbenchShell } from "../../shell/mount.jsx";
 import { readBrowserRoute, syncBrowserRoute } from "../../shell/router.js";
 import { compactChatTitle } from "../../shared/chat-labels.js";
@@ -19,6 +20,7 @@ compactLayout.addEventListener("change", ({ matches }) => {
   }
 });
 document.documentElement.lang = view.language;
+applyThemeToDom(view.theme);
 if (window.opensybauDesktop?.isDesktop) document.documentElement.classList.add("desktop-glass");
 let browserRouteInitialized = false;
 let replaceBrowserRoute = false;
@@ -842,6 +844,7 @@ function mountKnowledgeGraphCanvas() {
       }
     }
 
+    const lightScheme = document.documentElement?.dataset?.colorScheme === "light";
     ctx.save();
     ctx.translate(w / 2 + camX, h / 2 + camY);
     ctx.scale(camZoom, camZoom);
@@ -857,10 +860,12 @@ function mountKnowledgeGraphCanvas() {
       ctx.moveTo(a.x, a.y);
       ctx.lineTo(b.x, b.y);
       if (isHighlighted) {
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.58)";
+        ctx.strokeStyle = lightScheme ? "rgba(15, 23, 42, 0.52)" : "rgba(255, 255, 255, 0.58)";
         ctx.lineWidth = 1.35;
       } else {
-        ctx.strokeStyle = isDimmed ? "rgba(255, 255, 255, 0.04)" : "rgba(255, 255, 255, 0.14)";
+        ctx.strokeStyle = isDimmed
+          ? (lightScheme ? "rgba(15, 23, 42, 0.05)" : "rgba(255, 255, 255, 0.04)")
+          : (lightScheme ? "rgba(15, 23, 42, 0.16)" : "rgba(255, 255, 255, 0.14)");
         ctx.lineWidth = 1;
       }
       ctx.stroke();
@@ -871,7 +876,9 @@ function mountKnowledgeGraphCanvas() {
         const py = a.y + (b.y - a.y) * t;
         ctx.beginPath();
         ctx.arc(px, py, isHighlighted ? 1.75 : 1.3, 0, Math.PI * 2);
-        ctx.fillStyle = isHighlighted ? "#ffffff" : "rgba(255, 255, 255, 0.42)";
+        ctx.fillStyle = isHighlighted
+          ? (lightScheme ? "#0f172a" : "#ffffff")
+          : (lightScheme ? "rgba(15, 23, 42, 0.42)" : "rgba(255, 255, 255, 0.42)");
         ctx.fill();
       }
     }
@@ -885,7 +892,7 @@ function mountKnowledgeGraphCanvas() {
       if (isSelected || isHovered) {
         ctx.beginPath();
         ctx.arc(n.x, n.y, n.radius + 4, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+        ctx.strokeStyle = lightScheme ? "rgba(15, 23, 42, 0.24)" : "rgba(255, 255, 255, 0.22)";
         ctx.lineWidth = 1;
         ctx.stroke();
       }
@@ -893,16 +900,18 @@ function mountKnowledgeGraphCanvas() {
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
       if (isSelected || isHovered) {
-        ctx.fillStyle = "#ffffff";
-        ctx.strokeStyle = "#09090b";
+        ctx.fillStyle = lightScheme ? "#0f172a" : "#ffffff";
+        ctx.strokeStyle = lightScheme ? "#ffffff" : "#09090b";
         ctx.lineWidth = 1.5;
       } else if (isDimmed) {
-        ctx.fillStyle = "rgba(113, 113, 122, 0.24)";
-        ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+        ctx.fillStyle = lightScheme ? "rgba(148, 163, 184, 0.28)" : "rgba(113, 113, 122, 0.24)";
+        ctx.strokeStyle = lightScheme ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.06)";
         ctx.lineWidth = 1;
       } else {
-        ctx.fillStyle = n.degree > 1 ? "#d4d4d8" : "#71717a";
-        ctx.strokeStyle = "rgba(18, 19, 23, 0.9)";
+        ctx.fillStyle = lightScheme
+          ? (n.degree > 1 ? "#334155" : "#64748b")
+          : (n.degree > 1 ? "#d4d4d8" : "#71717a");
+        ctx.strokeStyle = lightScheme ? "rgba(255, 255, 255, 0.9)" : "rgba(18, 19, 23, 0.9)";
         ctx.lineWidth = 1.25;
       }
       ctx.fill();
@@ -912,7 +921,11 @@ function mountKnowledgeGraphCanvas() {
         ctx.font = `${isSelected || isHovered ? "600" : "500"} 11px "Nunito Sans Variable", "Segoe UI", sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
-        ctx.fillStyle = isSelected || isHovered ? "#ffffff" : isDimmed ? "rgba(255, 255, 255, 0.2)" : "rgba(228, 228, 231, 0.78)";
+        ctx.fillStyle = isSelected || isHovered
+          ? (lightScheme ? "#0f172a" : "#ffffff")
+          : isDimmed
+            ? (lightScheme ? "rgba(15, 23, 42, 0.24)" : "rgba(255, 255, 255, 0.2)")
+            : (lightScheme ? "rgba(15, 23, 42, 0.82)" : "rgba(228, 228, 231, 0.78)");
         ctx.fillText(n.stem || n.name, n.x, n.y + n.radius + 5);
       }
     }
@@ -2587,6 +2600,42 @@ function settingsPage() {
   const noReadyConnector = !Object.values(view.connectors || {}).some((connector) => connector?.available && connector.capabilities?.plan);
   const readyCliCount = cliProviderGuides.filter((agent) => cliConnectionStatus(view.connectors?.[agent.id]).tone === "ready").length;
   const readyApiCount = (view.providers || []).filter((p) => p.available).length;
+  const activeTheme = getThemeDefinition(view.theme);
+  const themeGroupsHtml = THEME_GROUPS.map((group) => {
+    const groupThemes = THEMES.filter((item) => item.group === group.id);
+    const cardsHtml = groupThemes.map((theme) => {
+      const isActive = theme.id === activeTheme.id;
+      const [bgHex, panelHex, accentHex, inkHex] = theme.swatches;
+      return `<button type="button" class="theme-gallery-item ${isActive ? "is-active" : ""}" data-action="pick-theme" data-theme-id="${esc(theme.id)}" aria-pressed="${isActive ? "true" : "false"}">
+        <div class="theme-preview-window" style="background:${bgHex};--tp-bg:${bgHex};--tp-panel:${panelHex};--tp-accent:${accentHex};--tp-ink:${inkHex}">
+          <span class="theme-preview-rail" style="background:${panelHex}"><i style="background:${accentHex}"></i><i style="background:${inkHex};opacity:.35"></i><i style="background:${inkHex};opacity:.22"></i></span>
+          <span class="theme-preview-stage" style="background:${bgHex}">
+            <em class="theme-preview-bar" style="background:${inkHex};opacity:.55"></em>
+            <em class="theme-preview-bubble" style="background:${panelHex};border-color:${accentHex}55"></em>
+            <em class="theme-preview-composer" style="background:${panelHex}"><b style="background:${accentHex}"></b></em>
+          </span>
+        </div>
+        <div class="theme-gallery-meta">
+          <div class="theme-gallery-title-row">
+            <strong>${esc(theme.label)}</strong>
+            <span class="theme-gallery-badge">${esc(theme.badge)}</span>
+          </div>
+          <small>${esc(theme.description)}</small>
+          <div class="theme-gallery-swatches">
+            ${theme.swatches.map((hex) => `<i style="background-color:${hex};display:inline-block;width:14px;height:14px;border-radius:999px" title="${hex}"></i>`).join("")}
+            <span class="theme-gallery-check">${isActive ? icon("check", 13) : ""}</span>
+          </div>
+        </div>
+      </button>`;
+    }).join("");
+    return `<div class="theme-gallery-group">
+      <div class="theme-gallery-group-head">
+        <strong>${esc(group.label)}</strong>
+        <small>${esc(group.description)}</small>
+      </div>
+      <div class="theme-gallery-grid">${cardsHtml}</div>
+    </div>`;
+  }).join("");
 
   return `<div class="page-head">
     <div>
@@ -2606,6 +2655,16 @@ function settingsPage() {
     <div class="stats-note">Khóa API và cấu hình điều phối chỉ lưu cục bộ trên máy này.</div>
   </div>
   <form class="settings-form" data-modal data-form="settings">
+    <section class="settings-card theme-gallery-card" id="settings-theme">
+      <header>
+        <div>
+          <h2>Giao diện & Chủ đề màu</h2>
+          <p>Chuyển đổi tức thì giữa chủ đề Tối nguyên bản, Đa sắc Antigravity và Sáng thanh lịch. Bạn cũng có thể đổi nhanh trên thanh tiêu đề góc phải trên cùng.</p>
+        </div>
+        <span class="pill status-done"><i></i>${esc(activeTheme.label)}</span>
+      </header>
+      <div class="theme-gallery-groups">${themeGroupsHtml}</div>
+    </section>
     <section class="settings-card" id="settings-roles"><header><div><h2>Ai ra lệnh, ai thực hiện</h2><p>Chọn model lập kế hoạch (ra lệnh), model triển khai (thực hiện) và model review. Mỗi task vẫn có thể dùng bộ model khác.</p></div></header>
         ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và review.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API / model local</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI agent</button></div></div>` : ""}
       <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
@@ -2695,7 +2754,7 @@ function render({ background = false } = {}) {
   const rawPageMarkup = (pages[view.page] || taskPage)();
   const pageMarkup = wrapStageWithOrcaTabs(rawPageMarkup);
   const rightDockMarkup = view.chatDrawerOpen ? orcaRightDockMarkup() : "";
-  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
+  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, theme: view.theme, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
   localizeDom(document.querySelector("#overlay"), view.language);
   const nextContent = $("#content");
@@ -4409,6 +4468,15 @@ async function handleWorkbenchClick(event) {
       view.language = setLanguage(view.language === "en" ? "vi" : "en");
       render();
       showToast(view.language === "en" ? "Đã chuyển giao diện sang tiếng Anh." : "Đã chuyển giao diện sang tiếng Việt.");
+      return;
+    }
+    if (action === "pick-theme") {
+      const themeId = button.dataset.themeId || "";
+      const applied = setSavedThemeId(themeId);
+      view.theme = applied.id;
+      document.querySelectorAll(".wb-theme-menu[open]").forEach((menu) => { menu.open = false; });
+      render();
+      showToast(view.language === "en" ? `Switched theme to ${applied.label}.` : `Đã chuyển sang chủ đề ${applied.label}.`);
       return;
     }
     if (action === "dismiss-desktop-setup") { view.desktopSetupOpen = false; try { localStorage.setItem("opensybau.setup-v3", "done"); localStorage.setItem("opensybau.desktop-setup-v2", "done"); } catch {} render(); return; }

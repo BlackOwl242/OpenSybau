@@ -1,4 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-labelledby="title">
+  <title id="title">OpenSybau logo</title>
   <rect width="64" height="64" rx="15" fill="#F5F0EB"/>
   <!-- 2 Khối tròn đặc (O) căn chuẩn khung vuông Tỷ lệ vàng [12.8 .. 51.2] -->
   <circle cx="19.6" cy="19.8" r="6.8" fill="#000000"/>
