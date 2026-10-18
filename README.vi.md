@@ -12,21 +12,31 @@ OpenSybau kết hợp **Codex CLI**, **Claude Code**, **Antigravity CLI** cùng 
 ### 1. Màn hình Chính & Khung nhập liệu thông minh 2 tầng
 ![Màn hình Chính & Khung nhập liệu](docs/screenshots/home-composer-workbench.png)
 
-### 2. Luồng Trò chuyện Đồng nhất, Bảng Markdown & Xem Mã nguồn Chia đôi (Split View)
+### 2. Hệ thống 13 Chủ đề Giao diện (Tối nguyên bản, Đa sắc Antigravity & Sáng thanh lịch)
+| **Antigravity Cosmic (kèm Menu chuyển nhanh Theme)** | **Synthwave Pulse (Đa sắc Cyberpunk)** |
+| :---: | :---: |
+| ![Antigravity Cosmic Theme](docs/screenshots/theme-antigravity-cosmic.png) | ![Synthwave Pulse Theme](docs/screenshots/theme-synthwave-pulse.png) |
+| **Daylight Frost (Sáng chuẩn tinh khiết)** | **Editorial Stone (Kem giấy ấm Bauhaus)** |
+| ![Daylight Frost Theme](docs/screenshots/theme-daylight-frost.png) | ![Editorial Stone Theme](docs/screenshots/theme-editorial-stone.png) |
+
+### 3. Thư viện Chủ đề (Theme Gallery) & Khung Preview Cửa sổ thu nhỏ
+![Thư viện Chủ đề trong Cài đặt](docs/screenshots/theme-gallery-settings.png)
+
+### 4. Luồng Trò chuyện Đồng nhất, Bảng Markdown & Xem Mã nguồn Chia đôi (Split View)
 ![Trò chuyện & Xem tệp chia đôi](docs/screenshots/chat-split-review.png)
 
-### 3. Kho Tri thức Markdown & Đồ thị Liên kết (Neural Graph)
+### 5. Kho Tri thức Markdown & Đồ thị Liên kết (Neural Graph)
 ![Kho Tri thức & Đồ thị Liên kết](docs/screenshots/knowledge-vault.png)
 
-### 4. Thư viện Kỹ năng Agent & Sidebar Ngữ cảnh
+### 6. Thư viện Kỹ năng Agent & Sidebar Ngữ cảnh
 ![Thư viện Kỹ năng Agent](docs/screenshots/skills-library.png)
 
 ---
 
 ## ✨ Điểm nổi bật mới nhất
 
-### 1. Giao diện Kính mờ (Frosted-Glass) & Khung nhập liệu thông minh 2 tầng
-- **Khung ứng dụng Windows Mica / Kính mờ:** Thanh điều hướng bên trái có đường kẻ phân nhóm tinh tế kết hợp cùng khung làm việc chính bo góc nổi đồng bộ.
+### 1. Giao diện Kính mờ (Frosted-Glass), Hệ thống 13 Theme & Khung nhập liệu thông minh 2 tầng
+- **Khung ứng dụng Windows Mica / Kính mờ & 13 Chủ đề Màu sắc:** Chuyển đổi tức thì ngay trên thanh tiêu đề hoặc trong **Cài đặt → Giao diện** giữa 3 nhóm: **Tối nguyên bản** (`Obsidian Dark`, `Carbon OLED`), **Đa sắc Antigravity** (`Antigravity Cosmic`, `Tokyo Night`, `Synthwave Pulse`, `Catppuccin Mocha`, `Emerald Matrix`, `Rosé Pine`, `Amber Forge`, `Nordic Aurora`), và **Sáng thanh lịch** (`Daylight Frost`, `Editorial Stone`, `Sakura Daylight`).
 - **Khung nhập liệu 2 tầng bám sát cạnh dưới (Bottom-Docked Two-Tier Composer):**
   - **Thanh ngữ cảnh tầng trên:** Chọn nhanh **Dự án (Workspace)**, chuyển đổi môi trường thực thi giữa **Máy tính này** (chạy trực tiếp trên nhánh hiện tại) và **Git Worktree** (tách nhánh cô lập an toàn), cùng 4 chế độ làm việc: **Chat**, **Code**, **Kế hoạch**, **Đa luồng**.
   - **Thanh điều khiển tầng dưới với Popover mở hướng lên:** Chọn nhanh **Agent & Model**, **Mức suy luận (Reasoning Effort)** (`Low` / `Medium` / `High` / `Max`), đính kèm tệp/ảnh (`+`), và **Popover Quyền thực thi của Agent**:

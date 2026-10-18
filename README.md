@@ -12,21 +12,31 @@ OpenSybau brings **Codex CLI**, **Claude Code**, **Antigravity CLI**, and **Anth
 ### 1. Home Workbench & Two-Tier Smart Composer
 ![Home Workbench & Two-Tier Smart Composer](docs/screenshots/home-composer-workbench.png)
 
-### 2. Unified Chat, GFM Markdown Tables & Side-by-Side Split Code Viewer
+### 2. 13-Theme Appearance System (Dark, Antigravity Chromatic & Elegant Light)
+| **Antigravity Cosmic (with Quick Theme Switcher)** | **Synthwave Pulse (Cyberpunk Chromatic)** |
+| :---: | :---: |
+| ![Antigravity Cosmic Theme](docs/screenshots/theme-antigravity-cosmic.png) | ![Synthwave Pulse Theme](docs/screenshots/theme-synthwave-pulse.png) |
+| **Daylight Frost (Crisp Snow Light)** | **Editorial Stone (Bauhaus Warm Cream)** |
+| ![Daylight Frost Theme](docs/screenshots/theme-daylight-frost.png) | ![Editorial Stone Theme](docs/screenshots/theme-editorial-stone.png) |
+
+### 3. Visual Theme Gallery & Live Miniature Window Previews
+![Visual Theme Gallery in Settings](docs/screenshots/theme-gallery-settings.png)
+
+### 4. Unified Chat, GFM Markdown Tables & Side-by-Side Split Code Viewer
 ![Unified Chat, Markdown Tables & Split Code Viewer](docs/screenshots/chat-split-review.png)
 
-### 3. Knowledge Vault & Interactive Neural Link Graph
+### 5. Knowledge Vault & Interactive Neural Link Graph
 ![Knowledge Vault & Neural Graph](docs/screenshots/knowledge-vault.png)
 
-### 4. Agent Skills Library & Context-Aware Sidebar
+### 6. Agent Skills Library & Context-Aware Sidebar
 ![Agent Skills Library & Context-Aware Sidebar](docs/screenshots/skills-library.png)
 
 ---
 
 ## ✨ Core Highlights
 
-### 1. Frosted-Glass Desktop Experience & Smart Two-Tier Composer
-- **Windows Mica / Frosted-Glass Shell:** Native translucent navigation rail with subtle section dividers and a floating rounded main stage.
+### 1. Frosted-Glass Desktop Experience, 13-Theme System & Smart Two-Tier Composer
+- **Windows Mica / Frosted-Glass Shell & 13 Curated Themes:** Switch effortlessly from the top window chrome or **Settings → Appearance** across **Original Dark** (`Obsidian Dark`, `Carbon OLED`), **Antigravity Chromatic** (`Antigravity Cosmic`, `Tokyo Night`, `Synthwave Pulse`, `Catppuccin Mocha`, `Emerald Matrix`, `Rosé Pine`, `Amber Forge`, `Nordic Aurora`), and **Elegant Light** (`Daylight Frost`, `Editorial Stone`, `Sakura Daylight`).
 - **Two-Tier Bottom-Docked Composer:**
   - **Top Context Rail:** Switch workspaces (`Dự án`), toggle execution isolation between **Local Checkout (`Máy tính này`)** and **Isolated Git Worktree (`Git Worktree`)**, and switch work modes (**Chat**, **Code**, **Plan**, **Multi-Thread (`Đa luồng`)**).
   - **Bottom Control Bar with Upward Popovers:** Custom upward-opening glass popovers for **Agent & Model**, **Reasoning Effort** (`Low` / `Medium` / `High` / `Max`), file/image attachments (`+`), and **Agent Execution Permissions**:
