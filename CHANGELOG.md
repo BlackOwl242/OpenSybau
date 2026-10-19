@@ -5,6 +5,16 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.96] - 2026-10-20
+
+### English
+- Restore the native acrylic frosted-glass sidebar (`--wb-sidebar: rgba(20, 24, 30, .28)`) and translucent shell gradient (`linear-gradient(145deg, rgba(16, 20, 26, 0.62) 0%, rgba(12, 15, 19, 0.68) 100%)`) for the default `Obsidian Dark` (`desktop-glass`) theme.
+
+### Tiếng Việt
+- Khôi phục hiệu ứng kính mờ (acrylic frosted glass) trên thanh bên trái (`--wb-sidebar: rgba(20, 24, 30, .28)`) và khung nền trong suốt (`linear-gradient(145deg, rgba(16, 20, 26, 0.62) 0%, rgba(12, 15, 19, 0.68) 100%)`) cho chủ đề mặc định `Obsidian Dark` (`desktop-glass`).
+
+---
+
 ## [0.2.95] - 2026-10-20
 
 ### English

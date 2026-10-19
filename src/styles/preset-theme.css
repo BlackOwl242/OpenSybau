@@ -309,23 +309,23 @@ body .wb-app-shell select optgroup {
 .wb-page-content .detail-backdrop,
 #overlay .modal-backdrop { background: rgb(0 0 0 / 58%); }
 /* Desktop uses the native Windows acrylic backdrop. Web keeps its opaque theme. */
+html.desktop-glass:not([data-theme]), html.desktop-glass[data-theme="obsidian"] {
+  --wb-rail: rgba(23, 24, 25, .93);
+  /* Keep the sidebar tint light enough to reveal the native acrylic backdrop. */
+  --wb-sidebar: rgba(20, 24, 30, .28);
+  --wb-main: rgba(36, 37, 38, .87);
+  --wb-panel: rgba(38, 39, 41, .96);
+  --wb-surface: rgba(43, 44, 46, .94);
+  --wb-surface-soft: rgba(37, 38, 40, .92);
+  --wb-raised: rgba(48, 50, 53, .96);
+  --wb-field: rgba(32, 33, 35, .92);
+  --wb-control: rgba(48, 50, 52, .92);
+}
 html.desktop-glass body,
 html.desktop-glass #root { background: transparent; }
-html.desktop-glass .wb-rail,
-html.desktop-glass .wb-main,
-html.desktop-glass .wb-topbar {
-  background: color-mix(in srgb, var(--wb-bg) 82%, transparent);
-}
-html.desktop-glass .wb-sidebar {
-  /* Keep the sidebar tint light enough to reveal the native acrylic backdrop. */
-  background: color-mix(in srgb, var(--wb-bg) 68%, transparent);
-}
-html.desktop-glass .wb-panel,
-html.desktop-glass .wb-surface,
-html.desktop-glass .wb-page-content .home-composer,
-html.desktop-glass .wb-page-content .task-conversation-page .chat-composer {
-  background: color-mix(in srgb, var(--wb-bg-elevated) 78%, transparent);
-}
+html.desktop-glass[data-theme="obsidian"] .wb-topbar { background: rgba(36, 37, 38, .91); }
+html.desktop-glass[data-theme="obsidian"] .wb-page-content .home-composer,
+html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-page .chat-composer { background: rgba(43, 44, 46, .93); }
 
 /* Shared add menu for both chat composers. */
 .composer-attachments { min-width: 0; display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 9px; }
@@ -8398,8 +8398,9 @@ summary:hover svg.lucide-animated .la-eye-outline { transform: scaleY(1.04); }
    Multi-Theme System: WindowChrome Popover + Settings Gallery + Surface Sync
    ========================================================================== */
 
-html.desktop-glass .wb-app-shell {
-  background: color-mix(in srgb, var(--wb-bg) 65%, transparent) !important;
+html.desktop-glass:not([data-theme]) .wb-app-shell,
+html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
+  background: linear-gradient(145deg, rgba(16, 20, 26, 0.62) 0%, rgba(12, 15, 19, 0.68) 100%) !important;
 }
 
 .wb-theme-menu {
