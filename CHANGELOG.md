@@ -5,6 +5,18 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.91] - 2026-10-19
+
+### English
+- Ensure all composer bottom-bar popovers (Execution Permissions, Agent & Model, and Reasoning Effort) open upward above the composer instead of overflowing downward.
+- Fix model selection resetting to the initial provider default when sending a message from the home composer or continuing an active chat thread, and persist the latest selected model and effort on the task configuration.
+
+### Tiếng Việt
+- Đảm bảo toàn bộ menu bật lên ở thanh dưới của khung nhập lệnh (Quyền thực thi, Agent & Model, Mức suy luận) luôn bật ngược lên trên thay vì xổ xuống dưới.
+- Khắc phục lỗi gửi tin nhắn làm model tự động bị reset về model mặc định ban đầu ở cả màn hình chính và trong luồng chat đang mở, đồng thời lưu giữ model và mức suy luận đang chọn cho các lượt chat tiếp theo.
+
+---
+
 ## [0.2.90] - 2026-10-19
 
 ### English

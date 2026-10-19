@@ -2914,7 +2914,7 @@ function chatPage() {
     { id: "arena", label: "Đa luồng", icon: "git-branch", title: "Chạy đa luồng nhiều agent (cùng hoặc khác model) trên các Git worktree riêng" },
   ];
   const activeHomeMode = homeModeOptions.find((mode) => mode.id === view.homeMode) || homeModeOptions[0];
-  const homeModeMenu = `<details class="codex-pop-menu is-up is-right home-mode-picker" data-pop-id="home-mode">
+  const homeModeMenu = `<details class="codex-pop-menu is-down is-right home-mode-picker" data-pop-id="home-mode">
     <summary class="codex-rail-pill" title="Chế độ làm việc" aria-label="Chế độ làm việc" aria-haspopup="menu">${icon(activeHomeMode.icon, 14)}<span>${activeHomeMode.label}</span>${icon("chevron-down", 12)}</summary>
     <div class="codex-pop-card home-mode-popover" role="menu" aria-label="Chế độ làm việc"><div class="codex-pop-head">Chế độ làm việc</div>
       ${homeModeOptions.map((mode) => `<button type="button" role="menuitemradio" aria-checked="${mode.id === activeHomeMode.id}" class="codex-pop-item ${mode.id === activeHomeMode.id ? "is-selected" : ""}" data-home-mode="${mode.id}" ${mode.disabled ? "disabled title=\"Cần agent phù hợp để dùng chế độ này\"" : mode.title ? `title="${mode.title}"` : ""}><span class="codex-pop-item-main">${icon(mode.icon, 14)}<span>${mode.label}</span></span>${mode.id === activeHomeMode.id ? icon("check", 13) : ""}</button>`).join("")}
@@ -2977,7 +2977,7 @@ function chatPage() {
         <div class="codex-composer-rail">
           <div class="codex-rail-bar">
             <div class="codex-rail-left">
-              ${workspaces.length ? `<details class="codex-pop-menu is-up" data-pop-id="home-workspace">
+              ${workspaces.length ? `<details class="codex-pop-menu is-down" data-pop-id="home-workspace">
                 <summary class="codex-rail-pill" title="Chọn dự án (Workspace)">
                   ${icon("folder", 14)}
                   <span>${esc(activeWorkspace?.name || "Chọn dự án")}</span>
@@ -3738,10 +3738,17 @@ function syncProviderModelControls(form, provider, modelSelector, effortSelector
   const effortSelect = form?.querySelector(effortSelector);
   if (!modelSelect || !effortSelect) return;
   const models = connector?.models || [];
-  modelSelect.innerHTML = models.map((model) => `<option value="${esc(model.id)}">${esc(model.name)}</option>`).join("") || `<option value="">Chưa có model</option>`;
+  const isHomeChat = Boolean(form?.classList.contains("home-composer") && !form.dataset.splitChatCreate && modelSelector === "[data-chat-agent-model]" && (!view.homeChatProvider || view.homeChatProvider === provider));
+  const preferredModel = (isHomeChat && view.homeChatModel ? view.homeChatModel : "") || modelSelect.value;
+  const selectedModel = models.find((item) => item.id === preferredModel) || models[0];
+  modelSelect.innerHTML = models.map((model) => `<option value="${esc(model.id)}" ${model.id === selectedModel?.id ? "selected" : ""}>${esc(model.name)}</option>`).join("") || `<option value="">Chưa có model</option>`;
+  if (selectedModel) modelSelect.value = selectedModel.id;
   modelSelect.disabled = !models.length;
-  const effortsForModel = models[0]?.efforts || [];
-  effortSelect.innerHTML = effortsForModel.map((effort) => `<option value="${esc(effort)}">${esc(effort)}</option>`).join("") || `<option value="">Không áp dụng</option>`;
+  const effortsForModel = selectedModel?.efforts || [];
+  const preferredEffort = (isHomeChat && view.homeChatEffort ? view.homeChatEffort : "") || effortSelect.value;
+  const selectedEffort = effortsForModel.includes(preferredEffort) ? preferredEffort : (effortsForModel.includes("medium") ? "medium" : effortsForModel[0] || "");
+  effortSelect.innerHTML = effortsForModel.map((effort) => `<option value="${esc(effort)}" ${effort === selectedEffort ? "selected" : ""}>${esc(effort)}</option>`).join("") || `<option value="">Không áp dụng</option>`;
+  if (selectedEffort) effortSelect.value = selectedEffort;
   effortSelect.disabled = !effortsForModel.length;
 }
 function syncEffortForModel(form, modelSelector, effortSelector, providerSelector) {
@@ -3751,7 +3758,10 @@ function syncEffortForModel(form, modelSelector, effortSelector, providerSelecto
   const effortSelect = form?.querySelector(effortSelector);
   if (!effortSelect || !model) return;
   const options = model.efforts || [];
-  effortSelect.innerHTML = options.map((effort) => `<option value="${esc(effort)}">${esc(effort)}</option>`).join("") || `<option value="">Không áp dụng</option>`;
+  const preferredEffort = effortSelect.value;
+  const selectedEffort = options.includes(preferredEffort) ? preferredEffort : (options.includes("medium") ? "medium" : options[0] || "");
+  effortSelect.innerHTML = options.map((effort) => `<option value="${esc(effort)}" ${effort === selectedEffort ? "selected" : ""}>${esc(effort)}</option>`).join("") || `<option value="">Không áp dụng</option>`;
+  if (selectedEffort) effortSelect.value = selectedEffort;
   effortSelect.disabled = !options.length;
 }
 function syncRoleProvider(form, roleId) {
@@ -4020,7 +4030,7 @@ async function handleSubmit(event) {
       const { taskPresetVersion, taskPresetName, appliedPresetId, appliedPresetVersion, ...taskInput } = object;
       const presetRef = appliedPresetId && appliedPresetVersion ? { id: appliedPresetId, version: Number(appliedPresetVersion) } : null;
       const task = await api("/api/tasks", { method: "POST", body: JSON.stringify({ ...taskInput, ...(presetRef ? { presetRef } : {}), isolated: data.has("isolated") }) });
-      view.selected = task.task.id; view.page = "chat"; view.chatProvider = task.task.config.chatProvider || task.task.config.roles?.plan?.provider || "codex"; view.chatModel = task.task.config.workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = task.task.config.workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; showToast("Task thật đã vào hàng đợi.");
+      view.selected = task.task.id; view.page = "chat"; view.chatProvider = task.task.config.chatProvider || task.task.config.roles?.plan?.provider || "codex"; view.chatModel = task.task.config.workflow === "chat-only" ? task.task.config.chatModel : task.task.config.roles?.plan?.model || ""; view.chatEffort = task.task.config.workflow === "chat-only" ? task.task.config.chatEffort : task.task.config.roles?.plan?.effort || ""; view.chatDraft = ""; showToast("Task thật đã vào hàng đợi.");
     } else if (form.dataset.form === "home-task") {
       if (view.homeMode === "arena") {
         const slots = ensureHomeArenaSlots();
@@ -4050,12 +4060,31 @@ async function handleSubmit(event) {
         }
         showToast(`Đã khởi chạy Đa luồng với ${result.tasks?.length || competitors.length} nhánh Git worktree song song!`);
       } else {
-        const workflow = object.workflow || "chat-only";
-        const payload = { ...object, workspaceId: view.chatSplitReturnWorkspaceId || object.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id, prompt: String(object.prompt || "").trim(), workflow, isolated: Boolean(view.chatSplitReturnWorkspaceId) || data.has("isolated") || Boolean(view.homeIsolated), permissionPreset: view.homePermissionPreset || object.permissionPreset || "full-access" };
+        const workflow = object.workflow || view.homeWorkflow || "chat-only";
+        const isSplitForm = form.dataset.splitChatCreate === "true";
+        const chatSelection = normalizedChatSelection({
+          provider: (!isSplitForm && view.homeChatProvider) || object.chatProvider,
+          model: (!isSplitForm && view.homeChatModel) || object.chatModel,
+          effort: (!isSplitForm && view.homeChatEffort) || object.chatEffort,
+        });
+        const payload = {
+          ...object,
+          chatProvider: object.chatProvider || chatSelection.provider,
+          chatModel: (!isSplitForm && view.homeChatModel && (!object.chatProvider || object.chatProvider === view.homeChatProvider)) ? view.homeChatModel : (object.chatModel || chatSelection.model?.id || ""),
+          chatEffort: (!isSplitForm && view.homeChatEffort && (!object.chatProvider || object.chatProvider === view.homeChatProvider)) ? view.homeChatEffort : (object.chatEffort || chatSelection.effort || ""),
+          workspaceId: view.chatSplitReturnWorkspaceId || object.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id,
+          prompt: String(object.prompt || "").trim(),
+          workflow,
+          isolated: Boolean(view.chatSplitReturnWorkspaceId) || data.has("isolated") || Boolean(view.homeIsolated),
+          permissionPreset: view.homePermissionPreset || object.permissionPreset || "full-access",
+        };
         const task = await api("/api/tasks", { method: "POST", body: JSON.stringify(payload) });
         const splitWorkspaceId = view.chatSplitReturnWorkspaceId;
         const returnToSplit = Boolean(splitWorkspaceId && (splitWorkspaceId === task.task.workspaceId || form.dataset.splitChatCreate === "true"));
-        view.selected = task.task.id; view.page = "chat"; view.chatProvider = workflow === "chat-only" ? task.task.config.chatProvider : task.task.config.roles?.plan?.provider || "codex"; view.chatModel = workflow === "chat-only" ? task.task.config.chatModel : ""; view.chatEffort = workflow === "chat-only" ? task.task.config.chatEffort : ""; view.chatDraft = ""; clearComposerAttachments(form);
+        const resolvedProvider = workflow === "chat-only" ? task.task.config.chatProvider : task.task.config.roles?.plan?.provider || task.task.config.chatProvider || "codex";
+        const resolvedModel = workflow === "chat-only" ? task.task.config.chatModel : task.task.config.roles?.plan?.model || task.task.config.chatModel || "";
+        const resolvedEffort = workflow === "chat-only" ? task.task.config.chatEffort : task.task.config.roles?.plan?.effort || task.task.config.chatEffort || "";
+        view.selected = task.task.id; view.page = "chat"; view.chatProvider = resolvedProvider; view.chatModel = resolvedModel; view.chatEffort = resolvedEffort; view.homeChatProvider = resolvedProvider; view.homeChatModel = resolvedModel; view.homeChatEffort = resolvedEffort; view.chatDraft = ""; clearComposerAttachments(form);
         if (returnToSplit) {
           view.state.tasks = [task.task, ...(view.state.tasks || []).filter((existing) => existing.id !== task.task.id)];
           view.chatSplitWorkspaceId = splitWorkspaceId;
@@ -4083,9 +4112,28 @@ async function handleSubmit(event) {
       showToast("Đã lưu nguồn AI. API key chỉ được giữ trên máy này.");
     } else if (form.dataset.form === "task-chat") {
       view.forceChatScroll = true;
-      const result = await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, attachments: object.attachments, provider: object.provider, model: object.model, effort: object.effort }) });
+      const taskId = form.dataset.id;
+      const splitSel = form.closest(".multi-chat-pane") ? view.chatSplitSelections?.[taskId] : null;
+      const provider = splitSel?.provider || object.provider || view.chatProvider;
+      const model = splitSel?.model || object.model || view.chatModel;
+      const effort = splitSel?.effort || object.effort || view.chatEffort;
+      if (!form.closest(".multi-chat-pane")) {
+        view.chatProvider = provider;
+        view.chatModel = model;
+        view.chatEffort = effort;
+        view.homeChatProvider = provider;
+        view.homeChatModel = model;
+        view.homeChatEffort = effort;
+      }
+      const targetTask = view.state?.tasks?.find((item) => item.id === taskId);
+      if (targetTask?.config) {
+        targetTask.config.chatProvider = provider;
+        targetTask.config.chatModel = model;
+        targetTask.config.chatEffort = effort;
+      }
+      const result = await api(`/api/tasks/${encodeURIComponent(taskId)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, attachments: object.attachments, provider, model, effort }) });
       view.chatDraft = "";
-      if (view.chatSplitDrafts) delete view.chatSplitDrafts[form.dataset.id];
+      if (view.chatSplitDrafts) delete view.chatSplitDrafts[taskId];
       clearComposerAttachments(form);
       showToast(view.language === "en" ? `Added to chat queue · position ${result.queuedPosition || 1}.` : `Đã thêm vào hàng đợi chat · vị trí ${result.queuedPosition || 1}.`);
     } else if (form.dataset.form === "task-chat-config") {
@@ -4144,7 +4192,10 @@ async function handleWorkbenchClick(event) {
   const popSummary = event.target.closest?.(".codex-pop-menu > summary");
   if (popSummary) {
     const menu = popSummary.parentElement;
-    if (!menu.matches(".agent-role-picker[data-role-field='model']") && !menu.querySelector(".codex-pop-card.is-effort-list")) {
+    if (menu.closest(".home-composer-controls, .chat-composer-controls")) {
+      menu.classList.add("is-up");
+      menu.classList.remove("is-down");
+    } else if (!menu.matches(".agent-role-picker[data-role-field='model']") && !menu.querySelector(".codex-pop-card.is-effort-list")) {
       menu.classList.add("is-down");
       menu.classList.remove("is-up");
     }
@@ -4218,9 +4269,9 @@ async function handleWorkbenchClick(event) {
     view.selected = task.dataset.task; view.page = "chat"; view.projectMenuId = ""; view.taskMenuId = "";
     if (!view.stageSplit) view.activeStageTabId = "chat";
     view.homeWorkspaceId = selectedTask?.workspaceId || view.homeWorkspaceId;
-    view.chatProvider = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatProvider || "codex" : roleConfig(selectedTask?.config, "plan").provider || "codex";
-    view.chatModel = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatModel || "" : roleConfig(selectedTask?.config, "plan").model || "";
-    view.chatEffort = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatEffort || "" : roleConfig(selectedTask?.config, "plan").effort || "";
+    view.chatProvider = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatProvider || "codex" : selectedTask?.config?.chatProvider || roleConfig(selectedTask?.config, "plan").provider || "codex";
+    view.chatModel = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatModel || "" : selectedTask?.config?.chatModel || roleConfig(selectedTask?.config, "plan").model || "";
+    view.chatEffort = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatEffort || "" : selectedTask?.config?.chatEffort || roleConfig(selectedTask?.config, "plan").effort || "";
     view.chatDraft = ""; render(); return;
   }
   const homeMode = event.target.closest("[data-home-mode]");
@@ -4313,9 +4364,13 @@ async function handleWorkbenchClick(event) {
         ? view.homeChatEffort
         : (modelObj?.efforts?.includes("medium") ? "medium" : modelObj?.efforts?.[0] || "medium");
       view.homeChatEffort = nextEffort;
+      view.chatProvider = prov;
+      view.chatModel = mod || "";
+      view.chatEffort = nextEffort;
       if (view.homeRoles) {
         view.homeRoles.plan = { provider: prov, model: mod || "", effort: nextEffort };
         view.homeRoles.build = { provider: prov, model: mod || "", effort: nextEffort };
+        view.homeRoles.review = { provider: prov, model: mod || "", effort: nextEffort };
       }
       render();
     }
@@ -4324,9 +4379,11 @@ async function handleWorkbenchClick(event) {
   if (action === "pick-home-effort") {
     const nextEffort = button.dataset.effort || "medium";
     view.homeChatEffort = nextEffort;
+    view.chatEffort = nextEffort;
     if (view.homeRoles) {
       if (view.homeRoles.plan) view.homeRoles.plan.effort = nextEffort;
       if (view.homeRoles.build) view.homeRoles.build.effort = nextEffort;
+      if (view.homeRoles.review) view.homeRoles.review.effort = nextEffort;
     }
     render();
     return;
@@ -4335,6 +4392,7 @@ async function handleWorkbenchClick(event) {
     const [prov, mod] = String(button.dataset.agent || "").split("::");
     if (prov) {
       const taskId = button.dataset.id || button.closest("form")?.dataset.id;
+      const targetTask = taskId ? view.state?.tasks?.find((item) => item.id === taskId) : null;
       if (button.closest(".multi-chat-pane") && taskId) {
         view.chatSplitSelections ||= {};
         const current = view.chatSplitSelections[taskId] || {};
@@ -4342,6 +4400,11 @@ async function handleWorkbenchClick(event) {
         const modelObj = conn?.models?.find((m) => m.id === mod) || conn?.models?.[0];
         const effort = modelObj?.efforts?.includes(current.effort) ? current.effort : (modelObj?.efforts?.includes("medium") ? "medium" : modelObj?.efforts?.[0] || "medium");
         view.chatSplitSelections[taskId] = { provider: prov, model: mod || "", effort };
+        if (targetTask?.config) {
+          targetTask.config.chatProvider = prov;
+          targetTask.config.chatModel = mod || "";
+          targetTask.config.chatEffort = effort;
+        }
         render();
         return;
       }
@@ -4352,19 +4415,33 @@ async function handleWorkbenchClick(event) {
       view.chatEffort = modelObj?.efforts?.includes(view.chatEffort)
         ? view.chatEffort
         : (modelObj?.efforts?.includes("medium") ? "medium" : modelObj?.efforts?.[0] || "medium");
+      view.homeChatProvider = prov;
+      view.homeChatModel = mod || "";
+      view.homeChatEffort = view.chatEffort;
+      if (targetTask?.config) {
+        targetTask.config.chatProvider = prov;
+        targetTask.config.chatModel = mod || "";
+        targetTask.config.chatEffort = view.chatEffort;
+      }
       render();
     }
     return;
   }
   if (action === "pick-task-chat-effort") {
-    if (button.closest(".multi-chat-pane") && button.dataset.id) {
+    const taskId = button.dataset.id || button.closest("form")?.dataset.id;
+    const targetTask = taskId ? view.state?.tasks?.find((item) => item.id === taskId) : null;
+    const nextEffort = button.dataset.effort || "medium";
+    if (button.closest(".multi-chat-pane") && taskId) {
       view.chatSplitSelections ||= {};
-      const current = view.chatSplitSelections[button.dataset.id] || {};
-      view.chatSplitSelections[button.dataset.id] = { ...current, effort: button.dataset.effort || "medium" };
+      const current = view.chatSplitSelections[taskId] || {};
+      view.chatSplitSelections[taskId] = { ...current, effort: nextEffort };
+      if (targetTask?.config) targetTask.config.chatEffort = nextEffort;
       render();
       return;
     }
-    view.chatEffort = button.dataset.effort || "medium";
+    view.chatEffort = nextEffort;
+    view.homeChatEffort = nextEffort;
+    if (targetTask?.config) targetTask.config.chatEffort = nextEffort;
     render();
     return;
   }

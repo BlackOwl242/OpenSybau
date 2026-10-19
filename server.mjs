@@ -3176,12 +3176,17 @@ async function api(request, response, pathname) {
       const lockPath = task.isolated ? (task.executionPath || workspace.path) : workspace.path;
       if (!currentRun && !task.isolated && busyWorkspaces.has(lockPath)) return json(response, 409, { error: "Workspace đang được task khác sử dụng. Hãy gửi tin nhắn sau khi task đó hoàn tất." });
       const message = { id: randomUUID(), role: "user", provider, model: model.id, effort, content, attachments: safeAttachments.map(({ name }) => ({ name })), status: "queued", createdAt: new Date().toISOString() };
+      task.config ||= {};
+      task.config.chatProvider = provider;
+      task.config.chatModel = model.id;
+      task.config.chatEffort = effort;
       task.chatMessages ||= [];
       task.chatQueue ||= [];
       task.chatMessages.push(message);
       task.chatQueue.push({ id: randomUUID(), messageId: message.id, provider, model: model.id, effort, content, attachments: safeAttachments });
       const queuedPosition = task.chatQueue.length;
       record(task, `Đã nhận tin nhắn chat cho ${publicProviderName(provider)}${currentRun && !currentRun.isChat ? "; sẽ chuyển sau stage đang chạy" : ""}.`, "chat");
+      persist();
       if (!currentRun && task.status !== "queued") void processTaskChatQueue(task);
       else if (!currentRun) pump();
       return json(response, 202, { accepted: true, queuedPosition, task });
