@@ -5,6 +5,22 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.97] - 2026-10-20
+
+### English
+- **Unified Modal, Menu & Input Theme Surfaces**: Synchronize modal dialogs (`#overlay .modal`, `.composer-config-dialog`, `.desktop-setup-dialog`, `.multi-chat-create-form`), context menus (`.wb-project-menu`, `.wb-task-menu`, `.codex-pop-card`, `.wb-theme-pop-card`), inner cards (`var(--wb-surface-soft)`), and form fields (`var(--wb-field)`) across all 13 themes, aligning `Obsidian Dark` tokens with warm graphite charcoal while preserving the native acrylic frosted-glass sidebar.
+- **Clean Input Borders & Focus States**: Replace bright white (`var(--wb-subtle)`) borders and neon blue focus rings (`rgba(96, 165, 250, 0.65)`) on inputs, dropdowns, and menu buttons with subtle theme-synchronized borders (`var(--wb-border-subtle)` / `var(--wb-border-strong)`), and disable spellcheck red underlines on project/task/skill/vault/provider name inputs.
+- **Single-Box Source Folder Input Row**: Fix the double-wrapped nested input box inside `Thư mục nguồn` (`.source-folder-row`) so each folder row renders as a clean single input bar.
+- **Sidebar Header Cleanup**: Remove the redundant `+` button next to `OpenSybau` and the search toggle in the left sidebar header.
+
+### Tiếng Việt
+- **Đồng bộ màu sắc Modal, Menu và Ô nhập liệu trên toàn bộ 13 chủ đề**: Đồng bộ nền hộp thoại (`#overlay .modal`, `.composer-config-dialog`, `.desktop-setup-dialog`, `.multi-chat-create-form`), menu ngữ cảnh (`.wb-project-menu`, `.wb-task-menu`, `.codex-pop-card`, `.wb-theme-pop-card`), thẻ con (`var(--wb-surface-soft)`) và ô nhập liệu (`var(--wb-field)`), đồng thời chuẩn hóa bảng màu `Obsidian Dark` ấm áp hài hòa với hiệu ứng kính mờ (acrylic frosted glass).
+- **Loại bỏ viền trắng gắt & viền xanh dương đậm trên ô input/menu**: Thay thế toàn bộ viền trắng sáng (`var(--wb-subtle)`) và khung focus xanh dương đậm (`rgba(96, 165, 250, 0.65)`) bằng viền mảnh đồng bộ theo từng chủ đề (`var(--wb-border-subtle)` / `var(--wb-border-strong)`), đồng thời tắt gạch chân đỏ kiểm tra chính tả (`spellcheck="false"`) ở các ô đặt tên dự án, hội thoại, kỹ năng, kho tri thức và API.
+- **Sửa thiết kế bọc 2 lớp ở ô `Thư mục nguồn` (`.source-folder-row`)**: Gỡ bỏ khung bọc kép bên trong `.source-folder-row` để mỗi dòng thư mục hiển thị gọn gàng như một thanh input thống nhất.
+- **Tinh gọn thanh tiêu đề Sidebar**: Loại bỏ nút `+` dư thừa nằm cùng dòng với `OpenSybau` và nút tìm kiếm.
+
+---
+
 ## [0.2.96] - 2026-10-20
 
 ### English

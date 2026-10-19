@@ -80,13 +80,13 @@ button:disabled { cursor: not-allowed; }
 .wb-project-action, .wb-task-action { width: 25px; height: 26px; display: grid; place-items: center; border: 0; border-radius: 5px; color: var(--wb-muted); background: transparent; }
 .wb-task-action { width: 26px; height: 24px; }
 .wb-project-action:hover, .wb-task-action:hover { color: var(--wb-ink-strong); background: color-mix(in srgb, var(--wb-tint) 6%, transparent); }
-.wb-project-menu { position: absolute; top: 32px; right: 1px; z-index: 12; width: 190px; display: grid; gap: 2px; padding: 5px; border: 1px solid var(--wb-subtle); border-radius: 8px; background: var(--wb-raised); box-shadow: 0 12px 30px #0009; }
+.wb-project-menu { position: absolute; top: 32px; right: 1px; z-index: 12; width: 190px; display: grid; gap: 2px; padding: 5px; border: 1px solid var(--wb-border-subtle); border-radius: 8px; background: var(--wb-panel); box-shadow: 0 12px 30px #0009; }
 .wb-project-menu button { min-height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 5px; color: var(--wb-ink); background: transparent; font-size: 10px; text-align: left; }
-.wb-project-menu button:hover { background: var(--wb-raised); }
+.wb-project-menu button:hover { background: var(--wb-hover); }
 .wb-project-menu button > .wb-icon:last-child:not(:first-child) { margin-left: auto; }
 .wb-project-menu button.is-danger { color: var(--wb-red); }
-.wb-project-menu-divider { height: 1px; margin: 3px 4px; background: var(--wb-subtle); }
-.wb-project-preview { position: absolute; top: 33px; right: 1px; left: 10px; z-index: 10; display: none; gap: 8px; padding: 11px; border: 1px solid var(--wb-subtle); border-radius: 8px; color: var(--wb-ink); background: var(--wb-raised); box-shadow: 0 12px 28px #0008; }
+.wb-project-menu-divider { height: 1px; margin: 3px 4px; background: var(--wb-line); }
+.wb-project-preview { position: absolute; top: 33px; right: 1px; left: 10px; z-index: 10; display: none; gap: 8px; padding: 11px; border: 1px solid var(--wb-border-subtle); border-radius: 8px; color: var(--wb-ink); background: var(--wb-panel); box-shadow: 0 12px 28px #0008; }
 .wb-project-row:hover ~ .wb-project-preview, .wb-project-row:focus-within ~ .wb-project-preview, .wb-project-preview:hover, .wb-project-preview:focus-within { display: grid; }
 .wb-project-group.has-menu-open .wb-project-preview { display: none; }
 .wb-project-preview > header, .wb-project-preview > div, .wb-project-preview li { min-width: 0; display: flex; align-items: center; gap: 7px; }
@@ -107,12 +107,12 @@ button:disabled { cursor: not-allowed; }
 .wb-task-copy strong { display: block; overflow: hidden; color: inherit; font-size: 11px; font-weight: 450; text-overflow: ellipsis; white-space: nowrap; }
 .wb-task-actions { flex: 0 0 auto; display: flex; gap: 2px; padding-right: 2px; opacity: 0; pointer-events: none; }
 .wb-task-item:hover .wb-task-actions, .wb-task-item:focus-within .wb-task-actions { opacity: 1; pointer-events: auto; }
-.wb-task-menu { position: absolute; top: 30px; right: 0; z-index: 13; width: 176px; display: grid; gap: 2px; padding: 5px; border: 1px solid var(--wb-subtle); border-radius: 8px; background: var(--wb-raised); box-shadow: 0 12px 30px #0009; }
+.wb-task-menu { position: absolute; top: 30px; right: 0; z-index: 13; width: 176px; display: grid; gap: 2px; padding: 5px; border: 1px solid var(--wb-border-subtle); border-radius: 8px; background: var(--wb-panel); box-shadow: 0 12px 30px #0009; }
 .wb-task-menu button { min-height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 5px; color: var(--wb-ink); background: transparent; font-size: 10px; text-align: left; }
-.wb-task-menu button:hover { background: var(--wb-raised); }
+.wb-task-menu button:hover { background: var(--wb-hover); }
 .wb-task-menu button.is-danger { color: var(--wb-red); }
 .wb-task-menu button.is-danger:hover { background: color-mix(in srgb, var(--wb-red) 14%, var(--wb-panel)); }
-.wb-task-menu-divider { height: 1px; margin: 3px 4px; background: var(--wb-subtle); }
+.wb-task-menu-divider { height: 1px; margin: 3px 4px; background: var(--wb-line); }
 .wb-task-item.is-archived .wb-task-link { color: var(--wb-muted); }
 .wb-recent-heading { margin-top: 17px; padding-top: 10px; border-top: 1px solid var(--wb-raised); }
 .wb-archived-heading { margin-top: 12px; padding-top: 9px; border-top: 1px solid var(--wb-raised); }
@@ -131,13 +131,13 @@ button:disabled { cursor: not-allowed; }
 
 .project-sources { display: grid; gap: 8px; margin-top: 4px; }
 .project-sources > strong { color: var(--wb-ink); font-size: 11px; }
-.source-folder-list { display: grid; overflow: hidden; border: 1px solid var(--wb-subtle); border-radius: 7px; }
-.source-folder-row { min-width: 0; min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 3px 8px; border-bottom: 1px solid var(--wb-subtle); color: var(--wb-muted); }
-.source-folder-row:last-child { border-bottom: 0; }
-.source-folder-row > .wb-icon { flex: 0 0 auto; }
-.source-folder-row input { min-width: 0; flex: 1; height: 30px; border: 0 !important; color: var(--wb-ink) !important; background: transparent !important; font-size: 10px; }
-.source-folder-row .icon-button { width: 25px; height: 25px; flex: 0 0 auto; border: 0; color: var(--wb-muted); background: transparent; }
-.source-folder-row .icon-button:hover { color: var(--wb-red); background: color-mix(in srgb, var(--wb-red) 14%, var(--wb-panel)); }
+.source-folder-list { display: grid; gap: 6px; border: 0; }
+.source-folder-row { min-width: 0; min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 11px; border: 1px solid var(--wb-border-subtle); border-radius: 9px; background: var(--wb-field); color: var(--wb-muted); transition: border-color 120ms ease; }
+.source-folder-row:focus-within { border-color: var(--wb-border-strong); }
+.source-folder-row > .wb-icon { flex: 0 0 auto; color: var(--wb-muted); }
+.source-folder-row input { min-width: 0; flex: 1; height: 34px; padding: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; outline: none !important; color: var(--wb-ink-strong) !important; background: transparent !important; font-size: 12.5px; }
+.source-folder-row .icon-button { width: 26px; height: 26px; flex: 0 0 auto; border: 0 !important; border-radius: 6px; color: var(--wb-muted); background: transparent !important; }
+.source-folder-row .icon-button:hover { color: var(--wb-red); background: color-mix(in srgb, var(--wb-red) 14%, var(--wb-panel)) !important; }
 .source-folder-row .icon-button:disabled { opacity: .4; }
 .project-sources > .form-note { margin: 0; }
 .wb-context-card button { padding: 0; }
@@ -453,38 +453,38 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .task-conversation-page .chat-send-button:disabled { opacity: .55; }
 
 /* The global modal sits outside the page content, so theme it explicitly. */
-#overlay .modal-backdrop { background: #0009; }
-#overlay .modal { border: 1px solid var(--wb-subtle); color: var(--wb-ink-strong); background: var(--wb-raised); box-shadow: 0 18px 60px #0009; }
-#overlay .modal-head { border-color: var(--wb-subtle); }
+#overlay .modal-backdrop { background: var(--wb-overlay, #0009); }
+#overlay .modal { border: 1px solid var(--wb-border-subtle); color: var(--wb-ink-strong); background: var(--wb-panel); box-shadow: 0 18px 60px #0009; }
+#overlay .modal-head { border-color: var(--wb-border-subtle); }
 #overlay .modal-head small, #overlay .modal label { color: var(--wb-muted); }
 #overlay .modal-head h2 { color: var(--wb-ink-strong); }
 #overlay .modal label small, #overlay .modal .form-note { color: var(--wb-muted); }
-#overlay .modal input:not([type="checkbox"]), #overlay .modal select, #overlay .modal textarea { border-color: var(--wb-subtle); color: var(--wb-ink-strong); background: var(--wb-surface); }
-#overlay .modal input[type="file"][data-content-file-import] { width: 100%; min-width: 0; padding: 7px; border-style: dashed; border-radius: 7px; color: var(--wb-ink); background: var(--wb-raised); font-size: 12px; }
-#overlay .modal input[type="file"][data-content-file-import]::file-selector-button { margin-right: 10px; padding: 7px 10px; border: 1px solid var(--wb-subtle); border-radius: 6px; color: var(--wb-ink-strong); background: var(--wb-raised); font: inherit; cursor: pointer; }
-#overlay .modal input[type="file"][data-content-file-import]::file-selector-button:hover { background: var(--wb-raised); }
+#overlay .modal input:not([type="checkbox"]), #overlay .modal select, #overlay .modal textarea { border-color: var(--wb-border-subtle); color: var(--wb-ink-strong); background: var(--wb-field); }
+#overlay .modal input[type="file"][data-content-file-import] { width: 100%; min-width: 0; padding: 7px; border-style: dashed; border-radius: 7px; color: var(--wb-ink); background: var(--wb-surface-soft); font-size: 12px; }
+#overlay .modal input[type="file"][data-content-file-import]::file-selector-button { margin-right: 10px; padding: 7px 10px; border: 1px solid var(--wb-border-subtle); border-radius: 6px; color: var(--wb-ink-strong); background: var(--wb-raised); font: inherit; cursor: pointer; }
+#overlay .modal input[type="file"][data-content-file-import]::file-selector-button:hover { background: var(--wb-hover); }
 #overlay .modal input::placeholder, #overlay .modal textarea::placeholder { color: var(--wb-muted); }
-#overlay .modal .model-provider, #overlay .modal .check-row { border-color: var(--wb-subtle); color: var(--wb-ink); background: var(--wb-raised); }
+#overlay .modal .model-provider, #overlay .modal .check-row { border-color: var(--wb-border-subtle); color: var(--wb-ink); background: var(--wb-surface-soft); }
 #overlay .modal .model-provider > header strong, #overlay .modal .check-row strong { color: var(--wb-ink-strong); }
 #overlay .modal .model-provider > label, #overlay .modal .check-row small { color: var(--wb-muted); }
-#overlay .modal .model-provider select { border-color: var(--wb-subtle); color: var(--wb-ink-strong); background: var(--wb-surface); }
-#overlay .modal .task-skill-auto { border-color: var(--wb-subtle); color: var(--wb-ink); background: var(--wb-raised); }
+#overlay .modal .model-provider select { border-color: var(--wb-border-subtle); color: var(--wb-ink-strong); background: var(--wb-field); }
+#overlay .modal .task-skill-auto { border-color: var(--wb-border-subtle); color: var(--wb-ink); background: var(--wb-surface-soft); }
 #overlay .modal .task-skill-auto-icon { color: var(--wb-accent); background: var(--wb-raised); }
 #overlay .modal .task-skill-auto strong { color: var(--wb-ink-strong); }
 #overlay .modal .task-skill-auto small, #overlay .modal .task-skill-total { color: var(--wb-muted); }
-#overlay .modal .modal-actions { border-color: var(--wb-subtle); }
-#overlay .modal .button { border-color: var(--wb-subtle); color: var(--wb-ink); background: var(--wb-raised); }
-#overlay .modal .button:hover { border-color: var(--wb-subtle); background: var(--wb-raised); }
+#overlay .modal .modal-actions { border-color: var(--wb-border-subtle); }
+#overlay .modal .button { border-color: var(--wb-border-subtle); color: var(--wb-ink); background: var(--wb-raised); }
+#overlay .modal .button:hover { border-color: var(--wb-border-strong); background: var(--wb-hover); }
 #overlay .modal .button.primary, .wb-page-content .button.primary { border-color: var(--wb-primary-bg); color: var(--wb-primary-fg); background: var(--wb-primary-bg); }
 #overlay .modal .button.primary:hover, .wb-page-content .button.primary:hover { border-color: var(--wb-primary-bg); background: color-mix(in srgb, var(--wb-primary-bg) 88%, var(--wb-ink-strong)); }
 #overlay .modal .button.quiet { color: var(--wb-ink); background: var(--wb-raised); }
-.wb-page-content .button.primary:disabled { border-color: var(--wb-subtle); color: var(--wb-muted); background: var(--wb-raised); }
+.wb-page-content .button.primary:disabled { border-color: var(--wb-border-subtle); color: var(--wb-muted); background: var(--wb-raised); }
 .wb-page-content .home-submit { color: var(--wb-primary-fg); background: var(--wb-primary-bg); }
 .wb-page-content .home-submit:hover { background: color-mix(in srgb, var(--wb-primary-bg) 88%, var(--wb-ink-strong)); }
 .wb-page-content .activity-chart, .wb-page-content .activity-card { color: var(--wb-ink); }
-.wb-page-content .filter { border-color: var(--wb-subtle); color: var(--wb-muted); background: transparent; }
-.wb-page-content .filter:hover { border-color: var(--wb-subtle); color: var(--wb-ink-strong); background: var(--wb-raised); }
-.wb-page-content .filter.active { border-color: var(--wb-subtle); color: var(--wb-ink-strong); background: var(--wb-raised); }
+.wb-page-content .filter { border-color: var(--wb-border-subtle); color: var(--wb-muted); background: transparent; }
+.wb-page-content .filter:hover { border-color: var(--wb-border-strong); color: var(--wb-ink-strong); background: var(--wb-raised); }
+.wb-page-content .filter.active { border-color: var(--wb-border-strong); color: var(--wb-ink-strong); background: var(--wb-raised); }
 .wb-page-content .list-toolbar > span { color: var(--wb-muted); }
 .wb-page-content .orchestration-activity-note { color: var(--wb-muted); }
 .wb-page-content .orchestration-node.state-complete .orchestration-rail > span { border-color: color-mix(in srgb, var(--wb-green) 45%, var(--wb-line)); color: var(--wb-green); background: color-mix(in srgb, var(--wb-green) 14%, var(--wb-panel)); }
@@ -499,17 +499,17 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content select, #overlay .modal select {
   color-scheme: inherit !important;
   color: var(--wb-ink-strong) !important;
-  background-color: var(--wb-surface) !important;
-  border-color: var(--wb-subtle) !important;
+  background-color: var(--wb-field) !important;
+  border-color: var(--wb-border-subtle) !important;
 }
 .wb-page-content select option, #overlay .modal select option,
 .wb-page-content select optgroup, #overlay .modal select optgroup {
   color: var(--wb-ink-strong) !important;
-  background-color: var(--wb-raised) !important;
+  background-color: var(--wb-panel) !important;
 }
 .wb-page-content select:focus, #overlay .modal select:focus {
   color: var(--wb-ink-strong) !important;
-  background-color: var(--wb-raised) !important;
+  background-color: var(--wb-field) !important;
 }
 
 @media (max-width: 1020px) {
@@ -527,7 +527,7 @@ button:disabled { cursor: not-allowed; }
   .wb-context-sidebar, .wb-context-sidebar.is-mobile-only {
     position: fixed; top: 0; bottom: 0; left: 0; z-index: 42;
     width: min(340px, max(280px, 86vw)); height: 100dvh; display: flex;
-    border-right: 1px solid var(--wb-subtle); box-shadow: 18px 0 44px #0008;
+    border-right: 1px solid var(--wb-border-subtle); box-shadow: 18px 0 44px #0008;
     transform: translateX(-105%); transition: transform .2s ease;
   }
   .wb-context-sidebar.is-mobile-open { transform: translateX(0); }
@@ -556,7 +556,7 @@ button:disabled { cursor: not-allowed; }
   .wb-mobile-nav > button:active { background: var(--wb-raised); }
   .wb-mobile-nav > button:focus-visible, .wb-mobile-more-menu button:focus-visible { outline-color: var(--wb-ink) !important; }
   .wb-mobile-more-backdrop { position: fixed; inset: 0; z-index: 39; display: block; background: #0008; }
-  .wb-mobile-more-menu { position: absolute; right: 10px; bottom: calc(69px + env(safe-area-inset-bottom)); width: min(260px, calc(100vw - 20px)); display: grid; gap: 4px; padding: 8px; border: 1px solid var(--wb-subtle); border-radius: 14px; background: var(--wb-raised); box-shadow: 0 18px 48px #0009; }
+  .wb-mobile-more-menu { position: absolute; right: 10px; bottom: calc(69px + env(safe-area-inset-bottom)); width: min(260px, calc(100vw - 20px)); display: grid; gap: 4px; padding: 8px; border: 1px solid var(--wb-border-subtle); border-radius: 14px; background: var(--wb-panel); box-shadow: 0 18px 48px #0009; }
   .wb-mobile-more-menu button { min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 0 13px; border: 0; border-radius: 9px; color: var(--wb-ink); background: transparent; text-align: left; font-size: 14px; }
   .wb-mobile-more-menu button.is-active, .wb-mobile-more-menu button:active { background: var(--wb-raised); }
   .wb-mobile-more-menu .wb-icon { color: var(--wb-ink); }
@@ -583,7 +583,7 @@ button:disabled { cursor: not-allowed; }
 }
 
 .desktop-setup-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; overflow: auto; padding: 24px; background: color-mix(in srgb, var(--wb-bg) 82%, transparent); }
-.desktop-setup-dialog { width: min(680px, calc(100vw - 48px)); min-width: 0; max-height: min(820px, calc(100vh - 48px)); overflow: auto; padding: 27px; border: 1px solid var(--wb-subtle); border-radius: 15px; color: var(--wb-ink-strong); background: var(--wb-raised); box-shadow: 0 28px 90px #000a; }
+.desktop-setup-dialog { width: min(680px, calc(100vw - 48px)); min-width: 0; max-height: min(820px, calc(100vh - 48px)); overflow: auto; padding: 27px; border: 1px solid var(--wb-border-subtle); border-radius: 15px; color: var(--wb-ink-strong); background: var(--wb-panel); box-shadow: 0 28px 90px #000a; }
 .desktop-setup-heading { display: flex; align-items: center; gap: 13px; }
 .desktop-setup-mark, .desktop-setup-agent-icon { display: grid; place-items: center; flex: 0 0 auto; color: var(--wb-accent); background: color-mix(in srgb, var(--wb-accent) 14%, var(--wb-panel)); }
 .desktop-setup-mark { width: 44px; height: 44px; border-radius: 12px; }
@@ -592,7 +592,7 @@ button:disabled { cursor: not-allowed; }
 .desktop-setup-heading h2 { margin: 0; color: var(--wb-ink-strong); font-size: 21px; letter-spacing: -.025em; }
 .desktop-setup-intro { margin: 19px 0; color: var(--wb-muted); font-size: 14px; line-height: 1.55; }
 .desktop-setup-agent-list { display: grid; gap: 9px; }
-.desktop-setup-agent { min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 12px; border: 1px solid var(--wb-subtle); border-radius: 10px; background: var(--wb-raised); }
+.desktop-setup-agent { min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 12px; border: 1px solid var(--wb-border-subtle); border-radius: 10px; background: var(--wb-surface-soft); }
 .desktop-setup-agent.is-ready { border-color: color-mix(in srgb, var(--wb-green) 45%, var(--wb-line)); background: color-mix(in srgb, var(--wb-green) 14%, var(--wb-panel)); }
 .desktop-setup-agent-icon { width: 36px; height: 36px; border-radius: 9px; }
 .desktop-setup-agent.is-ready .desktop-setup-agent-icon { color: var(--wb-green); background: color-mix(in srgb, var(--wb-green) 14%, var(--wb-panel)); }
@@ -602,14 +602,14 @@ button:disabled { cursor: not-allowed; }
 .desktop-setup-status { color: var(--wb-green); font-size: 12px; white-space: nowrap; }
 .desktop-setup-install { flex: 0 0 auto; text-decoration: none; }
 .desktop-setup-agent-actions, .cli-guide-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
-.desktop-setup-note { display: grid; gap: 4px; margin-top: 14px; padding: 13px 14px; border: 1px solid var(--wb-subtle); border-radius: 9px; background: var(--wb-raised); }
+.desktop-setup-note { display: grid; gap: 4px; margin-top: 14px; padding: 13px 14px; border: 1px solid var(--wb-border-subtle); border-radius: 9px; background: var(--wb-surface-soft); }
 .desktop-setup-note strong { color: var(--wb-ink-strong); font-size: 13px; }
 .desktop-setup-note span, .desktop-setup-footnote { color: var(--wb-muted); font-size: 12px; line-height: 1.5; }
 .desktop-setup-api-ready { display: flex; align-items: center; gap: 7px; color: var(--wb-green); font-size: 12px; }
 .desktop-setup-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 .desktop-setup-actions .button { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; }
-.desktop-setup-dialog .button { border: 1px solid var(--wb-subtle); border-radius: 7px; color: var(--wb-ink); background: var(--wb-raised); font-size: 12px; font-weight: 600; }
-.desktop-setup-dialog .button:hover { border-color: var(--wb-subtle); background: var(--wb-raised); }
+.desktop-setup-dialog .button { border: 1px solid var(--wb-border-subtle); border-radius: 7px; color: var(--wb-ink); background: var(--wb-raised); font-size: 12px; font-weight: 600; }
+.desktop-setup-dialog .button:hover { border-color: var(--wb-border-strong); background: var(--wb-hover); }
 .desktop-setup-dialog .button.primary { border-color: var(--wb-primary-bg); color: var(--wb-primary-fg); background: var(--wb-primary-bg); }
 .desktop-setup-dialog .button.primary:hover { border-color: var(--wb-primary-bg); background: color-mix(in srgb, var(--wb-primary-bg) 88%, var(--wb-ink-strong)); }
 .desktop-setup-footnote { margin: 12px 0 0; text-align: right; }
@@ -626,14 +626,14 @@ button:disabled { cursor: not-allowed; }
 }
 
 #overlay .provider-cli-entry,
-#overlay .cli-connect-intro { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 11px; margin: 0 0 13px; padding: 12px; border: 1px solid var(--wb-subtle); border-radius: 9px; background: var(--wb-raised); }
+#overlay .cli-connect-intro { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 11px; margin: 0 0 13px; padding: 12px; border: 1px solid var(--wb-border-subtle); border-radius: 9px; background: var(--wb-surface-soft); }
 #overlay .provider-cli-entry strong,
 #overlay .cli-connect-intro strong { display: block; color: var(--wb-ink-strong); font-size: 12px; }
 #overlay .provider-cli-entry p,
 #overlay .cli-connect-intro p { margin: 4px 0 0; color: var(--wb-muted); font-size: 11px; line-height: 1.45; }
 #overlay .cli-connect-intro { margin-bottom: 10px; }
 #overlay .cli-connect-list { display: grid; gap: 9px; }
-#overlay .cli-connect-card { padding: 12px; border: 1px solid var(--wb-subtle); border-radius: 9px; background: var(--wb-raised); }
+#overlay .cli-connect-card { padding: 12px; border: 1px solid var(--wb-border-subtle); border-radius: 9px; background: var(--wb-surface-soft); }
 #overlay .cli-connect-card.ready { border-color: color-mix(in srgb, var(--wb-green) 45%, var(--wb-line)); background: color-mix(in srgb, var(--wb-green) 14%, var(--wb-panel)); }
 #overlay .cli-connect-card > header { display: flex; align-items: center; gap: 9px; }
 #overlay .cli-connect-mark { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 7px; color: var(--wb-accent); background: color-mix(in srgb, var(--wb-accent) 14%, var(--wb-panel)); }
@@ -642,7 +642,7 @@ button:disabled { cursor: not-allowed; }
 #overlay .cli-connect-card > header > div { display: flex; align-items: center; gap: 8px; }
 #overlay .cli-connect-card .cli-guide-status { margin: 0; }
 #overlay .cli-connect-card > p { margin: 8px 0; color: var(--wb-muted); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
-#overlay .cli-connect-login { display: grid; gap: 4px; padding: 9px; border: 1px solid var(--wb-raised); border-radius: 7px; background: var(--wb-surface); }
+#overlay .cli-connect-login { display: grid; gap: 4px; padding: 9px; border: 1px solid var(--wb-border-subtle); border-radius: 7px; background: var(--wb-field); }
 #overlay .cli-connect-login > span { color: var(--wb-muted); font-size: 10px; font-weight: 600; }
 #overlay .cli-connect-login code { color: var(--wb-ink); font: 11px/1.4 Consolas, "Cascadia Mono", monospace; }
 #overlay .cli-connect-login small { color: var(--wb-muted); font-size: 10px; line-height: 1.45; }
@@ -698,8 +698,8 @@ body .desktop-setup-dialog select,
 body .wb-app-shell select {
   color-scheme: inherit !important;
   color: var(--wb-ink-strong) !important;
-  background-color: var(--wb-surface) !important;
-  border-color: var(--wb-subtle) !important;
+  background-color: var(--wb-field) !important;
+  border-color: var(--wb-border-subtle) !important;
   accent-color: var(--wb-accent);
 }
 

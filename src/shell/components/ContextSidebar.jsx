@@ -223,9 +223,6 @@ export function ContextSidebar({ snapshot, mobileOpen = false, mobileOnly = fals
         <button class="wb-sidebar-icon-btn" type="button" data-toggle-sidebar-search title="Tìm kiếm cuộc trò chuyện" aria-label="Tìm kiếm">
           <Icon name="search" size={15} />
         </button>
-        <button class="wb-sidebar-icon-btn" type="button" data-action="add-workspace" title="Thêm dự án mới" aria-label="Thêm dự án">
-          <Icon name="plus" size={15} />
-        </button>
         <button class="wb-sidebar-close" type="button" onClick={onNavigate} aria-label="Đóng danh sách"><Icon name="x" size={18} /></button>
       </div>
     </header>

@@ -14,8 +14,16 @@ button, input, select, textarea { font-family: inherit; }
 ::selection { color: var(--primary-foreground); background: color-mix(in srgb, var(--primary) 82%, var(--background)); }
 button:focus-visible, select:focus-visible,
 a:focus-visible, [tabindex]:focus-visible {
-  outline: 1.5px solid var(--ring);
-  outline-offset: 2px;
+  outline: 1px solid var(--wb-border-strong);
+  outline-offset: 1px;
+}
+.wb-project-menu button:focus-visible,
+.wb-task-menu button:focus-visible,
+.codex-pop-item:focus-visible,
+.codex-perm-option:focus-visible,
+.wb-theme-pop-item:focus-visible {
+  outline: none !important;
+  background: var(--wb-hover) !important;
 }
 
 /* Buttons and icon buttons share one shape, focus, and motion scale. */
@@ -329,25 +337,25 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 
 /* Shared add menu for both chat composers. */
 .composer-attachments { min-width: 0; display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 9px; }
-.composer-attachment { position: relative; width: min(160px, 100%); min-width: 0; min-height: 108px; display: grid; grid-template-rows: 1fr auto; overflow: hidden; border: 1px solid var(--wb-subtle); border-radius: 9px; color: var(--wb-ink); background: var(--wb-surface); }
+.composer-attachment { position: relative; width: min(160px, 100%); min-width: 0; min-height: 108px; display: grid; grid-template-rows: 1fr auto; overflow: hidden; border: 1px solid var(--wb-border-subtle); border-radius: 9px; color: var(--wb-ink); background: var(--wb-surface); }
 .composer-attachment-icon { min-height: 76px; display: grid; place-items: center; color: var(--wb-ink); background: var(--wb-panel); }
 .composer-attachment-name { min-width: 0; overflow: hidden; padding: 6px 24px 7px 7px; color: var(--wb-ink); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .composer-attachment > button { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--wb-ink); background: #1112; opacity: 0; transition: opacity .12s ease, background .12s ease; }
 .composer-attachment:hover > button, .composer-attachment:focus-within > button { opacity: 1; }
 .composer-attachment > button:hover { background: #0009; }
 .chat-message-attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.chat-message-attachment { max-width: min(260px, 100%); min-width: 0; display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--wb-subtle); border-radius: 7px; color: var(--wb-ink); background: var(--wb-raised); font-size: 11px; }
+.chat-message-attachment { max-width: min(260px, 100%); min-width: 0; display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--wb-border-subtle); border-radius: 7px; color: var(--wb-ink); background: var(--wb-raised); font-size: 11px; }
 .chat-message-attachment > .wb-icon { flex: 0 0 auto; color: var(--wb-muted); }
 .chat-message-attachment > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-file-option > input[type="file"] { display: none; }
 .composer-add-wrap { min-width: 0; display: flex; align-items: center; gap: 8px; }
 .composer-add { position: relative; flex: 0 0 auto; }
-.composer-add > summary { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--wb-subtle); border-radius: 50%; color: var(--wb-ink-strong); background: var(--wb-raised); cursor: pointer; list-style: none; transition: background .15s ease, border-color .15s ease; }
+.composer-add > summary { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--wb-border-subtle); border-radius: 50%; color: var(--wb-ink-strong); background: var(--wb-raised); cursor: pointer; list-style: none; transition: background .15s ease, border-color .15s ease; }
 .composer-add > summary::-webkit-details-marker { display: none; }
 .composer-add > summary:hover,
-.composer-add[open] > summary { border-color: var(--wb-subtle); background: var(--wb-subtle); }
-.composer-add > summary:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
-.composer-add-menu { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 30; width: min(300px, calc(100vw - 38px)); display: grid; gap: 2px; padding: 7px; border: 1px solid var(--wb-subtle); border-radius: 12px; color: var(--wb-ink-strong); background: var(--wb-raised); box-shadow: 0 16px 36px #0009; }
+.composer-add[open] > summary { border-color: var(--wb-border-strong); background: var(--wb-hover); }
+.composer-add > summary:focus-visible { outline: 1px solid var(--wb-border-strong); outline-offset: 2px; }
+.composer-add-menu { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 30; width: min(300px, calc(100vw - 38px)); display: grid; gap: 2px; padding: 7px; border: 1px solid var(--wb-border-subtle); border-radius: 12px; color: var(--wb-ink-strong); background: var(--wb-panel); box-shadow: 0 16px 36px #0009; }
 .composer-add-menu > strong { padding: 7px 9px 8px; color: var(--wb-muted); font-size: 11px; font-weight: 650; }
 .composer-add-menu > button { min-height: 36px; display: flex; align-items: center; gap: 10px; padding: 6px 9px; border: 0; border-radius: 7px; color: var(--wb-ink); background: transparent; text-align: left; font-size: 12px; cursor: pointer; }
 .composer-add-menu > .composer-file-option { position: relative; min-width: 0; min-height: 36px; display: grid; align-items: center; gap: 2px; padding: 6px 9px; border-radius: 7px; color: var(--wb-ink); cursor: pointer; }
@@ -356,11 +364,11 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 .composer-add-menu > label:hover,
 .composer-add-menu > button:hover,
 .composer-add-menu > label:focus-within,
-.composer-add-menu > button:focus-visible { color: var(--wb-ink-strong); background: var(--wb-subtle); }
+.composer-add-menu > button:focus-visible { color: var(--wb-ink-strong); background: var(--wb-hover); }
 .composer-add-menu > .composer-file-option .wb-icon,
 .composer-add-menu > button .wb-icon { color: var(--wb-ink); }
 .composer-add-menu input[type="file"] { position: absolute; top: 8px; left: 8px; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.composer-add-menu > small { padding: 8px 9px 5px; border-top: 1px solid var(--wb-subtle); color: var(--wb-muted); font-size: 10px; line-height: 1.4; }
+.composer-add-menu > small { padding: 8px 9px 5px; border-top: 1px solid var(--wb-line); color: var(--wb-muted); font-size: 10px; line-height: 1.4; }
 .task-conversation-page .task-chat-pane { overflow: visible; }
 @media (max-width: 600px) {
   .composer-add > summary { width: 40px; height: 40px; }
@@ -3064,58 +3072,64 @@ body *:not(.wb-rail-nav) {
   flex: 0 0 auto; padding: 0 !important; border: 0 !important; background: transparent !important;
 }
 /* Match configuration dropdowns to the shared in-app model picker. */
-.composer-config-dialog .home-config-select-field { display: grid; min-width: 0; gap: 6px; color: var(--wb-ink); font-size: 12px; font-weight: 550; }
-.composer-config-dialog .home-config-select { display: block; width: 100%; min-width: 0; }
-.composer-config-dialog .home-config-select > .codex-inline-trigger {
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-select-field { display: grid; min-width: 0; gap: 6px; color: var(--wb-ink); font-size: 12px; font-weight: 550; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-select { display: block; width: 100%; min-width: 0; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-select > .codex-inline-trigger {
   width: 100%; height: 38px; justify-content: space-between; padding: 0 11px;
-  border: 1px solid var(--wb-border-subtle); border-radius: 8px;
-  background: var(--wb-surface-soft); color: var(--wb-ink);
+  border: 1px solid var(--wb-border-subtle) !important; border-radius: 8px;
+  background: var(--wb-field) !important; color: var(--wb-ink-strong) !important;
   font-family: var(--wb-font-sans); font-size: 12px; font-weight: 500; text-align: left;
 }
-.composer-config-dialog .home-config-select > .codex-inline-trigger:hover,
-.composer-config-dialog .home-config-select[open] > .codex-inline-trigger { border-color: color-mix(in srgb, var(--wb-tint) 20%, transparent); background: color-mix(in srgb, var(--wb-tint) 5.5%, transparent); }
-.composer-config-dialog .home-config-select-card {
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-select > .codex-inline-trigger:hover,
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-select[open] > .codex-inline-trigger { border-color: var(--wb-border-strong) !important; background: var(--wb-hover) !important; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-select-card {
   right: 0; left: 0; width: 100%; min-width: 0; max-width: none; padding: 5px;
-  border-radius: 10px; background: var(--wb-panel);
+  border: 1px solid var(--wb-border-subtle) !important; border-radius: 10px; background: var(--wb-panel) !important;
 }
-.composer-config-dialog .home-config-select-card .codex-pop-scroll { max-height: 178px; gap: 2px; }
-.composer-config-dialog .home-config-select-card .codex-pop-item {
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-select-card .codex-pop-scroll { max-height: 178px; gap: 2px; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-select-card .codex-pop-item {
   min-height: 34px; padding: 0 9px; border-radius: 6px;
   font-family: var(--wb-font-sans); font-size: 12px; text-align: left;
 }
-.composer-config-dialog .home-config-select-card .codex-pop-item:disabled { opacity: .42; cursor: not-allowed; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-select-card .codex-pop-item:disabled { opacity: .42; cursor: not-allowed; }
 .composer-config-dialog .home-security-grid { grid-template-columns: minmax(0, 1fr) !important; }
-.composer-config-dialog .home-config-permission { display: grid; min-width: 0; gap: 6px; color: var(--wb-ink); font-size: 12px; font-weight: 550; }
-.composer-config-dialog .home-config-permission-menu { display: block; width: 100%; }
-.composer-config-dialog .home-config-permission-menu > .codex-perm-pill {
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission { display: grid; min-width: 0; gap: 6px; color: var(--wb-ink); font-size: 12px; font-weight: 550; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu { display: block; width: 100%; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu > .codex-perm-pill {
   width: 100%; height: 38px; justify-content: flex-start; gap: 9px;
-  padding: 0 11px; border: 1px solid var(--wb-border-subtle); border-radius: 8px;
+  padding: 0 11px; border: 1px solid var(--wb-border-subtle) !important; border-radius: 8px;
+  background: var(--wb-field) !important; color: var(--wb-ink-strong);
   font-family: var(--wb-font-sans); font-size: 12px; font-weight: 550;
 }
-.composer-config-dialog .home-config-permission-menu > .codex-perm-pill > span { flex: 1; text-align: left; }
-.composer-config-dialog .home-config-permission-menu > .codex-perm-pill.is-full-access {
-  border-color: rgba(249,115,22,.22); background: rgba(249,115,22,.1); color: var(--wb-amber);
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu > .codex-perm-pill:hover,
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu[open] > .codex-perm-pill {
+  border-color: var(--wb-border-strong) !important; background: var(--wb-hover) !important;
 }
-.composer-config-dialog .home-config-permission-menu > .codex-perm-pill.is-full-access:hover,
-.composer-config-dialog .home-config-permission-menu[open] > .codex-perm-pill.is-full-access { background: rgba(249,115,22,.17); color: var(--wb-amber); }
-.composer-config-dialog .home-config-permission-menu .is-permission-card {
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu > .codex-perm-pill > span { flex: 1; text-align: left; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu > .codex-perm-pill.is-full-access {
+  border-color: rgba(249,115,22,.22) !important; background: rgba(249,115,22,.1) !important; color: var(--wb-amber);
+}
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu > .codex-perm-pill.is-full-access:hover,
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu[open] > .codex-perm-pill.is-full-access { background: rgba(249,115,22,.17) !important; color: var(--wb-amber); }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .is-permission-card {
   top: calc(100% + 6px) !important; bottom: auto !important; width: 100%; min-width: 0; max-width: none;
   max-height: 220px; padding: 7px; gap: 3px; overflow: hidden;
+  border: 1px solid var(--wb-border-subtle) !important; background: var(--wb-panel) !important;
 }
-.composer-config-dialog .home-config-permission-menu .codex-perm-header { padding: 2px 8px; }
-.composer-config-dialog .home-config-permission-menu .codex-perm-list { max-height: 178px; overflow-y: auto; gap: 2px; }
-.composer-config-dialog .home-config-permission-menu .codex-perm-option { padding: 6px 8px !important; gap: 8px !important; border-radius: 8px !important; }
-.composer-config-dialog .home-config-permission-menu .codex-perm-option-body { gap: 2px !important; }
-.composer-config-dialog .home-config-permission-menu .codex-perm-option-body strong { font-size: 12.5px !important; }
-.composer-config-dialog .home-config-permission-menu .codex-perm-option-body small { font-size: 11.5px !important; line-height: 1.3 !important; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-header { padding: 2px 8px; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-list { max-height: 178px; overflow-y: auto; gap: 2px; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option { padding: 6px 8px !important; gap: 8px !important; border-radius: 8px !important; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option-body { gap: 2px !important; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option-body strong { font-size: 12.5px !important; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option-body small { font-size: 11.5px !important; line-height: 1.3 !important; }
 .composer-config-dialog .home-isolation-row {
   grid-column: 1 / -1; min-width: 0; min-height: 60px; align-items: center !important;
   gap: 10px !important; margin: 0 !important; padding: 11px 13px !important; border-radius: 8px;
 }
 .composer-config-dialog .home-isolation-row input[type="checkbox"] {
   appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 16px; height: 16px; margin: 0;
-  display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--wb-tint) 28%, transparent); border-radius: 4px;
-  background: color-mix(in srgb, var(--wb-tint) 4%, transparent); cursor: pointer;
+  display: grid; place-items: center; border: 1px solid var(--wb-border-strong); border-radius: 4px;
+  background: var(--wb-field); cursor: pointer;
 }
 .composer-config-dialog .home-isolation-row input[type="checkbox"]::before {
   content: ""; width: 8px; height: 5px; border: solid var(--wb-panel); border-width: 0 0 2px 2px;
@@ -3123,7 +3137,7 @@ body *:not(.wb-rail-nav) {
 }
 .composer-config-dialog .home-isolation-row input[type="checkbox"]:checked { border-color: var(--wb-accent); background: var(--wb-accent); }
 .composer-config-dialog .home-isolation-row input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
-.composer-config-dialog .home-isolation-row input[type="checkbox"]:focus-visible { outline: 2px solid rgba(157,200,255,.55); outline-offset: 2px; }
+.composer-config-dialog .home-isolation-row input[type="checkbox"]:focus-visible { outline: 1px solid var(--wb-border-strong); outline-offset: 2px; }
 .composer-config-dialog .home-isolation-row input[type="checkbox"]:disabled { opacity: .45; cursor: not-allowed; }
 .composer-config-dialog .home-isolation-row > span { min-width: 0; gap: 3px; }
 .composer-config-dialog .home-isolation-row strong { font-size: 12px !important; line-height: 1.35; }
@@ -3145,9 +3159,9 @@ body *:not(.wb-rail-nav) {
   align-items: center !important;
   gap: 10px !important;
   padding: 9px 11px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
+  border: 1px solid var(--wb-border-subtle) !important;
   border-radius: 11px !important;
-  background: color-mix(in srgb, var(--wb-tint) 3%, transparent) !important;
+  background: var(--wb-surface-soft) !important;
 }
 
 #overlay .provider-cli-entry .provider-connect-icon {
@@ -3174,9 +3188,9 @@ body *:not(.wb-rail-nav) {
   display: grid !important;
   gap: 7px !important;
   padding: 9px 11px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
+  border: 1px solid var(--wb-border-subtle) !important;
   border-radius: 11px !important;
-  background: color-mix(in srgb, var(--wb-tint) 2.5%, transparent) !important;
+  background: var(--wb-surface-soft) !important;
 }
 
 #overlay .provider-presets-head {
@@ -3223,17 +3237,46 @@ body *:not(.wb-rail-nav) {
 .wb-page-content .form-note {
   margin: 0 !important;
   padding: 7px 10px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
+  border: 1px solid var(--wb-border-subtle) !important;
   border-radius: 9px !important;
-  background: color-mix(in srgb, var(--wb-tint) 2.5%, transparent) !important;
-  color: color-mix(in srgb, var(--wb-tint) 56%, transparent) !important;
+  background: var(--wb-surface-soft) !important;
+  color: var(--wb-muted) !important;
   font-size: 11.5px !important;
   line-height: 1.4 !important;
 }
 
-/* 9.3 Unified Form Labels, Inputs, Selects & Textareas */
+/* 9.3 Unified Form Labels, Inputs, Selects, Textareas & Modal Surfaces */
+#overlay .modal,
+.wb-page-content .composer-config-dialog,
+.desktop-setup-dialog,
+.multi-chat-create-form,
+.wb-project-menu,
+.wb-task-menu,
+.codex-pop-card,
+.wb-theme-pop-card {
+  background: var(--wb-panel) !important;
+  border-color: var(--wb-border-subtle) !important;
+  color: var(--wb-ink-strong) !important;
+}
+
+#overlay .modal .task-preset-tools,
+#overlay .modal .agent-role-card,
+#overlay .modal .model-provider,
+#overlay .modal .check-row,
+#overlay .modal .task-skill-auto,
+#overlay .modal .cli-connect-card,
+#overlay .modal .cli-connect-intro,
+.wb-page-content .composer-config-dialog .agent-role-card,
+.wb-page-content .composer-config-dialog .home-isolation-row,
+.multi-chat-create-form .chat-agent-card {
+  background: var(--wb-surface-soft) !important;
+  border: 1px solid var(--wb-border-subtle) !important;
+  color: var(--wb-ink) !important;
+}
+
 #overlay .modal label,
 .wb-page-content .composer-config-dialog label,
+.multi-chat-create-form label,
 .wb-page-content .settings-card label {
   display: grid;
   gap: 5px;
@@ -3244,8 +3287,9 @@ body *:not(.wb-rail-nav) {
 
 #overlay .modal label small,
 .wb-page-content .composer-config-dialog label small,
+.multi-chat-create-form label small,
 .wb-page-content .settings-card label small {
-  color: color-mix(in srgb, var(--wb-tint) 50%, transparent) !important;
+  color: var(--wb-muted) !important;
   font-size: 11px !important;
   font-weight: 450 !important;
   line-height: 1.35 !important;
@@ -3257,6 +3301,9 @@ body *:not(.wb-rail-nav) {
 .wb-page-content .composer-config-dialog input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 .wb-page-content .composer-config-dialog select,
 .wb-page-content .composer-config-dialog textarea,
+.multi-chat-create-form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.multi-chat-create-form select,
+.multi-chat-create-form textarea,
 .wb-page-content .settings-card input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 .wb-page-content .settings-card select,
 .wb-page-content .settings-card textarea,
@@ -3264,28 +3311,33 @@ body *:not(.wb-rail-nav) {
 .desktop-setup-dialog select,
 .desktop-setup-dialog textarea {
   width: 100%;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
+  border: 1px solid var(--wb-border-subtle) !important;
   border-radius: 9px !important;
-  background: var(--wb-surface-soft) !important;
+  background: var(--wb-field) !important;
   color: var(--wb-ink-strong) !important;
   padding: 7px 10px !important;
   font-size: 12.5px !important;
   line-height: 1.4 !important;
-  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease !important;
+  box-shadow: none !important;
+  outline: none !important;
+  transition: border-color 120ms ease, background-color 120ms ease !important;
 }
 
 #overlay .modal input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 #overlay .modal select,
 .wb-page-content .composer-config-dialog input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 .wb-page-content .composer-config-dialog select,
+.multi-chat-create-form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+.multi-chat-create-form select,
 .wb-page-content .settings-card input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 .wb-page-content .settings-card select {
-  min-height: 34px !important;
+  min-height: 36px !important;
 }
 
 #overlay .modal textarea,
-.wb-page-content .composer-config-dialog textarea {
-  min-height: 64px !important;
+.wb-page-content .composer-config-dialog textarea,
+.multi-chat-create-form textarea {
+  min-height: 68px !important;
   resize: vertical;
 }
 
@@ -3295,6 +3347,9 @@ body *:not(.wb-rail-nav) {
 .wb-page-content .composer-config-dialog input:focus,
 .wb-page-content .composer-config-dialog select:focus,
 .wb-page-content .composer-config-dialog textarea:focus,
+.multi-chat-create-form input:focus,
+.multi-chat-create-form select:focus,
+.multi-chat-create-form textarea:focus,
 .wb-page-content .settings-card input:focus,
 .wb-page-content .settings-card select:focus,
 .wb-page-content .settings-card textarea:focus,
@@ -3302,9 +3357,52 @@ body *:not(.wb-rail-nav) {
 .desktop-setup-dialog select:focus,
 .desktop-setup-dialog textarea:focus {
   outline: none !important;
-  border-color: rgba(96, 165, 250, 0.65) !important;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.22) !important;
-  background: var(--wb-panel) !important;
+  border-color: var(--wb-border-strong) !important;
+  box-shadow: none !important;
+  background: var(--wb-field) !important;
+}
+
+/* Single unified input container for Source Folders (.source-folder-row) */
+#overlay .modal .source-folder-list {
+  display: grid !important;
+  gap: 6px !important;
+  border: 0 !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+
+#overlay .modal .source-folder-row {
+  min-width: 0;
+  min-height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 0 6px 0 11px !important;
+  border: 1px solid var(--wb-border-subtle) !important;
+  border-radius: 9px !important;
+  background: var(--wb-field) !important;
+  color: var(--wb-muted) !important;
+  transition: border-color 120ms ease !important;
+}
+
+#overlay .modal .source-folder-row:focus-within {
+  border-color: var(--wb-border-strong) !important;
+}
+
+#overlay .modal .source-folder-row input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+#overlay .modal .source-folder-row input:focus {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  color: var(--wb-ink-strong) !important;
+  font-size: 12.5px !important;
 }
 
 /* 9.4 Unified Button System Across Modals, Settings, and Views */
@@ -7352,9 +7450,9 @@ textarea::placeholder,
   max-height: 100%;
   overflow: auto;
   padding: 20px !important;
-  border: 1px solid var(--wb-line) !important;
+  border: 1px solid var(--wb-border-subtle) !important;
   border-radius: 16px !important;
-  background: var(--wb-surface, var(--wb-surface)) !important;
+  background: var(--wb-panel) !important;
   box-shadow: 0 28px 90px #000a !important;
 }
 .multi-chat-create-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
@@ -7363,8 +7461,8 @@ textarea::placeholder,
 .multi-chat-create-header h2 { margin: 4px 0 6px; color: var(--wb-ink-strong); font-size: 18px; line-height: 1.3; }
 .multi-chat-create-header p { margin: 0; color: var(--wb-muted); font-size: 12px; line-height: 1.5; }
 .multi-chat-create-prompt { display: grid; gap: 7px; color: var(--wb-ink-strong); font-size: 12px; font-weight: 600; }
-.multi-chat-create-prompt textarea { width: 100%; min-height: 86px; resize: vertical; padding: 10px 11px; border: 1px solid var(--wb-line); border-radius: 10px; background: var(--wb-field, var(--wb-panel-header)); color: var(--wb-ink); font: inherit; font-weight: 400; line-height: 1.5; }
-.multi-chat-create-prompt textarea:focus { outline: 2px solid color-mix(in srgb, var(--wb-accent) 65%, transparent); outline-offset: 1px; }
+.multi-chat-create-prompt textarea { width: 100%; min-height: 86px; resize: vertical; padding: 10px 11px; border: 1px solid var(--wb-border-subtle); border-radius: 10px; background: var(--wb-field); color: var(--wb-ink-strong); font: inherit; font-weight: 400; line-height: 1.5; }
+.multi-chat-create-prompt textarea:focus { outline: none; border-color: var(--wb-border-strong); }
 .multi-chat-create-form .chat-agent-card { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; padding: 12px; }
 .multi-chat-create-form .chat-agent-card > header { grid-column: 1 / -1; }
 .multi-chat-create-form .home-config-select { min-width: 0; }
@@ -7397,8 +7495,8 @@ textarea::placeholder,
 .multi-chat-pane .codex-inline-trigger.is-model > span { max-width: clamp(64px, 18vw, 120px) !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
 
 /* Keep parallel chat dialogs on the shared, established modal frame. */
-.multi-chat-create-backdrop { position: fixed !important; z-index: 45 !important; inset: 0 !important; overflow: auto !important; padding: 16px !important; background: color-mix(in srgb, var(--wb-bg) 72%, transparent) !important; backdrop-filter: blur(2px) !important; -webkit-backdrop-filter: blur(2px) !important; }
-.multi-chat-create-form { display: flex !important; flex-direction: column !important; gap: 0 !important; width: min(620px, calc(100vw - 32px)) !important; max-width: 620px !important; max-height: min(88dvh, 840px) !important; overflow: hidden !important; padding: 0 !important; border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent) !important; border-radius: 16px !important; background: var(--wb-panel) !important; color: var(--wb-ink-strong) !important; box-shadow: 0 24px 64px #000b, 0 4px 16px #0006 !important; }
+.multi-chat-create-backdrop { position: fixed !important; z-index: 45 !important; inset: 0 !important; overflow: auto !important; padding: 16px !important; background: var(--wb-overlay) !important; backdrop-filter: blur(8px) !important; -webkit-backdrop-filter: blur(8px) !important; }
+.multi-chat-create-form { display: flex !important; flex-direction: column !important; gap: 0 !important; width: min(620px, calc(100vw - 32px)) !important; max-width: 620px !important; max-height: min(88dvh, 840px) !important; overflow: hidden !important; padding: 0 !important; border: 1px solid var(--wb-border-subtle) !important; border-radius: 16px !important; background: var(--wb-panel) !important; color: var(--wb-ink-strong) !important; box-shadow: 0 24px 64px #000b, 0 4px 16px #0006 !important; }
 .multi-chat-create-form > .app-dialog-content { display: grid !important; grid-template-columns: minmax(0,1fr) !important; align-content: start !important; gap: 14px !important; overflow: auto !important; padding: 12px 24px 20px !important; }
 .multi-chat-create-description { margin: 0 !important; color: var(--wb-muted) !important; font-size: 12px !important; line-height: 1.5 !important; }
 .multi-chat-create-description strong { color: var(--wb-ink-strong); font-weight: 600; }
@@ -7412,7 +7510,7 @@ textarea::placeholder,
 .multi-chat-create-form .home-config-permission-menu > .codex-perm-pill { width: 100% !important; justify-content: flex-start !important; }
 .multi-chat-create-form .home-config-permission-menu > .codex-perm-pill > span { display: inline-flex !important; flex: 1 1 auto !important; }
 .multi-chat-create-form .multi-chat-create-prompt textarea:focus,
-.multi-chat-create-form .multi-chat-create-prompt textarea:focus-visible { outline: none !important; border-color: color-mix(in srgb,var(--wb-line) 76%,var(--wb-ink-strong) 24%) !important; box-shadow: none !important; }
+.multi-chat-create-form .multi-chat-create-prompt textarea:focus-visible { outline: none !important; border-color: var(--wb-border-strong) !important; box-shadow: none !important; }
 .multi-chat-create-form > .app-dialog-footer { flex: 0 0 auto !important; }
 .multi-chat-create-form > .app-dialog-content { flex: 0 1 auto !important; gap: 12px !important; padding-top: 8px !important; padding-bottom: 14px !important; }
 .multi-chat-create-form > .app-dialog-header { padding: 16px 24px 8px !important; }
@@ -8145,15 +8243,15 @@ pre > code {
   background: var(--wb-control) !important;
 }
 .orca-el-comment-input {
-  border-color: var(--wb-border-strong) !important;
+  border-color: var(--wb-border-subtle) !important;
   border-radius: 8px !important;
   color: var(--wb-ink-strong) !important;
   background: var(--wb-field) !important;
 }
 .orca-el-comment-input:focus {
-  border-color: var(--wb-accent) !important;
+  border-color: var(--wb-border-strong) !important;
   background: var(--wb-field) !important;
-  box-shadow: 0 0 0 2px rgba(131, 170, 255, .18) !important;
+  box-shadow: none !important;
 }
 .orca-el-pop-foot {
   display: grid !important;
