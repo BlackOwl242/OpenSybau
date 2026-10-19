@@ -5,6 +5,18 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.93] - 2026-10-19
+
+### English
+- Fix `.codex-composer-rail` stacking context so opening a top-rail dropdown never causes the rail's bottom overlap skirt (`margin-bottom: -16px`) to protrude in front of `.home-composer`, while `.codex-pop-card` (`z-index: 60`) still floats cleanly above the composer.
+- Unify popover card surface tokens (`--wb-raised` / `--wb-panel`) with the default `Obsidian Dark` desktop-glass palette so dropdowns and popovers match the composer and theme surfaces seamlessly.
+
+### Tiếng Việt
+- Khắc phục lỗi ngữ cảnh xếp lớp (`z-index`) của `.codex-composer-rail` khiến phần viền dưới (`margin-bottom: -16px`) bị lòi đè lên khung chat `.home-composer` khi mở menu bật lên, trong khi `.codex-pop-card` (`z-index: 60`) vẫn nổi rõ phía trên.
+- Đồng bộ bảng màu bề mặt của các popup/dropdown (`--wb-raised` / `--wb-panel`) với chủ đề mặc định `Obsidian Dark` (kể cả chế độ `desktop-glass`) để tiệp hoàn toàn với màu khung nhập lệnh và giao diện chung.
+
+---
+
 ## [0.2.92] - 2026-10-19
 
 ### English
