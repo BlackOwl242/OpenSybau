@@ -13,6 +13,7 @@ export function orchestrationNodes(task) {
   const phaseOrder = { queued: 0, chat: 2, plan: 3, build: 5, review: 7, done: 9, failed: 9, cancelled: 9 };
   const activeOrder = phaseOrder[task.phase] ?? 0;
   const failedOrder = phaseOrder[task.failedPhase] ?? activeOrder;
+  const pipelineCompleted = task.status === "done" || (task.phase === "chat" && (planOnly ? Boolean(task.plan) : Boolean(task.review)));
   const status = (order, done, active = false, failureRelevant = false) => {
     if (done || task.status === "done" && order <= activeOrder) return "complete";
     if (failureRelevant && failed && order === failedOrder) return task.status;
@@ -34,22 +35,22 @@ export function orchestrationNodes(task) {
   const planRole = roleConfig(task.config, "plan");
   const buildRole = roleConfig(task.config, "build");
   const reviewRole = roleConfig(task.config, "review");
-  const planDone = Boolean(task.plan) || task.phase === "build" || task.phase === "review" || task.phase === "done" && planOnly;
+  const planDone = Boolean(task.plan) || task.phase === "build" || task.phase === "review" || pipelineCompleted && planOnly;
   nodes.push({ id: "plan", group: `${label(planRole.provider).toLocaleUpperCase()} · PLAN`, title: "Phân tích workspace & lập kế hoạch", detail: `${planRole.model || "Model chưa lưu"} · ${planRole.effort || "mức suy nghĩ đã chọn"}`, icon: "list-checks", order: 3, state: status(3, planDone, task.phase === "plan", true), output: task.plan });
   if (planOnly) {
-    nodes.push({ id: "result", group: "RESULT", title: "Lưu kế hoạch", detail: task.status === "done" ? "Kế hoạch đã hoàn tất; chưa chạy triển khai." : "Đầu ra kế hoạch sẽ được lưu ở đây.", icon: "book-check", order: 9, state: status(9, task.status === "done"), output: task.plan });
+    nodes.push({ id: "result", group: "RESULT", title: "Lưu kế hoạch", detail: pipelineCompleted ? "Kế hoạch đã hoàn tất; chưa chạy triển khai." : "Đầu ra kế hoạch sẽ được lưu ở đây.", icon: "book-check", order: 9, state: status(9, pipelineCompleted), output: task.plan });
     return nodes;
   }
   const handoffToBuild = hasEvent(/Handoff .* → .*kế hoạch được chuyển sang stage triển khai/i);
-  nodes.push({ id: "handoff-build", group: "HANDOFF", title: `Chuyển kế hoạch sang ${label(buildRole.provider)}`, detail: `Bàn giao đầu ra ${label(planRole.provider)} và cấu hình triển khai.`, icon: "arrow-up-right", order: 4, state: status(4, handoffToBuild || planDone && (task.phase === "build" || task.phase === "review" || task.status === "done")) });
-  const buildDone = Boolean(task.implementation) || task.phase === "review" || task.status === "done";
+  nodes.push({ id: "handoff-build", group: "HANDOFF", title: `Chuyển kế hoạch sang ${label(buildRole.provider)}`, detail: `Bàn giao đầu ra ${label(planRole.provider)} và cấu hình triển khai.`, icon: "arrow-up-right", order: 4, state: status(4, handoffToBuild || planDone && (task.phase === "build" || task.phase === "review" || Boolean(task.implementation) || pipelineCompleted)) });
+  const buildDone = Boolean(task.implementation) || task.phase === "review" || pipelineCompleted;
   nodes.push({ id: "build", group: `${label(buildRole.provider).toLocaleUpperCase()} · BUILD`, title: "Triển khai thay đổi", detail: `${buildRole.model || "Model chưa lưu"} · ${buildRole.effort || "mức suy nghĩ đã chọn"}`, icon: "folder-code", order: 5, state: status(5, buildDone, task.phase === "build", true), output: task.implementation });
   const toolEvents = events.filter((event) => event.kind === "tool");
   if (toolEvents.length) nodes.push({ id: "tools", group: "OBSERVED TOOLS", title: `${toolEvents.length} lần gọi công cụ CLI`, detail: "Danh sách chỉ gồm sự kiện công cụ được CLI ghi nhận thực tế.", icon: "settings-2", order: 5.5, state: status(5.5, buildDone || task.status === "running" && task.phase === "review"), events: toolEvents });
   const handoffToReview = hasEvent(/stage triển khai đã kết thúc/i);
-  nodes.push({ id: "handoff-review", group: "HANDOFF", title: `Chuyển thay đổi sang ${label(reviewRole.provider)}`, detail: `Bàn giao kết quả ${label(buildRole.provider)} cho stage review.`, icon: "arrow-up-right", order: 6, state: status(6, handoffToReview || task.phase === "review" || Boolean(task.review)) });
-  nodes.push({ id: "review", group: `${label(reviewRole.provider).toLocaleUpperCase()} · REVIEW`, title: "Review thay đổi & kiểm tra kết quả", detail: `${reviewRole.model || "Model chưa lưu"} · ${reviewRole.effort || "mức suy nghĩ đã chọn"}`, icon: "book-check", order: 7, state: status(7, Boolean(task.review) || task.status === "done", task.phase === "review", true), output: task.review });
+  nodes.push({ id: "handoff-review", group: "HANDOFF", title: `Chuyển thay đổi sang ${label(reviewRole.provider)}`, detail: `Bàn giao kết quả ${label(buildRole.provider)} cho stage review.`, icon: "arrow-up-right", order: 6, state: status(6, handoffToReview || task.phase === "review" || Boolean(task.review) || pipelineCompleted) });
+  nodes.push({ id: "review", group: `${label(reviewRole.provider).toLocaleUpperCase()} · REVIEW`, title: "Review thay đổi & kiểm tra kết quả", detail: `${reviewRole.model || "Model chưa lưu"} · ${reviewRole.effort || "mức suy nghĩ đã chọn"}`, icon: "book-check", order: 7, state: status(7, Boolean(task.review) || pipelineCompleted, task.phase === "review", true), output: task.review });
   const artifactCount = (task.artifacts || []).length;
-  nodes.push({ id: "result", group: "RESULT", title: "Ghi nhận đầu ra & tệp thay đổi", detail: task.status === "done" ? `${artifactCount} tệp thay đổi được ghi nhận trong task.` : "Kết quả và danh sách tệp sẽ hiện sau khi luồng hoàn tất.", icon: "file", order: 9, state: status(9, task.status === "done"), files: task.artifacts || [] });
+  nodes.push({ id: "result", group: "RESULT", title: "Ghi nhận đầu ra & tệp thay đổi", detail: pipelineCompleted ? `${artifactCount} tệp thay đổi được ghi nhận trong task.` : "Kết quả và danh sách tệp sẽ hiện sau khi luồng hoàn tất.", icon: "file", order: 9, state: status(9, pipelineCompleted), files: task.artifacts || [] });
   return nodes;
 }

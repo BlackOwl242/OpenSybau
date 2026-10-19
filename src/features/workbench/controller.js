@@ -26,6 +26,8 @@ let browserRouteInitialized = false;
 let replaceBrowserRoute = false;
 let routeNeedsHydration = view.page === "knowledge" || view.page === "workspaces" && Boolean(view.selected);
 let refreshPromise = null;
+let refreshInFlight = null;
+let refreshPending = false;
 let refreshAgain = false;
 let refreshConfiguration = false;
 let refreshForeground = false;
@@ -96,8 +98,11 @@ function refresh({ configuration = false, background = false } = {}) {
   refreshAgain = true;
   refreshForeground ||= !background;
   refreshConfiguration ||= configuration || !view.connectors;
-  if (refreshPromise) return refreshPromise;
-  refreshPromise = (async () => {
+  if (refreshInFlight) {
+    refreshPending = true;
+    return refreshInFlight;
+  }
+  refreshInFlight = refreshPromise = (async () => {
     try {
       while (refreshAgain) {
         refreshAgain = false;
@@ -115,8 +120,15 @@ function refresh({ configuration = false, background = false } = {}) {
       refreshAgain = false;
       showToast(error.message);
     }
-  })().finally(() => { refreshPromise = null; });
-  return refreshPromise;
+  })().finally(() => {
+    refreshInFlight = null;
+    refreshPromise = null;
+    if (refreshPending) {
+      refreshPending = false;
+      scheduleRefresh(80);
+    }
+  });
+  return refreshInFlight;
 }
 function scheduleRefresh(delay = 160) {
   if (document.hidden) return;
@@ -366,8 +378,8 @@ function taskRow(task) {
   const hasChatError = (task.chatMessages || []).some((message) => message.status === "failed");
   const roleId = task.phase === "implementation" ? "build" : task.phase;
   const provider = task.phase === "chat" ? providerTitle(view.connectors, task.chatQueue?.[0]?.provider || task.config.chatProvider || "codex") : providerTitle(view.connectors, task.config?.roles?.[roleId]?.provider || roleConfig(task.config, roleId)?.provider || "codex");
-  return `<button class="task-row ${view.selected === task.id ? "selected" : ""}" data-task="${task.id}">
-    <span class="task-state state-${task.status}"><i></i></span>
+  return `<button class="task-row ${view.selected === task.id ? "selected" : ""}" data-task="${esc(task.id)}">
+    <span class="task-state state-${esc(task.status)}"><i></i></span>
     <span class="task-primary"><strong>${esc(task.title)}</strong><small>${esc(workspace?.name || task.workspacePath)} <b>·</b> ${hasChatError ? "Có tin nhắn chat lỗi cần xem" : esc(taskProgress(task))}</small></span>
     <span class="task-agent">${task.status === "running" ? `<i class="spin"></i>${esc(provider)}` : task.status === "queued" ? "Queue" : esc(task.config.workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, task.config.chatProvider)}` : task.config.workflow === "plan-only" ? providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider) : workflowSummary(task))}</span>
     <span class="task-date">${fmtDate(task.updatedAt)}</span>
@@ -450,7 +462,7 @@ function workspacePage() {
   if (activeWs && !view.workspaceOverviewMode) return projectDetailPage(activeWs);
   const status = (w) => w.runtime ? `${w.runtime.isGit ? `Git · ${w.runtime.branch || "nhánh detached"}` : "Thư mục thường"}${w.runtime.head ? " · Có commit" : w.runtime.isGit ? " · Chưa có commit" : ""}${w.runtime.dirty ? " · Có thay đổi chưa commit" : ""}` : "Sẽ kiểm tra khi chạy task";
   return `<div class="page-head"><div><div class="eyebrow">PROJECT ROOTS</div><h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div>
-  <section class="workspace-list">${workspaces.map((w) => `<article class="workspace-card"><div class="workspace-card-icon">${icon("folder-code", 17)}</div><div class="workspace-card-main"><strong>${esc(w.name)}</strong><code>${esc(w.path)}</code><small>${esc(status(w))}</small></div><button class="button quiet small" data-action="open-workspace" data-id="${w.id}">Mở dự án ${icon("chevron-right", 14)}</button><button class="icon-button" data-action="remove-workspace" data-id="${w.id}" title="Gỡ workspace" aria-label="Gỡ workspace">${icon("x", 16)}</button></article>`).join("")}</section>
+  <section class="workspace-list">${workspaces.map((w) => `<article class="workspace-card"><div class="workspace-card-icon">${icon("folder-code", 17)}</div><div class="workspace-card-main"><strong>${esc(w.name)}</strong><code>${esc(w.path)}</code><small>${esc(status(w))}</small></div><button class="button quiet small" data-action="open-workspace" data-id="${esc(w.id)}">Mở dự án ${icon("chevron-right", 14)}</button><button class="icon-button" data-action="remove-workspace" data-id="${esc(w.id)}" title="Gỡ workspace" aria-label="Gỡ workspace">${icon("x", 16)}</button></article>`).join("")}</section>
   <aside class="info-panel"><strong>Task chạy ở đâu?</strong><p>Chế độ thường sửa trực tiếp thư mục này và chỉ cho một task chạy trong cùng workspace tại một thời điểm. Chế độ Git worktree tạo nhánh riêng; cần repository đã có commit. Task trên các workspace khác nhau có thể chạy song song.</p></aside>`;
 }
 function breadcrumbButtons(path, action) {
@@ -563,7 +575,10 @@ function buildMarkdown(source) {
     if (line.includes("|") && i + 1 < lines.length && isMarkdownTableDelimiter(lines[i + 1])) {
       flushParagraph(); closeList();
       const headers = splitMarkdownTableRow(line);
-      const aligns = splitMarkdownTableRow(lines[i + 1]).map((c) => (c.startsWith(":") && c.endsWith(":")) ? "center" : c.endsWith(":") ? "right" : "left");
+      const aligns = splitMarkdownTableRow(lines[i + 1]).map((c) => {
+        const align = (c.startsWith(":") && c.endsWith(":")) ? "center" : c.endsWith(":") ? "right" : "left";
+        return ["left", "center", "right"].includes(align) ? align : "left";
+      });
       i += 2;
       const bodyRows = [];
       while (i < lines.length && lines[i].trim() && lines[i].includes("|") && !/^\s*```/.test(lines[i]) && !/^(#{1,6})\s+/.test(lines[i])) {
@@ -571,9 +586,9 @@ function buildMarkdown(source) {
         i++;
       }
       i--;
-      const theadHtml = `<thead><tr>${headers.map((h, colIdx) => `<th${aligns[colIdx] && aligns[colIdx] !== "left" ? ` style="text-align:${aligns[colIdx]}"` : ""}>${inline(h)}</th>`).join("")}</tr></thead>`;
+      const theadHtml = `<thead><tr>${headers.map((h, colIdx) => `<th${["left", "center", "right"].includes(aligns[colIdx]) && aligns[colIdx] !== "left" ? ` style="text-align:${aligns[colIdx]}"` : ""}>${inline(h)}</th>`).join("")}</tr></thead>`;
       const tbodyHtml = bodyRows.length
-        ? `<tbody>${bodyRows.map((row) => `<tr>${headers.map((_, colIdx) => `<td${aligns[colIdx] && aligns[colIdx] !== "left" ? ` style="text-align:${aligns[colIdx]}"` : ""}>${inline(row[colIdx] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody>`
+        ? `<tbody>${bodyRows.map((row) => `<tr>${headers.map((_, colIdx) => `<td${["left", "center", "right"].includes(aligns[colIdx]) && aligns[colIdx] !== "left" ? ` style="text-align:${aligns[colIdx]}"` : ""}>${inline(row[colIdx] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody>`
         : "";
       html.push(`<div class="md-table-wrap"><table class="md-table">${theadHtml}${tbodyHtml}</table></div>`);
       continue;
@@ -617,7 +632,7 @@ function extractMarkdownOutline(source) {
 }
 function renderKnowledgeMarkdown(source) {
   const baseHtml = renderMarkdown(source);
-  return baseHtml.replace(/\[\[([^\]|#\r\n]+)(?:#[^\]|\r\n]*)?(?:\|([^\]\r\n]+))?\]\]/g, (_, target, alias) => {
+  return baseHtml.replace(/\[\[([^\]|#<>\r\n]+)(?:#[^\]|<>\r\n]*)?(?:\|([^\]<>\r\n]+))?\]\]/g, (_, target, alias) => {
     const label = (alias || target).trim();
     const cleanTarget = target.trim();
     return `<button type="button" class="vault-wikilink" data-action="vault-open-wikilink" data-target="${esc(cleanTarget)}" title="Mở liên kết tri thức: ${esc(cleanTarget)}">${icon("file", 12)}<span>${esc(label)}</span></button>`;
@@ -1029,8 +1044,22 @@ function mountKnowledgeGraphCanvas() {
     canvas.removeEventListener("wheel", onWheel);
   };
 }
+let cachedDockTreePaths = null;
+let cachedDockTreeKey = "";
+let cachedDockTreeRoot = null;
+
+function sortDockTreeNode(node) {
+  node.foldersList = [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  node.files.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  for (const child of node.foldersList) sortDockTreeNode(child);
+}
+
 function buildDockFileTree(paths = []) {
-  const root = { folders: new Map(), files: [] };
+  const key = `${paths.length}:${paths[0] || ""}:${paths[paths.length - 1] || ""}`;
+  if (paths === cachedDockTreePaths && key === cachedDockTreeKey && cachedDockTreeRoot) {
+    return cachedDockTreeRoot;
+  }
+  const root = { folders: new Map(), foldersList: [], files: [] };
   for (const rawPath of paths) {
     const norm = String(rawPath || "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
     if (!norm) continue;
@@ -1041,13 +1070,17 @@ function buildDockFileTree(paths = []) {
       const seg = parts[i];
       accum = accum ? `${accum}/${seg}` : seg;
       if (!curr.folders.has(seg)) {
-        curr.folders.set(seg, { name: seg, path: accum, folders: new Map(), files: [] });
+        curr.folders.set(seg, { name: seg, path: accum, folders: new Map(), foldersList: [], files: [] });
       }
       curr = curr.folders.get(seg);
     }
     const fileName = parts[parts.length - 1];
     curr.files.push({ name: fileName, path: norm });
   }
+  sortDockTreeNode(root);
+  cachedDockTreePaths = paths;
+  cachedDockTreeKey = key;
+  cachedDockTreeRoot = root;
   return root;
 }
 
@@ -1471,13 +1504,22 @@ function ensureIframeInspectorBridge(iframe) {
       updateBoxFor(lockedEl);
       const info = describeElement(lockedEl);
       if (info) {
-        window.postMessage({ type: "orca-inspect:selected", element: info }, "*");
+        view.stageHtmlInspectActive = true;
+        view.stageHtmlSelectedElement = info;
+        syncHtmlInspectUi({ focusInput: true });
       }
     }, true);
 
     win.addEventListener("keydown", (e) => {
       if (active && e.key === "Escape") {
-        window.postMessage({ type: "orca-inspect:escape" }, "*");
+        if (view.stageHtmlSelectedElement) {
+          view.stageHtmlSelectedElement = null;
+          view.stageHtmlCommentDraft = "";
+          syncHtmlInspectUi();
+        } else if (view.stageHtmlInspectActive) {
+          view.stageHtmlInspectActive = false;
+          syncHtmlInspectUi();
+        }
       }
     }, true);
   } catch {}
@@ -1693,8 +1735,8 @@ function wrapStageWithOrcaTabs(primaryMarkup) {
 }
 
 function renderDockTreeLevel(node, depth, { collapsedSet, activePath, fileAction, workspaceId = "", taskId = "", showMention = false, showVaultMenu = false }) {
-  const folders = [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-  const files = [...node.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  const folders = node.foldersList || [...node.folders.values()];
+  const files = node.files;
   let html = "";
   const padLeft = 10 + depth * 14;
   for (const folder of folders) {
@@ -1899,7 +1941,7 @@ function orcaRightDockMarkup() {
       }
       const tree = buildDockFileTree(allFiles);
       if (view.collapsedDockFolders === null && allFiles.length > 0) {
-        const topFolders = [...tree.folders.values()].map((f) => f.path);
+        const topFolders = (tree.foldersList || [...tree.folders.values()]).map((f) => f.path);
         view.collapsedDockFolders = topFolders.filter((p) => p !== "src");
       }
       const collapsedSet = new Set(view.collapsedDockFolders || []);
@@ -1994,7 +2036,7 @@ function orcaRightDockMarkup() {
         </div>
         <ul class="orca-tree-list">${fanoutSiblings.map((t) => {
           const compName = t.fanoutCompetitor?.name || t.fanoutLabel || t.title;
-          return `<li class="orca-tree-item is-file ${t.id === selectedTask.id ? "is-selected" : ""}"><button type="button" class="orca-tree-row ${t.id === selectedTask.id ? "is-selected" : ""}" style="padding-left:10px" data-task="${esc(t.id)}"><span class="wb-task-dot is-${t.status || "done"}"></span><span class="orca-tree-label">${esc(compName)}</span><small class="orca-tree-badge">${(t.artifacts || []).length}</small></button></li>`;
+          return `<li class="orca-tree-item is-file ${t.id === selectedTask.id ? "is-selected" : ""}"><button type="button" class="orca-tree-row ${t.id === selectedTask.id ? "is-selected" : ""}" style="padding-left:10px" data-task="${esc(t.id)}"><span class="wb-task-dot is-${esc(t.status || "done")}"></span><span class="orca-tree-label">${esc(compName)}</span><small class="orca-tree-badge">${(t.artifacts || []).length}</small></button></li>`;
         }).join("")}</ul>` : ""}
         <div class="orca-section-label" style="margin-top:8px">CHANGES (${artifacts.length})</div>
         ${artifacts.length
@@ -2367,7 +2409,7 @@ function permissionModeIcon(mode, size = 16) {
   }
   return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12.5"/><circle cx="12" cy="15.8" r="0.9" fill="currentColor" stroke="none"/></svg>`;
 }
-function composerPermissionMenuMarkup(currentPreset = "full-access", scope = "home", taskId = "") {
+function composerPermissionMenuMarkup(currentPreset = "workspace-write", scope = "home", taskId = "") {
   const options = [
     {
       id: "read-only",
@@ -2391,7 +2433,7 @@ function composerPermissionMenuMarkup(currentPreset = "full-access", scope = "ho
       tone: "danger-warn",
     },
   ];
-  const current = options.find((item) => item.id === currentPreset) || options[2];
+  const current = options.find((item) => item.id === currentPreset) || options[1];
   const isConfig = scope === "home-config";
   const popId = scope === "task" ? "task-permission" : isConfig ? "home-config-permission" : "home-permission";
   const action = scope === "task" ? "pick-task-permission" : "pick-home-permission";
@@ -2498,7 +2540,7 @@ function defaultSkillScope(providers = []) {
 async function showSkillView(id) {
   const { skill } = await api(`/api/skills/${encodeURIComponent(id)}`);
   const source = (skill.sources || [skill.source]).join(" · ");
-  const actions = skill.editable ? `<button class="button" type="button" data-action="edit-skill" data-id="${skill.id}">Sửa skill</button>` : `<button class="button" type="button" data-action="copy-skill" data-id="${skill.id}">Sao chép để sửa</button>`;
+  const actions = skill.editable ? `<button class="button" type="button" data-action="edit-skill" data-id="${esc(skill.id)}">Sửa skill</button>` : `<button class="button" type="button" data-action="copy-skill" data-id="${esc(skill.id)}">Sao chép để sửa</button>`;
   const body = `<div class="skill-view-meta"><strong>${esc(skill.name)}</strong><p>${esc(skill.description)}</p><small>${esc(source)}</small></div><pre class="skill-source"><code>${esc(skill.content)}</code></pre><div class="skill-view-actions">${actions}</div>`;
   showModal("Nội dung skill", body, "Đóng", "dismiss");
 }
@@ -2517,13 +2559,13 @@ function showVaultModal() {
 function workflowNodes(task) {
   const nodes = orchestrationNodes(task);
   const labels = { complete: "Hoàn tất", active: "Đang chạy", queued: "Đang chờ", pending: "Chưa chạy", failed: "Lỗi", cancelled: "Đã dừng" };
-  return nodes.map((node, index) => `<div class="workflow-step"><button class="workflow-node node-${node.state}" data-action="inspect-task" data-id="${task.id}" aria-label="${esc(node.title)} · ${labels[node.state] || "Chưa ghi nhận"}"><span class="workflow-node-mark">${icon(node.state === "complete" ? "check" : node.icon, 14)}</span><strong>${esc(node.title)}</strong><small>${esc(node.group)}</small><em>${labels[node.state] || "Chưa ghi nhận"}</em></button>${index < nodes.length - 1 ? `<span class="workflow-edge ${node.state === "complete" ? "edge-done" : ""}" aria-hidden="true">${icon("chevron-right", 16)}</span>` : ""}</div>`).join("");
+  return nodes.map((node, index) => `<div class="workflow-step"><button class="workflow-node node-${esc(node.state)}" data-action="inspect-task" data-id="${esc(task.id)}" aria-label="${esc(node.title)} · ${labels[node.state] || "Chưa ghi nhận"}"><span class="workflow-node-mark">${icon(node.state === "complete" ? "check" : node.icon, 14)}</span><strong>${esc(node.title)}</strong><small>${esc(node.group)}</small><em>${labels[node.state] || "Chưa ghi nhận"}</em></button>${index < nodes.length - 1 ? `<span class="workflow-edge ${node.state === "complete" ? "edge-done" : ""}" aria-hidden="true">${icon("chevron-right", 16)}</span>` : ""}</div>`).join("");
 }
 function workflowPage() {
   if (view.selected && view.state.tasks.some((task) => task.id === view.selected)) return taskDetails();
   const tasks = view.state.tasks;
   const active = tasks.filter((task) => ["queued", "running"].includes(task.status));
-  return `<div class="page-head"><div><div class="eyebrow">TASK ORCHESTRATION</div><h1>Luồng</h1><p>Xem sơ đồ từng bước, log hoạt động và đầu ra được ghi nhận cho mỗi cuộc trò chuyện.</p></div><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task</button></div><div class="flow-summary"><div><small>Đang hoạt động</small><strong>${active.length}</strong></div><div><small>Có bản ghi</small><strong>${tasks.length}</strong></div><p>Chọn một luồng để xem chi tiết điều phối và đầu ra từng agent.</p></div>${tasks.length ? `<section class="workflow-board">${tasks.map((task) => `<article class="workflow-card"><header><button data-action="open-task-flow" data-id="${task.id}" class="workflow-task-title"><strong>${esc(task.title)}</strong><small>${esc(view.state.workspaces.find((workspace) => workspace.id === task.workspaceId)?.name || task.workspacePath)} · ${esc(taskProgress(task))}</small></button><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span></header><div class="workflow-lane">${workflowNodes(task)}</div><footer><span>${task.config.workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, task.config.chatProvider)}` : task.config.workflow === "plan-only" ? `${providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider)} · chỉ lập kế hoạch` : workflowSummary(task)}</span><button class="workflow-record-link" data-action="open-task-flow" data-id="${task.id}">${icon("workflow", 14)} Mở bản ghi</button><time>${fmtDate(task.updatedAt)}</time></footer></article>`).join("")}</section>` : `<section class="empty-state workflow-empty"><strong>Chưa có bản ghi luồng</strong><p>Bản ghi điều phối sẽ xuất hiện tại đây khi một cuộc trò chuyện hoặc task được tạo trong workspace.</p><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button></section>`}`;
+  return `<div class="page-head"><div><div class="eyebrow">TASK ORCHESTRATION</div><h1>Luồng</h1><p>Xem sơ đồ từng bước, log hoạt động và đầu ra được ghi nhận cho mỗi cuộc trò chuyện.</p></div><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task</button></div><div class="flow-summary"><div><small>Đang hoạt động</small><strong>${active.length}</strong></div><div><small>Có bản ghi</small><strong>${tasks.length}</strong></div><p>Chọn một luồng để xem chi tiết điều phối và đầu ra từng agent.</p></div>${tasks.length ? `<section class="workflow-board">${tasks.map((task) => `<article class="workflow-card"><header><button data-action="open-task-flow" data-id="${esc(task.id)}" class="workflow-task-title"><strong>${esc(task.title)}</strong><small>${esc(view.state.workspaces.find((workspace) => workspace.id === task.workspaceId)?.name || task.workspacePath)} · ${esc(taskProgress(task))}</small></button><span class="pill status-${esc(task.status)}"><i></i>${esc(statuses[task.status] || task.status)}</span></header><div class="workflow-lane">${workflowNodes(task)}</div><footer><span>${task.config.workflow === "chat-only" ? `Chat · ${esc(providerTitle(view.connectors, task.config.chatProvider))}` : task.config.workflow === "plan-only" ? `${esc(providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider))} · chỉ lập kế hoạch` : esc(workflowSummary(task))}</span><button class="workflow-record-link" data-action="open-task-flow" data-id="${esc(task.id)}">${icon("workflow", 14)} Mở bản ghi</button><time>${fmtDate(task.updatedAt)}</time></footer></article>`).join("")}</section>` : `<section class="empty-state workflow-empty"><strong>Chưa có bản ghi luồng</strong><p>Bản ghi điều phối sẽ xuất hiện tại đây khi một cuộc trò chuyện hoặc task được tạo trong workspace.</p><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button></section>`}`;
 }
 function memoryPage() {
   const notes = view.state?.memories || [];
@@ -2567,7 +2609,7 @@ function memoryPage() {
         <small>${m.workspaceId === "all" ? "Dùng chung" : esc(workspaces.find((w) => w.id === m.workspaceId)?.name || "Workspace đã gỡ")} · ${fmtDate(m.createdAt)}</small>
       </div>
       <p>${esc(m.content)}</p>
-      <button class="icon-button" data-action="delete-memory" data-id="${m.id}" title="Xóa ghi nhớ" aria-label="Xóa ghi nhớ">${icon("x", 16)}</button>
+      <button class="icon-button" data-action="delete-memory" data-id="${esc(m.id)}" title="Xóa ghi nhớ" aria-label="Xóa ghi nhớ">${icon("x", 16)}</button>
     </article>`).join("")}
   </section>` : `<section class="empty-state">
     <div class="empty-symbol">${icon("brain", 18)}</div>
@@ -2587,15 +2629,15 @@ function settingsPage() {
     const status = cliConnectionStatus(connector);
     const action = status.tone === "missing"
       ? window.opensybauDesktop?.supportsCliInstall
-        ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${agent.id}" ${view.cliInstallProvider ? "disabled" : ""}>${view.cliInstallProvider === agent.id ? "Đang cài đặt…" : "Cài CLI"}</button>`
-        : `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
+        ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${esc(agent.id)}" ${view.cliInstallProvider ? "disabled" : ""}>${view.cliInstallProvider === agent.id ? "Đang cài đặt…" : "Cài CLI"}</button>`
+        : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
       : status.action === "refresh"
         ? cliRefreshButton()
-        : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${agent.id}">Mở terminal đăng nhập</button>`;
+        : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Mở terminal đăng nhập</button>`;
     const detail = status.tone === "ready"
       ? `${connector.models.length} model${connector.models.length === 1 ? "" : "s"}${connector.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
       : status.tone === "missing" ? connector?.error || agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
-    return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${status.tone}">${status.label}</span></strong><small>${esc(detail)}</small></div><div class="cli-guide-actions">${action}</div></article>`;
+    return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${esc(status.tone)}">${esc(status.label)}</span></strong><small>${esc(detail)}</small></div><div class="cli-guide-actions">${action}</div></article>`;
   }).join("");
   const noReadyConnector = !Object.values(view.connectors || {}).some((connector) => connector?.available && connector.capabilities?.plan);
   const readyCliCount = cliProviderGuides.filter((agent) => cliConnectionStatus(view.connectors?.[agent.id]).tone === "ready").length;
@@ -2698,18 +2740,18 @@ function showCliProviderModal() {
       : status.tone === "missing" ? agent.installHelp : connector?.error || agent.summary;
     const primary = status.tone === "missing"
       ? window.opensybauDesktop?.supportsCliInstall
-        ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${agent.id}">Cài CLI</button>`
-        : `<a class="button quiet small" href="${agent.url}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
+        ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${esc(agent.id)}">Cài CLI</button>`
+        : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
       : status.action === "refresh"
         ? cliRefreshButton(status.tone === "ready" ? "Đã kết nối · quét lại" : "Quét lại")
-        : `<button class="button primary small" type="button" data-action="provider-cli-login" data-id="${agent.id}">${icon("square-terminal", 13)} ${status.tone === "needs-action" && connector?.authenticated ? "Mở CLI để kiểm tra" : "Bắt đầu đăng nhập"}</button>`;
+        : `<button class="button primary small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">${icon("square-terminal", 13)} ${status.tone === "needs-action" && connector?.authenticated ? "Mở CLI để kiểm tra" : "Bắt đầu đăng nhập"}</button>`;
     const docsUrl = status.tone === "missing" ? agent.url : agent.authUrl || agent.url;
     const instructions = status.tone === "missing"
       ? `<div class="cli-connect-login"><span>Cài đặt CLI</span><small>${esc(agent.installHelp)}</small></div>`
       : status.tone !== "ready" && status.action === "refresh"
         ? `<div class="cli-connect-login"><span>Kiểm tra kết nối CLI</span><small>CLI đã có trên máy. Bấm Quét lại để thử đọc danh sách model.</small></div>`
         : `<div class="cli-connect-login"><span>Cách đăng nhập</span><code>${esc(agent.loginCommand)}</code><small>${esc(agent.loginHelp)}</small></div>`;
-    return `<article class="cli-connect-card ${status.tone}"><header><span class="cli-connect-mark">${icon("square-terminal", 17)}</span><div><h3>${esc(agent.name)}</h3><span class="cli-guide-status ${status.tone}">${esc(status.label)}</span></div></header><p>${esc(detail)}</p>${instructions}<footer>${primary}<a href="${docsUrl}" target="_blank" rel="noreferrer">Tài liệu chính thức</a></footer></article>`;
+    return `<article class="cli-connect-card ${esc(status.tone)}"><header><span class="cli-connect-mark">${icon("square-terminal", 17)}</span><div><h3>${esc(agent.name)}</h3><span class="cli-guide-status ${esc(status.tone)}">${esc(status.label)}</span></div></header><p>${esc(detail)}</p>${instructions}<footer>${primary}<a href="${esc(docsUrl)}" target="_blank" rel="noreferrer">Tài liệu chính thức</a></footer></article>`;
   }).join("");
   const body = `<div class="cli-connect-intro"><span class="provider-connect-icon">${icon("workflow", 17)}</span><div><strong>OpenSybau tự dò CLI trên máy chủ</strong><p>CLI đã cài sẽ tự kết nối. Bấm Quét lại nếu vừa cài hoặc đăng nhập.</p></div>${cliRefreshButton()}</div><div class="cli-connect-list">${rows}</div><p class="cli-connect-feedback" role="status" aria-live="polite" hidden></p><p class="form-note">CLI dùng tài khoản riêng, không cần API key. Nếu bạn dùng OpenSybau từ điện thoại, terminal sẽ mở trên máy chủ; hoàn tất đăng nhập tại máy đó rồi bấm Quét lại.</p>`;
   showModal("Thêm / kết nối CLI agent", body, "Xong", "dismiss");
@@ -2727,36 +2769,68 @@ function render({ background = false } = {}) {
   syncLocation();
   const pages = { chat: chatPage, tasks: taskPage, flows: workflowPage, workspaces: workspacePage, knowledge: knowledgePage, skills: skillPage, memory: memoryPage, settings: settingsPage };
   const content = $("#content");
+  const rightDockEl = document.querySelector(".orca-right-dock");
   const renderKey = `${view.page}:${view.selected || ""}`;
   const contentScroll = view.renderedPage === renderKey ? content.scrollTop : 0;
-  const previousChat = $("#chat-thread", content) || $(".chat-thread", content);
-  const chatAtEnd = previousChat && previousChat.scrollHeight - previousChat.scrollTop - previousChat.clientHeight < 48;
-  const chatScroll = previousChat?.scrollTop || 0;
-  const chatTaskChanged = previousChat && previousChat.dataset.taskId !== String(view.selected || "");
-  const shouldScrollChatToEnd = Boolean(view.forceChatScroll || !previousChat || chatTaskChanged || chatAtEnd);
+
+  const chatThreadScrolls = new Map();
+  content?.querySelectorAll(".chat-thread")?.forEach((thread) => {
+    const tId = thread.dataset.taskId || "";
+    const key = thread.id || tId || "default";
+    const atEnd = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 48;
+    chatThreadScrolls.set(key, { top: thread.scrollTop, atEnd, taskId: tId });
+  });
+  const forceScrollAll = Boolean(view.forceChatScroll);
   view.forceChatScroll = false;
-  const activeComposer = document.activeElement?.closest?.(".chat-composer") ? document.activeElement.name : "";
-  const activeComposerTaskId = document.activeElement?.closest?.(".chat-composer")?.dataset.id || "";
-  const previousSelection = activeComposer === "message" ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
+
   const selectedTask = view.selected && view.state.tasks.some((task) => task.id === view.selected);
   const openPops = new Map();
   content?.querySelectorAll(".codex-pop-menu[open][data-pop-id]")?.forEach((el) => {
     openPops.set(el.dataset.popId, el.querySelector(".codex-pop-scroll")?.scrollTop || 0);
   });
+
   const activeEl = document.activeElement;
-  const activeComposerForm = activeEl?.closest?.(".chat-composer")
-    ? ".chat-composer"
-    : activeEl?.closest?.(".home-composer") && activeEl.name === "prompt"
-      ? ".home-composer"
-      : "";
-  const activeComposerName = activeComposerForm ? activeEl.name : "";
-  const activeComposerSelection = activeComposerName && typeof activeEl.selectionStart === "number" ? [activeEl.selectionStart, activeEl.selectionEnd] : previousSelection;
+  let activeInputDescriptor = null;
+  if (activeEl && activeEl.matches?.("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea") && (content?.contains(activeEl) || rightDockEl?.contains(activeEl))) {
+    const composerForm = activeEl.closest(".chat-composer")
+      ? ".chat-composer"
+      : activeEl.closest(".home-composer")
+        ? ".home-composer"
+        : "";
+    const composerTaskId = activeEl.closest(".chat-composer")?.dataset.id || activeEl.closest(".multi-chat-pane")?.dataset.taskId || "";
+    let selector = "";
+    if (activeEl.hasAttribute("data-chat-drawer-filter")) selector = "[data-chat-drawer-filter]";
+    else if (activeEl.hasAttribute("data-vault-editor")) selector = "[data-vault-editor]";
+    else if (activeEl.hasAttribute("data-skill-inline-editor")) selector = "[data-skill-inline-editor]";
+    else if (activeEl.hasAttribute("data-stage-line-comment-input")) selector = "[data-stage-line-comment-input]";
+    else if (activeEl.hasAttribute("data-html-element-comment-input")) selector = "[data-html-element-comment-input]";
+    else if (activeEl.dataset?.fileFilter) selector = `[data-file-filter="${CSS.escape(activeEl.dataset.fileFilter)}"]`;
+    else if (activeEl.dataset?.skillFilter) selector = `[data-skill-filter="${CSS.escape(activeEl.dataset.skillFilter)}"]`;
+    else if (activeEl.id) selector = `#${CSS.escape(activeEl.id)}`;
+    else if (activeEl.name) selector = `${activeEl.tagName.toLowerCase()}[name="${CSS.escape(activeEl.name)}"]`;
+    activeInputDescriptor = {
+      inDock: Boolean(rightDockEl?.contains(activeEl)),
+      composerForm,
+      composerTaskId,
+      name: activeEl.name || "",
+      selector,
+      value: activeEl.value,
+      selection: typeof activeEl.selectionStart === "number" ? [activeEl.selectionStart, activeEl.selectionEnd] : null,
+    };
+  }
+
   const rawPageMarkup = (pages[view.page] || taskPage)();
   const pageMarkup = wrapStageWithOrcaTabs(rawPageMarkup);
-  const rightDockMarkup = view.chatDrawerOpen ? orcaRightDockMarkup() : "";
-  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, theme: view.theme, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults: homeSearchResults(view.searchQuery), collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
+  const isRightDockOpen = pageSupportsRightDock(view.page) && (view.page === "chat" ? Boolean(view.chatDrawerOpen) : Boolean(view.homeDockOpen ?? view.chatDrawerOpen));
+  const rightDockMarkup = isRightDockOpen ? orcaRightDockMarkup() : "";
+  const searchResults = view.searchQuery ? homeSearchResults(view.searchQuery) : "";
+  view.searchResults = searchResults;
+  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, theme: view.theme, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults, collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
-  localizeDom(document.querySelector("#overlay"), view.language);
+  const overlay = $("#overlay");
+  if (overlay && overlay.children.length > 0) {
+    localizeDom(overlay, view.language);
+  }
   const nextContent = $("#content");
   nextContent.scrollTop = contentScroll;
   view.renderedPage = renderKey;
@@ -2770,22 +2844,41 @@ function render({ background = false } = {}) {
       }
     }
   }
-  const nextChat = $("#chat-thread", nextContent) || $(".chat-thread", nextContent);
-  if (nextChat && !view.chatSplitWorkspaceId) nextChat.scrollTop = shouldScrollChatToEnd ? nextChat.scrollHeight : chatScroll;
+  nextContent.querySelectorAll(".chat-thread").forEach((nextThread) => {
+    const tId = nextThread.dataset.taskId || "";
+    const key = nextThread.id || tId || "default";
+    const prev = chatThreadScrolls.get(key);
+    const taskChanged = prev && prev.taskId !== tId;
+    const shouldScrollEnd = Boolean(forceScrollAll || !prev || taskChanged || prev.atEnd);
+    nextThread.scrollTop = shouldScrollEnd ? nextThread.scrollHeight : prev.top;
+  });
   updateChatOutline();
-  if (activeComposerForm && activeComposerName) {
-    const nextComposer = activeComposerTaskId ? nextContent.querySelector(`${activeComposerForm}[data-id="${CSS.escape(activeComposerTaskId)}"]`) : $(activeComposerForm, nextContent);
-    const nextInput = nextComposer?.querySelector(`[name="${activeComposerName}"]`);
+  if (activeInputDescriptor) {
+    const scopeRoot = activeInputDescriptor.inDock ? document.querySelector(".orca-right-dock") : nextContent;
+    let nextInput = null;
+    if (activeInputDescriptor.composerForm && activeInputDescriptor.name) {
+      const nextComposer = activeInputDescriptor.composerTaskId
+        ? scopeRoot?.querySelector(`${activeInputDescriptor.composerForm}[data-id="${CSS.escape(activeInputDescriptor.composerTaskId)}"]`) || scopeRoot?.querySelector(`.multi-chat-pane[data-task-id="${CSS.escape(activeInputDescriptor.composerTaskId)}"] ${activeInputDescriptor.composerForm}`)
+        : $(activeInputDescriptor.composerForm, scopeRoot);
+      nextInput = nextComposer?.querySelector(`[name="${CSS.escape(activeInputDescriptor.name)}"]`);
+    } else if (activeInputDescriptor.selector) {
+      nextInput = scopeRoot?.querySelector(activeInputDescriptor.selector);
+    }
     if (nextInput) {
-      resizeComposerTextarea(nextInput);
-      nextInput.focus({ preventScroll: true });
-      if (activeComposerSelection && nextInput.setSelectionRange) nextInput.setSelectionRange(...activeComposerSelection);
+      if (nextInput !== document.activeElement) {
+        nextInput.focus({ preventScroll: true });
+      }
+      if (nextInput.matches(".chat-input, [data-home-prompt]")) {
+        resizeComposerTextarea(nextInput);
+      }
+      if (activeInputDescriptor.selection && nextInput.setSelectionRange) {
+        try { nextInput.setSelectionRange(...activeInputDescriptor.selection); } catch {}
+      }
     }
   }
   if (view.page === "skills") applySkillFilter($("[data-skill-filter=library]", nextContent));
   mountKnowledgeGraphCanvas();
-  const overlay = $("#overlay");
-  if (!overlay.querySelector(".modal")) {
+  if (overlay && !overlay.querySelector(".modal")) {
     overlay.innerHTML = "";
   }
   syncWorkflow();
@@ -2879,7 +2972,7 @@ function chatPage() {
   const workflowOptions = `<option value="chat-only" ${workflow === "chat-only" ? "selected" : ""}>Chat · một agent</option><option value="codex-antigravity" ${workflow === "codex-antigravity" ? "selected" : ""} ${pipelineReady ? "" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${workflow === "plan-only" ? "selected" : ""} ${planReady ? "" : "disabled"}>Chỉ lập kế hoạch</option>`;
   const chatProviders = Object.entries(view.connectors || {}).filter(([, connector]) => connectorSupports(connector, "chat"));
   const homeIsolated = Boolean((isArena || isSplitCreation || view.homeIsolated) && canIsolateHome);
-  const homePermissionPreset = view.homePermissionPreset || "full-access";
+  const homePermissionPreset = view.homePermissionPreset || "workspace-write";
   const compactAgentLabel = isArena
     ? `${arenaSlots.length} nhánh Worktree song song`
     : workflow === "chat-only"
@@ -3101,19 +3194,19 @@ function taskConversationPipelineStrip(task, busy) {
   if (workflow === "chat-only" && !busy && !artifactsCount && !task.isolated && !task.fanoutId) return "";
   const stages = workflow === "chat-only" ? "" : (workflow === "plan-only" ? [{ id: "plan", label: "Kế hoạch", done: Boolean(task.plan) }] : [{ id: "plan", label: "Kế hoạch", done: Boolean(task.plan) }, { id: "build", label: "Triển khai", done: Boolean(task.implementation) }, { id: "review", label: "Review", done: Boolean(task.review) }]).map((stage) => `<span class="chat-stage-chip ${stage.done ? "is-done" : (busy && task.phase === stage.id ? "is-active" : "is-pending")}"><i></i>${stage.label}</span>`).join(`<span class="chat-stage-arrow">→</span>`);
   const worktreeChip = task.isolated
-    ? `<span class="chat-worktree-chip ${task.worktreeAppliedAt ? "is-merged" : ""}" title="${esc(task.worktreePath || task.executionPath || "")}">${icon(task.worktreeAppliedAt ? "check" : "git-branch", 12)} ${task.worktreeAppliedAt ? "Đã gộp vào dự án" : task.worktreeCleaned ? "Worktree đã dọn" : (task.worktreeBranch || "Worktree cô lập")}</span>`
+    ? `<span class="chat-worktree-chip ${task.worktreeAppliedAt ? "is-merged" : ""}" title="${esc(task.worktreePath || task.executionPath || "")}">${icon(task.worktreeAppliedAt ? "check" : "git-branch", 12)} ${task.worktreeAppliedAt ? "Đã gộp vào dự án" : task.worktreeCleaned ? "Worktree đã dọn" : esc(task.worktreeBranch || "Worktree cô lập")}</span>`
     : "";
   const activityText = busy && lastEvent?.text ? `<span class="chat-live-event" title="${esc(lastEvent.text)}"><i class="pulse-dot"></i>${esc(String(lastEvent.text).slice(0, 110))}</span>` : "";
   const canManageWorktree = Boolean(task.isolated && !busy && !task.worktreeCleaned && !task.worktreeAppliedAt);
   const applyWtBtn = canManageWorktree && artifactsCount > 0
-    ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${task.id}" title="Áp dụng thay đổi từ worktree cô lập này vào nhánh chính của dự án">${icon("check", 13)}<span>Gộp vào dự án</span></button>`
+    ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(task.id)}" title="Áp dụng thay đổi từ worktree cô lập này vào nhánh chính của dự án">${icon("check", 13)}<span>Gộp vào dự án</span></button>`
     : "";
   const discardWtBtn = canManageWorktree
-    ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${task.id}" title="Hủy bỏ và xóa nhánh Git worktree cô lập này">${icon("delete", 13)}<span>Hủy worktree</span></button>`
+    ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${esc(task.id)}" title="Hủy bỏ và xóa nhánh Git worktree cô lập này">${icon("delete", 13)}<span>Hủy worktree</span></button>`
     : "";
-  const diffBtn = task.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${task.id}">${icon("file", 13)}<span>Diff & Review${artifactsCount ? ` (${artifactsCount})` : ""}</span></button>` : "";
-  const flowBtn = `<button type="button" class="button quiet small" data-action="open-task-flow" data-id="${task.id}">${icon("workflow", 13)}<span>Luồng</span></button>`;
-  const stopBtn = busy && workflow !== "chat-only" ? `<button type="button" class="button danger small" data-action="stop-task" data-id="${task.id}">${icon("square", 12)}<span>Dừng</span></button>` : "";
+  const diffBtn = task.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${esc(task.id)}">${icon("file", 13)}<span>Diff & Review${artifactsCount ? ` (${artifactsCount})` : ""}</span></button>` : "";
+  const flowBtn = `<button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(task.id)}">${icon("workflow", 13)}<span>Luồng</span></button>`;
+  const stopBtn = busy && workflow !== "chat-only" ? `<button type="button" class="button danger small" data-action="stop-task" data-id="${esc(task.id)}">${icon("square", 12)}<span>Dừng</span></button>` : "";
   return `<div class="chat-pipeline-strip ${busy ? "is-running" : ""}"><div class="chat-pipeline-stages">${stages}${worktreeChip}${activityText}</div><div class="chat-pipeline-actions">${applyWtBtn}${discardWtBtn}${diffBtn}${flowBtn}${stopBtn}</div></div>`;
 }
 function taskArenaBanner(task) {
@@ -3134,7 +3227,7 @@ function taskArenaBanner(task) {
         const filesCount = (item.artifacts || []).length;
         const tok = Object.values(item.usage || {}).reduce((s, u) => s + tokenCount(u), 0);
         return `<button type="button" class="arena-competitor-card ${item.id === task.id ? "is-active" : ""}" data-task="${esc(item.id)}">
-          <span class="wb-task-dot is-${item.status || "done"}"></span>
+          <span class="wb-task-dot is-${esc(item.status || "done")}"></span>
           <div class="arena-competitor-info">
             <strong>${esc(compName)}${item.worktreeAppliedAt ? " · ĐÃ CHỌN" : ""}</strong>
             <small>${esc(statuses[item.status] || item.status)} · ${filesCount} tệp sửa${tok ? ` · ${formatNumber(tok)} tok` : ""}</small>
@@ -3515,7 +3608,7 @@ function taskConversationPage(taskId = view.selected, options = {}) {
     const queuePosition = message.status === "queued" ? queuedTurns.findIndex((turn) => turn.messageId === message.id) : -1;
     const pending = message.status === "queued" ? queuePosition >= 0 ? (view.language === "en" ? `Queued · ${queuePosition + 1}/${queuedTurns.length}` : `Trong hàng đợi · ${queuePosition + 1}/${queuedTurns.length}`) : (view.language === "en" ? "Queued" : "Đang chờ") : message.status === "running" ? (view.language === "en" ? "Agent is replying" : "Đang xử lý") : message.status === "failed" ? (view.language === "en" ? "Failed" : "Lỗi") : "";
     const content = message.content ? renderMarkdown(message.content) : "";
-    const forkButton = isUser && message.id && (!message.status || message.status === "done") ? `<button type="button" class="chat-fork-button" data-action="fork-chat" data-id="${task.id}" data-message-id="${esc(message.id)}" title="Tạo nhánh hội thoại từ đây; workspace vẫn dùng chung">${icon("git-branch", 12)}<span>Tạo nhánh</span></button>` : "";
+    const forkButton = isUser && message.id && (!message.status || message.status === "done") ? `<button type="button" class="chat-fork-button" data-action="fork-chat" data-id="${esc(task.id)}" data-message-id="${esc(message.id)}" title="Tạo nhánh hội thoại từ đây; workspace vẫn dùng chung">${icon("git-branch", 12)}<span>Tạo nhánh</span></button>` : "";
     const messageError = message.status === "failed" ? `<button type="button" class="chat-message-error" data-action="view-error-details" data-error="${esc(message.error || "Không nhận được phản hồi từ agent.")}">Xem nguyên nhân lỗi</button>` : "";
     const messageAttachments = message.attachments?.length ? `<div class="chat-message-attachments">${message.attachments.map((file) => `<span class="chat-message-attachment">${icon("file", 14)}<span title="${esc(file.name)}">${esc(file.name)}</span></span>`).join("")}</div>` : "";
     const isLatestSavedReply = message.role === "assistant" && message.id && message.id === latestAssistantMessage?.id;
@@ -3538,9 +3631,9 @@ function taskConversationPage(taskId = view.selected, options = {}) {
       ? `<div class="chat-response-meta"><span>${message.pipelineStage ? (view.language === "en" ? "Pipeline time" : "Thời gian luồng") : (view.language === "en" ? "Response time" : "Thời gian trả lời")}: ${chatDurationLabel(displayDuration)}</span><span aria-hidden="true">·</span><span title="${latestTaskUsage ? (view.language === "en" ? "Recovered from the latest saved CLI usage record for this reply." : "Khôi phục từ bản ghi usage CLI gần nhất khớp thời điểm trả lời.") : ""}">${outputTokens ? `${formatNumber(outputTokens)} ${view.language === "en" ? "tokens" : "token"}` : `— ${view.language === "en" ? "tokens" : "token"}`}</span></div>`
       : "";
     if (isUser) {
-      return `<article class="chat-message from-user"><div class="user-bubble-card"><div class="chat-message-content user-message-content">${content}${messageAttachments}</div></div>${(forkButton || pending || messageError) ? `<div class="user-message-meta ${pending || messageError ? "is-visible" : ""}">${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}${forkButton}</div>` : ""}</article>`;
+      return `<article class="chat-message from-user" data-key="user-msg-${esc(message.id || messageIndex)}"><div class="user-bubble-card"><div class="chat-message-content user-message-content">${content}${messageAttachments}</div></div>${(forkButton || pending || messageError) ? `<div class="user-message-meta ${pending || messageError ? "is-visible" : ""}">${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}${forkButton}</div>` : ""}</article>`;
     }
-    return `<article class="chat-message from-agent" id="chat-answer-${options.splitPane ? `${esc(task.id)}-` : ""}${messageIndex}" data-chat-answer-index="${messageIndex}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small></header><div class="chat-message-content agent-message-content">${content}${messageAttachments}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}${responseMeta}</div></article>`;
+    return `<article class="chat-message from-agent" id="chat-answer-${options.splitPane ? `${esc(task.id)}-` : ""}${messageIndex}" data-key="assistant-msg-${esc(message.id || messageIndex)}" data-chat-answer-index="${messageIndex}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small></header><div class="chat-message-content agent-message-content">${content}${messageAttachments}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}${responseMeta}</div></article>`;
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
   const effortDisplay = { low: "Low", medium: "Medium", high: "High", minimal: "Min", standard: "Std", max: "Max" };
   const activeEfforts = model?.efforts?.length ? model.efforts : ["low", "medium", "high"];
@@ -3583,7 +3676,7 @@ function taskConversationPage(taskId = view.selected, options = {}) {
 function homeAgentCard(name, connector, ready) {
   const status = ready ? "Sẵn sàng" : connector?.error ? "Cần kiểm tra CLI" : "Chưa khả dụng";
   const detail = connector?.models?.length ? `${connector.models.length} model · ${connector.version || "CLI"}` : connector?.version || "CLI chưa trả danh sách model";
-  return `<div class="home-agent-card"><span class="home-agent-icon">${icon("square-terminal", 15)}</span><span><strong>${name}</strong><small>${esc(detail)}</small></span><span class="home-agent-status ${ready ? "ready" : "unavailable"}"><i></i>${status}</span></div>`;
+  return `<div class="home-agent-card"><span class="home-agent-icon">${icon("square-terminal", 15)}</span><span><strong>${esc(name)}</strong><small>${esc(detail)}</small></span><span class="home-agent-status ${ready ? "ready" : "unavailable"}"><i></i>${status}</span></div>`;
 }
 function homeSearchResults(query) {
   const normalized = String(query || "").trim().toLocaleLowerCase();
@@ -3594,10 +3687,11 @@ function homeSearchResults(query) {
   }).slice(0, 8);
   const workspaces = view.state.workspaces.filter((workspace) => `${workspace.name} ${workspace.path}`.toLocaleLowerCase().includes(normalized)).slice(0, 3);
   if (!tasks.length && !workspaces.length) return `<div class="home-search-empty">Không có task hoặc workspace phù hợp.</div>`;
-  return `<div class="home-search-section">Workspace</div>${workspaces.map((workspace) => `<button data-workspace="${workspace.id}">${icon("folder-code", 15)}<span><strong>${esc(workspace.name)}</strong><small>Dự án</small></span></button>`).join("")}<div class="home-search-section">Task và chat</div>${tasks.map((task) => `<button data-task="${task.id}">${icon(task.config?.workflow === "chat-only" ? "square-terminal" : "workflow", 15)}<span><strong>${esc(task.title)}</strong><small>${esc(view.state.workspaces.find((workspace) => workspace.id === task.workspaceId)?.name || task.workspacePath)}</small></span></button>`).join("")}`;
+  return `<div class="home-search-section">Workspace</div>${workspaces.map((workspace) => `<button data-workspace="${esc(workspace.id)}">${icon("folder-code", 15)}<span><strong>${esc(workspace.name)}</strong><small>Dự án</small></span></button>`).join("")}<div class="home-search-section">Task và chat</div>${tasks.map((task) => `<button data-task="${esc(task.id)}">${icon(task.config?.workflow === "chat-only" ? "square-terminal" : "workflow", 15)}<span><strong>${esc(task.title)}</strong><small>${esc(view.state.workspaces.find((workspace) => workspace.id === task.workspaceId)?.name || task.workspacePath)}</small></span></button>`).join("")}`;
 }
 function clearSidebarSearch() {
   view.searchQuery = "";
+  view.searchResults = "";
   const input = $("[data-home-search]");
   if (input) input.value = "";
   const results = $("[data-home-search-results]");
@@ -3605,13 +3699,13 @@ function clearSidebarSearch() {
 }
 function chatHomeCard(task) {
   const workspace = view.state.workspaces.find((item) => item.id === task.workspaceId);
-  return `<button class="chat-home-card" data-task="${task.id}"><span class="task-state state-${task.status}"><i></i></span><span><strong>${esc(task.title)}</strong><small>${esc(workspace?.name || task.workspacePath)} · ${esc(taskProgress(task))}</small></span><time>${fmtDate(task.updatedAt)}</time>${icon("chevron-right", 15)}</button>`;
+  return `<button class="chat-home-card" data-task="${esc(task.id)}"><span class="task-state state-${esc(task.status)}"><i></i></span><span><strong>${esc(task.title)}</strong><small>${esc(workspace?.name || task.workspacePath)} · ${esc(taskProgress(task))}</small></span><time>${fmtDate(task.updatedAt)}</time>${icon("chevron-right", 15)}</button>`;
 }
 function orchestrationNodeHtml(node, index, count) {
   const stateLabel = { complete: "Hoàn tất", active: "Đang chạy", queued: "Đang chờ", pending: "Chưa chạy", failed: "Lỗi", cancelled: "Đã dừng" }[node.state] || "Chưa ghi nhận";
   const stateIcon = node.state === "complete" ? "check" : node.state === "active" ? "refresh-cw" : node.state === "failed" || node.state === "cancelled" ? "x" : node.icon;
   const extra = node.events?.length ? `<details class="orchestration-node-details"><summary>${node.events.length} sự kiện công cụ quan sát được</summary><div>${node.events.map((event) => `<p><time>${fmtDate(event.at)}</time>${esc(event.text)}</p>`).join("")}</div></details>` : node.output ? `<details class="orchestration-node-details"><summary>Xem đầu ra stage</summary><pre>${esc(node.output)}</pre></details>` : node.files?.length ? `<details class="orchestration-node-details"><summary>Xem ${node.files.length} tệp thay đổi</summary><div>${node.files.map((file) => `<code>${esc(file)}</code>`).join("")}</div></details>` : "";
-  return `<article class="orchestration-node state-${node.state}" data-node="${node.id}"><div class="orchestration-rail"><span>${icon(stateIcon, 16)}</span>${index < count - 1 ? "<i></i>" : ""}</div><div class="orchestration-node-card"><header><small>${esc(node.group)}</small><span>${stateLabel}</span></header><div class="orchestration-node-main"><span class="orchestration-node-icon">${icon(node.icon, 17)}</span><div><h3>${esc(node.title)}</h3><p>${esc(node.detail)}</p></div></div>${extra}</div></article>`;
+  return `<article class="orchestration-node state-${esc(node.state)}" data-node="${esc(node.id)}"><div class="orchestration-rail"><span>${icon(stateIcon, 16)}</span>${index < count - 1 ? "<i></i>" : ""}</div><div class="orchestration-node-card"><header><small>${esc(node.group)}</small><span>${stateLabel}</span></header><div class="orchestration-node-main"><span class="orchestration-node-icon">${icon(node.icon, 17)}</span><div><h3>${esc(node.title)}</h3><p>${esc(node.detail)}</p></div></div>${extra}</div></article>`;
 }
 function openTaskInstructionModal(task) {
   const defaultRole = roleConfig(task.config, "plan");
@@ -3666,27 +3760,27 @@ function taskDetails() {
   const canRerun = !busy && !task.processRunning;
   const presetBadge = task.presetRef?.name ? `<span class="pill">${esc(translateText("Nguồn mẫu", view.language))}: ${esc(task.presetRef.name)} · v${Number(task.presetRef.version) || 1}</span>` : "";
   const replayControls = canRerun && task.config.workflow !== "chat-only"
-    ? `<div class="stage-rerun-controls"><label>Chạy lại từ<select data-rerun-stage>${replayStages.map(([id, label]) => `<option value="${id}" ${id === defaultReplayStage ? "selected" : ""}>${label}</option>`).join("")}</select></label><button class="button primary" data-action="rerun-stage" data-id="${task.id}">Chạy lại</button></div>`
+    ? `<div class="stage-rerun-controls"><label>Chạy lại từ<select data-rerun-stage>${replayStages.map(([id, label]) => `<option value="${esc(id)}" ${id === defaultReplayStage ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label><button class="button primary" data-action="rerun-stage" data-id="${esc(task.id)}">Chạy lại</button></div>`
     : canRerun && task.config.workflow === "chat-only" && ["failed", "cancelled"].includes(task.status)
-      ? `<button class="button primary" data-action="rerun-task" data-id="${task.id}">Chạy lại chat</button>`
+      ? `<button class="button primary" data-action="rerun-task" data-id="${esc(task.id)}">Chạy lại chat</button>`
       : "";
   const stageRunHistory = (task.stageRunHistory || []).length ? `<section class="orchestration-stage-history"><strong>Lịch sử chạy lại</strong>${[...(task.stageRunHistory || [])].reverse().map((attempt) => {
     const stageLabel = { plan: "Kế hoạch", build: "Triển khai", review: "Review", chat: "Chat" }[attempt.stage] || attempt.stage;
     const statusLabel = { queued: "Trong hàng đợi", running: "Đang chạy", done: "Hoàn tất", failed: "Lỗi", cancelled: "Đã dừng" }[attempt.status] || "Đã ghi nhận";
     const outputRows = Object.entries(attempt.previousOutputs || {}).map(([stage, snapshot]) => {
       const label = { plan: "Kế hoạch trước đó", build: "Triển khai trước đó", review: "Review trước đó" }[stage] || stage;
-      return `<details><summary>${label}</summary><pre>${esc(snapshot.text || "")}${snapshot.truncated ? "\n\n… phần cuối đã được rút gọn trong lịch sử." : ""}</pre></details>`;
+      return `<details><summary>${esc(label)}</summary><pre>${esc(snapshot.text || "")}${snapshot.truncated ? "\n\n… phần cuối đã được rút gọn trong lịch sử." : ""}</pre></details>`;
     }).join("");
     const previousArtifacts = attempt.previousArtifacts?.length ? `<div class="stage-history-files"><small>${esc(translateText("Tệp từ lần chạy trước", view.language))}</small>${attempt.previousArtifacts.slice(0, 30).map((file) => `<code>${esc(file)}</code>`).join("")}</div>` : "";
     return `<details class="stage-history-entry"><summary>${esc(stageLabel)} · ${esc(statusLabel)} · ${fmtDate(attempt.requestedAt)}</summary>${attempt.error ? `<p class="stage-history-error">${esc(attempt.error)}</p>` : ""}${outputRows || "<p>Không có đầu ra cũ cho giai đoạn này.</p>"}${previousArtifacts}</details>`;
   }).join("")}</section>` : "";
   return `<section class="task-orchestration-page" aria-label="Điều phối task">
-    <header class="conversation-top"><div class="conversation-context"><span class="conversation-repo">${icon("folder-code", 15)} ${esc(workspace?.name || task.workspacePath)}</span><span class="conversation-separator">/</span><span class="conversation-task-id">${esc(task.id)}</span></div><div class="detail-head-actions"><button class="button quiet small" data-action="back-chat" data-id="${task.id}">${icon("arrow-left", 14)} Cuộc trò chuyện</button><button class="button quiet small" data-action="open-folder" data-id="${task.id}">${icon("folder-code", 14)} Mở workspace</button><button class="button quiet small" data-action="task-instruction" data-id="${task.id}">${icon("arrow-up-right", 14)} Gửi chỉ dẫn</button><button class="button quiet small" data-action="new-task">${icon("plus", 14)} Task mới</button></div></header>
-    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${task.status}"><i></i>${statuses[task.status]}</span>${presetBadge}<span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${formatNumber(usage)} tokens</span>` : ""}<span>${formatNumber(events.length)} sự kiện · ${formatNumber(nodes.length)} node</span></div></div></div>
+    <header class="conversation-top"><div class="conversation-context"><span class="conversation-repo">${icon("folder-code", 15)} ${esc(workspace?.name || task.workspacePath)}</span><span class="conversation-separator">/</span><span class="conversation-task-id">${esc(task.id)}</span></div><div class="detail-head-actions"><button class="button quiet small" data-action="back-chat" data-id="${esc(task.id)}">${icon("arrow-left", 14)} Cuộc trò chuyện</button><button class="button quiet small" data-action="open-folder" data-id="${esc(task.id)}">${icon("folder-code", 14)} Mở workspace</button><button class="button quiet small" data-action="task-instruction" data-id="${esc(task.id)}">${icon("arrow-up-right", 14)} Gửi chỉ dẫn</button><button class="button quiet small" data-action="new-task">${icon("plus", 14)} Task mới</button></div></header>
+    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${esc(task.status)}"><i></i>${esc(statuses[task.status] || task.status)}</span>${presetBadge}<span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${formatNumber(usage)} tokens</span>` : ""}<span>${formatNumber(events.length)} sự kiện · ${formatNumber(nodes.length)} node</span></div></div></div>
     ${task.skills?.length ? `<div class="skill-used">${icon("notebook-tabs", 14)} Skill đã chọn: ${task.skills.map((skill) => esc(skill.name)).join(" · ")}</div>` : ""}
     <div class="orchestration-layout"><section class="orchestration-canvas"><header class="orchestration-canvas-head"><div><small>LUỒNG THỰC THI · ${esc(task.config.workflow === "chat-only" ? "CHAT" : task.config.workflow === "plan-only" ? "PLAN ONLY" : "CODE PIPELINE")}</small><h3>${busy ? "Điều phối đang hoạt động" : "Bản ghi điều phối"}</h3></div><span class="activity-live ${busy ? "is-live" : ""}"><i></i>${busy ? "Đang chạy" : "Đã lưu"}</span></header><div class="orchestration-flow">${nodes.map((node, index) => orchestrationNodeHtml(node, index, nodes.length)).join("")}</div></section>
       <aside class="orchestration-activity"><header class="orchestration-activity-head"><div><small>EVENT LOG</small><h3>Điều phối & hoạt động</h3></div><span>${events.length} sự kiện</span></header><div class="orchestration-activity-note">${icon("workflow", 14)} Chỉ hiện hoạt động, handoff, đầu ra và công cụ được CLI ghi nhận. Suy luận nội bộ của model không được cung cấp.</div><div class="orchestration-event-list" id="agent-activity-feed">${sortedEvents.length ? sortedEvents.map((item) => { const text = String(item.text || ""); const longOutput = item.kind === "output" && text.length > 320; return `<article class="orchestration-event kind-${esc(item.kind)}"><span class="orchestration-event-mark">${icon(({ stage: "square-terminal", handoff: "workflow", tool: "settings-2", output: "file", chat: "book-open-text", memory: "brain", error: "circle-question-mark", success: "check", warning: "circle-question-mark" })[item.kind] || "workflow", 14)}</span><div><header><strong>${esc(eventLabels[item.kind] || "EVENT")}</strong><time>${fmtDate(item.at)}</time>${item.kind === "error" ? `<button type="button" class="event-error-open" data-action="view-error-details" data-error="${esc(text)}">Xem lỗi</button>` : ""}</header>${longOutput ? `<p>${esc(text.slice(0, 280))}…</p><details class="orchestration-event-details"><summary>Xem đầu ra đầy đủ</summary><pre>${esc(text)}</pre></details>` : `<p>${esc(text)}</p>`}</div></article>`; }).join("") : `<p class="orchestration-activity-empty">Các sự kiện sẽ xuất hiện khi task được chạy.</p>`}</div>${stages.length ? `<section class="orchestration-stage-results"><strong>Đầu ra agent</strong>${stages.map(([label, output]) => `<details><summary>${esc(label)}</summary><pre>${esc(output)}</pre></details>`).join("")}</section>` : ""}${(task.artifacts || []).length ? `<section class="orchestration-artifacts"><strong>${icon("file", 14)} Tệp thay đổi · ${task.artifacts.length}</strong>${task.artifacts.slice(0, 20).map((file) => `<div>${icon("file", 13)}<code>${esc(file)}</code></div>`).join("")}</section>` : ""}${stageRunHistory}</aside></div>
-    <footer class="detail-actions">${task.status === "running" || task.status === "queued" ? `<button class="button danger" data-action="stop-task" data-id="${task.id}">${icon("square", 13)} Dừng task</button>` : replayControls}${task.status !== "queued" ? `<button class="button quiet" data-action="show-diff" data-id="${task.id}">Xem diff</button>` : ""}</footer>
+    <footer class="detail-actions">${task.status === "running" || task.status === "queued" ? `<button class="button danger" data-action="stop-task" data-id="${esc(task.id)}">${icon("square", 13)} Dừng task</button>` : replayControls}${task.status !== "queued" ? `<button class="button quiet" data-action="show-diff" data-id="${esc(task.id)}">Xem diff</button>` : ""}</footer>
   </section>`;
 }
 function showModal(title, body, submitLabel, formType = "") {
@@ -3709,7 +3803,7 @@ async function openTaskModal() {
   const options = workspaces.map((w) => `<option value="${esc(w.id)}">${esc(w.name)} · ${esc(w.path)}</option>`).join("");
   const hasBuild = providersForRole(view.connectors, "build").length > 0;
   const canPlanOnly = providersForRole(view.connectors, "plan").length > 0;
-  const body = `${taskPresetToolsMarkup()}<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="3" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea></label><div class="modal-grid-2"><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label></div><div class="modal-grid-2"><label>Quyền<select name="permissionPreset"><option value="workspace-write">Đọc và sửa workspace</option><option value="read-only">Chỉ đọc workspace</option><option value="full-access" selected>Toàn quyền trên máy</option></select></label><label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label></div><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 16)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
+  const body = `${taskPresetToolsMarkup()}<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="3" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea></label><div class="modal-grid-2"><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label></div><div class="modal-grid-2"><label>Quyền<select name="permissionPreset"><option value="workspace-write" selected>Đọc và sửa workspace</option><option value="read-only">Chỉ đọc workspace</option><option value="full-access">Toàn quyền trên máy</option></select></label><label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label></div><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 16)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
   showModal("Task mới", body, "Tạo và chạy");
   syncWorkflow(); syncIsolation(); syncTaskPresetControls($(".modal"));
 }
@@ -3811,9 +3905,21 @@ function showMemoryModal() {
 function renderDiffStudioModal() {
   const data = view.diffStudioData;
   if (!data) return;
+  const prevHunkScroll = document.querySelector("#overlay .diff-hunk-list")?.scrollTop || 0;
+  const prevFileScroll = document.querySelector("#overlay .diff-file-list")?.scrollTop || 0;
   const taskId = view.diffStudioTaskId || view.selected || "";
   const files = data.files || [];
   const annotations = view.diffAnnotations?.[taskId] || [];
+  const annotationMap = new Map();
+  const fileCommentCounts = new Map();
+  for (const ann of annotations) {
+    const p = ann.path || "";
+    fileCommentCounts.set(p, (fileCommentCounts.get(p) || 0) + 1);
+    const sideKey = `${p}::${ann.side || "any"}::${ann.line}`;
+    const list = annotationMap.get(sideKey);
+    if (list) list.push(ann);
+    else annotationMap.set(sideKey, [ann]);
+  }
   const totalAdd = files.reduce((sum, f) => sum + (f.additions || 0), 0);
   const totalDel = files.reduce((sum, f) => sum + (f.deletions || 0), 0);
   const selectedFile = files.find((f) => f.path === view.diffSelectedFile) || files[0] || null;
@@ -3845,7 +3951,7 @@ function renderDiffStudioModal() {
     contentHtml = data.diff ? `<pre class="diff-content">${formattedLines}</pre>` : `<p class="diff-empty-state">Không có thay đổi được Git theo dõi.</p>`;
   } else {
     const sidebarHtml = files.map((file) => {
-      const fileComments = annotations.filter((a) => a.path === file.path).length;
+      const fileComments = fileCommentCounts.get(file.path) || 0;
       const statusChar = file.status === "added" ? "A" : file.status === "deleted" ? "D" : file.status === "renamed" ? "R" : "M";
       return `<button type="button" class="diff-file-item ${file.path === selectedFile?.path ? "is-active" : ""}" data-action="select-diff-file" data-path="${esc(file.path)}" title="${esc(file.path)}">
         <span class="diff-file-status is-${esc(file.status || "modified")}">${statusChar}</span>
@@ -3858,13 +3964,14 @@ function renderDiffStudioModal() {
     const hunksHtml = (selectedFile?.hunks || []).map((hunk) => {
       const linesHtml = (hunk.lines || []).map((line, idx) => {
         const lineNo = line.newLine ?? line.oldLine ?? (idx + 1);
+        const side = line.type === "del" ? "old" : "new";
         const lineKey = `${selectedFile.path}:${lineNo}:${line.type}`;
-        const lineAnns = annotations.filter((a) => a.path === selectedFile.path && String(a.line) === String(lineNo));
+        const lineAnns = annotationMap.get(`${selectedFile.path}::${side}::${lineNo}`) || annotationMap.get(`${selectedFile.path}::any::${lineNo}`) || [];
         const isEditing = view.diffAnnotationTarget && view.diffAnnotationTarget.key === lineKey;
         const cls = line.type === "add" ? "diff-row-add" : line.type === "del" ? "diff-row-del" : "diff-row-ctx";
         const prefix = line.type === "add" ? "+" : line.type === "del" ? "-" : " ";
         return `<div class="diff-row-group">
-          <div class="diff-row ${cls} diff-line-annotatable" data-action="open-diff-comment" data-key="${esc(lineKey)}" data-path="${esc(selectedFile.path)}" data-line="${esc(lineNo)}" data-code="${esc(line.text)}" title="Nhấn để thêm nhận xét review tại dòng ${lineNo}">
+          <div class="diff-row ${cls} diff-line-annotatable" data-action="open-diff-comment" data-key="${esc(lineKey)}" data-path="${esc(selectedFile.path)}" data-side="${side}" data-line="${esc(lineNo)}" data-code="${esc(line.text)}" title="Nhấn để thêm nhận xét review tại dòng ${lineNo}">
             <span class="diff-ln">${line.oldLine ?? ""}</span>
             <span class="diff-ln">${line.newLine ?? ""}</span>
             <span class="diff-sign">${prefix}<i class="diff-add-comment-icon">+</i></span>
@@ -3907,6 +4014,10 @@ function renderDiffStudioModal() {
     const footer = $("#overlay .modal-actions");
     footer?.insertAdjacentHTML("afterbegin", `<button type="button" class="button primary" data-action="submit-diff-review" data-id="${esc(taskId)}">${icon("arrow-up-right", 14)} Gửi ${annotations.length} nhận xét cho Agent sửa</button>`);
   }
+  const nextHunkList = document.querySelector("#overlay .diff-hunk-list");
+  if (nextHunkList && prevHunkScroll) nextHunkList.scrollTop = prevHunkScroll;
+  const nextFileList = document.querySelector("#overlay .diff-file-list");
+  if (nextFileList && prevFileScroll) nextFileList.scrollTop = prevFileScroll;
   $("[data-diff-comment-input]")?.focus();
 }
 function showDiffModal(data, taskId = view.selected, preferredFile = "") {
@@ -4040,13 +4151,15 @@ async function handleSubmit(event) {
           effort: slot.effort,
           label: `#${idx + 1} ${providerTitle(view.connectors, slot.provider)}${slot.model ? ` (${slot.model})` : ""}`,
         }));
+        const rawPerm = view.homePermissionPreset || object.permissionPreset || "workspace-write";
+        const permissionPreset = rawPerm === "read-only" ? "workspace-write" : rawPerm;
         const result = await api("/api/tasks/fanout", {
           method: "POST",
           body: JSON.stringify({
             workspaceId: object.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id,
             prompt: String(object.prompt || "").trim(),
             attachments: object.attachments,
-            permissionPreset: view.homePermissionPreset || object.permissionPreset || "full-access",
+            permissionPreset,
             workflow: "codex-antigravity",
             competitors,
           }),
@@ -4056,6 +4169,8 @@ async function handleSubmit(event) {
           view.selected = firstTask.id;
           view.page = "chat";
           view.chatDraft = "";
+          const liveInput = form.querySelector("textarea[name=prompt], textarea[name=message]");
+          if (liveInput) { liveInput.value = ""; resizeComposerTextarea(liveInput); }
           clearComposerAttachments(form);
         }
         showToast(`Đã khởi chạy Đa luồng với ${result.tasks?.length || competitors.length} nhánh Git worktree song song!`);
@@ -4076,7 +4191,7 @@ async function handleSubmit(event) {
           prompt: String(object.prompt || "").trim(),
           workflow,
           isolated: Boolean(view.chatSplitReturnWorkspaceId) || data.has("isolated") || Boolean(view.homeIsolated),
-          permissionPreset: view.homePermissionPreset || object.permissionPreset || "full-access",
+          permissionPreset: view.homePermissionPreset || object.permissionPreset || "workspace-write",
         };
         const task = await api("/api/tasks", { method: "POST", body: JSON.stringify(payload) });
         const splitWorkspaceId = view.chatSplitReturnWorkspaceId;
@@ -4084,7 +4199,10 @@ async function handleSubmit(event) {
         const resolvedProvider = workflow === "chat-only" ? task.task.config.chatProvider : task.task.config.roles?.plan?.provider || task.task.config.chatProvider || "codex";
         const resolvedModel = workflow === "chat-only" ? task.task.config.chatModel : task.task.config.roles?.plan?.model || task.task.config.chatModel || "";
         const resolvedEffort = workflow === "chat-only" ? task.task.config.chatEffort : task.task.config.roles?.plan?.effort || task.task.config.chatEffort || "";
-        view.selected = task.task.id; view.page = "chat"; view.chatProvider = resolvedProvider; view.chatModel = resolvedModel; view.chatEffort = resolvedEffort; view.homeChatProvider = resolvedProvider; view.homeChatModel = resolvedModel; view.homeChatEffort = resolvedEffort; view.chatDraft = ""; clearComposerAttachments(form);
+        view.selected = task.task.id; view.page = "chat"; view.chatProvider = resolvedProvider; view.chatModel = resolvedModel; view.chatEffort = resolvedEffort; view.homeChatProvider = resolvedProvider; view.homeChatModel = resolvedModel; view.homeChatEffort = resolvedEffort; view.chatDraft = "";
+        const liveInput = form.querySelector("textarea[name=prompt], textarea[name=message]");
+        if (liveInput) { liveInput.value = ""; resizeComposerTextarea(liveInput); }
+        clearComposerAttachments(form);
         if (returnToSplit) {
           view.state.tasks = [task.task, ...(view.state.tasks || []).filter((existing) => existing.id !== task.task.id)];
           view.chatSplitWorkspaceId = splitWorkspaceId;
@@ -4134,6 +4252,8 @@ async function handleSubmit(event) {
       const result = await api(`/api/tasks/${encodeURIComponent(taskId)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, attachments: object.attachments, provider, model, effort }) });
       view.chatDraft = "";
       if (view.chatSplitDrafts) delete view.chatSplitDrafts[taskId];
+      const liveInput = form.querySelector("textarea[name=message], textarea[name=prompt]");
+      if (liveInput) { liveInput.value = ""; resizeComposerTextarea(liveInput); }
       clearComposerAttachments(form);
       showToast(view.language === "en" ? `Added to chat queue · position ${result.queuedPosition || 1}.` : `Đã thêm vào hàng đợi chat · vị trí ${result.queuedPosition || 1}.`);
     } else if (form.dataset.form === "task-chat-config") {
@@ -4451,7 +4571,7 @@ async function handleWorkbenchClick(event) {
     return;
   }
   if (action === "pick-home-permission") {
-    const next = button.dataset.permission || "full-access";
+    const next = button.dataset.permission || "workspace-write";
     view.homePermissionPreset = next;
     render();
     return;
@@ -4470,7 +4590,7 @@ async function handleWorkbenchClick(event) {
   }
   if (action === "cycle-home-permission") {
     const order = ["workspace-write", "full-access", "read-only"];
-    const curr = view.homePermissionPreset || "full-access";
+    const curr = view.homePermissionPreset || "workspace-write";
     const next = order[(order.indexOf(curr) + 1) % order.length];
     view.homePermissionPreset = next;
     render();
@@ -4970,7 +5090,7 @@ async function handleWorkbenchClick(event) {
     }
     if (action === "select-diff-file") { view.diffSelectedFile = button.dataset.path || ""; view.diffAnnotationTarget = null; renderDiffStudioModal(); return; }
     if (action === "open-diff-comment") {
-      view.diffAnnotationTarget = { key: button.dataset.key, path: button.dataset.path, line: button.dataset.line, code: button.dataset.code || "" };
+      view.diffAnnotationTarget = { key: button.dataset.key, path: button.dataset.path, line: button.dataset.line, side: button.dataset.side || "", code: button.dataset.code || "" };
       renderDiffStudioModal();
       return;
     }
@@ -4982,7 +5102,7 @@ async function handleWorkbenchClick(event) {
       if (!comment || !target || !tId) { showToast("Nhập nội dung nhận xét trước khi lưu."); return; }
       view.diffAnnotations ||= {};
       view.diffAnnotations[tId] ||= [];
-      view.diffAnnotations[tId].push({ id: crypto.randomUUID(), path: target.path, line: target.line, code: target.code, comment });
+      view.diffAnnotations[tId].push({ id: crypto.randomUUID(), path: target.path, line: target.line, side: target.side || "", code: target.code, comment });
       view.diffAnnotationTarget = null;
       renderDiffStudioModal();
       return;
@@ -5029,7 +5149,8 @@ async function handleWorkbenchClick(event) {
       view.selected = id;
       view.page = "chat";
       await refresh();
-      showToast(`Đã gộp ${res.appliedFiles?.length || 0} tệp từ worktree vào dự án chính!`);
+      const count = (res.appliedFiles || res.task?.appliedFiles || []).length;
+      showToast(`Đã gộp ${count} tệp từ worktree vào dự án chính!`);
       return;
     }
     if (action === "discard-worktree") {
@@ -5539,8 +5660,9 @@ document.addEventListener("input", (event) => {
   const homeSearch = event.target.closest("[data-home-search]");
   if (homeSearch) {
     view.searchQuery = homeSearch.value;
+    view.searchResults = homeSearchResults(view.searchQuery);
     const results = $("[data-home-search-results]");
-    if (results) { results.innerHTML = homeSearchResults(view.searchQuery); results.hidden = !view.searchQuery.trim(); localizeDom(results, view.language); }
+    if (results) { results.innerHTML = view.searchResults; results.hidden = !view.searchQuery.trim(); localizeDom(results, view.language); }
     return;
   }
   const fileInput = event.target.closest("[data-file-filter]");
@@ -5554,6 +5676,11 @@ document.addEventListener("input", (event) => {
   const vaultEditor = event.target.closest("[data-vault-editor]");
   if (vaultEditor) {
     view.vaultDraft = vaultEditor.value;
+    return;
+  }
+  const skillEditor = event.target.closest("[data-skill-inline-editor]");
+  if (skillEditor) {
+    view.skillDraft = skillEditor.value;
     return;
   }
   const input = event.target.closest("[data-skill-filter]");
@@ -5715,6 +5842,8 @@ document.addEventListener("input", (event) => {
   }
 });
 window.addEventListener("message", (event) => {
+  const frame = document.querySelector(".orca-live-frame");
+  if (!frame || event.source !== frame.contentWindow) return;
   const data = event?.data;
   if (!data || typeof data !== "object") return;
   if (data.type === "orca-inspect:ready") {
@@ -5768,6 +5897,7 @@ document.addEventListener("keydown", (event) => {
   if (search && event.key === "Escape") {
     event.preventDefault();
     view.searchQuery = "";
+    view.searchResults = "";
     search.value = "";
     const results = $("[data-home-search-results]");
     if (results) { results.hidden = true; results.innerHTML = ""; }

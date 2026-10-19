@@ -5,6 +5,50 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.95] - 2026-10-20
+
+### English
+- **Default Safe Permission Preset**: Change the default execution permission preset across backend APIs and frontend composers from `"full-access"` to `"workspace-write"` (while preserving explicit `"read-only"` and `"full-access"` selections).
+- **Multi-Threading, Worktree & Queue Serialization Fixes**:
+  - Normalize `busyWorkspaces` lock keys (`workspaceLockKey`) across Windows/POSIX and enforce shared-checkout serialization (`usesSharedCheckout`) when an isolated task's worktree has been applied/cleaned up.
+  - Queue follow-up chat messages when a shared-checkout workspace is busy instead of rejecting with `409` or leaving failed turns in `task.chatQueue`, and automatically drain queued chat turns across all waiting tasks when the workspace lock is released.
+  - Hold `busyWorkspaces` lock during async `applyTaskWorktree` patch operations, return `appliedFiles` count accurately to the UI toast, and reset `worktreeAppliedAt` when new stage reruns or follow-up chat turns modify worktree files.
+  - Prevent Arena fanout (`/api/tasks/fanout`) from permanently overwriting `state.settings.maxConcurrent` in `state.json`, and validate `read-only` / role capabilities consistently.
+- **Core Chat/Code Pipeline & CLI Process Lifecycle**:
+  - Add `child.stdin` error handling (`EPIPE`/`EOF` guard), a 15-minute CLI inactivity watchdog (`STAGE_IDLE_TIMEOUT_MS`), pipe destruction on `killTree`/`run()` timeouts, `SIGINT`/`SIGTERM` cleanup handlers, and Windows `EPERM`/`EACCES` fallback in `persistJsonFile`.
+  - Fix `parseAgyEvent` delta vs. full-message duplication and coalesce consecutive `"output"` delta events in `record()` so streaming output never evicts `"tool"`, `"handoff"`, or `"stage"` events from the 250-event buffer.
+  - Fix Claude CLI JSON buffer truncation and `is_error` detection, remove false-positive regex failures on normal `agent_message` text in `parseCodexEvent`, and accumulate `task.usage` token counts across stages and chat turns.
+  - Preserve `"done"` task status when stopping a follow-up chat turn on an already-completed task, enrich `makeChatPrompt` with skills, local memory, build/review summaries, and external API workspace context, and deep-clone task state on conversation fork (`/api/tasks/:id/fork`).
+- **UI/Theme Synchronization & DOM Performance (`morphdom`)**:
+  - Fix sidebar search results rendering raw HTML strings on Preact re-renders (`ContextSidebar.jsx`).
+  - Fix opaque modal backdrops (`var(--wb-overlay)`), unify z-index hierarchy (`#overlay` `90`, `.wb-window-chrome` `100`, `#toast` `110`, `.orca-tree-item:has([open])` `30`), add light-theme semantic status tokens (`--wb-*-soft`, `--wb-*-raised`), and replace remaining hardcoded hex colors and `white` mixes with theme tokens.
+  - Preserve scroll positions across all scrollable containers (including Split Chat, Code/Diff viewers, Right Dock, and Diff Studio), protect active inputs and Vietnamese IME composition (`[data-skill-inline-editor]`, `[data-chat-drawer-filter]`, comment inputs) during background SSE renders, skip redundant `localizeDom` tree walks in default Vietnamese mode, and memoize Right Dock file tree construction.
+- **Security & Electron Hardening**:
+  - Isolate raw workspace HTML/SVG previews (`/api/workspaces/:id/raw/*`) with `Content-Security-Policy: sandbox allow-scripts ...` (opaque origin) and `X-Content-Type-Options: nosniff`, and verify `event.source === frame.contentWindow` for Live HTML Inspector messages.
+  - Block workspace/temp files from being registered as custom CLI executables, block sensitive system/root directories in workspace/vault/`sourceFolders` registration, enforce `resolveInside` and `allowedTextFile` (`.env` & symlink protection) across `checkDiff`, `/file-diff`, `externalWorkspaceContext`, and `openObsidianUri`, enforce `Content-Type: application/json` on JSON body endpoints, and sanitize `.env` keys and external URI protocols in `desktop/main.cjs`.
+
+### Tiếng Việt
+- **Mặc định quyền thực thi an toàn (`"workspace-write"`)**: Chuyển quyền thực thi mặc định trên toàn bộ API backend và khung nhập lệnh frontend từ `"full-access"` sang `"workspace-write"`.
+- **Khắc phục lỗi Đa luồng, Khóa Workspace (`busyWorkspaces`) & Git Worktree**:
+  - Chuẩn hóa khóa `busyWorkspaces` (`workspaceLockKey`) và bắt buộc áp dụng khóa tuần tự (`usesSharedCheckout`) đối với các task cô lập đã gộp hoặc dọn dẹp worktree.
+  - Tự động xếp hàng chờ (`queued`) cho các tin nhắn chat tiếp theo khi workspace đang bận thay vì báo lỗi `409` hoặc chạy lặp các lượt đã lỗi, đồng thời tự động kích hoạt hàng đợi chat ngay khi khóa workspace được giải phóng.
+  - Giữ khóa `busyWorkspaces` trong suốt quá trình `applyTaskWorktree`, trả về chính xác số lượng tệp đã gộp trên thông báo UI, và xóa trạng thái `worktreeAppliedAt` khi chạy lại stage hoặc chat làm phát sinh thay đổi mới trong worktree.
+  - Ngăn chế độ Đấu trường Song song (`/api/tasks/fanout`) ghi đè vĩnh viễn cài đặt `maxConcurrent` trong `state.json` và đồng bộ kiểm tra quyền `read-only`.
+- **Nâng cấp Quy trình Chat/Code & Vòng đời Tiến trình CLI**:
+  - Bổ sung bắt lỗi `child.stdin` (`EPIPE`/`EOF`), bộ đếm watchdog 15 phút cho tiến trình CLI treo, đóng luồng pipe khi `killTree`/timeout trên Windows, xử lý tín hiệu `SIGINT`/`SIGTERM`, và cơ chế ghi dự phòng khi gặp lỗi khóa tệp `EPERM`/`EACCES` trên Windows.
+  - Khắc phục lỗi nhân đôi văn bản streaming trong `parseAgyEvent` và gộp các sự kiện `"output"` liên tiếp để tránh làm tràn bộ đệm 250 sự kiện (giữ nguyên lịch sử công cụ `"tool"` và `"handoff"`).
+  - Sửa lỗi cắt chuỗi JSON và bắt cờ `is_error` của Claude CLI, bỏ regex bắt nhầm nội dung chat của `parseCodexEvent`, và cộng dồn chính xác lượng token (`task.usage`) qua nhiều bước và lượt chat.
+  - Giữ nguyên trạng thái `"done"` của task khi bấm dừng một lượt chat phụ, bổ sung đầy đủ ngữ cảnh (`skills`, `memory`, `implementation`, `review`, cây thư mục cho API provider) vào `makeChatPrompt`, và sao chép sâu (`structuredClone`) khi tách nhánh hội thoại (`/api/tasks/:id/fork`).
+- **Đồng bộ Giao diện Theme & Tối ưu Hiệu năng DOM (`morphdom`)**:
+  - Sửa lỗi hiển thị mã HTML thô ở kết quả tìm kiếm trên Sidebar trái (`ContextSidebar.jsx`).
+  - Sửa lớp nền mờ modal (`var(--wb-overlay)`), chuẩn hóa thứ tự `z-index` (`#overlay` `90`, `.wb-window-chrome` `100`, `#toast` `110`, `.orca-tree-item:has([open])` `30`), bổ sung biến màu trạng thái cho các theme sáng (`--wb-*-soft`, `--wb-*-raised`) và thay thế toàn bộ mã màu cố định sang biến theme.
+  - Giữ nguyên vị trí cuộn cho mọi vùng cuộn (Split Chat, trình xem Code/Diff, Right Dock, Diff Studio), bảo vệ ô nhập liệu đang gõ và bộ gõ tiếng Việt (Telex/VNI) cùng trình sửa Skill khi có cập nhật SSE ngầm, bỏ lượt duyệt DOM dư thừa của `localizeDom` ở chế độ Tiếng Việt, và lưu đệm cây thư mục Right Dock.
+- **Gia cố Bảo mật & Kiến trúc Electron**:
+  - Cô lập khung xem trước HTML/SVG (`/api/workspaces/:id/raw/*`) bằng header `Content-Security-Policy: sandbox allow-scripts ...` và kiểm tra `event.source` cho trình Inspector HTML.
+  - Chặn sử dụng tệp trong workspace làm tệp thực thi CLI, chặn đăng ký các thư mục hệ thống nhạy cảm làm workspace/vault/`sourceFolders`, chặn đọc symlink và tệp `.env` qua `checkDiff` / `/file-diff` / `externalWorkspaceContext` / `openObsidianUri`, bắt buộc `Content-Type: application/json`, và lọc danh sách biến `.env` cũng như giao thức liên kết ngoài trong `desktop/main.cjs`.
+
+---
+
 ## [0.2.94] - 2026-10-19
 
 ### English

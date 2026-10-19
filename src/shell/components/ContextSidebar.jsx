@@ -232,7 +232,12 @@ export function ContextSidebar({ snapshot, mobileOpen = false, mobileOnly = fals
     <label class="wb-sidebar-search" data-open={hasQuery ? "true" : undefined}>
       <Icon name="search" size={14} />
       <input data-home-search value={snapshot.searchQuery || ""} placeholder="Tìm cuộc trò chuyện…" autoComplete="off" aria-label="Tìm task, chat hoặc workspace" />
-      <div class="home-search-results wb-search-results" data-home-search-results hidden={!hasQuery}>{snapshot.searchResults || ""}</div>
+      <div
+        class="home-search-results wb-search-results"
+        data-home-search-results
+        hidden={!hasQuery}
+        dangerouslySetInnerHTML={{ __html: snapshot.searchResults || "" }}
+      />
     </label>
     <button class="wb-new-chat" data-action="new-chat" data-workspace-id={snapshot.homeWorkspaceId || ""}>
       <Icon name="square-pen" size={15} />

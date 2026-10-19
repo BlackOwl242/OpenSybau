@@ -203,7 +203,7 @@ try {
     presetRef: { id: secondVersion.body.preset.id, version: 2 },
   });
   assert.equal(createdFromTemplate.status, 201);
-  assert.equal(createdFromTemplate.body.task.permissionPreset, "full-access", "New tasks default to full local CLI access when the user has not chosen a narrower preset.");
+  assert.equal(createdFromTemplate.body.task.permissionPreset, "workspace-write", "New tasks default to workspace-write when the user has not chosen a narrower preset.");
   assert.deepEqual(createdFromTemplate.body.task.presetRef, { id: secondVersion.body.preset.id, name: "Test planning", version: 2 });
   const createdTask = await waitForTask(createdFromTemplate.body.task.id);
   assert.equal(createdTask.plan, "Fresh test plan 2");
@@ -258,6 +258,37 @@ try {
   await waitForTask(fanoutRes.body.tasks[1].id);
   await request(`/api/tasks/${fanoutRes.body.tasks[0].id}/discard-worktree`, "POST", {});
   await request(`/api/tasks/${fanoutRes.body.tasks[1].id}/discard-worktree`, "POST", {});
+
+  const rawHtmlRes = await fetch(serverUrl + "/api/workspaces/workspace-test/raw/index.html", {
+    headers: { authorization: "Basic " + Buffer.from("test:test-password").toString("base64") },
+  });
+  assert.equal(rawHtmlRes.status, 200);
+  const rawCsp = rawHtmlRes.headers.get("content-security-policy") || "";
+  assert.match(rawCsp, /sandbox allow-scripts/);
+  assert.equal(rawCsp.includes("allow-same-origin"), false, "Raw HTML preview must not include allow-same-origin in sandbox CSP.");
+
+  const badContentTypeRes = await fetch(serverUrl + "/api/memory", {
+    method: "POST",
+    headers: {
+      authorization: "Basic " + Buffer.from("test:test-password").toString("base64"),
+      "content-type": "text/plain",
+    },
+    body: JSON.stringify({ title: "x", content: "y" }),
+  });
+  assert.equal(badContentTypeRes.status, 415, "Non-JSON Content-Type with body must be rejected with 415.");
+
+  const readOnlyFullWorkflow = await request("/api/tasks", "POST", {
+    workspaceId: "workspace-test",
+    prompt: "Should reject read-only full pipeline",
+    workflow: "codex-antigravity",
+    permissionPreset: "read-only",
+  });
+  assert.equal(readOnlyFullWorkflow.status, 400, "codex-antigravity workflow must reject read-only preset.");
+
+  const forbiddenRootWorkspace = await request("/api/workspaces", "POST", {
+    path: process.platform === "win32" ? "C:\\" : "/",
+  });
+  assert.equal(forbiddenRootWorkspace.status, 400, "Filesystem root must be rejected as a workspace.");
 
   const persisted = JSON.parse(await readFile(path.join(dataDir, "state.json"), "utf8"));
   assert.equal(persisted.tasks.length, 6);

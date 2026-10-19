@@ -43,6 +43,22 @@ const envPath = path.join(userData, ".env");
 const singletonLock = app.requestSingleInstanceLock();
 if (!singletonLock) app.quit();
 
+const allowedDesktopEnvKeys = new Set([
+  "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY",
+  "OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "GROQ_API_KEY", "MISTRAL_API_KEY",
+  "XAI_API_KEY", "TOGETHER_API_KEY", "FIREWORKS_API_KEY", "PERPLEXITY_API_KEY",
+  "COHERE_API_KEY", "ARK_API_KEY", "DASHSCOPE_API_KEY", "SILICONFLOW_API_KEY",
+  "ZHIPU_API_KEY", "MOONSHOT_API_KEY", "MINIMAX_API_KEY", "CUSTOM_API_KEY",
+  "CLAUDE_CODE_OAUTH_TOKEN",
+  "WORKBENCH_API_PROVIDERS", "WORKBENCH_CLAUDE_MODEL", "WORKBENCH_CLAUDE_MODELS",
+  "WORKBENCH_CLAUDE_BASE_URL", "WORKBENCH_STAGE_TIMEOUT_MS",
+]);
+const blockedDesktopEnvKeyPattern = /^(?:NODE_OPTIONS|PATH|CODEX_CLI_PATH|CLAUDE_CLI_PATH|ANTIGRAVITY_CLI_PATH|ELECTRON_.*|LD_.*|DYLD_.*)$/i;
+function isSafeDesktopEnvKey(key) {
+  if (!key || blockedDesktopEnvKeyPattern.test(key)) return false;
+  return allowedDesktopEnvKeys.has(key) || /^[A-Z0-9_]+_API_KEY$/.test(key);
+}
+
 function initializeUserConfig() {
   mkdirSync(userData, { recursive: true });
   if (!existsSync(envPath)) {
@@ -55,7 +71,7 @@ function initializeUserConfig() {
   const source = readFileSync(envPath, "utf8");
   for (const line of source.split(/\r?\n/)) {
     const match = line.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
-    if (!match || process.env[match[1]] !== undefined) continue;
+    if (!match || !isSafeDesktopEnvKey(match[1]) || process.env[match[1]] !== undefined) continue;
     let value = match[2];
     if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
     else value = value.replace(/\s+#.*$/, "");
@@ -92,7 +108,6 @@ function initializeUserConfig() {
 function isAllowedExternal(value) {
   try {
     const url = new URL(value);
-    if (url.protocol === "obsidian:") return true;
     return url.protocol === "https:" && externalHosts.has(url.hostname);
   } catch { return false; }
 }

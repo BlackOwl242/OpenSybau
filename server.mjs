@@ -1,9 +1,9 @@
 import { createServer } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync } from "node:fs";
 import { promises as fs } from "node:fs";
-import { basename, delimiter, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, delimiter, dirname, extname, isAbsolute, parse, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { inflateRawSync } from "node:zlib";
@@ -236,15 +236,29 @@ for (const task of state.tasks) {
   }
 }
 let memories = loadJson(memoryFile, []);
+function persistJsonFile(filePath, value, options = { encoding: "utf8", mode: 0o600 }) {
+  const serialized = JSON.stringify(value, null, 2);
+  const temporary = `${filePath}.tmp`;
+  writeFileSync(temporary, serialized, options);
+  try {
+    renameSync(temporary, filePath);
+  } catch (error) {
+    if (error?.code === "EPERM" || error?.code === "EACCES") {
+      writeFileSync(filePath, serialized, options);
+      try { rmSync(temporary, { force: true }); } catch {}
+    } else {
+      try { rmSync(temporary, { force: true }); } catch {}
+      throw error;
+    }
+  }
+}
 function persist() {
   stateSnapshot.invalidate();
   if (persistTimer) {
     clearTimeout(persistTimer);
     persistTimer = null;
   }
-  const temporary = `${stateFile}.tmp`;
-  writeFileSync(temporary, JSON.stringify(state, null, 2), "utf8");
-  renameSync(temporary, stateFile);
+  persistJsonFile(stateFile, state, "utf8");
 }
 function schedulePersist(delayMs = 750) {
   stateSnapshot.invalidate();
@@ -257,14 +271,7 @@ function schedulePersist(delayMs = 750) {
 }
 function persistMemory() {
   stateSnapshot.invalidate();
-  const temporary = `${memoryFile}.tmp`;
-  writeFileSync(temporary, JSON.stringify(memories, null, 2), "utf8");
-  renameSync(temporary, memoryFile);
-}
-function persistJsonFile(file, value) {
-  const temporary = `${file}.tmp`;
-  writeFileSync(temporary, JSON.stringify(value, null, 2), { encoding: "utf8", mode: 0o600 });
-  renameSync(temporary, file);
+  persistJsonFile(memoryFile, memories, "utf8");
 }
 function savedApiProviders() {
   const entries = loadJson(providerConfigFile, []);
@@ -320,8 +327,19 @@ function schedulePublish(type = "task", delayMs = 250) {
   publishTimer.unref?.();
 }
 function record(task, text, kind = "info", meta = null) {
-  const line = { at: new Date().toISOString(), text: String(text).slice(0, 8000), kind, ...(meta && typeof meta === "object" ? meta : {}) };
-  task.events = [...(task.events || []), line].slice(-250);
+  const at = new Date().toISOString();
+  task.events ||= [];
+  const last = task.events.at(-1);
+  if (kind === "output" && last?.kind === "output" && !meta) {
+    last.at = at;
+    last.text = `${last.text || ""}${String(text)}`.slice(-1500);
+    task.updatedAt = at;
+    schedulePersist();
+    schedulePublish("task");
+    return;
+  }
+  const line = { at, text: String(text).slice(0, 8000), kind, ...(meta && typeof meta === "object" ? meta : {}) };
+  task.events = [...task.events, line].slice(-250);
   task.updatedAt = line.at;
   if (kind === "output" || kind === "tool") {
     schedulePersist();
@@ -376,14 +394,35 @@ function killTree(child) {
     const killer = spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
     killer.unref();
   } else child.kill("SIGTERM");
+  try {
+    child.stdout?.destroy();
+    child.stderr?.destroy();
+  } catch {}
 }
 async function readBody(request) {
   let body = "";
   for await (const chunk of request) {
     body += chunk;
-    if (body.length > 1_000_000) throw new Error("Request body too large");
+    if (body.length > 1_000_000) {
+      const err = new Error("Request body too large");
+      err.statusCode = 413;
+      throw err;
+    }
   }
-  return body ? JSON.parse(body) : {};
+  if (!body) return {};
+  const contentType = String(request.headers?.["content-type"] || "").toLowerCase();
+  if (contentType && !contentType.includes("application/json")) {
+    const err = new Error("Content-Type must be application/json");
+    err.statusCode = 415;
+    throw err;
+  }
+  try {
+    return JSON.parse(body);
+  } catch {
+    const err = new Error("Invalid JSON request body");
+    err.statusCode = 400;
+    throw err;
+  }
 }
 function run(exe, args, options = {}) {
   return new Promise((resolvePromise) => {
@@ -396,9 +435,16 @@ function run(exe, args, options = {}) {
     let stderr = "";
     let timedOut = false;
     const limit = options.maxBuffer || 2_000_000;
+    child.stdout.on("error", () => {});
+    child.stderr.on("error", () => {});
     child.stdout.on("data", (chunk) => { if (stdout.length < limit) stdout += chunk.toString(); });
     child.stderr.on("data", (chunk) => { if (stderr.length < limit) stderr += chunk.toString(); });
-    const timer = options.timeout ? setTimeout(() => { timedOut = true; child.kill(); }, options.timeout) : null;
+    const timer = options.timeout ? setTimeout(() => {
+      timedOut = true;
+      killTree(child);
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+    }, options.timeout) : null;
     child.on("error", (error) => { if (timer) clearTimeout(timer); resolvePromise({ code: -1, stdout, stderr: stderr || error.message, timedOut }); });
     child.on("close", (code) => { if (timer) clearTimeout(timer); resolvePromise({ code: code ?? -1, stdout, stderr, timedOut }); });
   });
@@ -486,7 +532,9 @@ function hasValidAccess(request) {
   try { value = Buffer.from(match[1], "base64").toString("utf8"); } catch { return false; }
   const separator = value.indexOf(":");
   if (separator < 0) return false;
-  return matchesCredential(value.slice(0, separator), accessUsername) && matchesCredential(value.slice(separator + 1), accessPassword);
+  const userOk = matchesCredential(value.slice(0, separator), accessUsername);
+  const passOk = matchesCredential(value.slice(separator + 1), accessPassword);
+  return userOk && passOk;
 }
 function normalizeDirectoryInput(value) {
   const input = String(value || "").trim();
@@ -793,9 +841,69 @@ async function stageAntigravitySkillBundles(task, skills) {
   }
   return copied;
 }
+async function stageAntigravitySkills(task) {
+  const ids = (task.skillIds?.length ? task.skillIds : (task.skills || []).map((s) => s.id)).filter(Boolean);
+  if (!ids.length) return [];
+  const resolved = await resolveSelectedSkills(ids, task.workspaceId).catch(() => []);
+  if (!resolved.length) return [];
+  return stageAntigravitySkillBundles(task, resolved);
+}
 function within(rootPath, candidate) {
-  const rel = relative(rootPath, candidate);
+  const a = process.platform === "win32" ? resolve(String(rootPath || "")).toLowerCase() : resolve(String(rootPath || ""));
+  const b = process.platform === "win32" ? resolve(String(candidate || "")).toLowerCase() : resolve(String(candidate || ""));
+  const rel = relative(a, b);
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+function workspaceLockKey(rawPath) {
+  const value = String(rawPath || "").trim();
+  if (!value) return "";
+  const resolved = resolve(value);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+function usesSharedCheckout(task) {
+  return !task?.isolated
+    || Boolean(task.worktreeCleaned)
+    || (task.status !== "queued" && !task.worktreePath)
+    || (Boolean(task.executionPath) && workspaceLockKey(task.executionPath) === workspaceLockKey(task.workspacePath));
+}
+function isTaskEffectivelyIsolated(task) {
+  return !usesSharedCheckout(task);
+}
+function isForbiddenSystemPath(targetPath) {
+  if (!targetPath) return true;
+  const resolved = resolve(String(targetPath));
+  const norm = process.platform === "win32" ? resolved.toLowerCase() : resolved;
+  const parsedRoot = process.platform === "win32" ? parse(resolved).root.toLowerCase() : parse(resolved).root;
+  if (norm === parsedRoot || norm.replace(/[\\/]+$/, "") === parsedRoot.replace(/[\\/]+$/, "")) return true;
+  const home = resolve(homedir());
+  const homeNorm = process.platform === "win32" ? home.toLowerCase() : home;
+  if (norm === homeNorm) return true;
+  for (const sensitive of [".ssh", ".gnupg", ".aws", ".kube"]) {
+    if (within(resolve(home, sensitive), resolved)) return true;
+  }
+  if (process.platform === "win32") {
+    const sysRoot = process.env.SystemRoot || process.env.WINDIR || "C:\\Windows";
+    if (within(sysRoot, resolved)) return true;
+  } else {
+    for (const sysDir of ["/etc", "/proc", "/sys", "/dev", "/boot", "/root"]) {
+      if (within(sysDir, resolved)) return true;
+    }
+  }
+  if (process.env.WORKBENCH_ALLOW_TEMP_DATA_WORKSPACE !== "1" && within(runtime, resolved)) {
+    return true;
+  }
+  return false;
+}
+async function validateCustomCliPath(executablePath) {
+  const resolvedPath = await fs.realpath(resolve(executablePath)).catch(() => resolve(executablePath));
+  for (const ws of state.workspaces || []) {
+    if (!ws?.path) continue;
+    const wsResolved = await fs.realpath(resolve(ws.path)).catch(() => resolve(ws.path));
+    if (within(wsResolved, resolvedPath)) {
+      return "Không được chọn tệp thực thi nằm trong thư mục dự án (workspace) để tránh thực thi mã không tin cậy.";
+    }
+  }
+  return "";
 }
 function safeRelativePath(value = "") {
   const input = String(value).trim();
@@ -892,9 +1000,10 @@ function extractOfficeDocumentText(buf, ext) {
   return utf8Matches.map((s) => s.trim()).filter(Boolean).join("\n\n") || "Không tìm thấy nội dung văn bản thuần trong tệp tài liệu này.";
 }
 function allowedTextFile(name) {
-  if (/^\.env(?:\.|$)/i.test(name) && !/^\.env\.example$/i.test(name)) return false;
-  const ext = extname(name).toLowerCase();
-  return textExtensions.has(ext) || previewableBinaryExtensions.has(ext) || /^\.env\.example$/i.test(name);
+  const base = basename(String(name || ""));
+  if (/^\.env(?:\.|$)/i.test(base) && !/^\.env\.example$/i.test(base)) return false;
+  const ext = extname(base).toLowerCase();
+  return textExtensions.has(ext) || previewableBinaryExtensions.has(ext) || /^\.env\.example$/i.test(base);
 }
 async function listLocalFiles(rootPath, relativePath = "", markdownOnly = false) {
   const resolvedPath = await resolveInside(rootPath, relativePath, false);
@@ -976,11 +1085,11 @@ async function deleteVaultMarkdownFile(rootPath, relativePath) {
   await fs.unlink(target);
   return { ok: true, path: rel };
 }
-function openObsidianUri(vaultPath, relativePath = "") {
-  const cleanRel = String(relativePath || "").replace(/\\/g, "/").replace(/^\/+/, "");
-  const uri = cleanRel
-    ? `obsidian://open?path=${encodeURIComponent(resolve(vaultPath, cleanRel))}`
-    : `obsidian://open?path=${encodeURIComponent(resolve(vaultPath))}`;
+async function openObsidianUri(vaultPath, relativePath = "") {
+  const cleanRel = String(relativePath || "").trim();
+  const realVault = await fs.realpath(resolve(vaultPath));
+  const fullPath = cleanRel ? (await resolveInside(realVault, cleanRel, true)).target : realVault;
+  const uri = `obsidian://open?path=${encodeURIComponent(fullPath)}`;
   const [command, args] = process.platform === "win32"
     ? ["explorer.exe", [uri]]
     : process.platform === "darwin"
@@ -1269,14 +1378,14 @@ function relevantMemory(task, workspace) {
   }).filter((row) => row.score > 0).sort((a, b) => b.score - a.score).slice(0, 3).map((row) => row.item);
 }
 function projectSourceFolders(task, workspace) {
-  if (task.isolated) return [task.executionPath || task.workspacePath || workspace?.path].filter(Boolean);
+  if (!usesSharedCheckout(task)) return [task.executionPath || task.workspacePath || workspace?.path].filter(Boolean);
   const folders = workspace?.sourceFolders?.length ? workspace.sourceFolders : [workspace?.path];
   return [...new Set(folders.filter(Boolean))];
 }
 function additionalWritableProjectDirs(task, cwd) {
-  if (task.isolated) return [];
+  if (!usesSharedCheckout(task)) return [];
   const workspace = state.workspaces.find((item) => item.id === task.workspaceId);
-  return projectSourceFolders(task, workspace).filter((directory) => directory.toLowerCase() !== String(cwd).toLowerCase());
+  return projectSourceFolders(task, workspace).filter((directory) => directory.toLowerCase() !== String(cwd).toLowerCase() && !isForbiddenSystemPath(directory));
 }
 function roleLabel(role) { return workflowRoles.find((item) => item.id === role)?.label || role; }
 function stageSelection(task, stage) {
@@ -1404,9 +1513,17 @@ async function externalWorkspaceContext(task, stage) {
   if (stage === "review") {
     const diff = await git(cwd, ["diff", "--no-ext-diff", "--unified=2", "--", ...files.filter((path) => safeForRemoteContext(path)).slice(0, 80)]);
     const snippets = [];
-    for (const path of files.filter((item) => safeForRemoteContext(item) && (item.endsWith(".md") || item.endsWith(".json") || /\.(?:[cm]?[jt]sx?)$|\.(?:ts|tsx)$/.test(item))).slice(0, 30)) {
+    for (const rel of files.filter((item) => safeForRemoteContext(item) && (item.endsWith(".md") || item.endsWith(".json") || /\.(?:[cm]?[jt]sx?)$|\.(?:ts|tsx)$/.test(item))).slice(0, 30)) {
       if (snippets.join("\n").length > 24_000) break;
-      try { snippets.push(`--- ${path} ---\n${redactRemoteSecrets((await fs.readFile(resolve(cwd, path), "utf8")).slice(0, 6000))}`); } catch { }
+      try {
+        const candidate = resolve(cwd, rel);
+        const lstat = await fs.lstat(candidate).catch(() => null);
+        if (!lstat || !lstat.isFile() || lstat.isSymbolicLink()) continue;
+        const resolved = await resolveInside(cwd, rel, true).catch(() => null);
+        const full = resolved?.target;
+        if (!full || !allowedTextFile(full)) continue;
+        snippets.push(`--- ${rel} ---\n${redactRemoteSecrets((await fs.readFile(full, "utf8")).slice(0, 6000))}`);
+      } catch { }
     }
     sections.push(`Current changes for remote review (truncated):\n${redactRemoteSecrets(String(diff.stdout || "No tracked diff available.").slice(0, 28_000))}`);
     if (snippets.length) sections.push(`Current file snapshots for remote review (includes untracked files when readable):\n${snippets.join("\n\n").slice(0, 24_000)}`);
@@ -1415,30 +1532,41 @@ async function externalWorkspaceContext(task, stage) {
       || /\.(?:[cm]?[jt]sx?|ts|tsx|css|html|json|ya?ml|md)$/i.test(path)).slice(0, 24);
     const snippets = [];
     let total = 0;
-    for (const path of contextFiles) {
+    for (const rel of contextFiles) {
       if (total >= 44_000) break;
       try {
-        const sourcePath = resolve(cwd, path);
-        const stat = await fs.stat(sourcePath);
-        if (stat.size > 8_000) continue;
-        const originalBytes = await fs.readFile(sourcePath);
+        const candidate = resolve(cwd, rel);
+        const lstat = await fs.lstat(candidate).catch(() => null);
+        if (!lstat || !lstat.isFile() || lstat.isSymbolicLink() || lstat.size > 8_000) continue;
+        const resolved = await resolveInside(cwd, rel, true).catch(() => null);
+        const full = resolved?.target;
+        if (!full || !allowedTextFile(full)) continue;
+        const originalBytes = await fs.readFile(full);
         const original = originalBytes.toString("utf8");
         const content = redactRemoteSecrets(original);
         if (content !== original || content.includes("\uFFFD")) continue;
-        const snippet = `--- ${path} ---\n${content}`;
+        const snippet = `--- ${rel} ---\n${content}`;
         if (total + snippet.length > 44_000) break;
         snippets.push(snippet);
         total += snippet.length;
-        buildSnapshotHashes.set(path.toLocaleLowerCase(), createHash("sha256").update(originalBytes).digest("hex"));
+        buildSnapshotHashes.set(rel.toLocaleLowerCase(), createHash("sha256").update(originalBytes).digest("hex"));
       } catch { }
     }
     if (snippets.length) sections.push(`Selected text files for implementation context (truncated; not a full workspace snapshot):\n${snippets.join("\n\n").slice(0, 48_000)}`);
   } else {
     const contextFiles = files.filter((path) => /(^|\/)(?:AGENTS\.md|README(?:\.[^/]*)?|package\.json|pyproject\.toml|Cargo\.toml|go\.mod)$/i.test(path)).slice(0, 12);
     const snippets = [];
-    for (const path of contextFiles) {
+    for (const rel of contextFiles) {
       if (snippets.join("\n").length > 24_000) break;
-      try { snippets.push(`--- ${path} ---\n${redactRemoteSecrets((await fs.readFile(resolve(cwd, path), "utf8")).slice(0, 7000))}`); } catch { }
+      try {
+        const candidate = resolve(cwd, rel);
+        const lstat = await fs.lstat(candidate).catch(() => null);
+        if (!lstat || !lstat.isFile() || lstat.isSymbolicLink()) continue;
+        const resolved = await resolveInside(cwd, rel, true).catch(() => null);
+        const full = resolved?.target;
+        if (!full || !allowedTextFile(full)) continue;
+        snippets.push(`--- ${rel} ---\n${redactRemoteSecrets((await fs.readFile(full, "utf8")).slice(0, 7000))}`);
+      } catch { }
     }
     if (snippets.length) sections.push(`Project instructions and manifests:\n${snippets.join("\n\n").slice(0, 24_000)}`);
   }
@@ -1524,10 +1652,10 @@ async function applyApiBuildResult(cwd, responseText, buildSnapshotHashes) {
   }
   return `${operations.summary}${changed.length ? `\n\n${changed.join("\n")}` : "\n\nNo workspace files were changed."}`;
 }
-function makePrompt(task, stage, plan, memory, workspace, skillInstructions = []) {
+function makePrompt(task, stage, plan, memory, workspace, skillInstructionsList = []) {
   const memoryText = memory.length ? `\n\nRelevant local memory (only matching notes):\n${memory.map((m) => `- ${m.title}: ${m.content}`).join("\n").slice(0, 4500)}` : "";
   const provider = stageSelection(task, stage).provider;
-  const applicableSkills = skillInstructions.filter((skill) => skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"]));
+  const applicableSkills = skillInstructionsList.filter((skill) => skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"]));
   const skillText = applicableSkills.length ? `\n\nSelected skills for ${provider} (follow only when relevant to the user's request):\n${applicableSkills.map((skill) => `<skill name="${skill.name}">\n${skill.instruction}${skill.runtimeDirectory ? `\n\nSupporting files for this skill are available in the task copy at: ${skill.runtimeDirectory}. Read referenced files from there when needed.` : ""}\n</skill>`).join("\n\n")}` : "";
   const goalText = task.goal ? `\n\nLong-term goal:\n${task.goal}${task.goalChecklist?.length ? `\nAcceptance checklist:\n${task.goalChecklist.map((item) => `- [${item.done ? "x" : " "}] ${item.text}`).join("\n")}` : ""}` : "";
   const attachmentText = Array.isArray(task.attachments) && task.attachments.length
@@ -1559,12 +1687,35 @@ function chatHistoryBefore(task, messageId) {
       history.push(reply);
     }
   }
-  return history.slice(-10).map(({ role, provider, content }) => ({ role, provider, content }));
+  return history.slice(-12).map(({ role, provider, content }) => ({ role, provider, content }));
+}
+function memoryText(task, workspace = null) {
+  const ws = workspace || state.workspaces.find((item) => item.id === task.workspaceId);
+  const usedNotes = (task.memoryUsed || []).length
+    ? memories.filter((m) => task.memoryUsed.some((u) => u.id === m.id))
+    : (ws ? relevantMemory(task, ws) : []);
+  return usedNotes.length ? `\n\nRelevant local memory:\n${usedNotes.map((item) => `- ${item.title}: ${item.content}`).join("\n").slice(0, 3500)}` : "";
+}
+function skillInstructions(task, providerOverride = "") {
+  const ws = state.workspaces.find((item) => item.id === task.workspaceId);
+  const cacheKey = ws ? resolve(ws.path).toLowerCase() : "__global__";
+  const cachedCatalog = skillCatalogCache.get(cacheKey)?.items || [];
+  const taskSkillIds = new Set([...(task.skillIds || []), ...(task.skills || []).map((s) => s.id)].filter(Boolean));
+  const fullSkills = cachedCatalog.filter((s) => taskSkillIds.has(s.id));
+  const provider = providerOverride || task.config?.chatProvider || "codex";
+  const applicableSkills = (fullSkills.length ? fullSkills : (task.skills || [])).filter((skill) => skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"]));
+  return applicableSkills.length ? `\n\nSelected local skills:\n${applicableSkills.map((skill) => `- ${skill.name}: ${String(skill.instruction || skill.description || "").slice(0, 5000)}`).join("\n\n").slice(0, 7000)}` : "";
 }
 function makeChatPrompt(task, turn) {
   const workspace = state.workspaces.find((item) => item.id === task.workspaceId);
-  const history = chatHistoryBefore(task, turn.messageId).slice(-8).map((message) => `${message.role === "user" ? "User" : message.provider || "Assistant"}: ${String(message.content || "").slice(0, 1800)}`).join("\n\n");
+  const history = chatHistoryBefore(task, turn.messageId).slice(-12).map((message) => `${message.role === "user" ? "User" : message.provider || "Assistant"}: ${String(message.content || "").slice(0, 4000)}`).join("\n\n");
   const plan = String(task.plan || "").slice(0, 4500);
+  const implementation = String(task.implementation || "").slice(0, 6000);
+  const review = String(task.review || "").slice(0, 4000);
+  const implementationSection = implementation ? `\n\nSaved implementation summary (truncated if long):\n${implementation}` : "";
+  const reviewSection = review ? `\n\nSaved review findings (truncated if long):\n${review}` : "";
+  const memSection = memoryText(task, workspace);
+  const skillSection = skillInstructions(task, turn?.provider || task.config?.chatProvider || "codex");
   const latestEvents = (task.events || []).filter((event) => ["stage", "handoff", "tool", "error", "success"].includes(event.kind)).slice(-8).map((event) => `- ${String(event.text).slice(0, 220)}`).join("\n");
   const goalText = task.goal ? `\n\nLong-term goal:\n${task.goal}${task.goalChecklist?.length ? `\nAcceptance checklist:\n${task.goalChecklist.map((item) => `- [${item.done ? "x" : " "}] ${item.text}`).join("\n")}` : ""}` : "";
   const accessNote = task.permissionPreset === "read-only" ? "You may inspect files but must not edit, create, or delete workspace files." : task.permissionPreset === "full-access" ? "The user explicitly granted full local access for this task. You may run commands and read or modify files anywhere available to the user's operating-system account, but keep changes scoped to the request." : "You may inspect or edit files to fulfill the new request, but keep changes scoped to what the user asks; inspect only files relevant to the request.";
@@ -1572,12 +1723,12 @@ function makeChatPrompt(task, turn) {
   const attachmentText = attachments.length
     ? `\n\nAttached files:\n${attachments.map((file) => `### ${String(file.name || "attached file").slice(0, 180)}\n${String(file.content || "")}`).join("\n\n")}`
     : "";
-  return `Continue the user's OpenSybau conversation for this real workspace. Answer in the user's language. ${accessNote} The latest user message defines this chat turn and may request work that differs from the long-term goal. Follow that explicit request for this turn, briefly point out a conflict with the saved goal, and never silently change the saved goal. If the user wants a lasting direction change, tell them to update it through the Goal control. Do not reveal private chain-of-thought; give a concise rationale, actions, and results.\n\nWorkspace: ${task.executionPath || task.workspacePath}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}\nOriginal task: ${String(task.prompt).slice(0, 5000)}${goalText}\nSaved plan (truncated if long):\n${plan || "No plan saved."}\n\nRecent observable activity:\n${latestEvents || "No activity recorded."}\n\nRecent conversation:\n${history || "No earlier chat messages."}\n\nNew user message:\n${String(turn.content).slice(0, 50000)}${attachmentText}`;
+  return `Continue the user's OpenSybau conversation for this real workspace. Answer in the user's language. ${accessNote} The latest user message defines this chat turn and may request work that differs from the long-term goal. Follow that explicit request for this turn, briefly point out a conflict with the saved goal, and never silently change the saved goal. If the user wants a lasting direction change, tell them to update it through the Goal control. Do not reveal private chain-of-thought; give a concise rationale, actions, and results.\n\nWorkspace: ${task.executionPath || task.workspacePath}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}\nOriginal task: ${String(task.prompt).slice(0, 5000)}${goalText}${memSection}${skillSection}\nSaved plan (truncated if long):\n${plan || "No plan saved."}${implementationSection}${reviewSection}\n\nRecent observable activity:\n${latestEvents || "No activity recorded."}\n\nRecent conversation:\n${history || "No earlier chat messages."}\n\nNew user message:\n${String(turn.content).slice(0, 50000)}${attachmentText}`;
 }
-function makeInitialChatPrompt(task, memory, skillInstructions, workspace) {
-  const memoryText = memory.length ? `\n\nRelevant local memory:\n${memory.map((item) => `- ${item.title}: ${item.content}`).join("\n").slice(0, 3500)}` : "";
+function makeInitialChatPrompt(task, memory, skillInstructionsList, workspace) {
+  const memText = memory.length ? `\n\nRelevant local memory:\n${memory.map((item) => `- ${item.title}: ${item.content}`).join("\n").slice(0, 3500)}` : "";
   const provider = task.config.chatProvider || "codex";
-  const applicableSkills = skillInstructions.filter((skill) => skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"]));
+  const applicableSkills = skillInstructionsList.filter((skill) => skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"]));
   const skillText = applicableSkills.length ? `\n\nSelected local skills:\n${applicableSkills.map((skill) => `- ${skill.name}: ${String(skill.instruction).slice(0, 5000)}`).join("\n\n").slice(0, 7000)}` : "";
   const goalText = task.goal ? `\n\nLong-term goal:\n${task.goal}${task.goalChecklist?.length ? `\nAcceptance checklist:\n${task.goalChecklist.map((item) => `- [${item.done ? "x" : " "}] ${item.text}`).join("\n")}` : ""}` : "";
   const readOnly = task.permissionPreset === "read-only";
@@ -1585,7 +1736,32 @@ function makeInitialChatPrompt(task, memory, skillInstructions, workspace) {
   const attachmentText = Array.isArray(task.attachments) && task.attachments.length
     ? `\n\nAttached files:\n${task.attachments.map((file) => `### ${String(file.name || "attached file").slice(0, 180)}\n${String(file.content || "")}`).join("\n\n")}`
     : "";
-  return `You are ${publicProviderName(provider)} in a continuing local project conversation. Answer in the user's language. Be conversational and concise. ${accessNote} Treat the user's latest explicit request as the work for this turn. If it differs from the saved long-term goal, briefly point out the conflict, follow the request for this turn, and do not silently change the saved goal. Never reveal private chain-of-thought; summarize your rationale, actions, and results.\n\nWorkspace: ${task.executionPath || workspace.path}\nProject: ${workspace.name}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}${goalText}${memoryText}${skillText}\n\nUser message:\n${String(task.prompt).slice(0, 50000)}${attachmentText}`;
+  return `You are ${publicProviderName(provider)} in a continuing local project conversation. Answer in the user's language. Be conversational and concise. ${accessNote} Treat the user's latest explicit request as the work for this turn. If it differs from the saved long-term goal, briefly point out the conflict, follow the request for this turn, and do not silently change the saved goal. Never reveal private chain-of-thought; summarize your rationale, actions, and results.\n\nWorkspace: ${task.executionPath || workspace.path}\nProject: ${workspace.name}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}${goalText}${memText}${skillText}\n\nUser message:\n${String(task.prompt).slice(0, 50000)}${attachmentText}`;
+}
+function addTaskUsage(task, provider, usage) {
+  if (!usage || typeof usage !== "object") return;
+  task.usage ||= {};
+  const prev = task.usage[provider] && typeof task.usage[provider] === "object" ? task.usage[provider] : {};
+  const next = { ...prev };
+  const numericFields = ["input_tokens", "output_tokens", "total_tokens", "cached_input_tokens", "prompt_tokens", "completion_tokens"];
+  for (const [k, v] of Object.entries(usage)) {
+    if (numericFields.includes(k) || typeof v === "number") {
+      const num = Number(v);
+      if (Number.isFinite(num)) next[k] = (Number(prev[k]) || 0) + num;
+    } else if (v !== undefined) {
+      next[k] = v;
+    }
+  }
+  if (usage.prompt_tokens !== undefined && usage.input_tokens === undefined) {
+    next.input_tokens = (Number(prev.input_tokens) || 0) + (Number(usage.prompt_tokens) || 0);
+  }
+  if (usage.completion_tokens !== undefined && usage.output_tokens === undefined) {
+    next.output_tokens = (Number(prev.output_tokens) || 0) + (Number(usage.completion_tokens) || 0);
+  }
+  if (next.total_tokens === undefined && (next.input_tokens !== undefined || next.output_tokens !== undefined)) {
+    next.total_tokens = (Number(next.input_tokens) || 0) + (Number(next.output_tokens) || 0);
+  }
+  task.usage[provider] = next;
 }
 function parseCodexEvent(line, task, outputParts) {
   let event;
@@ -1606,9 +1782,12 @@ function parseCodexEvent(line, task, outputParts) {
     record(task, `Codex hoàn tất công cụ · ${String(tool).slice(0, 120)}${cmd ? ` · ${cmd.slice(0, 80)}` : filePath ? ` · ${filePath}` : ""}`, "tool", { toolName: String(tool).slice(0, 120), command: cmd || undefined, filePath: filePath || undefined, exitCode, detail: detail || undefined, status: "done" });
   }
   if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text) { outputParts.push(event.item.text); record(task, event.item.text.slice(-1500), "output"); }
-  if (event.type === "item.completed" && event.item?.type === "agent_message" && /(?:shell tool failed to start|could(?:n't| not) read (?:the )?workspace|unable to read (?:the )?workspace|tool access.{0,40}workspace.{0,40}error|không thể đọc được tệp.{0,60}workspace.{0,60}lỗi)/i.test(event.item.text)) task.stageFailure = event.item.text;
-  if (event.type === "turn.completed" && event.usage) { task.usage = { ...(task.usage || {}), codex: event.usage }; task._currentStageUsage = event.usage; }
-  if (event.type === "error") record(task, event.message || "Codex reported an error", "error");
+  if (event.type === "turn.completed" && event.usage) { addTaskUsage(task, "codex", event.usage); task._currentStageUsage = event.usage; }
+  if (event.type === "error" || event.type === "turn.failed") {
+    const errMsg = event.message || event.error?.message || "Codex reported an error";
+    task.stageFailure = String(errMsg);
+    record(task, errMsg, "error");
+  }
 }
 function parseAgyEvent(line, task, outputParts) {
   let event;
@@ -1616,14 +1795,47 @@ function parseAgyEvent(line, task, outputParts) {
   const type = String(event.type || event.event || "").toLowerCase();
   const update = event.step_update || {};
   const message = event.message;
-  const text = event.text || (typeof event.content === "string" ? event.content : "") || event.response || event.delta?.text || update.text_delta || (typeof message === "string" ? message : message?.text || message?.content?.map?.((part) => part.text || "").join(""));
-  if (text && typeof text === "string") { outputParts.push(text); record(task, text.slice(-1500), "output"); }
-  if (event.usage) { task.usage = { ...(task.usage || {}), antigravity: event.usage }; task._currentStageUsage = event.usage; }
-  if (update.usage) { task.usage = { ...(task.usage || {}), antigravity: update.usage }; task._currentStageUsage = update.usage; }
+  const deltaText = event.delta?.text || update.text_delta || "";
+  const messageText = typeof message === "string" ? message : message?.text || message?.content?.map?.((part) => part.text || "").join("") || "";
+  const fullText = event.text || (typeof event.content === "string" ? event.content : "") || event.response || messageText || "";
+  if (deltaText && typeof deltaText === "string") {
+    outputParts.push(deltaText);
+    record(task, deltaText.slice(-1500), "output");
+  } else if (fullText && typeof fullText === "string") {
+    const accumulated = outputParts.join("");
+    if (outputParts.length > 0 && (fullText === accumulated || fullText.includes(accumulated))) {
+      outputParts.length = 0;
+      outputParts.push(fullText);
+      const last = task.events?.at(-1);
+      if (last?.kind === "output") {
+        last.at = new Date().toISOString();
+        last.text = fullText.slice(-1500);
+        task.updatedAt = last.at;
+        schedulePersist();
+        schedulePublish("task");
+      } else {
+        record(task, fullText.slice(-1500), "output");
+      }
+    } else if (!accumulated.endsWith(fullText)) {
+      outputParts.push(fullText);
+      record(task, fullText.slice(-1500), "output");
+    }
+  }
+  const usageObj = (type === "result" && event.result?.usage) || event.usage || update.usage || null;
+  if (usageObj) { addTaskUsage(task, "antigravity", usageObj); task._currentStageUsage = usageObj; }
   const toolError = update.tool_info?.error ? String(update.tool_info.error.message || update.tool_info.error) : "";
   if (type === "result" && event.result) {
-    if (event.result.usage) { task.usage = { ...(task.usage || {}), antigravity: event.result.usage }; task._currentStageUsage = event.result.usage; }
-    if (event.result.response && !outputParts.length) { outputParts.push(event.result.response); record(task, event.result.response.slice(-1500), "output"); }
+    if (event.result.response && typeof event.result.response === "string") {
+      const respText = event.result.response;
+      const accumulated = outputParts.join("");
+      if (!outputParts.length) {
+        outputParts.push(respText);
+        record(task, respText.slice(-1500), "output");
+      } else if (respText === accumulated || respText.includes(accumulated)) {
+        outputParts.length = 0;
+        outputParts.push(respText);
+      }
+    }
     if (event.result.status && event.result.status !== "SUCCESS") task.stageFailure = event.result.error || `Antigravity status: ${event.result.status}`;
     else task.stageFailure = null;
   }
@@ -1667,11 +1879,12 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
     if (runInfo) runInfo.abortController = controller;
     const timeout = setTimeout(() => controller.abort(new Error("API provider timeout after 120 seconds.")), 120_000);
     try {
-      const remoteContext = ["plan", "build", "review"].includes(stage) ? await externalWorkspaceContext(task, stage) : null;
+      const isChatStage = stage === "chat-initial" || String(stage).startsWith("chat-");
+      const remoteContext = ["plan", "build", "review"].includes(stage) || isChatStage ? await externalWorkspaceContext(task, isChatStage ? "plan" : stage) : null;
       assertTaskActive(task);
       const remotePrompt = remoteContext ? `${prompt}${remoteContext.text}` : prompt;
       const result = await completeWithApi(providerRuntime, selection.model, remotePrompt, controller.signal);
-      task.usage = { ...(task.usage || {}), [provider]: result.usage || {} };
+      if (result.usage) addTaskUsage(task, provider, result.usage);
       task._currentStageUsage = result.usage || null;
       const output = stage === "build" ? await applyApiBuildResult(cwd, result.content, remoteContext?.buildSnapshotHashes || new Map()) : String(result.content || "").trim();
       await fs.writeFile(resolve(task.storagePath, `${stage}.md`), output, "utf8");
@@ -1686,6 +1899,9 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
     }
   }
 
+  const outputPath = resolve(task.storagePath, `${stage}.md`);
+  await fs.rm(outputPath, { force: true }).catch(() => {});
+
   let exe;
   let args;
   if (provider === "codex") {
@@ -1696,7 +1912,7 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
       : ["--sandbox", task.permissionPreset === "read-only" || !(stage === "build" || stage.startsWith("chat-") || stage === "chat-initial") ? "read-only" : "workspace-write"];
     args = [
       ...(task.permissionPreset !== "full-access" && process.platform === "win32" ? ["--config", 'windows.sandbox="unelevated"'] : []),
-      "--disable", "unified_exec", "--ask-for-approval", "never", "exec", "--json", "--ephemeral", "--skip-git-repo-check", ...sandboxArgs, "-C", cwd, "--model", selection.model, "--config", `model_reasoning_effort=${JSON.stringify(selection.effort)}`, "--output-last-message", resolve(task.storagePath, `${stage}.md`), ...projectDirs.flatMap((directory) => ["--add-dir", directory]), "-",
+      "--disable", "unified_exec", "--ask-for-approval", "never", "exec", "--json", "--ephemeral", "--skip-git-repo-check", ...sandboxArgs, "-C", cwd, "--model", selection.model, "--config", `model_reasoning_effort=${JSON.stringify(selection.effort)}`, "--output-last-message", outputPath, ...projectDirs.flatMap((directory) => ["--add-dir", directory]), "-",
     ];
   } else if (provider === "antigravity") {
     exe = agyExe;
@@ -1716,13 +1932,35 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
     const child = spawn(exe, args, { cwd, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: childEnv });
     const runInfo = running.get(task.id);
     if (runInfo) runInfo.child = child;
+    const stageIdleTimeoutMs = Number(process.env.WORKBENCH_STAGE_TIMEOUT_MS) || 15 * 60 * 1000;
+    let idleTimedOut = false;
+    let idleTimer = null;
+    const resetIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        idleTimedOut = true;
+        if (runInfo) runInfo.stopped = false;
+        killTree(child);
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        rejectPromise(new Error("Tiến trình CLI không phản hồi quá thời gian chờ (timeout)."));
+      }, stageIdleTimeoutMs);
+      idleTimer.unref?.();
+    };
+    resetIdleTimer();
     let pending = "";
     let stdoutRaw = "";
     const outputParts = [];
     let stderrTail = "";
+    child.stdout.on("error", () => {});
+    child.stderr.on("error", () => {});
     const onStdout = (chunk) => {
+      resetIdleTimer();
       const text = chunk.toString();
-      if (provider === "claude") { stdoutRaw = (stdoutRaw + text).slice(-2_000_000); return; }
+      if (provider === "claude") {
+        if (stdoutRaw.length < 10_000_000) stdoutRaw += text;
+        return;
+      }
       pending += text;
       let index;
       while ((index = pending.indexOf("\n")) >= 0) {
@@ -1733,22 +1971,32 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
       }
     };
     child.stdout.on("data", onStdout);
-    child.stderr.on("data", (chunk) => { stderrTail = (stderrTail + chunk.toString()).slice(-5000); });
-    child.on("error", rejectPromise);
+    child.stderr.on("data", (chunk) => {
+      resetIdleTimer();
+      stderrTail = (stderrTail + chunk.toString()).slice(-5000);
+    });
+    child.on("error", (error) => {
+      if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+      if (!idleTimedOut) rejectPromise(error);
+    });
     child.on("close", async (code) => {
+      if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+      if (idleTimedOut) return;
       if (pending.trim()) { if (provider === "codex") parseCodexEvent(pending.trim(), task, outputParts); else parseAgyEvent(pending.trim(), task, outputParts); }
       if (running.get(task.id)?.stopped) return rejectPromise(new Error("Stopped by user"));
-      if (code !== 0) return rejectPromise(new Error(stderrTail.trim() || `${publicProviderName(provider)} exited with code ${code}`));
-      if (task.stageFailure) return rejectPromise(new Error(task.stageFailure.slice(0, 8000)));
       let output = "";
-      if (provider === "claude") {
+      if (provider === "claude" && stdoutRaw.trim()) {
         try {
-          const data = JSON.parse(stdoutRaw);
+          const data = JSON.parse(stdoutRaw.trim());
           output = String(data.result || data.message || "").trim();
-          if (data.usage) { task.usage = { ...(task.usage || {}), claude: data.usage }; task._currentStageUsage = data.usage; }
+          if (data.usage) { addTaskUsage(task, "claude", data.usage); task._currentStageUsage = data.usage; }
+          if (data?.is_error) {
+            task.stageFailure = String(data.result || data.error || "Claude CLI báo lỗi thực thi.").trim();
+          }
         } catch { output = stdoutRaw.trim(); }
       }
-      const outputPath = resolve(task.storagePath, `${stage}.md`);
+      if (code !== 0) return rejectPromise(new Error(task.stageFailure || stderrTail.trim() || `${publicProviderName(provider)} exited with code ${code}`));
+      if (task.stageFailure) return rejectPromise(new Error(task.stageFailure.slice(0, 8000)));
       if (!output) { try { output = (await fs.readFile(outputPath, "utf8")).trim(); } catch { } }
       if (!output) output = outputParts.join("").trim();
       task.stageMetrics ||= [];
@@ -1756,6 +2004,7 @@ async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride 
       task.stageMetrics = task.stageMetrics.slice(-500);
       resolvePromise(output);
     });
+    child.stdin.on("error", () => {});
     child.stdin.end(prompt);
   });
 }
@@ -1839,13 +2088,18 @@ async function executeTask(task) {
       assertTaskActive(task);
     }
   } else {
-    const sameWorkspaceActive = [...running.entries()].some(([id, runInfo]) => id !== task.id && runInfo.workspacePath === info.path && !runInfo.isolated);
+    const lockKey = workspaceLockKey(info.path);
+    const sameWorkspaceActive = [...running.entries()].some(([id, runInfo]) => id !== task.id && workspaceLockKey(runInfo.workspacePath) === lockKey && !runInfo.isolated);
     if (sameWorkspaceActive) throw new Error("This workspace already has a running shared-checkout task");
   }
   task.executionPath = cwd;
   task.status = "running";
   task.startedAt = new Date().toISOString();
-  task.phase = task.config.workflow === "chat-only" ? "chat" : task.resumeFrom || "plan";
+  let effectiveResumeFrom = task.resumeFrom || "plan";
+  if (effectiveResumeFrom === "build" && !task.plan) effectiveResumeFrom = "plan";
+  else if (effectiveResumeFrom === "review" && (!task.plan || !task.implementation)) effectiveResumeFrom = !task.plan ? "plan" : "build";
+  task.resumeFrom = task.resumeFrom ? effectiveResumeFrom : null;
+  task.phase = task.config.workflow === "chat-only" ? "chat" : effectiveResumeFrom;
   const activeRerun = (task.stageRunHistory || []).find((item) => item.id === task.activeStageRunId);
   if (activeRerun) { activeRerun.status = "running"; activeRerun.startedAt = task.startedAt; }
   persist(); publish("task");
@@ -1883,11 +2137,11 @@ async function executeTask(task) {
     task.skillSelectionMode = "auto";
     task.skillSelectionCompleted = true;
   }
-  const skillInstructions = await resolveSelectedSkills(skillIds, workspace.id, skillCatalog);
+  const skillInstructionsList = await resolveSelectedSkills(skillIds, workspace.id, skillCatalog);
   assertTaskActive(task);
-  task.antigravitySkillDirs = task.config.workflow === "chat-only" && task.config.chatProvider !== "antigravity" ? [] : await stageAntigravitySkillBundles(task, skillInstructions);
-  task.skillIds = skillInstructions.map((skill) => skill.id);
-  task.skills = skillInstructions.map(({ id, name, source, sources, providers }) => ({ id, name, source, sources, providers }));
+  task.antigravitySkillDirs = task.config.workflow === "chat-only" && task.config.chatProvider !== "antigravity" ? [] : await stageAntigravitySkillBundles(task, skillInstructionsList);
+  task.skillIds = skillInstructionsList.map((skill) => skill.id);
+  task.skills = skillInstructionsList.map(({ id, name, source, sources, providers }) => ({ id, name, source, sources, providers }));
   if (task.skills.length) record(task, `${publicProviderName(task.config.workflow === "chat-only" ? task.config.chatProvider : stageSelection(task, "plan").provider)} tự chọn và nạp ${task.skills.length} skill vào stage phù hợp${task.antigravitySkillDirs.length ? ` · ${task.antigravitySkillDirs.length} bộ tài nguyên Antigravity` : ""}`, "memory");
   else if (task.skillSelectionMode === "auto" && task.skillCandidatesConsidered) record(task, task.skillSelectionReason || "Không chọn skill nào vì không có skill thật sự cần thiết.", "memory");
   persist(); publish("task");
@@ -1900,7 +2154,7 @@ async function executeTask(task) {
     persist(); record(task, `${publicProviderName(provider)} bắt đầu cuộc trò chuyện · ${task.config.chatModel} (${task.config.chatEffort})`, "stage");
     const chatConfig = { provider, model: task.config.chatModel, effort: task.config.chatEffort };
     try {
-      const response = await spawnStage(task, provider, "chat-initial", cwd, makeInitialChatPrompt(task, notes, skillInstructions, workspace), chatConfig);
+      const response = await spawnStage(task, provider, "chat-initial", cwd, makeInitialChatPrompt(task, notes, skillInstructionsList, workspace), chatConfig);
       assertTaskActive(task);
       message.status = "done";
       task.chatMessages.push({ id: randomUUID(), role: "assistant", replyToMessageId: message.id, provider, model: task.config.chatModel, effort: task.config.chatEffort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() });
@@ -1919,7 +2173,7 @@ async function executeTask(task) {
     return;
   }
   const planSelection = stageSelection(task, "plan");
-  const plan = task.plan || await spawnStage(task, planSelection.provider, "plan", cwd, makePrompt(task, "plan", "", notes, workspace, skillInstructions), planSelection);
+  const plan = task.plan || await spawnStage(task, planSelection.provider, "plan", cwd, makePrompt(task, "plan", "", notes, workspace, skillInstructionsList), planSelection);
   assertTaskActive(task);
   task.plan = plan;
   if (task.config.workflow === "plan-only") {
@@ -1930,11 +2184,11 @@ async function executeTask(task) {
     return;
   }
   const buildSelection = stageSelection(task, "build");
-  record(task, `Handoff ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} · kế hoạch được chuyển sang stage triển khai.`, "handoff");
-  task.phase = "build"; persist(); publish("task");
   if (!(task.resumeFrom === "review" && task.implementation)) {
+    record(task, `Handoff ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} · kế hoạch được chuyển sang stage triển khai.`, "handoff");
+    task.phase = "build"; persist(); publish("task");
     const buildStartedAt = Date.now();
-    const implementation = await spawnStage(task, buildSelection.provider, "build", cwd, makePrompt(task, "build", plan, notes, workspace, skillInstructions), buildSelection);
+    const implementation = await spawnStage(task, buildSelection.provider, "build", cwd, makePrompt(task, "build", plan, notes, workspace, skillInstructionsList), buildSelection);
     assertTaskActive(task);
     task.implementation = implementation || `${publicProviderName(buildSelection.provider)} hoàn tất nhưng không gửi văn bản cuối. Kiểm tra danh sách tệp/diff bên dưới.`;
     await fs.writeFile(resolve(task.storagePath, "implementation.md"), task.implementation, "utf8");
@@ -1944,7 +2198,7 @@ async function executeTask(task) {
   record(task, `Handoff ${publicProviderName(buildSelection.provider)} → ${publicProviderName(reviewSelection.provider)} · stage triển khai đã kết thúc; reviewer bắt đầu kiểm tra.`, "handoff");
   task.resumeFrom = null;
   task.phase = "review"; persist(); publish("task");
-  const review = await spawnStage(task, reviewSelection.provider, "review", cwd, makePrompt(task, "review", plan, notes, workspace, skillInstructions), reviewSelection);
+  const review = await spawnStage(task, reviewSelection.provider, "review", cwd, makePrompt(task, "review", plan, notes, workspace, skillInstructionsList), reviewSelection);
   assertTaskActive(task);
   task.review = review;
   task.artifacts = mergeTaskArtifacts(task.artifacts, await changedFilesSince(cwd, Date.parse(task.startedAt)));
@@ -1954,31 +2208,51 @@ async function executeTask(task) {
   finishStageRerun(task, "done");
   record(task, `Hoàn tất luồng ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} → ${publicProviderName(reviewSelection.provider)}. Thay đổi nằm trong workspace hiển thị bên dưới.`, "success");
 }
+function drainQueuedChats() {
+  if (shuttingDown) return;
+  for (const candidate of state.tasks) {
+    if (!candidate.chatQueue?.length || candidate.status === "queued") continue;
+    if (running.has(candidate.id)) continue;
+    const ws = state.workspaces.find((w) => w.id === candidate.workspaceId);
+    if (!ws) continue;
+    const sharedCheckout = usesSharedCheckout(candidate);
+    const lockKey = workspaceLockKey(sharedCheckout ? ws.path : (candidate.executionPath || candidate.worktreePath || ws.path));
+    if (sharedCheckout && busyWorkspaces.has(lockKey)) continue;
+    void processTaskChatQueue(candidate);
+  }
+}
 async function processTaskChatQueue(task) {
   if (shuttingDown || !task.chatQueue?.length) return;
   const workspace = state.workspaces.find((item) => item.id === task.workspaceId);
   if (!workspace) return;
   const existingRun = running.get(task.id);
   if (existingRun && !existingRun.isChat) return;
-  const lockPath = task.isolated ? (task.executionPath || workspace.path) : workspace.path;
-  if (!existingRun && !task.isolated && busyWorkspaces.has(lockPath)) {
-    for (const turn of task.chatQueue) {
-      const message = task.chatMessages?.find((item) => item.id === turn.messageId);
-      if (message) message.status = "failed";
-    }
-    const error = "Workspace đang được một task khác sử dụng; tin nhắn chưa được gửi. Thử lại sau khi task đó hoàn tất.";
-    record(task, error, "error"); persist(); publish("task");
+  const sharedCheckout = usesSharedCheckout(task);
+  const lockPath = sharedCheckout ? workspace.path : (task.executionPath || task.worktreePath || workspace.path);
+  const lockKey = workspaceLockKey(lockPath);
+  if (!existingRun && sharedCheckout && busyWorkspaces.has(lockKey)) {
     return;
   }
   if (!existingRun) {
-    running.set(task.id, { child: null, stopped: false, workspacePath: lockPath, isolated: Boolean(task.isolated), isChat: true });
-    if (!task.isolated) busyWorkspaces.add(lockPath);
+    running.set(task.id, { child: null, stopped: false, workspacePath: lockKey, isolated: !sharedCheckout, isChat: true });
+    if (sharedCheckout && lockKey) busyWorkspaces.add(lockKey);
   }
-  const restoreStatus = task.status === "running" ? "done" : task.status;
-  const restorePhase = task.phase === "chat" ? (restoreStatus === "done" ? "done" : restoreStatus) : task.phase;
+  const restoreStatus = task.status === "running" ? (task.preChatStatus || "done") : task.status;
+  const restorePhase = task.phase === "chat" ? (task.preChatPhase || (restoreStatus === "done" ? "done" : restoreStatus)) : task.phase;
+  task.preChatStatus = restoreStatus;
+  task.preChatPhase = restorePhase;
   task.chatResumeState = { status: restoreStatus, phase: restorePhase };
-  task.status = "running"; task.phase = "chat"; persist(); publish("task");
+  task.status = "running"; task.phase = "chat";
+  try { persist(); } catch {}
+  publish("task");
+  let anyTurnSucceeded = false;
+  let wasStopped = false;
   try {
+    task.storagePath ||= resolve(taskDir, task.id);
+    await fs.mkdir(task.storagePath, { recursive: true }).catch(() => {});
+    if ((task.skillIds || []).length || (task.skills || []).length) {
+      await loadSkillCatalog(workspace.id).catch(() => []);
+    }
     while (task.chatQueue.length && !running.get(task.id)?.stopped) {
       const turn = task.chatQueue.shift();
       const userMessage = task.chatMessages?.find((item) => item.id === turn.messageId);
@@ -1986,14 +2260,21 @@ async function processTaskChatQueue(task) {
       record(task, `${publicProviderName(turn.provider)} nhận tin nhắn · ${turn.model} (${turn.effort})`, "stage");
       try {
         const turnStartedAt = Date.now();
-        const cwd = task.executionPath || workspace.path;
+        const cwd = sharedCheckout ? workspace.path : (task.executionPath || task.worktreePath || workspace.path);
+        if (turn.provider === "antigravity" && ((task.skills || []).length > 0 || (task.skillIds || []).length > 0) && !(task.antigravitySkillDirs || []).length) {
+          task.antigravitySkillDirs = await stageAntigravitySkills(task);
+        }
         const prompt = makeChatPrompt(task, turn);
         const chatConfig = { provider: turn.provider, model: turn.model, effort: turn.effort };
         const response = await spawnStage(task, turn.provider, `chat-${turn.id}`, cwd, prompt, chatConfig);
         assertTaskActive(task);
         const turnChanges = await changedFilesSince(cwd, turnStartedAt);
-        if (turnChanges.length) task.artifacts = mergeTaskArtifacts(task.artifacts, turnChanges);
+        if (turnChanges.length) {
+          task.artifacts = mergeTaskArtifacts(task.artifacts, turnChanges);
+          if (!task.worktreeCleaned && task.worktreePath) task.worktreeAppliedAt = null;
+        }
         if (userMessage) userMessage.status = "done";
+        anyTurnSucceeded = true;
         task.chatMessages ||= [];
         const answer = { id: randomUUID(), role: "assistant", replyToMessageId: userMessage?.id, provider: turn.provider, model: turn.model, effort: turn.effort, content: response || "CLI hoàn tất nhưng không trả nội dung văn bản.", createdAt: new Date().toISOString() };
         const metric = task.stageMetrics?.at(-1);
@@ -2004,22 +2285,35 @@ async function processTaskChatQueue(task) {
         const messageError = safeError(error);
         if (userMessage) { userMessage.status = "failed"; userMessage.error = messageError; }
         record(task, `${publicProviderName(turn.provider)} chat lỗi: ${messageError}`, "error");
-        if (running.get(task.id)?.stopped) break;
+        if (running.get(task.id)?.stopped) { wasStopped = true; break; }
       }
-      persist(); publish("task");
+      try { persist(); } catch {}
+      publish("task");
     }
   } finally {
-    if (!shuttingDown && task.status !== "cancelled") {
-      task.status = restoreStatus;
-      task.phase = restorePhase;
-    }
-    task.chatResumeState = null;
     const runInfo = running.get(task.id);
-    if (runInfo?.workspacePath && !runInfo.isolated) busyWorkspaces.delete(runInfo.workspacePath);
+    if (runInfo?.stopped) wasStopped = true;
+    if (!shuttingDown) {
+      if (task.config?.workflow === "chat-only" && anyTurnSucceeded && !wasStopped) {
+        task.status = "done";
+        task.phase = "done";
+        task.error = null;
+        task.failedPhase = null;
+      } else if (task.status === "running") {
+        task.status = restoreStatus;
+        task.phase = restorePhase;
+      }
+    }
+    task.preChatStatus = null;
+    task.preChatPhase = null;
+    task.chatResumeState = null;
+    if (runInfo?.workspacePath && !runInfo.isolated) busyWorkspaces.delete(workspaceLockKey(runInfo.workspacePath));
     running.delete(task.id);
-    persist(); publish("task");
-    if (task.chatQueue?.length && task.status !== "cancelled" && !shuttingDown) void processTaskChatQueue(task);
-    else pump();
+    try { persist(); } catch {}
+    publish("task");
+    if (task.chatQueue?.length && !wasStopped && !shuttingDown) void processTaskChatQueue(task);
+    drainQueuedChats();
+    pump();
   }
 }
 function pump() {
@@ -2027,18 +2321,26 @@ function pump() {
   schedulerActive = true;
   queueMicrotask(async () => {
     try {
-      while (!shuttingDown && running.size < Math.max(1, Math.min(8, Number(state.settings.maxConcurrent) || 1))) {
+      while (!shuttingDown) {
+        const hasQueuedFanout = state.tasks.some((item) => item.status === "queued" && item.fanoutId && item.isolated);
+        const activeFanoutTaskCount = hasQueuedFanout
+          ? state.tasks.filter((item) => item.fanoutId && item.isolated && (item.status === "queued" || running.has(item.id))).length
+          : 0;
+        const maxConcurrent = Math.max(1, Math.min(8, Math.max(Number(state.settings.maxConcurrent) || 1, activeFanoutTaskCount)));
+        if (running.size >= maxConcurrent) break;
         const task = state.tasks.find((item) => {
           const path = state.workspaces.find((w) => w.id === item.workspaceId)?.path;
-          return item.status === "queued" && !running.has(item.id) && Boolean(path) && (item.isolated || !busyWorkspaces.has(path));
+          const lockKey = workspaceLockKey(path);
+          return item.status === "queued" && !running.has(item.id) && Boolean(lockKey) && (item.isolated || !busyWorkspaces.has(lockKey));
         });
         if (!task) break;
         const workspacePath = state.workspaces.find((w) => w.id === task.workspaceId)?.path;
-        running.set(task.id, { child: null, stopped: false, workspacePath, isolated: task.isolated });
-        if (!task.isolated && workspacePath) busyWorkspaces.add(workspacePath);
-        if (task.isolated && workspacePath) isolatedWorkspaces.set(workspacePath, (isolatedWorkspaces.get(workspacePath) || 0) + 1);
+        const lockKey = workspaceLockKey(workspacePath);
+        running.set(task.id, { child: null, stopped: false, workspacePath: lockKey, isolated: task.isolated });
+        if (!task.isolated && lockKey) busyWorkspaces.add(lockKey);
+        if (task.isolated && lockKey) isolatedWorkspaces.set(lockKey, (isolatedWorkspaces.get(lockKey) || 0) + 1);
         executeTask(task).catch((error) => {
-          if (task.status === "cancelled") { finishStageRerun(task, "cancelled", "Đã dừng theo yêu cầu."); persist(); publish("task"); return; }
+          if (task.status === "cancelled") { finishStageRerun(task, "cancelled", "Đã dừng theo yêu cầu."); try { persist(); } catch {} publish("task"); return; }
           if (shuttingDown || running.get(task.id)?.shuttingDown) return;
           task.failedPhase = task.phase;
           task.status = running.get(task.id)?.stopped ? "cancelled" : "failed";
@@ -2048,15 +2350,21 @@ function pump() {
           record(task, task.error, "error");
         }).finally(() => {
           const runInfo = running.get(task.id);
-          if (runInfo?.workspacePath && !runInfo.isolated) busyWorkspaces.delete(runInfo.workspacePath);
-          if (runInfo?.workspacePath && runInfo.isolated) {
-            const count = (isolatedWorkspaces.get(runInfo.workspacePath) || 1) - 1;
-            if (count <= 0) isolatedWorkspaces.delete(runInfo.workspacePath); else isolatedWorkspaces.set(runInfo.workspacePath, count);
+          const runKey = workspaceLockKey(runInfo?.workspacePath);
+          if (runKey && !runInfo.isolated) busyWorkspaces.delete(runKey);
+          if (runKey && runInfo.isolated) {
+            const count = (isolatedWorkspaces.get(runKey) || 1) - 1;
+            if (count <= 0) isolatedWorkspaces.delete(runKey); else isolatedWorkspaces.set(runKey, count);
           }
           running.delete(task.id);
-          persist(); publish("task");
-          if (task.chatQueue?.length && task.status !== "cancelled" && !shuttingDown) void processTaskChatQueue(task);
-          else pump();
+          if (task.status !== "done" && task.chatQueue?.length) {
+            failQueuedChatTurns(task);
+          }
+          try { persist(); } catch {}
+          publish("task");
+          if (task.chatQueue?.length && task.status === "done" && !shuttingDown) void processTaskChatQueue(task);
+          drainQueuedChats();
+          pump();
         });
       }
     } finally { schedulerActive = false; }
@@ -2077,10 +2385,12 @@ async function checkDiff(task) {
   let diff = result.stdout || "";
   const untracked = await git(cwd, ["ls-files", "--others", "--exclude-standard"]);
   for (const rel of (untracked.stdout || "").split(/\r?\n/).filter(Boolean).slice(0, 30)) {
-    const file = resolve(cwd, rel);
     try {
-      const stat = await fs.stat(file);
-      if (!stat.isFile() || stat.size > 200_000) continue;
+      const candidate = resolve(cwd, safeRelativePath(rel));
+      const lstat = await fs.lstat(candidate);
+      if (!lstat.isFile() || lstat.isSymbolicLink() || lstat.size > 180_000) continue;
+      const { target: file } = await resolveInside(cwd, rel, true);
+      if (!allowedTextFile(file)) continue;
       const content = await fs.readFile(file, "utf8");
       const contentLines = content.split(/\r?\n/);
       diff += `\ndiff --git a/${rel} b/${rel}\n--- /dev/null\n+++ b/${rel}\n@@ -0,0 +1,${contentLines.length} @@\n` + contentLines.map((line) => `+${line}`).join("\n") + "\n";
@@ -2156,35 +2466,51 @@ async function applyTaskWorktree(task, { cleanup = false } = {}) {
   if (!workspace) throw new Error("Workspace của task không còn tồn tại.");
   const info = await inspectWorkspace(workspace.path);
   if (!info.isGit) throw new Error("Workspace chính không phải là Git repository.");
-  if (busyWorkspaces.has(info.path)) throw new Error("Workspace chính đang có task khác chạy; hãy đợi hoàn tất trước khi áp dụng worktree.");
+  const lockKey = workspaceLockKey(info.path);
+  if (busyWorkspaces.has(lockKey)) throw new Error("Workspace chính đang có task khác chạy; hãy đợi hoàn tất trước khi áp dụng worktree.");
+  busyWorkspaces.add(lockKey);
   const repoRoot = info.gitRoot || info.path;
   const wtRoot = resolve(task.worktreePath);
-  await withGitRepoLock(repoRoot, async () => {
-    await git(wtRoot, ["add", "-A"]);
-    const baseRef = task.worktreeBaseHead || "HEAD";
-    const patchRes = await git(wtRoot, ["diff", "--cached", "--binary", "--full-index", baseRef]);
-    await git(wtRoot, ["reset"]).catch(() => {});
-    const patchContent = patchRes.stdout || "";
-    if (!patchContent.trim()) throw new Error("Worktree không có thay đổi nào để áp dụng vào dự án chính.");
-    await fs.mkdir(task.storagePath, { recursive: true });
-    const patchPath = resolve(task.storagePath, "apply-worktree.patch");
-    await fs.writeFile(patchPath, patchContent, "utf8");
-    let applyRes = await git(repoRoot, ["apply", "--3way", "--whitespace=nowarn", patchPath]);
-    if (applyRes.code !== 0) applyRes = await git(repoRoot, ["apply", "--whitespace=nowarn", patchPath]);
-    if (applyRes.code !== 0) {
-      throw new Error(`Không thể tự động áp dụng worktree (có xung đột Git): ${(applyRes.stderr || applyRes.stdout || "git apply failed").trim().slice(0, 400)}`);
+  let appliedFiles = [];
+  try {
+    await withGitRepoLock(repoRoot, async () => {
+      await git(wtRoot, ["add", "-A"]);
+      const baseRef = task.worktreeBaseHead || "HEAD";
+      const patchRes = await git(wtRoot, ["diff", "--cached", "--binary", "--full-index", baseRef]);
+      const namesRes = await git(wtRoot, ["diff", "--cached", "--name-only", baseRef]);
+      await git(wtRoot, ["reset"]).catch(() => {});
+      const patchContent = patchRes.stdout || "";
+      if (!patchContent.trim()) throw new Error("Worktree không có thay đổi nào để áp dụng vào dự án chính.");
+      appliedFiles = (namesRes.stdout || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      if (!appliedFiles.length) {
+        appliedFiles = parseUnifiedDiffFiles(patchContent).map((f) => f.path).filter(Boolean);
+      }
+      await fs.mkdir(task.storagePath, { recursive: true });
+      const patchPath = resolve(task.storagePath, "apply-worktree.patch");
+      await fs.writeFile(patchPath, patchContent, "utf8");
+      let applyRes = await git(repoRoot, ["apply", "--3way", "--whitespace=nowarn", patchPath]);
+      if (applyRes.code !== 0) applyRes = await git(repoRoot, ["apply", "--whitespace=nowarn", patchPath]);
+      if (applyRes.code !== 0) {
+        throw new Error(`Không thể tự động áp dụng worktree (có xung đột Git): ${(applyRes.stderr || applyRes.stdout || "git apply failed").trim().slice(0, 400)}`);
+      }
+    });
+    task.worktreeAppliedAt = new Date().toISOString();
+    task.appliedFiles = appliedFiles;
+    if (cleanup) {
+      await cleanupTaskWorktrees(task);
+      task.worktreeCleaned = true;
+      task.executionPath = task.workspacePath;
     }
-  });
-  task.worktreeAppliedAt = new Date().toISOString();
-  if (cleanup) {
-    await cleanupTaskWorktrees(task);
-    task.worktreeCleaned = true;
-    task.executionPath = task.workspacePath;
+    workspace.runtime = await inspectWorkspace(workspace.path).catch(() => workspace.runtime);
+    record(task, `Đã áp dụng thay đổi từ Git worktree (${task.worktreeBranch || basename(wtRoot)}) vào dự án chính.${cleanup ? " Đã dọn dẹp worktree." : ""}`, "success");
+    persist();
+    publish("tasks");
+    return task;
+  } finally {
+    busyWorkspaces.delete(lockKey);
+    drainQueuedChats();
+    pump();
   }
-  workspace.runtime = await inspectWorkspace(workspace.path).catch(() => workspace.runtime);
-  record(task, `Đã áp dụng thay đổi từ Git worktree (${task.worktreeBranch || basename(wtRoot)}) vào dự án chính.${cleanup ? " Đã dọn dẹp worktree." : ""}`, "success");
-  persist();
-  publish("tasks");
 }
 async function discardTaskWorktree(task) {
   if (!task.isolated || !task.worktreePath || task.worktreeCleaned) {
@@ -2261,6 +2587,8 @@ async function api(request, response, pathname) {
     try { stat = await fs.stat(executable); }
     catch (error) { return json(response, 404, { error: `Không đọc được file CLI đã chọn: ${safeError(error)}` }); }
     if (!stat.isFile()) return json(response, 400, { error: "Đường dẫn đã chọn không phải là file CLI." });
+    const cliPathError = await validateCustomCliPath(executable);
+    if (cliPathError) return json(response, 400, { error: cliPathError });
     const version = await run(executable, ["--version"], { timeout: 10000, maxBuffer: 10000 });
     if (version.code !== 0) return json(response, 422, { error: `Không chạy được file đã chọn: ${safeError(version.stderr || version.stdout || "agy --version trả mã lỗi.")}` });
     process.env.ANTIGRAVITY_CLI_PATH = executable;
@@ -2287,6 +2615,8 @@ async function api(request, response, pathname) {
     try { stat = await fs.stat(executable); }
     catch (error) { return json(response, 404, { error: `Không đọc được file CLI đã chọn: ${safeError(error)}` }); }
     if (!stat.isFile()) return json(response, 400, { error: "Đường dẫn đã chọn không phải là file CLI." });
+    const cliPathError = await validateCustomCliPath(executable);
+    if (cliPathError) return json(response, 400, { error: cliPathError });
     const command = extension === ".js" ? { executable: process.execPath, prefixArgs: [executable] } : { executable, prefixArgs: [] };
     const version = await run(command.executable, [...command.prefixArgs, "--version"], { timeout: 15000, maxBuffer: 10000 });
     if (version.code !== 0) return json(response, 422, { error: `Không chạy được file đã chọn: ${safeError(version.stderr || version.stdout || "claude --version trả mã lỗi.")}` });
@@ -2523,6 +2853,7 @@ async function api(request, response, pathname) {
           ".mjs": "text/javascript; charset=utf-8",
           ".cjs": "text/javascript; charset=utf-8",
           ".json": "application/json; charset=utf-8",
+          ".xml": "application/xml; charset=utf-8",
           ".pdf": "application/pdf",
           ".png": "image/png",
           ".jpg": "image/jpeg",
@@ -2754,14 +3085,21 @@ async function api(request, response, pathname) {
             "Content-Length": outBuf.byteLength,
             "Content-Disposition": "inline",
             "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-modals allow-popups; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https: http:;",
           });
           return response.end(outBuf);
         }
+        const rawCsp = (ext === ".svg" || ext === ".xml")
+          ? { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data: blob: 'self'" }
+          : {};
         response.writeHead(200, {
           "Content-Type": mime,
           "Content-Length": buf.byteLength,
           "Content-Disposition": "inline",
           "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+          ...rawCsp,
         });
         return response.end(buf);
       } catch (error) {
@@ -2772,6 +3110,7 @@ async function api(request, response, pathname) {
       try {
         const relPath = safeRelativePath(params.get("path") || "").split(sep).join("/");
         if (!relPath) return json(response, 400, { error: "Thiếu đường dẫn tệp." });
+        if (!allowedTextFile(relPath)) return json(response, 403, { error: "Không được phép đọc tệp nhạy cảm này." });
         const baseArgs = taskForRoot?.isolated && taskForRoot?.worktreeBaseHead
           ? ["diff", "--no-ext-diff", "--no-color", taskForRoot.worktreeBaseHead, "--", relPath]
           : ["diff", "--no-ext-diff", "--no-color", "--", relPath];
@@ -2780,11 +3119,15 @@ async function api(request, response, pathname) {
         if (!diff.trim()) {
           const untracked = await git(baseRoot, ["ls-files", "--others", "--exclude-standard", "--", relPath]);
           if ((untracked.stdout || "").trim()) {
-            const { target, stat } = await resolveInside(baseRoot, relPath, true);
-            if (stat.isFile() && stat.size <= 300_000) {
-              const content = await fs.readFile(target, "utf8");
-              const lines = content.split(/\r?\n/);
-              diff = `diff --git a/${relPath} b/${relPath}\n--- /dev/null\n+++ b/${relPath}\n@@ -0,0 +1,${lines.length} @@\n` + lines.map((l) => `+${l}`).join("\n") + "\n";
+            const candidate = resolve(baseRoot, relPath);
+            const lstat = await fs.lstat(candidate).catch(() => null);
+            if (lstat && lstat.isFile() && !lstat.isSymbolicLink() && lstat.size <= 300_000) {
+              const { target, stat } = await resolveInside(baseRoot, relPath, true);
+              if (stat.isFile() && stat.size <= 300_000 && allowedTextFile(target)) {
+                const content = await fs.readFile(target, "utf8");
+                const lines = content.split(/\r?\n/);
+                diff = `diff --git a/${relPath} b/${relPath}\n--- /dev/null\n+++ b/${relPath}\n@@ -0,0 +1,${lines.length} @@\n` + lines.map((l) => `+${l}`).join("\n") + "\n";
+              }
             }
           }
         }
@@ -2822,8 +3165,12 @@ async function api(request, response, pathname) {
   if (request.method === "POST" && pathname === "/api/vault/open-obsidian") {
     if (!state.settings.vaultPath) return json(response, 404, { error: "Chưa kết nối Obsidian vault." });
     const body = await readBody(request).catch(() => ({}));
-    const opened = await openObsidianUri(state.settings.vaultPath, body.path || "");
-    return json(response, 200, opened);
+    try {
+      const opened = await openObsidianUri(state.settings.vaultPath, body.path || "");
+      return json(response, 200, opened);
+    } catch (error) {
+      return json(response, 400, { error: safeError(error) });
+    }
   }
   if (request.method === "GET" && pathname === "/api/vault/graph") {
     if (!state.settings.vaultPath) return json(response, 404, { error: "Chưa kết nối Obsidian vault." });
@@ -2833,7 +3180,9 @@ async function api(request, response, pathname) {
     const body = await readBody(request);
     const requestedPath = normalizeDirectoryInput(body.path);
     if (typeof body.path !== "string" || !requestedPath) return json(response, 400, { error: "Nhập đường dẫn thư mục dự án." });
+    if (isForbiddenSystemPath(requestedPath)) return json(response, 400, { error: "Không được đăng ký thư mục gốc ổ đĩa hoặc thư mục hệ thống nhạy cảm làm workspace." });
     const info = await inspectWorkspace(requestedPath);
+    if (isForbiddenSystemPath(info.path)) return json(response, 400, { error: "Không được đăng ký thư mục gốc ổ đĩa hoặc thư mục hệ thống nhạy cảm làm workspace." });
     const existing = state.workspaces.find((w) => w.path.toLowerCase() === info.path.toLowerCase());
     if (existing) return json(response, 200, { workspace: existing });
     const workspace = { id: randomUUID(), name: basename(info.path) || info.path, path: info.path, sourceFolders: [info.path], pinned: false, section: "Projects", addedAt: new Date().toISOString(), runtime: info };
@@ -2865,6 +3214,7 @@ async function api(request, response, pathname) {
         for (const rawPath of body.sourceFolders) {
           const requested = normalizeDirectoryInput(rawPath);
           if (!requested) continue;
+          if (isForbiddenSystemPath(requested)) return json(response, 400, { error: `Không được phép gắn thư mục gốc hoặc thư mục hệ thống nhạy cảm: “${requested}”.` });
           let realPath;
           try { realPath = await fs.realpath(requested); }
           catch (error) {
@@ -2872,6 +3222,7 @@ async function api(request, response, pathname) {
             throw error;
           }
           if (!(await fs.stat(realPath)).isDirectory()) throw new Error(`Đường dẫn nguồn không phải thư mục: “${requested}”.`);
+          if (isForbiddenSystemPath(realPath)) return json(response, 400, { error: `Không được phép gắn thư mục gốc hoặc thư mục hệ thống nhạy cảm: “${requested}”.` });
           folders.push(realPath);
         }
         const uniqueFolders = new Map([[workspace.path.toLowerCase(), workspace.path]]);
@@ -2917,8 +3268,11 @@ async function api(request, response, pathname) {
     if ((prompt.length < 6 && !safeAttachments.length) || prompt.length > 50000) return json(response, 400, { error: "Nhập ít nhất 6 ký tự hoặc đính kèm tệp; phần chữ tối đa 50.000 ký tự." });
     const connectors = await loadModels();
     const workflow = ["chat-only", "plan-only", "codex-antigravity"].includes(body.workflow) ? body.workflow : "codex-antigravity";
-    const permissionPreset = body.permissionPreset === undefined ? "full-access" : body.permissionPreset;
+    const permissionPreset = body.permissionPreset === undefined ? "workspace-write" : body.permissionPreset;
     if (!["read-only", "workspace-write", "full-access"].includes(permissionPreset)) return json(response, 400, { error: "Preset quyền không hợp lệ." });
+    if (permissionPreset === "read-only" && workflow === "codex-antigravity") {
+      return json(response, 400, { error: "Luồng Plan → Build → Review cần quyền ghi vào workspace. Hãy chọn Chỉ lên kế hoạch, Chỉ chat, hoặc đổi quyền sang Ghi trong workspace." });
+    }
     const roles = Object.fromEntries(workflowRoles.map((role) => [role.id, requestedRole(body, role.id, connectors)]));
     const chatProvider = String(body.chatProvider || state.settings.defaults?.chatProvider || "codex");
     const chatConnector = connectors[chatProvider];
@@ -2990,8 +3344,11 @@ async function api(request, response, pathname) {
     if (competitors.length < 2 || competitors.length > 8) return json(response, 400, { error: "Chọn từ 2 đến 8 nhánh agent để chạy song song trên các Git worktree." });
     const connectors = await loadModels();
     const workflow = ["chat-only", "plan-only", "codex-antigravity"].includes(body.workflow) ? body.workflow : "chat-only";
-    const permissionPreset = body.permissionPreset === undefined ? "full-access" : body.permissionPreset;
+    const permissionPreset = body.permissionPreset === undefined ? "workspace-write" : body.permissionPreset;
     if (!["read-only", "workspace-write", "full-access"].includes(permissionPreset)) return json(response, 400, { error: "Preset quyền không hợp lệ." });
+    if (permissionPreset === "read-only" && workflow === "codex-antigravity") {
+      return json(response, 400, { error: "Luồng Plan → Build → Review cần quyền ghi vào workspace. Hãy chọn Chỉ lên kế hoạch, Chỉ chat, hoặc đổi quyền sang Ghi trong workspace." });
+    }
     const normalizedCompetitors = [];
     for (const entry of competitors) {
       const provider = String(entry?.provider || "").trim();
@@ -3000,9 +3357,11 @@ async function api(request, response, pathname) {
       const model = String(entry?.model || connector.models?.[0]?.id || "").trim();
       const modelInfo = connector.models?.find((item) => item.id === model);
       const effort = String(entry?.effort || modelInfo?.efforts?.find((item) => item === "medium") || modelInfo?.efforts?.[0] || "").trim();
-      const requiredCap = workflow === "chat-only" ? "chat" : "plan";
-      const validationError = validateAgentSelection({ provider, model, effort }, requiredCap, connectors);
-      if (validationError) return json(response, 400, { error: validationError });
+      const requiredCaps = workflow === "chat-only" ? ["chat"] : workflow === "plan-only" ? ["plan"] : ["plan", "build", "review"];
+      for (const requiredCap of requiredCaps) {
+        const validationError = validateAgentSelection({ provider, model, effort }, requiredCap, connectors);
+        if (validationError) return json(response, 400, { error: validationError });
+      }
       normalizedCompetitors.push({ provider, model, effort, customLabel: String(entry?.label || "").trim() });
     }
     const fanoutId = `fanout-${randomUUID().slice(0, 8)}`;
@@ -3053,13 +3412,10 @@ async function api(request, response, pathname) {
       createdTasks.push(task);
     }
     for (const task of [...createdTasks].reverse()) state.tasks.unshift(task);
-    if ((Number(state.settings.maxConcurrent) || 2) < normalizedCompetitors.length) {
-      state.settings.maxConcurrent = Math.min(8, normalizedCompetitors.length);
-    }
     persist(); publish("tasks"); pump();
     return json(response, 201, { fanoutId, tasks: createdTasks });
   }
-  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist|apply-worktree|discard-worktree))?$/);
+  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist|apply-worktree|discard-worktree|worktree\/apply|worktree\/discard))?$/);
   if (match) {
     const id = decodeURIComponent(match[1]);
     const action = match[2] || "";
@@ -3105,12 +3461,19 @@ async function api(request, response, pathname) {
       if (reply) copiedMessages.push(reply);
       const forkId = `task-${randomUUID().slice(0, 8)}`;
       const now = new Date().toISOString();
+      const clonedConfig = structuredClone(task.config || {});
+      clonedConfig.workflow = "chat-only";
+      clonedConfig.chatProvider = sourceMessage.provider || task.config?.chatProvider;
+      clonedConfig.chatModel = sourceMessage.model || task.config?.chatModel;
+      clonedConfig.chatEffort = sourceMessage.effort || task.config?.chatEffort;
       const forkTask = {
         id: forkId, title: `Fork: ${task.title}`.slice(0, 120), prompt: task.prompt, workspaceId: task.workspaceId, workspacePath: task.workspacePath,
-        status: "done", phase: "done", isolated: false, config: { ...task.config, workflow: "chat-only", chatProvider: sourceMessage.provider || task.config.chatProvider, chatModel: sourceMessage.model || task.config.chatModel, chatEffort: sourceMessage.effort || task.config.chatEffort }, permissionPreset: task.permissionPreset || "workspace-write",
-        goal: task.goal || "", goalChecklist: (task.goalChecklist || []).map((item) => ({ ...item })), chatMessages: copiedMessages.map((item) => ({ ...item })), chatQueue: [],
+        status: "done", phase: "done", isolated: false, config: clonedConfig, permissionPreset: task.permissionPreset || "workspace-write",
+        plan: task.plan || "", implementation: task.implementation || "", review: task.review || "",
+        goal: task.goal || "", goalChecklist: (task.goalChecklist || []).map((item) => ({ ...item })), chatMessages: structuredClone(copiedMessages), chatQueue: [],
         forkedFrom: task.id, forkedFromMessageId: sourceMessage.id, createdAt: now, updatedAt: now, completedAt: now,
-        events: [{ at: now, kind: "success", text: `Forked from ${task.title} at a completed user message.` }], skills: task.skills || [], skillIds: task.skillIds || [], memoryUsed: [],
+        events: [{ at: now, kind: "success", text: `Forked from ${task.title} at a completed user message.` }],
+        skills: structuredClone(task.skills || []), skillIds: [...(task.skillIds || [])], memoryUsed: structuredClone(task.memoryUsed || []),
         storagePath: resolve(taskDir, forkId),
       };
       await fs.mkdir(forkTask.storagePath, { recursive: true });
@@ -3176,8 +3539,9 @@ async function api(request, response, pathname) {
       if (!workspace) return json(response, 404, { error: "Workspace của task không còn tồn tại." });
       const currentRun = running.get(task.id);
       if (task.status === "cancelled" && currentRun?.stopped) return json(response, 409, { error: "Task đang dừng. Hãy gửi tin nhắn lại sau khi tiến trình đã kết thúc." });
-      const lockPath = task.isolated ? (task.executionPath || workspace.path) : workspace.path;
-      if (!currentRun && !task.isolated && busyWorkspaces.has(lockPath)) return json(response, 409, { error: "Workspace đang được task khác sử dụng. Hãy gửi tin nhắn sau khi task đó hoàn tất." });
+      const sharedLock = usesSharedCheckout(task);
+      const lockKey = workspaceLockKey(sharedLock ? workspace.path : (task.executionPath || task.worktreePath || workspace.path));
+      const workspaceBusy = !currentRun && sharedLock && busyWorkspaces.has(lockKey);
       const message = { id: randomUUID(), role: "user", provider, model: model.id, effort, content, attachments: safeAttachments.map(({ name }) => ({ name })), status: "queued", createdAt: new Date().toISOString() };
       task.config ||= {};
       task.config.chatProvider = provider;
@@ -3188,7 +3552,7 @@ async function api(request, response, pathname) {
       task.chatMessages.push(message);
       task.chatQueue.push({ id: randomUUID(), messageId: message.id, provider, model: model.id, effort, content, attachments: safeAttachments });
       const queuedPosition = task.chatQueue.length;
-      record(task, `Đã nhận tin nhắn chat cho ${publicProviderName(provider)}${currentRun && !currentRun.isChat ? "; sẽ chuyển sau stage đang chạy" : ""}.`, "chat");
+      record(task, `Đã nhận tin nhắn chat cho ${publicProviderName(provider)}${currentRun && !currentRun.isChat ? "; sẽ chuyển sau stage đang chạy" : workspaceBusy ? "; đang chờ workspace rảnh" : ""}.`, "chat");
       persist();
       if (!currentRun && task.status !== "queued") void processTaskChatQueue(task);
       else if (!currentRun) pump();
@@ -3202,18 +3566,36 @@ async function api(request, response, pathname) {
       const stage = body.stage === undefined ? inferredRerunStage(task) : String(body.stage);
       if (!supportedRerunStages(task).includes(stage)) return json(response, 400, { error: "Giai đoạn chạy lại không hợp lệ với luồng của task." });
       if (task.config?.workflow === "chat-only" && task.status === "done") return json(response, 409, { error: "Chat đã hoàn tất. Hãy gửi tin nhắn mới để tiếp tục cuộc trò chuyện." });
+      if (task.permissionPreset === "read-only" && task.config?.workflow === "codex-antigravity" && (stage === "plan" || stage === "build")) {
+        return json(response, 400, { error: "Luồng Plan → Build → Review cần quyền ghi vào workspace. Hãy đổi quyền sang Ghi trong workspace trước khi chạy lại." });
+      }
       const workspace = state.workspaces.find((item) => item.id === task.workspaceId);
       if (!workspace) return json(response, 404, { error: "Workspace của task không còn tồn tại." });
-      const buildRole = task.config.roles?.build || roleConfig(task.config, "build");
-      const buildModel = (await loadModels())[buildRole.provider]?.models.find((model) => model.id === buildRole.model);
-      if (buildModel && !buildModel.efforts.includes(buildRole.effort)) {
-        const previousEffort = buildRole.effort;
-        buildRole.effort = buildModel.efforts[0];
-        task.config.roles ||= {};
-        task.config.roles.build = buildRole;
-        if (buildRole.provider === "antigravity") task.config.agyEffort = buildRole.effort;
-        task.retryNotice = `Mức suy nghĩ ${previousEffort} cũ không tương thích với model ${buildModel.name}; dùng ${buildRole.effort} theo cấu hình agent.`;
+      const connectors = await loadModels();
+      const notices = [];
+      task.config ||= {};
+      task.config.roles ||= {};
+      for (const roleId of ["plan", "build", "review"]) {
+        const role = { ...roleConfig(task.config, roleId) };
+        const roleModel = connectors[role.provider]?.models?.find((model) => model.id === role.model);
+        if (roleModel && roleModel.efforts?.length && !roleModel.efforts.includes(role.effort)) {
+          const previousEffort = role.effort;
+          role.effort = roleModel.efforts[0];
+          if (roleId === "plan" && role.provider === "codex") task.config.codexEffort = role.effort;
+          if (roleId === "build" && role.provider === "antigravity") task.config.agyEffort = role.effort;
+          notices.push(`Mức suy nghĩ ${previousEffort} cũ không tương thích với model ${roleModel.name}; dùng ${role.effort} theo cấu hình agent.`);
+        }
+        task.config.roles[roleId] = role;
       }
+      if (task.config.chatProvider && task.config.chatModel) {
+        const chatModel = connectors[task.config.chatProvider]?.models?.find((model) => model.id === task.config.chatModel);
+        if (chatModel && chatModel.efforts?.length && !chatModel.efforts.includes(task.config.chatEffort)) {
+          const previousEffort = task.config.chatEffort;
+          task.config.chatEffort = chatModel.efforts[0];
+          notices.push(`Mức suy nghĩ chat ${previousEffort} cũ không tương thích với model ${chatModel.name}; dùng ${task.config.chatEffort}.`);
+        }
+      }
+      if (notices.length) task.retryNotice = notices[0];
       const now = new Date().toISOString();
       const attempt = createStageRerunSnapshot(task, stage, now);
       task.stageRunHistory = [...(task.stageRunHistory || []), attempt].slice(-5);
@@ -3225,37 +3607,51 @@ async function api(request, response, pathname) {
       if (affected.includes("build")) task.implementation = "";
       if (affected.includes("review")) task.review = "";
       if (affected.includes("plan") || affected.includes("build")) task.artifacts = [];
+      if (stage === "chat" || affected.includes("plan") || affected.includes("build")) task.worktreeAppliedAt = null;
       task.status = "queued"; task.phase = "queued"; task.error = null; task.failedPhase = null; task.stageFailure = null; task.completedAt = null;
       persist(); record(task, `Đưa task vào hàng đợi chạy lại từ stage ${stage}; giữ các đầu ra trước đó trong lịch sử.${task.retryNotice ? ` ${task.retryNotice}` : ""}`, "success"); pump(); return json(response, 202, { task });
     }
     if (request.method === "POST" && action === "stop") {
       const active = running.get(task.id);
       if (task.status === "queued" && !active) {
+        task.failedPhase = task.phase;
         task.status = "cancelled"; task.phase = "cancelled";
         finishStageRerun(task, "cancelled", "Đã hủy khi task còn trong hàng đợi.");
-        const abandoned = failQueuedChatTurns(task);
+        const abandoned = failQueuedChatTurns(task, true);
         record(task, `Đã hủy khi task còn trong hàng đợi.${abandoned ? ` Đã hủy ${abandoned} tin nhắn đang chờ.` : ""}`, "warning");
+        persist();
         return json(response, 200, { task });
       }
       if (!active) return json(response, 409, { error: "Task không chạy." });
       active.stopped = true;
       if (active.child) killTree(active.child);
       if (active.abortController) active.abortController.abort(new Error("Stopped by user"));
+      const abandoned = failQueuedChatTurns(task, true);
+      if (active.isChat && task.preChatStatus === "done") {
+        task.status = "done";
+        task.phase = "done";
+        task.error = null;
+        record(task, `Đã dừng lượt chat theo yêu cầu; giữ nguyên kết quả task đã hoàn tất.${abandoned ? ` Đã hủy ${abandoned} tin nhắn đang chờ.` : ""}`, "warning");
+        persist();
+        return json(response, 202, { task });
+      }
       finishStageRerun(task, "cancelled", "Đã dừng theo yêu cầu.");
-      const abandoned = failQueuedChatTurns(task);
+      task.failedPhase = task.phase;
       task.status = "cancelled"; task.phase = "cancelled"; task.completedAt = new Date().toISOString();
-      record(task, `Đã gửi yêu cầu dừng tới tiến trình CLI.${abandoned ? ` Đã hủy ${abandoned} tin nhắn đang chờ.` : ""}`, "warning"); return json(response, 202, { task });
+      record(task, `Đã gửi yêu cầu dừng tới tiến trình CLI.${abandoned ? ` Đã hủy ${abandoned} tin nhắn đang chờ.` : ""}`, "warning");
+      persist();
+      return json(response, 202, { task });
     }
-    if (request.method === "POST" && action === "apply-worktree") {
+    if (request.method === "POST" && (action === "apply-worktree" || action === "worktree/apply")) {
       const body = await readBody(request);
       try {
-        await applyTaskWorktree(task, { cleanup: Boolean(body.cleanup) });
-        return json(response, 200, { ok: true, task });
+        const updated = await applyTaskWorktree(task, { cleanup: Boolean(body.cleanup) });
+        return json(response, 200, { ok: true, task: updated, appliedFiles: updated.appliedFiles || [] });
       } catch (error) {
         return json(response, 409, { error: safeError(error) });
       }
     }
-    if (request.method === "POST" && action === "discard-worktree") {
+    if (request.method === "POST" && (action === "discard-worktree" || action === "worktree/discard")) {
       try {
         await discardTaskWorktree(task);
         return json(response, 200, { ok: true, task });
@@ -3365,6 +3761,7 @@ async function api(request, response, pathname) {
       const requested = normalizeDirectoryInput(body.vaultPath);
       if (!requested) state.settings.vaultPath = "";
       else {
+        if (isForbiddenSystemPath(requested)) return json(response, 400, { error: "Không được chọn thư mục gốc ổ đĩa hoặc thư mục hệ thống nhạy cảm làm vault." });
         let realPath;
         try { realPath = await fs.realpath(resolve(requested)); }
         catch (error) {
@@ -3373,6 +3770,7 @@ async function api(request, response, pathname) {
         }
         const stat = await fs.stat(realPath);
         if (!stat.isDirectory()) return json(response, 400, { error: "Đường dẫn vault phải là một thư mục có thật." });
+        if (isForbiddenSystemPath(realPath)) return json(response, 400, { error: "Không được chọn thư mục gốc ổ đĩa hoặc thư mục hệ thống nhạy cảm làm vault." });
         state.settings.vaultPath = realPath;
       }
     }
@@ -3440,7 +3838,7 @@ return serverFactory(serverOptions, async (request, response) => {
   }
   if (pathname.startsWith("/api/")) {
     try { await api(request, response, pathname); }
-    catch (error) { json(response, 500, { error: safeError(error) }); }
+    catch (error) { json(response, error?.statusCode || 500, { error: safeError(error) }); }
     return;
   }
   if (request.method !== "GET" && request.method !== "HEAD") return json(response, 405, { error: "Method not allowed" });
@@ -3568,4 +3966,11 @@ export async function stopWorkbench() {
     ]);
   }
   server = undefined;
+}
+
+const isDirectRun = Boolean(process.argv[1]) && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isDirectRun) {
+  process.once("SIGINT", () => { stopWorkbench().finally(() => process.exit(0)); });
+  process.once("SIGTERM", () => { stopWorkbench().finally(() => process.exit(0)); });
+  await startWorkbench();
 }

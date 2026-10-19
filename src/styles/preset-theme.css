@@ -309,23 +309,23 @@ body .wb-app-shell select optgroup {
 .wb-page-content .detail-backdrop,
 #overlay .modal-backdrop { background: rgb(0 0 0 / 58%); }
 /* Desktop uses the native Windows acrylic backdrop. Web keeps its opaque theme. */
-html.desktop-glass:not([data-theme]), html.desktop-glass[data-theme="obsidian"] {
-  --wb-rail: rgba(23, 24, 25, .93);
-  /* Keep the sidebar tint light enough to reveal the native acrylic backdrop. */
-  --wb-sidebar: rgba(20, 24, 30, .28);
-  --wb-main: rgba(36, 37, 38, .87);
-  --wb-panel: rgba(38, 39, 41, .96);
-  --wb-surface: rgba(43, 44, 46, .94);
-  --wb-surface-soft: rgba(37, 38, 40, .92);
-  --wb-raised: rgba(48, 50, 53, .96);
-  --wb-field: rgba(32, 33, 35, .92);
-  --wb-control: rgba(48, 50, 52, .92);
-}
 html.desktop-glass body,
 html.desktop-glass #root { background: transparent; }
-html.desktop-glass[data-theme="obsidian"] .wb-topbar { background: rgba(36, 37, 38, .91); }
-html.desktop-glass[data-theme="obsidian"] .wb-page-content .home-composer,
-html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-page .chat-composer { background: rgba(43, 44, 46, .93); }
+html.desktop-glass .wb-rail,
+html.desktop-glass .wb-main,
+html.desktop-glass .wb-topbar {
+  background: color-mix(in srgb, var(--wb-bg) 82%, transparent);
+}
+html.desktop-glass .wb-sidebar {
+  /* Keep the sidebar tint light enough to reveal the native acrylic backdrop. */
+  background: color-mix(in srgb, var(--wb-bg) 68%, transparent);
+}
+html.desktop-glass .wb-panel,
+html.desktop-glass .wb-surface,
+html.desktop-glass .wb-page-content .home-composer,
+html.desktop-glass .wb-page-content .task-conversation-page .chat-composer {
+  background: color-mix(in srgb, var(--wb-bg-elevated) 78%, transparent);
+}
 
 /* Shared add menu for both chat composers. */
 .composer-attachments { min-width: 0; display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 9px; }
@@ -816,7 +816,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 .wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card .user-message-content,
 .wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card .user-message-content p,
 .wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card .user-message-content li {
-  color: var(--wb-ink-strong) !important;
+  color: var(--wb-user-bubble-fg, var(--wb-ink-strong)) !important;
   opacity: 1 !important;
 }
 @media (max-width: 740px) {
@@ -1615,7 +1615,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   gap: 8px;
   margin: 6px 16px 6px 64px;
   padding: 6px 8px;
-  border: 1px solid #4d5360;
+  border: 1px solid var(--wb-border-strong);
   border-radius: 7px;
   background: var(--wb-raised);
 }
@@ -1695,7 +1695,7 @@ body,
   background: transparent !important;
   -webkit-app-region: drag;
   user-select: none;
-  z-index: 30;
+  z-index: 100;
 }
 .wb-window-chrome-left,
 .wb-window-chrome-right {
@@ -2919,7 +2919,7 @@ body *:not(.wb-rail-nav) {
 .wb-page-content .composer-config-modal,
 .desktop-setup-overlay {
   padding: 24px 16px !important;
-  background: var(--wb-surface-soft) !important;
+  background: var(--wb-overlay) !important;
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
   display: grid !important;
@@ -7018,23 +7018,25 @@ textarea::placeholder,
   white-space: normal !important;
 }
 
-.wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card {
+.wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card,
+.wb-page-content .chat-turn-user .user-bubble-card {
   display: inline-block !important;
   width: fit-content !important;
   max-width: 100% !important;
   padding: 6px 14px !important;
-  border: 1px solid rgba(96, 152, 235, 0.22) !important;
+  border: 1px solid var(--wb-user-bubble-border) !important;
   border-radius: 16px !important;
   background: var(--wb-user-bubble-bg) !important;
-  color: var(--wb-ink-strong) !important;
+  color: var(--wb-user-bubble-fg, var(--wb-ink-strong)) !important;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2) !important;
   white-space: normal !important;
 }
 
-.wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card .user-message-content {
+.wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card .user-message-content,
+.wb-page-content .chat-turn-user .user-bubble-card .user-message-content {
   font-size: 13px !important;
   line-height: 1.45 !important;
-  color: var(--wb-ink-strong) !important;
+  color: var(--wb-user-bubble-fg, var(--wb-ink-strong)) !important;
   white-space: normal !important;
 }
 
@@ -7076,7 +7078,7 @@ textarea::placeholder,
   border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
   border-radius: 999px !important;
   background: color-mix(in srgb, var(--wb-tint) 4%, transparent) !important;
-  color: #9ca3af !important;
+  color: var(--wb-ink-muted) !important;
   font-size: 10.5px !important;
   font-weight: 520 !important;
   cursor: pointer !important;
@@ -7273,7 +7275,7 @@ textarea::placeholder,
   max-height: min(420px, calc(100% - 16px)) !important;
   padding: 10px !important;
   overflow: hidden !important;
-  border-color: color-mix(in srgb, var(--wb-line) 86%, white 14%) !important;
+  border-color: color-mix(in srgb, var(--wb-line) 86%, var(--wb-ink-strong) 14%) !important;
   border-radius: 14px !important;
   background: var(--wb-surface, var(--wb-surface)) !important;
   box-shadow: 0 20px 56px #0009 !important;
@@ -7327,7 +7329,10 @@ textarea::placeholder,
   font-size: 12px !important;
   font-weight: 600 !important;
 }
-.multi-chat-picker-create:hover { background: color-mix(in srgb, var(--wb-surface-raised, var(--wb-raised)) 80%, white 20%) !important; }
+.multi-chat-picker-create:hover,
+.chat-arena-slot-remove:hover,
+.multi-chat-create-close:hover { background: color-mix(in srgb, var(--wb-surface-raised, var(--wb-raised)) 80%, var(--wb-ink-strong) 20%) !important; }
+.chat-arena-slot-card { border-color: color-mix(in srgb, var(--wb-line) 86%, var(--wb-ink-strong) 14%); }
 .multi-chat-create-backdrop {
   position: absolute;
   z-index: 30;
@@ -7407,7 +7412,7 @@ textarea::placeholder,
 .multi-chat-create-form .home-config-permission-menu > .codex-perm-pill { width: 100% !important; justify-content: flex-start !important; }
 .multi-chat-create-form .home-config-permission-menu > .codex-perm-pill > span { display: inline-flex !important; flex: 1 1 auto !important; }
 .multi-chat-create-form .multi-chat-create-prompt textarea:focus,
-.multi-chat-create-form .multi-chat-create-prompt textarea:focus-visible { outline: none !important; border-color: color-mix(in srgb,var(--wb-line) 76%,white 24%) !important; box-shadow: none !important; }
+.multi-chat-create-form .multi-chat-create-prompt textarea:focus-visible { outline: none !important; border-color: color-mix(in srgb,var(--wb-line) 76%,var(--wb-ink-strong) 24%) !important; box-shadow: none !important; }
 .multi-chat-create-form > .app-dialog-footer { flex: 0 0 auto !important; }
 .multi-chat-create-form > .app-dialog-content { flex: 0 1 auto !important; gap: 12px !important; padding-top: 8px !important; padding-bottom: 14px !important; }
 .multi-chat-create-form > .app-dialog-header { padding: 16px 24px 8px !important; }
@@ -7489,6 +7494,12 @@ body .orca-right-dock .icon-button:hover:not(:disabled) {
   color: var(--wb-ink-strong) !important;
 }
 
+.orca-tree-item:has([open]),
+.kb-file-row:has([open]),
+.vault-file-item:has([open]) {
+  z-index: 30 !important;
+}
+
 .orca-tree-item:has(.vault-action-menu) .orca-tree-row {
   padding-right: 26px !important;
 }
@@ -7499,6 +7510,15 @@ body .orca-right-dock .icon-button:hover:not(:disabled) {
   top: 50% !important;
   transform: translateY(-50%) !important;
   z-index: 4;
+}
+
+.orca-tree-item .vault-action-menu[open] {
+  z-index: 35 !important;
+}
+
+.orca-dock-body:has([open]),
+.wb-side-scroll:has(.wb-project-menu, .wb-task-menu) {
+  padding-bottom: 140px;
 }
 
 .orca-tree-item .vault-action-menu > summary.vault-more-btn {
@@ -8378,9 +8398,8 @@ summary:hover svg.lucide-animated .la-eye-outline { transform: scaleY(1.04); }
    Multi-Theme System: WindowChrome Popover + Settings Gallery + Surface Sync
    ========================================================================== */
 
-html.desktop-glass:not([data-theme]) .wb-app-shell,
-html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
-  background: linear-gradient(145deg, rgba(16, 20, 26, 0.62) 0%, rgba(12, 15, 19, 0.68) 100%) !important;
+html.desktop-glass .wb-app-shell {
+  background: color-mix(in srgb, var(--wb-bg) 65%, transparent) !important;
 }
 
 .wb-theme-menu {
@@ -8779,10 +8798,22 @@ html[data-color-scheme="light"] .codex-pop-card,
 html[data-color-scheme="light"] .wb-theme-pop-card,
 html[data-color-scheme="light"] #overlay .modal,
 html[data-color-scheme="light"] .composer-config-dialog,
-html[data-color-scheme="light"] .desktop-setup-dialog {
+html[data-color-scheme="light"] .desktop-setup-dialog,
+html[data-color-scheme="light"] .wb-page-content .multi-chat-create-form,
+html[data-color-scheme="light"] .wb-page-content .orca-inspect-banner,
+html[data-color-scheme="light"] .wb-page-content .orca-element-comment-popover {
   background: var(--wb-panel) !important;
   border-color: var(--wb-border-subtle) !important;
   box-shadow: 0 16px 38px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+}
+
+#overlay:not(:empty) {
+  z-index: 90;
+}
+
+#toast,
+.toast {
+  z-index: 110;
 }
 
 html[data-color-scheme="light"] *::-webkit-scrollbar-thumb {
