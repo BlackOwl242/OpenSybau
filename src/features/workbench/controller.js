@@ -2914,7 +2914,7 @@ function chatPage() {
     { id: "arena", label: "Đa luồng", icon: "git-branch", title: "Chạy đa luồng nhiều agent (cùng hoặc khác model) trên các Git worktree riêng" },
   ];
   const activeHomeMode = homeModeOptions.find((mode) => mode.id === view.homeMode) || homeModeOptions[0];
-  const homeModeMenu = `<details class="codex-pop-menu is-down is-right home-mode-picker" data-pop-id="home-mode">
+  const homeModeMenu = `<details class="codex-pop-menu is-up is-right home-mode-picker" data-pop-id="home-mode">
     <summary class="codex-rail-pill" title="Chế độ làm việc" aria-label="Chế độ làm việc" aria-haspopup="menu">${icon(activeHomeMode.icon, 14)}<span>${activeHomeMode.label}</span>${icon("chevron-down", 12)}</summary>
     <div class="codex-pop-card home-mode-popover" role="menu" aria-label="Chế độ làm việc"><div class="codex-pop-head">Chế độ làm việc</div>
       ${homeModeOptions.map((mode) => `<button type="button" role="menuitemradio" aria-checked="${mode.id === activeHomeMode.id}" class="codex-pop-item ${mode.id === activeHomeMode.id ? "is-selected" : ""}" data-home-mode="${mode.id}" ${mode.disabled ? "disabled title=\"Cần agent phù hợp để dùng chế độ này\"" : mode.title ? `title="${mode.title}"` : ""}><span class="codex-pop-item-main">${icon(mode.icon, 14)}<span>${mode.label}</span></span>${mode.id === activeHomeMode.id ? icon("check", 13) : ""}</button>`).join("")}
@@ -2977,7 +2977,7 @@ function chatPage() {
         <div class="codex-composer-rail">
           <div class="codex-rail-bar">
             <div class="codex-rail-left">
-              ${workspaces.length ? `<details class="codex-pop-menu is-down" data-pop-id="home-workspace">
+              ${workspaces.length ? `<details class="codex-pop-menu is-up" data-pop-id="home-workspace">
                 <summary class="codex-rail-pill" title="Chọn dự án (Workspace)">
                   ${icon("folder", 14)}
                   <span>${esc(activeWorkspace?.name || "Chọn dự án")}</span>
@@ -4192,7 +4192,7 @@ async function handleWorkbenchClick(event) {
   const popSummary = event.target.closest?.(".codex-pop-menu > summary");
   if (popSummary) {
     const menu = popSummary.parentElement;
-    if (menu.closest(".home-composer-controls, .chat-composer-controls")) {
+    if (menu.closest(".codex-rail-bar, .home-composer-controls, .chat-composer-controls")) {
       menu.classList.add("is-up");
       menu.classList.remove("is-down");
     } else if (!menu.matches(".agent-role-picker[data-role-field='model']") && !menu.querySelector(".codex-pop-card.is-effort-list")) {

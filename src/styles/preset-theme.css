@@ -2160,6 +2160,11 @@ body .wb-top-icon:hover {
   position: relative;
   z-index: 3;
 }
+.codex-composer-rail:has([open]),
+.home-composer:has([open]),
+.chat-composer:has([open]) {
+  z-index: 40 !important;
+}
 .codex-rail-bar {
   display: flex;
   flex-wrap: wrap;
@@ -3605,15 +3610,15 @@ summary:hover svg.lucide-animated .la-dot-3 {
   transform-origin: top right !important;
 }
 
-/* Ordinary dropdowns open below their trigger. Composer footer menus always open upward. */
+/* Ordinary dropdowns open below their trigger. Composer rail & footer menus always open upward. */
 .codex-pop-menu:not(.is-up):not(:has(.codex-pop-card.is-model-list)):not(:has(.codex-pop-card.is-effort-list)) > .codex-pop-card,
-.codex-rail-bar .codex-pop-menu > .codex-pop-card,
 .agent-role-picker[data-role-field="agent"] > .codex-pop-card {
   top: calc(100% + 6px) !important;
   bottom: auto !important;
   transform-origin: top left !important;
 }
 
+.codex-rail-bar .codex-pop-menu > .codex-pop-card,
 .home-composer-controls .codex-pop-menu > .codex-pop-card,
 .chat-composer-controls .codex-pop-menu > .codex-pop-card {
   bottom: calc(100% + 8px) !important;
@@ -3622,6 +3627,7 @@ summary:hover svg.lucide-animated .la-dot-3 {
   transform-origin: bottom left !important;
 }
 
+.codex-rail-bar .codex-pop-menu.is-right > .codex-pop-card,
 .home-composer-controls .codex-pop-menu.is-right > .codex-pop-card,
 .chat-composer-controls .codex-pop-menu.is-right > .codex-pop-card {
   transform-origin: bottom right !important;

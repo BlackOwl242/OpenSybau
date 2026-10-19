@@ -5,6 +5,16 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.92] - 2026-10-19
+
+### English
+- Fix composer top context rail dropdowns (Workspace picker & Task mode picker) so they open upward (`is-up`) instead of downward, and elevate `.codex-composer-rail` stacking context (`z-index`) when a popover is open so menus are never clipped or hidden behind `.home-composer`.
+
+### Tiếng Việt
+- Sửa các menu chọn ở thanh ngữ cảnh phía trên khung nhập lệnh (Chọn dự án & Chế độ tác vụ) để luôn bật ngược lên trên (`is-up`) và nâng `z-index` của `.codex-composer-rail` khi mở menu nhằm tránh bị khung nhập lệnh che khuất.
+
+---
+
 ## [0.2.91] - 2026-10-19
 
 ### English
