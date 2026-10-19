@@ -227,11 +227,22 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .workflow-node { border-color: var(--wb-border-strong); color: var(--wb-ink); background: var(--wb-control); }
 .wb-page-content .workflow-node:hover { border-color: var(--wb-subtle); background: var(--wb-control-hover); }
 .wb-page-content .workflow-node strong { color: var(--wb-ink-strong); }
-.wb-page-content .workflow-node small, .wb-page-content .workflow-node em { color: var(--wb-muted); }
+.wb-page-content .workflow-node small, .wb-page-content .workflow-node em { color: var(--wb-muted); background: transparent; }
+.wb-page-content .workflow-node .workflow-node-mark { color: var(--wb-ink); background: var(--wb-raised); }
 .wb-page-content .workflow-node.node-complete { border-color: #4b6655; background: var(--wb-green-soft); }
 .wb-page-content .workflow-node.node-complete .workflow-node-mark { color: var(--wb-green); background: var(--wb-green-raised); }
-.wb-page-content .workflow-node.node-active { border-color: #53678c; background: var(--wb-blue-soft); }
+.wb-page-content .workflow-node.node-complete em { color: var(--wb-green); background: transparent; }
+.wb-page-content .workflow-node.node-active { border-color: #53678c; background: var(--wb-blue-soft); box-shadow: none; }
+.wb-page-content .workflow-node.node-active .workflow-node-mark { color: var(--wb-accent); background: var(--wb-blue-raised); }
+.wb-page-content .workflow-node.node-active em { color: var(--wb-accent); background: transparent; }
+.wb-page-content .workflow-node.node-queued { border-color: #6a5631; background: var(--wb-amber-soft); }
+.wb-page-content .workflow-node.node-queued .workflow-node-mark { color: var(--wb-amber); background: color-mix(in srgb, var(--wb-amber) 18%, transparent); }
+.wb-page-content .workflow-node.node-queued em { color: var(--wb-amber); background: transparent; }
 .wb-page-content .workflow-node.node-failed { border-color: #704646; background: var(--wb-red-soft); }
+.wb-page-content .workflow-node.node-failed .workflow-node-mark { color: var(--wb-red); background: color-mix(in srgb, var(--wb-red) 18%, transparent); }
+.wb-page-content .workflow-node.node-failed em { color: var(--wb-red); background: transparent; }
+.wb-page-content .workflow-node.node-cancelled .workflow-node-mark { color: var(--wb-muted); background: var(--wb-control); }
+.wb-page-content .workflow-node.node-cancelled em { color: var(--wb-muted); background: transparent; }
 .wb-page-content .workflow-task-title { flex: 1 1 auto; border-radius: 5px; transition: color .14s ease; }
 .wb-page-content .workflow-task-title:hover { background: transparent; }
 .wb-page-content .workflow-task-title:hover strong { color: var(--wb-accent); }
@@ -280,8 +291,11 @@ button:disabled { cursor: not-allowed; }
 .wb-page-content .orchestration-node-card { border-color: var(--wb-subtle); background: var(--wb-raised); }
 .wb-page-content .orchestration-node-card > header > span, .wb-page-content .orchestration-node-main p, .wb-page-content .orchestration-event p { color: var(--wb-muted); }
 .wb-page-content .orchestration-node.state-complete .orchestration-node-card { border-color: #4a705a; }
+.wb-page-content .orchestration-node.state-complete .orchestration-node-card > header > span { color: var(--wb-green); }
 .wb-page-content .orchestration-node.state-active .orchestration-node-card { border-color: #566d95; }
-.wb-page-content .orchestration-node.state-failed .orchestration-node-card { border-color: #754949; }
+.wb-page-content .orchestration-node.state-active .orchestration-node-card > header > span { color: var(--wb-accent); }
+.wb-page-content .orchestration-node.state-failed .orchestration-node-card { border-color: #754949; background: var(--wb-red-soft); }
+.wb-page-content .orchestration-node.state-failed .orchestration-node-card > header > span { color: var(--wb-red); }
 .wb-page-content .detail-stage-strip, .wb-page-content .chat-thread, .wb-page-content .activity-notice, .wb-page-content .stage-results pre, .wb-page-content .orchestration-activity-note { border-color: var(--wb-subtle); background-color: var(--wb-raised); }
 .wb-page-content .task-chat-pane, .wb-page-content .agent-activity-pane, .wb-page-content .chat-composer, .wb-page-content .pane-heading { background: var(--wb-raised); }
 .wb-page-content .modal, .wb-page-content .detail-panel { border-color: var(--wb-border-strong); color: var(--wb-ink); background: var(--wb-surface); box-shadow: 0 18px 60px #0008; }

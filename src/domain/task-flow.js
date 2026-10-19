@@ -12,9 +12,10 @@ export function orchestrationNodes(task) {
   const failed = task.status === "failed" || task.status === "cancelled";
   const phaseOrder = { queued: 0, chat: 2, plan: 3, build: 5, review: 7, done: 9, failed: 9, cancelled: 9 };
   const activeOrder = phaseOrder[task.phase] ?? 0;
+  const failedOrder = phaseOrder[task.failedPhase] ?? activeOrder;
   const status = (order, done, active = false, failureRelevant = false) => {
-    if (failureRelevant && failed && (task.failedPhase === task.phase || task.phase === "failed" || task.phase === "cancelled")) return task.status;
     if (done || task.status === "done" && order <= activeOrder) return "complete";
+    if (failureRelevant && failed && order === failedOrder) return task.status;
     if (task.status === "queued") return order === 0 ? "complete" : "queued";
     if (active || task.status === "running" && order === activeOrder) return "active";
     return task.status === "running" && order < activeOrder ? "complete" : "pending";

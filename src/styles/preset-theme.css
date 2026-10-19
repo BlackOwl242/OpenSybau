@@ -6870,6 +6870,21 @@ textarea::placeholder,
   border-color: color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
 }
 
+.wb-page-content .chat-tool-card.is-error {
+  background: var(--wb-red-soft) !important;
+  border-color: color-mix(in srgb, var(--wb-red) 28%, transparent) !important;
+}
+
+.wb-page-content .chat-tool-card.is-error .chat-tool-icon,
+.wb-page-content .chat-tool-card.is-error .chat-tool-badge,
+.wb-page-content .chat-tool-card.is-error .chat-tool-text {
+  color: var(--wb-red) !important;
+}
+
+.wb-page-content .chat-tool-card.is-error .chat-tool-badge {
+  background: color-mix(in srgb, var(--wb-red) 16%, transparent) !important;
+}
+
 .wb-page-content .chat-tool-icon {
   display: inline-flex !important;
   align-items: center !important;

@@ -1620,28 +1620,31 @@ function parseAgyEvent(line, task, outputParts) {
   if (text && typeof text === "string") { outputParts.push(text); record(task, text.slice(-1500), "output"); }
   if (event.usage) { task.usage = { ...(task.usage || {}), antigravity: event.usage }; task._currentStageUsage = event.usage; }
   if (update.usage) { task.usage = { ...(task.usage || {}), antigravity: update.usage }; task._currentStageUsage = update.usage; }
-  if (update.tool_info?.error) { task.stageFailure = String(update.tool_info.error.message || update.tool_info.error); record(task, task.stageFailure, "error"); }
+  const toolError = update.tool_info?.error ? String(update.tool_info.error.message || update.tool_info.error) : "";
   if (type === "result" && event.result) {
     if (event.result.usage) { task.usage = { ...(task.usage || {}), antigravity: event.result.usage }; task._currentStageUsage = event.result.usage; }
     if (event.result.response && !outputParts.length) { outputParts.push(event.result.response); record(task, event.result.response.slice(-1500), "output"); }
     if (event.result.status && event.result.status !== "SUCCESS") task.stageFailure = event.result.error || `Antigravity status: ${event.result.status}`;
+    else task.stageFailure = null;
   }
   const toolName = event.name || event.tool_name || event.tool?.name || update.tool_info?.name;
   const toolArgs = update.tool_info?.args || event.tool?.args || event.args || {};
   const filePath = String(toolArgs?.path || toolArgs?.file || toolArgs?.TargetFile || toolArgs?.AbsolutePath || "").slice(0, 200);
   const cmd = String(toolArgs?.command || toolArgs?.CommandLine || "").slice(0, 240);
   if (["tool_start", "tool_call", "tool.started", "tool_result", "tool.completed", "tool_use", "tool_result"].includes(type) || update.tool_info) {
-    record(task, `Antigravity · ${type || "tool"}${toolName ? ` · ${String(toolName).slice(0, 120)}` : ""}${filePath ? ` · ${filePath}` : cmd ? ` · ${cmd.slice(0, 80)}` : ""}`, "tool", {
+    record(task, `Antigravity · ${type || "tool"}${toolName ? ` · ${String(toolName).slice(0, 120)}` : ""}${filePath ? ` · ${filePath}` : cmd ? ` · ${cmd.slice(0, 80)}` : ""}${toolError ? ` · ${toolError.slice(0, 120)}` : ""}`, "tool", {
       toolName: toolName ? String(toolName).slice(0, 120) : "tool",
       filePath: filePath || undefined,
       command: cmd || undefined,
-      status: type.includes("result") || type.includes("completed") ? "done" : "running",
+      detail: toolError ? toolError.slice(0, 600) : undefined,
+      status: toolError ? "done" : (type.includes("result") || type.includes("completed") ? "done" : "running"),
     });
   }
 }
 async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride = null) {
   const stageStartedAt = Date.now();
   task._currentStageUsage = null;
+  task.stageFailure = null;
   assertTaskActive(task);
   const selection = selectionOverride || (workflowRoles.some((role) => role.id === stage) ? stageSelection(task, stage) : {
     provider: task.config.chatProvider || "codex", model: task.config.chatModel || task.config.codexModel, effort: task.config.chatEffort || task.config.codexEffort,

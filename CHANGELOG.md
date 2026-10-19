@@ -5,6 +5,20 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.94] - 2026-10-19
+
+### English
+- Fix Antigravity CLI stream parsing (`parseAgyEvent`) so recoverable intermediate tool errors (e.g., `ContentOffset` validation notices during `view_file` pagination) do not prematurely mark `task.stageFailure` or abort a stage that subsequently finishes with `status === "SUCCESS"`, and reset `task.stageFailure` cleanly at the start of every stage.
+- Fix workflow stage status attribution (`orchestrationNodes`) so only the stage that actually failed (`order === failedOrder`) displays as `"failed"`, while subsequent unexecuted stages remain `"pending"` instead of falsely showing `"Lỗi"` simultaneously.
+- Fix legacy pale-red highlight boxes (`#fbe9e9`) on `.workflow-node.node-failed em` and `.workflow-node-mark` by unifying workflow node badges, icons, and `.chat-tool-card.is-error` cards with theme-native semantic tokens (`--wb-red`, `--wb-red-soft`).
+
+### Tiếng Việt
+- Khắc phục lỗi xử lý luồng tiến trình Antigravity CLI (`parseAgyEvent`) khiến các lỗi công cụ trung gian có thể tự phục hồi (như thông báo vượt `ContentOffset` khi phân trang `view_file`) làm gán nhầm `task.stageFailure` và đánh trượt cả giai đoạn dù tiến trình kết thúc thành công (`status === "SUCCESS"`), đồng thời reset `task.stageFailure` khi bắt đầu mỗi giai đoạn.
+- Sửa logic hiển thị trạng thái giai đoạn trong `orchestrationNodes` để chỉ đúng giai đoạn gặp sự cố (`order === failedOrder`) hiển thị `"Lỗi"`, còn các giai đoạn phía sau chưa chạy giữ nguyên trạng thái `"Chưa chạy"` thay vì báo lỗi hàng loạt.
+- Xóa bỏ khung nền tô đỏ nhạt (`#fbe9e9`) lạc tông quanh chữ `"Lỗi"` (`.workflow-node.node-failed em` và `.workflow-node-mark`), đồng bộ hoàn toàn màu chữ, biểu tượng trạng thái và thẻ `.chat-tool-card.is-error` theo hệ màu của chủ đề (`--wb-red`, `--wb-red-soft`).
+
+---
+
 ## [0.2.93] - 2026-10-19
 
 ### English
