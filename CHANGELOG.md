@@ -5,6 +5,28 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.100] - 2026-10-20
+
+### English
+- **Unified 6-Station Pipeline & 3-Role AI Routing (`src/domain/task-flow.js`, `src/domain/agent-roles.js`, `src/features/workbench/controller.js`)**:
+  - Unify the 6-station pipeline stepper with the 3-role AI routing configuration so there is zero contradiction: **Stations 1, 3, and 4** are powered by the **3 AI Roles** (`1. Plan` -> Planning AI, `3. Implement` -> Implementation AI, `4. Review` -> Review AI), while **Stations 2, 5, and 6** are **Human & System Checkpoints** (`2. Plan Gate`, `5. QA Runner`, `6. Integrate`) that do not consume an additional AI model.
+  - Add station badges (`Station 1/6`, `Station 3/6`, `Station 4/6`) to each role card and a visual 6-station architecture strip inside **Settings → Who plans and who implements**.
+- **Clean Status Filter & Monochrome SVG Icons on Flows Board (`workflowPage`)**:
+  - Replace the cryptic `Risk: All | S | M | L | ⚡ Critical` filter bar and AI-style `⚡` emoji with a clear, practical status filter (`Show: All | Needs attention | Running | Done`) using monochrome SVG icons.
+- **100% Language Consistency Across Vietnamese (`VI`) & English (`EN`) (`src/shared/i18n.js`, `src/features/workbench/controller.js`, `src/shell/shell.jsx`)**:
+  - Eliminate mixed English/Vietnamese strings across the Flows board, 6-station stepper, Right Dock, Effort selectors (`Minimal`, `Low`, `Medium`, `Standard`, `High`, `Extra High`, `Max`), Event Log, and Status Bar in both `VI` and `EN` modes.
+
+### Tiếng Việt
+- **Đồng bộ hóa Tiến trình 6 trạm với Định tuyến 3 vai trò AI (`src/domain/task-flow.js`, `src/domain/agent-roles.js`, `src/features/workbench/controller.js`)**:
+  - Thống nhất hoàn toàn giữa thanh tiến trình 6 trạm và 3 mốc chọn model trong Cài đặt mà không hề mâu thuẫn: **3 trạm AI suy luận** (`Trạm 1/6 · Lập kế hoạch`, `Trạm 3/6 · Triển khai`, `Trạm 4/6 · Đánh giá`) kết hợp cùng **3 cổng kiểm soát của Bạn & Hệ thống** (`Trạm 2/6 · Duyệt kế hoạch`, `Trạm 5/6 · Kiểm thử QA`, `Trạm 6/6 · Tích hợp Git`) không tốn thêm model AI.
+  - Gắn nhãn trạm (`Trạm 1/6`, `Trạm 3/6`, `Trạm 4/6`) trực tiếp trên từng thẻ chọn model và bổ sung sơ đồ ánh xạ 6 trạm ngay trong mục **Cài đặt → Ai ra lệnh, ai thực hiện**.
+- **Bộ lọc trạng thái trực quan & loại bỏ biểu tượng emoji AI (`workflowPage`)**:
+  - Thay thế cụm lọc khó hiểu `Risk: Tất cả | S | M | L | ⚡ Critical` và emoji `⚡` bằng bộ lọc trạng thái thực tế (`Hiển thị: Tất cả | Cần chú ý | Đang chạy | Hoàn tất`) sử dụng biểu tượng vector đơn sắc đồng bộ.
+- **Chuẩn hóa 100% ngôn ngữ Tiếng Việt (`VI`) & Tiếng Anh (`EN`) (`src/shared/i18n.js`, `src/features/workbench/controller.js`, `src/shell/shell.jsx`)**:
+  - Loại bỏ triệt để tình trạng lẫn lộn Anh – Việt trên toàn bộ màn hình Luồng điều phối, Thanh tiến trình 6 trạm, Thanh công cụ bên phải, Mức suy luận (`Tối thiểu`, `Thấp`, `Trung bình`, `Tiêu chuẩn`, `Cao`, `Rất cao`, `Tối đa`), Nhật ký sự kiện và Thanh trạng thái ở cả hai chế độ `VI` và `EN`.
+
+---
+
 ## [0.2.99] - 2026-10-20
 
 ### English

@@ -731,6 +731,122 @@ const english = {
   "Kem giấy ấm Bauhaus đồng điệu với logo OpenSybau gốc": "Warm Bauhaus paper cream matching the original OpenSybau mark",
   "Sáng hồng": "Soft Rose",
   "Trắng ánh đào nhẹ nhàng, điểm nhấn hồng ruby": "Soft blossom daylight with ruby rose accents",
+  "Tối thiểu": "Minimal",
+  "Thấp": "Low",
+  "Trung bình": "Medium",
+  "Tiêu chuẩn": "Standard",
+  "Cao": "High",
+  "Rất cao": "Extra High",
+  "Tối đa": "Max",
+  "Siêu cao": "Ultra",
+  "Đánh giá (Review)": "Review",
+  "Trạm 1/6 · AI Lập kế hoạch": "Station 1/6 · Planning AI",
+  "Trạm 3/6 · AI Triển khai": "Station 3/6 · Implementation AI",
+  "Trạm 4/6 · AI Đánh giá": "Station 4/6 · Review AI",
+  "1. Lập kế hoạch": "1. Plan",
+  "2. Duyệt kế hoạch": "2. Plan Gate",
+  "3. Triển khai": "3. Implement",
+  "4. Đánh giá": "4. Review",
+  "5. Kiểm thử QA": "5. QA Runner",
+  "6. Tích hợp": "6. Integrate",
+  "Model Lập kế hoạch": "Planning Model",
+  "Bạn duyệt / Tự động": "You Approve / Auto",
+  "Model Triển khai": "Implementation Model",
+  "Model Đánh giá": "Review Model",
+  "Hệ thống chạy lệnh test": "System Test Runner",
+  "Hệ thống Git / Worktree": "Git / Worktree Merge",
+  "Đã lập kế hoạch": "Plan ready",
+  "Đang phân tích": "Analyzing",
+  "Chờ khởi tạo": "Pending",
+  "Chờ bạn duyệt": "Awaiting your approval",
+  "Tự động qua cổng": "Auto-passed gate",
+  "Cổng kiểm soát": "Approval gate",
+  "Đang viết code": "Writing code",
+  "Không sửa code": "Plan-only mode",
+  "Chờ duyệt": "Waiting for approval",
+  "Chờ kế hoạch": "Waiting for plan",
+  "Đang rà soát": "Reviewing",
+  "Không áp dụng": "Not applicable",
+  "Chờ triển khai": "Waiting for build",
+  "Đã qua bước": "Completed",
+  "Chưa chạy QA": "QA not run",
+  "Đã gộp nhánh": "Branch merged",
+  "Đã tích hợp": "Integrated",
+  "Sẵn sàng gộp": "Ready to merge",
+  "Chờ hoàn tất": "Waiting for completion",
+  "Đầu vào": "Input",
+  "Đặc tả yêu cầu (spec.md)": "Task Specification (spec.md)",
+  "Kế hoạch triển khai (plan.md)": "Implementation Plan (plan.md)",
+  "Báo cáo triển khai (impl.md)": "Implementation Report (impl.md)",
+  "Báo cáo đánh giá (review.md)": "Review Report (review.md)",
+  "Báo cáo kiểm thử (qa.md)": "QA Test Report (qa.md)",
+  "TRẠM 2 · DUYỆT KẾ HOẠCH": "STATION 2 · PLAN GATE",
+  "Kế hoạch đã sẵn sàng — Chờ bạn duyệt trước khi Agent triển khai code": "Plan is ready — Waiting for your approval before the Agent writes code",
+  "Ghi chú thêm hoặc yêu cầu sửa kế hoạch (tùy chọn)…": "Add notes or request plan revisions (optional)…",
+  "Xem plan.md": "View plan.md",
+  "Lập lại kế hoạch": "Revise plan",
+  "Duyệt & Triển khai": "Approve & Implement",
+  "Duyệt & Chạy": "Approve & Run",
+  "Xem kế hoạch": "View plan",
+  "Tài liệu giai đoạn:": "Stage documents:",
+  "Tiến trình 6 trạm": "6-Station Pipeline",
+  "ĐIỀU PHỐI 6 TRẠM & ĐỢT TÁC VỤ": "6-STATION PIPELINE & WAVE DAG",
+  "Theo dõi tiến trình 6 trạm (1. Lập kế hoạch → 2. Duyệt kế hoạch → 3. Triển khai → 4. Đánh giá → 5. Kiểm thử QA → 6. Tích hợp), vòng lặp tự sửa lỗi và sơ đồ phụ thuộc theo đợt.": "Track the 6-station pipeline (1. Plan → 2. Plan Gate → 3. Implement → 4. Review → 5. QA Runner → 6. Integrate), multi-round self-healing loops, and Wave DAG dependencies.",
+  "CẦN BẠN DUYỆT": "NEEDS YOUR APPROVAL",
+  "Các tác vụ đang chờ quyết định của bạn (Duyệt kế hoạch, Gộp nhánh, hoặc Xử lý lỗi)": "Tasks awaiting your decision (Approve Plan, Merge Branch, or Resolve Errors)",
+  "Chờ duyệt kế hoạch": "Awaiting plan approval",
+  "cần bạn duyệt": "for you",
+  "đang chạy": "running",
+  "đang đánh giá": "in review",
+  "sẵn sàng": "ready",
+  "chờ đợt trước": "waiting on wave",
+  "hoàn tất": "done",
+  "Hiển thị:": "Show:",
+  "Cần chú ý": "Needs attention",
+  "BỘ NHỚ CỤC BỘ": "LOCAL MEMORY",
+  "HỆ THỐNG & NGUỒN AI": "SYSTEM & AI PROVIDERS",
+  "OBSIDIAN · KHO TRI THỨC CỤC BỘ": "OBSIDIAN · LOCAL VAULT",
+  "KẾT NỐI TRỰC TIẾP VỚI THƯ MỤC DỰ ÁN TRÊN MÁY": "DIRECT LOCAL WORKSPACE CONNECTION",
+  "QUẢN LÝ TÁC VỤ & LỊCH SỬ ĐIỀU PHỐI": "TASK MANAGEMENT & ORCHESTRATION HISTORY",
+  "Ai ra lệnh, ai thực hiện (Định tuyến 3 AI trong quy trình 6 trạm)": "Who plans and who implements (3 AI Roles across the 6-Station Pipeline)",
+  "Thay đổi, Commit & Worktree": "Changes, Commit & Worktree",
+  "Tài liệu giai đoạn (Kế hoạch / Triển khai / Đánh giá / QA)": "Stage Documents (Plan / Implementation / Review / QA)",
+  "Kiểm thử QA, Terminal & Xem trực tiếp": "QA Runner, Terminal & Live Preview",
+  "Xem trực tiếp ứng dụng cục bộ": "Live Localhost Preview",
+  "COMMIT NHANH GIT (WORKTREE)": "QUICK GIT COMMIT (WORKTREE)",
+  "COMMIT NHANH GIT (DỰ ÁN)": "QUICK GIT COMMIT (WORKSPACE)",
+  "KẾT QUẢ ĐÁNH GIÁ": "REVIEW FINDINGS",
+  "XEM TRỰC TIẾP MÁY CHỦ CỤC BỘ (LOCALHOST)": "LIVE LOCALHOST DEV SERVER",
+  "CHẠY KIỂM THỬ QA & LỆNH TERMINAL (WORKTREE)": "QA & TERMINAL RUNNER (WORKTREE)",
+  "CHẠY KIỂM THỬ QA & LỆNH TERMINAL (DỰ ÁN)": "QA & TERMINAL RUNNER (WORKSPACE)",
+  "ĐẠT": "PASS",
+  "TRẠM AI": "AGENT STAGE",
+  "CHUYỂN GIAO": "HANDOFF",
+  "CÔNG CỤ": "TOOL",
+  "ĐẦU RA": "OUTPUT",
+  "TIN NHẮN": "MESSAGE",
+  "BỘ NHỚ": "MEMORY",
+  "LỖI": "ERROR",
+  "HOÀN TẤT": "DONE",
+  "GHI CHÚ": "NOTE",
+  "SỰ KIỆN": "EVENT",
+  "NHẬT KÝ SỰ KIỆN": "EVENT LOG",
+  "LUỒNG THỰC THI · TRÒ CHUYỆN": "EXECUTION FLOW · CHAT",
+  "LUỒNG THỰC THI · CHỈ LẬP KẾ HOẠCH": "EXECUTION FLOW · PLAN ONLY",
+  "LUỒNG THỰC THI · QUY TRÌNH 6 TRẠM": "EXECUTION FLOW · 6-STATION PIPELINE",
+  "Mức sử dụng theo agent": "Usage by agent",
+  "Lượng token được OpenSybau ghi nhận theo CLI; không phải hạn mức hoặc số dư tài khoản": "Token usage recorded by OpenSybau per CLI; not your account quota or balance",
+  "Duyệt kế hoạch: Bật": "Plan Gate: On",
+  "Duyệt kế hoạch: Tự động": "Plan Gate: Auto",
+  "Pipeline · Kế hoạch → Triển khai → Đánh giá": "Pipeline · Plan → Implement → Review",
+  "Phạm vi thay đổi & Vòng lặp tự sửa": "Change Scope & Self-Healing Rounds",
+  "Phạm vi nhỏ": "Small scope",
+  "Phạm vi vừa": "Medium scope",
+  "Phạm vi lớn": "Large scope",
+  "Lệnh QA tự động & Phụ thuộc đợt": "Auto QA Command & Wave Dependency",
+  "Không phụ thuộc (Đợt 1)": "No dependency (Wave 1)",
+  "Cổng duyệt Kế hoạch (Trạm 2 · Duyệt kế hoạch)": "Plan Approval Gate (Station 2 · Plan Gate)",
+  "Bật cổng duyệt Kế hoạch (Trạm 2 · Duyệt kế hoạch)": "Enable Plan Approval Gate (Station 2 · Plan Gate)",
 };
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));
@@ -792,6 +908,21 @@ function dynamicTranslation(value, language) {
     match = value.match(/^Kỹ năng \((\d+)\)$/); if (match) return `Skills (${match[1]})`;
     match = value.match(/^(\d+) ghi chú trong Vault$/); if (match) return `${match[1]} notes in Vault`;
     match = value.match(/^(\d+) skill cục bộ$/); if (match) return `${match[1]} local skills`;
+    match = value.match(/^Đợt (\d+)$/); if (match) return `Wave ${match[1]}`;
+    match = value.match(/^Vòng (\d+)\/(\d+)$/); if (match) return `Round ${match[1]}/${match[2]}`;
+    match = value.match(/^Vòng sửa: (\d+)$/); if (match) return `Fix rounds: ${match[1]}`;
+    match = value.match(/^Vòng (\d+) · (.+)$/); if (match) return `Round ${match[1]} · ${translateText(match[2], "en")}`;
+    match = value.match(/^(\d+) lỗi chặn$/); if (match) return `${match[1]} blocking`;
+    match = value.match(/^(\d+) góp ý$/); if (match) return `${match[1]} advisory`;
+    match = value.match(/^(\d+) lỗi chặn, (\d+) góp ý$/); if (match) return `${match[1]} blocking, ${match[2]} advisory`;
+    match = value.match(/^(\d+) lượt$/); if (match) return `${match[1]} turns`;
+    match = value.match(/^(\d+) tác vụ · (\d+)\/(\d+) hoàn tất$/); if (match) return `${match[1]} tasks · ${match[2]}/${match[3]} done`;
+    match = value.match(/^(\d+) sự kiện · (\d+) trạm$/); if (match) return `${match[1]} events · ${match[2]} stations`;
+    match = value.match(/^TỆP THAY ĐỔI \((\d+)\)$/); if (match) return `CHANGED FILES (${match[1]})`;
+    match = value.match(/^TÀI LIỆU GIAI ĐOẠN \((\d+)\)$/); if (match) return `STAGE DOCUMENTS (${match[1]})`;
+    match = value.match(/^Lịch sử vòng lặp \((\d+) bước\) & Tài liệu giai đoạn \((\d+)\)$/); if (match) return `Cycle history (${match[1]} steps) & Stage documents (${match[2]})`;
+    match = value.match(/^Sẵn sàng gộp \((\d+) tệp\)$/); if (match) return `Ready to merge (${match[1]} files)`;
+    match = value.match(/^MÃ LỖI (\d+)$/); if (match) return `EXIT ${match[1]}`;
     match = value.match(/^(\d+)p$/); if (match) return `${match[1]}m`;
     match = value.match(/^(\d+)g$/); if (match) return `${match[1]}h`;
     match = value.match(/^(\d+)n$/); if (match) return `${match[1]}d`;
@@ -812,7 +943,8 @@ function dynamicTranslation(value, language) {
     match = value.match(/^Open project (.+)$/); if (match) return `Mở dự án ${match[1]}`;
     match = value.match(/^Open (.+)$/); if (match) return `Mở ${match[1]}`;
     match = value.match(/^Auto-selected skills · (\d+) · Up to (\d+) parallel tasks$/); if (match) return `Skill tự chọn · ${match[1]} · Tối đa ${match[2]} task song song`;
-    match = value.match(/^(\d+) events · (\d+) nodes$/); if (match) return `${match[1]} events · ${match[2]} node`;
+    match = value.match(/^(\d+) events · (\d+) nodes$/); if (match) return `${match[1]} sự kiện · ${match[2]} node`;
+    match = value.match(/^(\d+) events · (\d+) stations$/); if (match) return `${match[1]} sự kiện · ${match[2]} trạm`;
     match = value.match(/^(\d+) observed tool events$/); if (match) return `${match[1]} sự kiện công cụ quan sát được`;
     match = value.match(/^View (\d+) changed files$/); if (match) return `Xem ${match[1]} tệp thay đổi`;
     match = value.match(/^(\d+) steps executed · (\d+) files modified$/); if (match) return `${match[1]} bước thực thi · ${match[2]} tệp thay đổi`;
@@ -821,6 +953,11 @@ function dynamicTranslation(value, language) {
     match = value.match(/^(\d+) lines$/); if (match) return `${match[1]} dòng`;
     match = value.match(/^Graph \((\d+)\)$/); if (match) return `Đồ thị (${match[1]})`;
     match = value.match(/^Skills \((\d+)\)$/); if (match) return `Kỹ năng (${match[1]})`;
+    match = value.match(/^Wave (\d+)$/); if (match) return `Đợt ${match[1]}`;
+    match = value.match(/^Round (\d+)\/(\d+)$/); if (match) return `Vòng ${match[1]}/${match[2]}`;
+    match = value.match(/^(\d+) blocking$/); if (match) return `${match[1]} lỗi chặn`;
+    match = value.match(/^(\d+) advisory$/); if (match) return `${match[1]} góp ý`;
+    match = value.match(/^(\d+) turns$/); if (match) return `${match[1]} lượt`;
   }
   return value;
 }
@@ -850,6 +987,7 @@ export function translateText(input, language = getLanguage()) {
 const translatableAttributes = ["aria-label", "aria-description", "title", "placeholder", "alt"];
 const dynamicContentSelector = [
   "code", "pre", "textarea", ".chat-message-content", ".markdown-preview", ".code-preview", ".diff-content",
+  ".orca-code-table", ".orca-diff-table", ".diff-hunk-list", ".kb-graph-stage",
   ".orchestration-event p", ".orchestration-node-details p", ".orchestration-node-details pre",
   ".task-primary strong", ".task-title", ".wb-task-copy strong", ".wb-project-toggle strong", ".wb-project-preview strong",
   ".wb-project-preview li span", ".file-row strong", ".file-preview-head strong", ".source-folder-row input",
@@ -859,11 +997,6 @@ const dynamicContentSelector = [
 
 export function localizeDom(root, language = getLanguage()) {
   if (!root || typeof document === "undefined") return;
-  const wasEnglish = root.dataset?.localizedLang === "en" || Boolean(root.closest?.('[data-localized-lang="en"]'));
-  if (language === "vi" && !wasEnglish) {
-    if (root.dataset) root.dataset.localizedLang = language;
-    return;
-  }
   if (root.dataset) root.dataset.localizedLang = language;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
     acceptNode(node) {

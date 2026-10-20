@@ -52,13 +52,13 @@ function StatusBar({ snapshot }) {
         <span>{worktreeCount} worktree</span>
       </span> : null}
       <details class="wb-status-usage">
-      <summary class="wb-status-item wb-status-quota" title="Usage token được OpenSybau ghi nhận theo CLI; không phải hạn mức hoặc số dư tài khoản">
+      <summary class="wb-status-item wb-status-quota" title="Lượng token được OpenSybau ghi nhận theo CLI; không phải hạn mức hoặc số dư tài khoản">
         <span>5h: <strong>{formatNumber(tokens5h)}</strong> tok</span>
         <span class="wb-status-sep">·</span>
         <span>7d: <strong>{formatNumber(tokens7d)}</strong> tok</span>
       </summary>
       <div class="wb-usage-popover">
-        <strong>{english ? "Usage by agent" : "Usage theo agent"}</strong>
+        <strong>{english ? "Usage by agent" : "Mức sử dụng theo agent"}</strong>
         <p>{english ? "Tokens recorded from runs in OpenSybau; account quotas are managed by each CLI/provider." : "Token ghi nhận từ các lượt chạy trong OpenSybau; hạn mức tài khoản do CLI/provider quản lý."}</p>
         {usageProviders.map(([id, name]) => {
           const usage = telemetry.byProvider?.[id] || {};

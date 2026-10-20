@@ -369,7 +369,7 @@ try {
   const dag = computeWaveDag(persisted.tasks);
   assert.equal(dag.waves.length >= 2, true, "Wave DAG must compute at least 2 waves.");
   assert.equal(Array.isArray(dag.waves[0].tasks) && dag.waves[0].tasks.length >= 1, true);
-  assert.equal(dag.waves[0].label, "Wave 1");
+  assert.equal(dag.waves[0].label, "Đợt 1");
   assert.equal(dag.edges.length >= 1, true, "Wave DAG must include dependency edges.");
   assert.equal(Array.isArray(dag.needsLookTasks), true);
   assert.equal(persisted.tasks.length, 9);

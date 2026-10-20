@@ -9516,6 +9516,72 @@ html[data-color-scheme="light"] *::-webkit-scrollbar-thumb:hover {
 .orca-tree-badge.is-ready {
   color: var(--wb-green) !important;
 }
+.role-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.role-station-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--wb-accent);
+  background: color-mix(in srgb, var(--wb-accent) 12%, var(--wb-raised));
+  border: 1px solid color-mix(in srgb, var(--wb-accent) 28%, var(--wb-border-subtle));
+}
+.settings-station-map {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--wb-raised);
+  border: 1px solid var(--wb-border-subtle);
+}
+.station-map-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-border-subtle);
+  flex: 1 1 118px;
+  min-width: 112px;
+}
+.station-map-item.is-ai {
+  border-color: color-mix(in srgb, var(--wb-accent) 38%, var(--wb-border));
+  background: color-mix(in srgb, var(--wb-accent) 7%, var(--wb-surface));
+}
+.station-map-item strong {
+  font-size: 11.5px;
+  color: var(--wb-ink-strong);
+}
+.station-map-item small {
+  font-size: 10.5px;
+  color: var(--wb-ink-muted);
+}
+.station-map-item.is-ai small {
+  color: var(--wb-accent);
+  font-weight: 500;
+}
+.station-map-arrow {
+  display: inline-flex;
+  align-items: center;
+  color: var(--wb-ink-faint);
+}
+.mc-filter-strip .filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 @media (max-width: 960px) {
   .mc-stations-track {
     grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -160,8 +160,21 @@ function taskProgress(task) {
   if (task.phase === "chat") return `${providerTitle(view.connectors, task.config?.chatProvider || "codex")} đang trả lời`;
   const roleId = task.phase === "implementation" ? "build" : task.phase;
   const configured = task.config?.roles?.[roleId] || roleConfig(task.config, roleId);
-  const labels = { plan: "đang lập kế hoạch", build: "đang triển khai", review: "đang review" };
+  const labels = { plan: "đang lập kế hoạch", build: "đang triển khai", review: "đang đánh giá" };
   return configured ? `${providerTitle(view.connectors, configured.provider)} ${labels[roleId] || "đang chạy"}` : "Đang chạy";
+}
+const effortLabelMap = {
+  minimal: "Tối thiểu",
+  low: "Thấp",
+  medium: "Trung bình",
+  standard: "Tiêu chuẩn",
+  high: "Cao",
+  xhigh: "Rất cao",
+  max: "Tối đa",
+  ultra: "Siêu cao",
+};
+function formatEffortLabel(effort) {
+  return effortLabelMap[String(effort || "").toLowerCase()] || effort || "Trung bình";
 }
 function normalizedRoleSelection(roleId, overrides = {}) {
   const candidates = providersForRole(view.connectors, roleId);
@@ -201,7 +214,7 @@ function syncRolePicker(form, roleId, field) {
   const select = form?.querySelector(`[data-role-${field}="${roleId}"]`);
   const picker = form?.querySelector(`.agent-role-picker[data-role-id="${roleId}"][data-role-field="${field}"]`);
   if (!select || !picker) return;
-  const options = [...select.options].map((option) => ({ value: option.value, label: option.textContent }));
+  const options = [...select.options].map((option) => ({ value: option.value, label: field === "effort" ? formatEffortLabel(option.value || option.textContent) : option.textContent }));
   const selected = options.find((option) => option.value === select.value);
   const label = selected?.label || (field === "effort" ? "Không áp dụng" : field === "model" ? "Chưa có model" : "Chưa có agent khả dụng");
   picker.querySelector("[data-role-picker-label]").textContent = label;
@@ -223,9 +236,10 @@ function roleEditor(roleId, overrides = {}) {
   const model = connector?.models?.find((item) => item.id === selection.model);
   const providerOptions = selection.candidates.map(([id, item]) => ({ value: id, label: `${item.name || id}${item.kind === "api" ? " · API" : " · CLI"}` }));
   const modelOptions = (connector?.models || []).map((item) => ({ value: item.id, label: item.name || item.id }));
-  const effortOptions = (model?.efforts || []).map((item) => ({ value: item, label: item }));
+  const effortOptions = (model?.efforts || []).map((item) => ({ value: item, label: formatEffortLabel(item) }));
   const providerHint = connector?.kind === "api" ? roleId === "build" ? "API ngoài · trả nội dung tệp" : "API ngoài · gửi ngữ cảnh" : connector ? "Agent cục bộ" : "Chưa có provider sẵn sàng";
-  return `<section class="agent-role-card" data-role-card="${roleId}"><header><strong>${role.label}</strong><small>${selection.candidates.length ? esc(providerHint) : "Chưa có provider sẵn sàng"}</small></header>${rolePickerField(roleId, "provider", "Agent", "Agent & Model", providerOptions, selection.provider)}${rolePickerField(roleId, "model", "Model", "Agent & Model", modelOptions, selection.model, providerTitle(view.connectors, selection.provider))}${rolePickerField(roleId, "effort", "Mức suy nghĩ", "Mức suy nghĩ", effortOptions, selection.effort)}</section>`;
+  const stationBadge = role.stationBadge ? `<span class="role-station-badge">${esc(role.stationBadge)}</span>` : "";
+  return `<section class="agent-role-card" data-role-card="${roleId}"><header><div class="agent-role-card-title"><strong>${esc(role.label)}</strong>${stationBadge}</div><small>${selection.candidates.length ? esc(providerHint) : "Chưa có provider sẵn sàng"}</small></header>${rolePickerField(roleId, "provider", "Agent", "Agent & Model", providerOptions, selection.provider)}${rolePickerField(roleId, "model", "Model", "Agent & Model", modelOptions, selection.model, providerTitle(view.connectors, selection.provider))}${rolePickerField(roleId, "effort", "Mức suy nghĩ", "Mức suy nghĩ", effortOptions, selection.effort)}</section>`;
 }
 function taskPresetRefValue(id, version) { return id && version ? `${id}@${version}` : ""; }
 function parseTaskPresetRef(value) {
@@ -356,7 +370,7 @@ function chatAgentEditor(overrides = {}) {
   const { candidates, provider, connector, models, model, effort } = normalizedChatSelection(overrides);
   const providerOptions = candidates.map(([id, item]) => ({ value: id, label: `${item.name || id}${item.kind === "api" ? " · API" : " · CLI"}` }));
   const modelOptions = models.map((item) => ({ value: item.id, label: item.name || item.id }));
-  const effortOptions = (model?.efforts || []).map((item) => ({ value: item, label: item }));
+  const effortOptions = (model?.efforts || []).map((item) => ({ value: item, label: formatEffortLabel(item) }));
   return `<section class="agent-role-card chat-agent-card"><header><strong>Agent hội thoại</strong><small>${connector?.kind === "api" ? "API bên ngoài · không có quyền workspace" : connector ? "Agent cục bộ" : "Chưa có provider sẵn sàng"}</small></header>${homeSelectField("Agent", "chatProvider", "data-chat-agent-provider", providerOptions, provider, !providerOptions.length)}${homeSelectField("Model", "chatModel", "data-chat-agent-model", modelOptions, model?.id || "", !modelOptions.length)}${homeSelectField("Mức suy nghĩ", "chatEffort", "data-chat-agent-effort", effortOptions, effort, !effortOptions.length)}</section>`;
 }
 function normalizedChatSelection(overrides = {}) {
@@ -381,7 +395,7 @@ function taskRow(task) {
   return `<button class="task-row ${view.selected === task.id ? "selected" : ""}" data-task="${esc(task.id)}">
     <span class="task-state state-${esc(task.status)}"><i></i></span>
     <span class="task-primary"><strong>${esc(task.title)}</strong><small>${esc(workspace?.name || task.workspacePath)} <b>·</b> ${hasChatError ? "Có tin nhắn chat lỗi cần xem" : esc(taskProgress(task))}</small></span>
-    <span class="task-agent">${task.status === "running" ? `<i class="spin"></i>${esc(provider)}` : task.status === "queued" ? "Queue" : esc(task.config.workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, task.config.chatProvider)}` : task.config.workflow === "plan-only" ? providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider) : workflowSummary(task))}</span>
+    <span class="task-agent">${task.status === "running" ? `<i class="spin"></i>${esc(provider)}` : task.status === "queued" ? "Hàng đợi" : esc(task.config.workflow === "chat-only" ? `Chat · ${providerTitle(view.connectors, task.config.chatProvider)}` : task.config.workflow === "plan-only" ? providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider) : workflowSummary(task))}</span>
     <span class="task-date">${fmtDate(task.updatedAt)}</span>
     <span class="task-chevron">${icon("chevron-right", 16)}</span>
   </button>`;
@@ -438,7 +452,7 @@ function taskPage() {
   const running = all.filter((task) => task.status === "running").length;
   const queued = all.filter((task) => task.status === "queued").length;
   const completed = all.filter((task) => task.status === "done").length;
-  return `<div class="page-head"><div><div class="eyebrow">LOCAL TASKS</div><h1>Công việc</h1><p>Tạo việc thật trong repository bạn chọn, xem tiến độ và đầu ra trực tiếp.</p></div><button class="button primary" data-action="${view.state.workspaces.length ? "new-task" : "add-workspace"}">${icon("plus", 15)} ${view.state.workspaces.length ? "Tạo task" : "Thêm dự án"}</button></div>
+  return `<div class="page-head"><div><div class="eyebrow">TÁC VỤ CỤC BỘ</div><h1>Công việc</h1><p>Tạo việc thật trong repository bạn chọn, xem tiến độ và đầu ra trực tiếp.</p></div><button class="button primary" data-action="${view.state.workspaces.length ? "new-task" : "add-workspace"}">${icon("plus", 15)} ${view.state.workspaces.length ? "Tạo task" : "Thêm dự án"}</button></div>
   <div class="quick-stats"><div><small>Đang chạy</small><strong>${running}</strong></div><div><small>Đang chờ</small><strong>${queued}</strong></div><div><small>Hoàn tất</small><strong>${completed}</strong></div><div class="stats-note">Dữ liệu lấy từ task đã chạy trong OpenSybau này.</div></div>
   ${activityChart()}
   <div class="list-toolbar"><div class="filters">${[["all", "Tất cả"], ["running", "Đang chạy"], ["queued", "Chờ"], ["done", "Xong"], ["failed", "Lỗi"], ["cancelled", "Đã dừng"]].map(([key, label]) => `<button class="filter ${view.filter === key ? "active" : ""}" data-filter="${key}">${label}</button>`).join("")}</div><span>${all.length} task đã ghi trên máy này</span></div>
@@ -448,7 +462,7 @@ function taskPage() {
 function workspacePage() {
   const workspaces = view.state.workspaces;
   if (!workspaces.length) {
-    return `<div class="page-head"><div><div class="eyebrow">PROJECT ROOTS</div><h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div>
+    return `<div class="page-head"><div><div class="eyebrow">THƯ MỤC DỰ ÁN</div><h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div>
     <section class="workspace-list"><div class="empty-state"><strong>Chưa có dự án</strong><p>Thêm đường dẫn repository hoặc thư mục làm việc trên máy.</p><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div></section>`;
   }
   const activeWs = workspaces.find((item) => item.id === view.selected) || workspaces[0];
@@ -461,7 +475,7 @@ function workspacePage() {
   }
   if (activeWs && !view.workspaceOverviewMode) return projectDetailPage(activeWs);
   const status = (w) => w.runtime ? `${w.runtime.isGit ? `Git · ${w.runtime.branch || "nhánh detached"}` : "Thư mục thường"}${w.runtime.head ? " · Có commit" : w.runtime.isGit ? " · Chưa có commit" : ""}${w.runtime.dirty ? " · Có thay đổi chưa commit" : ""}` : "Sẽ kiểm tra khi chạy task";
-  return `<div class="page-head"><div><div class="eyebrow">PROJECT ROOTS</div><h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div>
+  return `<div class="page-head"><div><div class="eyebrow">THƯ MỤC DỰ ÁN</div><h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div>
   <section class="workspace-list">${workspaces.map((w) => `<article class="workspace-card"><div class="workspace-card-icon">${icon("folder-code", 17)}</div><div class="workspace-card-main"><strong>${esc(w.name)}</strong><code>${esc(w.path)}</code><small>${esc(status(w))}</small></div><button class="button quiet small" data-action="open-workspace" data-id="${esc(w.id)}">Mở dự án ${icon("chevron-right", 14)}</button><button class="icon-button" data-action="remove-workspace" data-id="${esc(w.id)}" title="Gỡ workspace" aria-label="Gỡ workspace">${icon("x", 16)}</button></article>`).join("")}</section>
   <aside class="info-panel"><strong>Task chạy ở đâu?</strong><p>Chế độ thường sửa trực tiếp thư mục này và chỉ cho một task chạy trong cùng workspace tại một thời điểm. Chế độ Git worktree tạo nhánh riêng; cần repository đã có commit. Task trên các workspace khác nhau có thể chạy song song.</p></aside>`;
 }
@@ -1349,7 +1363,6 @@ function resolveHtmlCommentAgentSelection() {
   const fallbackEffort = view.stageHtmlCommentEffort || view.chatEffort || activeTask?.config?.chatEffort || view.homeChatEffort || "medium";
   const effort = effortsList.includes(fallbackEffort) ? fallbackEffort : (effortsList.includes("medium") ? "medium" : effortsList[0] || "medium");
 
-  const effortDisplay = { low: "Low", medium: "Medium", high: "High", minimal: "Min", standard: "Std", max: "Max", xhigh: "xHigh", ultra: "Ultra" };
   let activeAgentLabel = modelObj.name || modelObj.id || providerTitle(view.connectors, provider);
   const agentItemsMarkup = [];
   for (const [provId, c] of availableEntries) {
@@ -1371,7 +1384,7 @@ function resolveHtmlCommentAgentSelection() {
   const effortItemsMarkup = effortsList.map((ef) => {
     const isSelected = ef === effort;
     return `<button type="button" class="codex-pop-item ${isSelected ? "is-selected" : ""}" data-action="pick-html-comment-effort" data-effort="${esc(ef)}">
-      <span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>
+      <span class="codex-pop-item-main"><span>${esc(formatEffortLabel(ef))}</span></span>
       ${isSelected ? icon("check", 13) : ""}
     </button>`;
   }).join("");
@@ -1381,7 +1394,7 @@ function resolveHtmlCommentAgentSelection() {
     model,
     effort,
     activeAgentLabel,
-    activeEffortLabel: effortDisplay[effort] || effort || "Medium",
+    activeEffortLabel: formatEffortLabel(effort),
     agentItemsMarkup: agentItemsMarkup.join(""),
     effortItemsMarkup,
   };
@@ -1923,16 +1936,16 @@ function getRightDockTabsForPage(page = view.page, selectedTask = null) {
     return [
       { id: "files", icon: "files", title: "Cây thư mục & Tệp" },
       { id: "search", icon: "search", title: "Tìm kiếm tệp" },
-      { id: "git", icon: "git-branch", title: "Thay đổi (Changes), Commit & Worktree" },
-      { id: "docs", icon: "book-open-text", title: "Tài liệu Stage (Spec / Plan / Review / QA)" },
-      { id: "terminal", icon: "square-terminal", title: "QA Runner, Terminal & Live Localhost" },
+      { id: "git", icon: "git-branch", title: "Thay đổi, Commit & Worktree" },
+      { id: "docs", icon: "book-open-text", title: "Tài liệu giai đoạn (Kế hoạch / Triển khai / Đánh giá / QA)" },
+      { id: "terminal", icon: "square-terminal", title: "Kiểm thử QA, Terminal & Xem trực tiếp" },
       { id: "tasks", icon: "list-checks", title: "Mục tiêu & Công cụ phiên" },
     ];
   }
   return [
     { id: "files", icon: "files", title: "Cây thư mục dự án" },
     { id: "search", icon: "search", title: "Tìm kiếm tệp" },
-    { id: "terminal", icon: "square-terminal", title: "Live Localhost Preview" },
+    { id: "terminal", icon: "square-terminal", title: "Xem trực tiếp ứng dụng cục bộ" },
   ];
 }
 
@@ -2155,9 +2168,9 @@ function orcaRightDockMarkup() {
           ${canManageWt ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${esc(selectedTask.id)}">${icon("delete", 13)}<span>Hủy worktree</span></button>` : ""}
         </div>` : ""}
         ${selectedTask && !taskBusy && artifacts.length > 0 ? `<div class="orca-git-commit-box">
-          <div class="orca-section-label">QUICK GIT COMMIT (${selectedTask.isolated && !selectedTask.worktreeCleaned ? "WORKTREE" : "WORKSPACE"})</div>
+          <div class="orca-section-label">COMMIT NHANH GIT (${selectedTask.isolated && !selectedTask.worktreeCleaned ? "WORKTREE" : "DỰ ÁN"})</div>
           <div class="orca-inline-input-row">
-            <input type="text" data-git-commit-msg placeholder="feat: commit thay đổi của task…" value="${esc(selectedTask.code ? `${selectedTask.code}: ${selectedTask.title.slice(0, 48)}` : `feat: ${selectedTask.title.slice(0, 52)}`)}" autocomplete="off">
+            <input type="text" data-git-commit-msg placeholder="feat: lưu thay đổi của task…" value="${esc(selectedTask.code ? `${selectedTask.code}: ${selectedTask.title.slice(0, 48)}` : `feat: ${selectedTask.title.slice(0, 52)}`)}" autocomplete="off">
             <button type="button" class="button primary small" data-action="task-git-commit" data-id="${esc(selectedTask.id)}">${icon("check", 12)}<span>Commit</span></button>
           </div>
           ${selectedTask.lastCommitAt ? `<small class="orca-muted-note">Đã commit lúc ${fmtDate(selectedTask.lastCommitAt)}: <code>${esc(selectedTask.lastCommitMessage || "")}</code></small>` : ""}
@@ -2170,10 +2183,10 @@ function orcaRightDockMarkup() {
           const compName = t.fanoutCompetitor?.name || t.fanoutLabel || t.title;
           return `<li class="orca-tree-item is-file ${t.id === selectedTask.id ? "is-selected" : ""}"><button type="button" class="orca-tree-row ${t.id === selectedTask.id ? "is-selected" : ""}" style="padding-left:10px" data-task="${esc(t.id)}"><span class="wb-task-dot is-${esc(t.status || "done")}"></span><span class="orca-tree-label">${esc(compName)}</span><small class="orca-tree-badge">${(t.artifacts || []).length}</small></button></li>`;
         }).join("")}</ul>` : ""}
-        <div class="orca-section-label" style="margin-top:8px">CHANGES (${artifacts.length})</div>
+        <div class="orca-section-label" style="margin-top:8px">TỆP THAY ĐỔI (${artifacts.length})</div>
         ${artifacts.length
           ? `<ul class="orca-tree-list">${artifacts.map((filePath) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-action="open-diff-file" data-id="${esc(selectedTask.id)}" data-path="${esc(filePath)}" title="${esc(filePath)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(filePath)}</span><small class="orca-diff-dot">M</small></button></li>`).join("")}</ul>`
-          : `<p class="orca-muted-note">${selectedTask ? "Chưa có tệp thay đổi nào trong phiên này." : "Chọn một cuộc trò chuyện để xem danh sách tệp thay đổi (Changes)."}</p>`}
+          : `<p class="orca-muted-note">${selectedTask ? "Chưa có tệp thay đổi nào trong phiên này." : "Chọn một cuộc trò chuyện để xem danh sách tệp thay đổi."}</p>`}
         ${isolatedTasks.length ? `<div class="orca-section-label" style="margin-top:14px">WORKTREE CÔ LẬP (${isolatedTasks.length})</div>
         <ul class="orca-tree-list">${isolatedTasks.slice(0, 10).map((t) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-task="${esc(t.id)}"><span class="orca-tree-icon">${icon("git-branch", 14)}</span><span class="orca-tree-label">${esc(t.title)}</span><small class="orca-tree-badge">${(t.artifacts || []).length}</small></button></li>`).join("")}</ul>` : ""}
       </div>`;
@@ -2184,10 +2197,10 @@ function orcaRightDockMarkup() {
     const activeStageTab = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId);
     bodyHtml = `<div class="orca-dock-pad">
       <div class="orca-section-head">
-        <span class="orca-section-label">STAGE DOCUMENTS (${docs.length})</span>
-        <small class="orca-tree-badge">${esc(selectedTask.code || "TASK")} · R${stepper.currentRound}/${stepper.maxRounds}</small>
+        <span class="orca-section-label">TÀI LIỆU GIAI ĐOẠN (${docs.length})</span>
+        <small class="orca-tree-badge">${esc(selectedTask.code || "TASK")} · Vòng ${stepper.currentRound}/${stepper.maxRounds}</small>
       </div>
-      <p class="orca-muted-note">Nhấn vào bất kỳ tài liệu giai đoạn nào để mở trong Stage Viewer bên trái (hỗ trợ xem Markdown, mã nguồn và gắn nhận xét dòng).</p>
+      <p class="orca-muted-note">Nhấn vào bất kỳ tài liệu giai đoạn nào để mở ở khung bên trái (hỗ trợ xem Markdown, mã nguồn và gắn nhận xét theo dòng).</p>
       <ul class="orca-tree-list" style="margin-top:8px">
         ${docs.map((doc) => {
           const tabId = `doc::${selectedTask.id}::${doc.id}`;
@@ -2201,10 +2214,10 @@ function orcaRightDockMarkup() {
           </li>`;
         }).join("")}
       </ul>
-      ${stepper.findings.blocking > 0 || stepper.findings.advisory > 0 ? `<div class="orca-section-label" style="margin-top:14px">PHÁT HIỆN REVIEW</div>
+      ${stepper.findings.blocking > 0 || stepper.findings.advisory > 0 ? `<div class="orca-section-label" style="margin-top:14px">KẾT QUẢ ĐÁNH GIÁ</div>
       <div class="mc-findings-summary">
-        <span class="mc-badge is-blocking">${stepper.findings.blocking} blocking</span>
-        <span class="mc-badge is-advisory">${stepper.findings.advisory} advisory</span>
+        <span class="mc-badge is-blocking">${stepper.findings.blocking} lỗi chặn</span>
+        <span class="mc-badge is-advisory">${stepper.findings.advisory} góp ý</span>
         ${stepper.costUsd > 0 ? `<span class="mc-badge is-cost">$${stepper.costUsd.toFixed(2)}</span>` : ""}
       </div>` : ""}
     </div>`;
@@ -2214,8 +2227,8 @@ function orcaRightDockMarkup() {
     const defaultCmd = selectedTask?.qaCommand || "npm test";
     const presetCommands = ["npm test", "npm run build", "npm run lint", "npm run check", "git status", "git diff --stat"];
     bodyHtml = `<div class="orca-dock-pad">
-      <div class="orca-section-label">LIVE LOCALHOST DEV SERVER</div>
-      <p class="orca-muted-note">Mở ứng dụng web đang chạy cục bộ (localhost) ngay trong Stage Viewer kèm công cụ chọn phần tử DOM.</p>
+      <div class="orca-section-label">XEM TRỰC TIẾP MÁY CHỦ CỤC BỘ (LOCALHOST)</div>
+      <p class="orca-muted-note">Mở ứng dụng web đang chạy cục bộ (localhost) ngay trong khung xem kèm công cụ chọn phần tử giao diện.</p>
       <div class="orca-inline-input-row" style="margin-top:6px">
         <input type="url" data-live-url-input placeholder="http://localhost:3000" value="${esc(view.lastLiveUrl || "http://localhost:3000")}" autocomplete="off" spellcheck="false">
         <button type="button" class="button primary small" data-action="open-live-url" data-id="${esc(selectedTask?.id || "")}">${icon("globe", 12)}<span>Mở</span></button>
@@ -2225,8 +2238,8 @@ function orcaRightDockMarkup() {
       </div>
       ${selectedTask ? `
         <div class="orca-section-head" style="margin-top:16px">
-          <span class="orca-section-label">QA & TERMINAL RUNNER (${selectedTask.isolated && !selectedTask.worktreeCleaned ? "WORKTREE" : "WORKSPACE"})</span>
-          ${qaRes ? `<span class="mc-badge is-${qaRes.status === "passed" ? "passed" : "blocking"}">${qaRes.status === "passed" ? "PASS" : `EXIT ${qaRes.code ?? 1}`}</span>` : ""}
+          <span class="orca-section-label">CHẠY KIỂM THỬ QA & LỆNH TERMINAL (${selectedTask.isolated && !selectedTask.worktreeCleaned ? "WORKTREE" : "DỰ ÁN"})</span>
+          ${qaRes ? `<span class="mc-badge is-${qaRes.status === "passed" ? "passed" : "blocking"}">${qaRes.status === "passed" ? "ĐẠT" : `MÃ LỖI ${qaRes.code ?? 1}`}</span>` : ""}
         </div>
         <div class="orca-inline-input-row" style="margin-top:6px">
           <input type="text" data-task-qa-cmd value="${esc(defaultCmd)}" placeholder="npm test, pytest, cargo test…" autocomplete="off" spellcheck="false">
@@ -2358,7 +2371,7 @@ function projectDetailPage(workspace) {
 
 function knowledgePage() {
   const vaultPath = view.state?.settings?.vaultPath || "";
-  if (!vaultPath) return `<div class="page-head"><div><div class="eyebrow">OBSIDIAN · LOCAL VAULT</div><h1>Tri thức</h1><p>Kết nối vault để duyệt, chỉnh sửa ghi chú Markdown và xem đồ thị liên kết tri thức trực tiếp trên máy.</p></div><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></div><section class="empty-state knowledge-empty"><div class="empty-symbol">${icon("book-open-text", 18)}</div><strong>Chưa kết nối Obsidian vault</strong><p>OpenSybau chỉ đọc/ghi thư mục bạn chỉ định; nội dung không được đưa vào prompt tự động.</p><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></section>`;
+  if (!vaultPath) return `<div class="page-head"><div><div class="eyebrow">OBSIDIAN · KHO TRI THỨC CỤC BỘ</div><h1>Tri thức</h1><p>Kết nối vault để duyệt, chỉnh sửa ghi chú Markdown và xem đồ thị liên kết tri thức trực tiếp trên máy.</p></div><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></div><section class="empty-state knowledge-empty"><div class="empty-symbol">${icon("book-open-text", 18)}</div><strong>Chưa kết nối Obsidian vault</strong><p>OpenSybau chỉ đọc/ghi thư mục bạn chỉ định; nội dung không được đưa vào prompt tự động.</p><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></section>`;
 
   const mode = view.vaultViewMode || "files";
   const vaultName = vaultPath.split(/[\\/]/).filter(Boolean).at(-1) || "Obsidian Vault";
@@ -2768,11 +2781,11 @@ function missionControlStepperMarkup(task, { compact = false } = {}) {
   const artifactsCount = (task.artifacts || []).length;
   const canManageWorktree = Boolean(task.isolated && !busy && !task.worktreeCleaned && !task.worktreeAppliedAt);
   const lastEvent = (task.events || []).filter((e) => e.kind !== "output").at(-1) || (task.events || []).at(-1);
-  const stationDocMap = { start: "spec", "plan-review": "plan", you: "plan", "code-review": "review", qa: "qa", pr: "impl" };
+  const stationDocMap = { "plan-review": "plan", you: "plan", build: "impl", "code-review": "review", qa: "qa", pr: "impl" };
 
   const stationsHtml = data.stations.map((st, idx) => {
     const docId = stationDocMap[st.id] || "spec";
-    const iconName = st.state === "done" ? "check" : st.state === "failed" ? "x" : st.state === "attention" ? "sparkles" : st.state === "active" ? "refresh-cw" : "circle-dot";
+    const iconName = st.state === "done" ? "check" : st.state === "failed" ? "x" : st.state === "attention" ? "shield-check" : st.state === "active" ? "refresh-cw" : "circle-dot";
     return `<div class="mc-station is-${esc(st.state)}">
       <button type="button" class="mc-station-btn" data-action="${st.id === "pr" && artifactsCount ? "show-diff" : "open-stage-doc"}" data-id="${esc(task.id)}" data-doc-id="${esc(docId)}" title="${esc(st.label)} · ${esc(st.sub)}">
         <span class="mc-station-dot">${icon(iconName, 12)}</span>
@@ -2787,14 +2800,14 @@ function missionControlStepperMarkup(task, { compact = false } = {}) {
 
   const planGateBanner = data.awaitingGate ? `<div class="mc-plan-gate-banner">
     <div class="mc-plan-gate-info">
-      <span class="mc-badge is-attention">YOU · PLAN GATE</span>
-      <strong>Kế hoạch đã sẵn sàng — Chờ bạn duyệt (GO) trước khi Agent triển khai code</strong>
+      <span class="mc-badge is-attention">TRẠM 2 · DUYỆT KẾ HOẠCH</span>
+      <strong>Kế hoạch đã sẵn sàng — Chờ bạn duyệt trước khi Agent triển khai code</strong>
     </div>
     <div class="mc-plan-gate-controls">
       <input type="text" data-plan-gate-feedback placeholder="Ghi chú thêm hoặc yêu cầu sửa kế hoạch (tùy chọn)…" autocomplete="off">
       <button type="button" class="button quiet small" data-action="open-stage-doc" data-id="${esc(task.id)}" data-doc-id="plan">${icon("book-open-text", 12)}<span>Xem plan.md</span></button>
-      <button type="button" class="button quiet small" data-action="revise-plan-gate" data-id="${esc(task.id)}">${icon("refresh-cw", 12)}<span>Lập lại Plan</span></button>
-      <button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(task.id)}">${icon("check", 12)}<span>Duyệt & Triển khai (GO)</span></button>
+      <button type="button" class="button quiet small" data-action="revise-plan-gate" data-id="${esc(task.id)}">${icon("refresh-cw", 12)}<span>Lập lại kế hoạch</span></button>
+      <button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(task.id)}">${icon("check", 12)}<span>Duyệt & Triển khai</span></button>
     </div>
   </div>` : "";
 
@@ -2804,11 +2817,11 @@ function missionControlStepperMarkup(task, { compact = false } = {}) {
     const durLabel = c.durationSec >= 60 ? `${Math.round(c.durationSec / 60)}m` : `${Math.max(1, c.durationSec || 1)}s`;
     return `<div class="mc-cycle-row is-${esc(c.status || "done")}" data-action="open-stage-doc" data-id="${esc(task.id)}" data-doc-id="${esc(stageDoc)}" role="button" tabindex="0">
       <span class="mc-cycle-status">${icon(rowIcon, 12)}</span>
-      <strong class="mc-cycle-label">${esc(c.label || `Round ${c.round} · ${c.stage}`)}</strong>
+      <strong class="mc-cycle-label">${esc(c.label || `Vòng ${c.round} · ${c.stage}`)}</strong>
       <span class="mc-cycle-summary">${esc(c.summary || "")}</span>
       <span class="mc-cycle-metrics">
-        ${c.stage === "review" || c.blocking > 0 || c.advisory > 0 ? `<span class="mc-badge ${c.blocking > 0 ? "is-blocking" : "is-zero"}">${c.blocking} blocking</span><span class="mc-badge ${c.advisory > 0 ? "is-advisory" : "is-zero"}">${c.advisory} advisory</span>` : ""}
-        <span class="mc-metric-pill">${c.turns || 1} turns</span>
+        ${c.stage === "review" || c.blocking > 0 || c.advisory > 0 ? `<span class="mc-badge ${c.blocking > 0 ? "is-blocking" : "is-zero"}">${c.blocking} lỗi chặn</span><span class="mc-badge ${c.advisory > 0 ? "is-advisory" : "is-zero"}">${c.advisory} góp ý</span>` : ""}
+        <span class="mc-metric-pill">${c.turns || 1} lượt</span>
         <span class="mc-metric-pill">${durLabel}</span>
         ${c.costUsd > 0 ? `<span class="mc-metric-pill is-cost">$${Number(c.costUsd).toFixed(2)}</span>` : ""}
       </span>
@@ -2816,7 +2829,7 @@ function missionControlStepperMarkup(task, { compact = false } = {}) {
   }).join("");
 
   const docsBar = `<div class="mc-stage-docs-bar">
-    <span class="mc-docs-label">${icon("book-open-text", 12)} Tài liệu Stage:</span>
+    <span class="mc-docs-label">${icon("book-open-text", 12)} Tài liệu giai đoạn:</span>
     ${(data.stageDocuments || []).map((doc) => `<button type="button" class="mc-doc-pill ${doc.ready ? "is-ready" : ""}" data-action="open-stage-doc" data-id="${esc(task.id)}" data-doc-id="${esc(doc.id)}">${esc(doc.title)}</button>`).join("")}
   </div>`;
 
@@ -2836,14 +2849,13 @@ function missionControlStepperMarkup(task, { compact = false } = {}) {
   const flowBtn = compact ? `<button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(task.id)}">${icon("workflow", 13)}<span>Luồng</span></button>` : "";
   const stopBtn = busy ? `<button type="button" class="button danger small" data-action="stop-task" data-id="${esc(task.id)}">${icon("square", 12)}<span>Dừng</span></button>` : "";
 
-  return `<section class="mc-stepper-card ${compact ? "is-compact" : "is-full"} ${busy ? "is-running" : ""}" aria-label="Tiến trình 6 bước">
+  return `<section class="mc-stepper-card ${compact ? "is-compact" : "is-full"} ${busy ? "is-running" : ""}" aria-label="Tiến trình 6 trạm">
     <header class="mc-stepper-head">
       <div class="mc-stepper-meta">
         <span class="mc-code-pill">${esc(task.code || "TASK")}</span>
-        <span class="mc-risk-pill is-risk-${esc((task.riskLevel || "M").toLowerCase())}">Risk ${esc(task.riskLevel || "M")}</span>
-        <span class="mc-round-pill">Round ${data.currentRound}/${data.maxRounds}</span>
-        ${data.findings.blocking > 0 ? `<span class="mc-badge is-blocking">${data.findings.blocking} blocking</span>` : ""}
-        ${data.findings.advisory > 0 ? `<span class="mc-badge is-advisory">${data.findings.advisory} advisory</span>` : ""}
+        <span class="mc-round-pill">Vòng ${data.currentRound}/${data.maxRounds}</span>
+        ${data.findings.blocking > 0 ? `<span class="mc-badge is-blocking">${data.findings.blocking} lỗi chặn</span>` : ""}
+        ${data.findings.advisory > 0 ? `<span class="mc-badge is-advisory">${data.findings.advisory} góp ý</span>` : ""}
         ${data.costUsd > 0 ? `<span class="mc-badge is-cost">$${data.costUsd.toFixed(2)}</span>` : ""}
         ${worktreeChip}
         ${activityText}
@@ -2854,7 +2866,7 @@ function missionControlStepperMarkup(task, { compact = false } = {}) {
     ${planGateBanner}
     ${compact
       ? (cyclesRows ? `<details class="mc-cycles-Region" ${data.awaitingGate || data.findings.blocking > 0 ? "open" : ""}>
-          <summary class="mc-cycles-summary"><span>Lịch sử vòng lặp (${data.cycles.length} bước) & Tài liệu Stage (5)</span>${icon("chevron-down", 13)}</summary>
+          <summary class="mc-cycles-summary"><span>Lịch sử vòng lặp (${data.cycles.length} bước) & Tài liệu giai đoạn (5)</span>${icon("chevron-down", 13)}</summary>
           <div class="mc-cycles-list">${cyclesRows}</div>
           ${docsBar}
         </details>` : docsBar)
@@ -2867,24 +2879,24 @@ function openWaveDecomposeModal() {
   if (!workspaces.length) return showWorkspaceModal();
   const options = workspaces.map((w) => `<option value="${esc(w.id)}" ${w.id === (view.homeWorkspaceId || workspaces[0]?.id) ? "selected" : ""}>${esc(w.name)} · ${esc(w.path)}</option>`).join("");
   const defaultCampaign = [
-    "[Wave 1 | S] Phân tích kiến trúc & lập đặc tả giao diện / API nền tảng",
-    "[Wave 2 | M] Triển khai logic nghiệp vụ chính và kết nối dữ liệu",
-    "[Wave 3 | S] Viết kiểm thử QA, rà soát lỗi biên và hoàn thiện tài liệu",
+    "[Wave 1] Phân tích kiến trúc & lập đặc tả giao diện / API nền tảng",
+    "[Wave 2] Triển khai logic nghiệp vụ chính và kết nối dữ liệu",
+    "[Wave 3] Viết kiểm thử QA, rà soát lỗi biên và hoàn thiện tài liệu",
   ].join("\n");
   const body = `
-    <p class="form-note">Khởi chạy chiến dịch <strong>Wave DAG</strong>: các task trong cùng một Wave chạy song song (trên nhánh Git worktree cô lập), và Wave sau sẽ tự động đợi Wave trước hoàn tất.</p>
+    <p class="form-note">Khởi chạy chiến dịch <strong>theo đợt (Wave DAG)</strong>: các tác vụ trong cùng một đợt chạy song song trên nhánh Git worktree cô lập, và đợt sau sẽ tự động đợi đợt trước hoàn tất.</p>
     <div class="modal-grid-2">
-      <label>Tên chiến dịch (Milestone)<input name="milestone" required maxlength="120" value="Chiến dịch nâng cấp tính năng" placeholder="VD: Auth & Security Overhaul"></label>
-      <label>Workspace<select name="workspaceId" required>${options}</select></label>
+      <label>Tên chiến dịch<input name="milestone" required maxlength="120" value="Chiến dịch nâng cấp tính năng" placeholder="VD: Nâng cấp xác thực & bảo mật"></label>
+      <label>Dự án (Workspace)<select name="workspaceId" required>${options}</select></label>
     </div>
-    <label>Danh sách Task theo Wave (mỗi dòng 1 task — cú pháp <code>[Wave 1 | S/M/L] Tiêu đề :: Chi tiết</code>)
+    <label>Danh sách tác vụ theo đợt (mỗi dòng 1 tác vụ — cú pháp <code>[Wave 1] Tiêu đề :: Chi tiết</code>)
       <textarea name="waveSpec" rows="6" required spellcheck="false">${esc(defaultCampaign)}</textarea>
     </label>
     <div class="modal-grid-2">
-      <label>Số vòng tự sửa tối đa (Multi-Round Fix)
+      <label>Số vòng tự sửa tối đa
         <select name="maxRounds">
           <option value="1">1 vòng (Tiêu chuẩn)</option>
-          <option value="2" selected>2 vòng (Tự sửa nếu Review/QA báo lỗi)</option>
+          <option value="2" selected>2 vòng (Tự sửa nếu Đánh giá/QA báo lỗi)</option>
           <option value="3">3 vòng (Khắt khe)</option>
         </select>
       </label>
@@ -2892,23 +2904,28 @@ function openWaveDecomposeModal() {
         <input name="qaCommand" placeholder="VD: npm test" autocomplete="off" spellcheck="false">
       </label>
     </div>
-    <label class="check-row"><input type="checkbox" name="planGate"><span><strong>Bật cổng duyệt Kế hoạch (Human Plan Gate · You)</strong><small>Tạm dừng sau bước lập kế hoạch để bạn bấm GO trước khi Agent viết code.</small></span></label>
-    <label class="check-row"><input type="checkbox" name="isolated" checked><span><strong>Tách Git worktree cô lập cho từng task</strong><small>Cho phép các task trong cùng một Wave chạy song song không đụng độ tệp.</small></span></label>
+    <label class="check-row"><input type="checkbox" name="planGate"><span><strong>Bật cổng duyệt Kế hoạch (Trạm 2 · Duyệt kế hoạch)</strong><small>Tạm dừng sau bước lập kế hoạch để bạn duyệt trước khi Agent viết code.</small></span></label>
+    <label class="check-row"><input type="checkbox" name="isolated" checked><span><strong>Tách Git worktree cô lập cho từng tác vụ</strong><small>Cho phép các tác vụ trong cùng một đợt chạy song song không đụng độ tệp.</small></span></label>
   `;
-  showModal("Chiến dịch Wave DAG đa tầng", body, "Khởi chạy Wave DAG", "wave-decompose");
+  showModal("Chiến dịch Wave DAG đa tầng", body, "Khởi chạy chiến dịch", "wave-decompose");
 }
 
 function workflowPage() {
   if (view.selected && view.state.tasks.some((task) => task.id === view.selected)) return taskDetails();
   const allTasks = (view.state.tasks || []).filter((t) => !t.archived);
-  const riskFilter = view.waveRiskFilter || "all";
-  const criticalOnly = Boolean(view.waveCriticalOnly);
+  const statusFilter = view.waveStatusFilter || "all";
   const tasks = allTasks.filter((t) => {
-    if (riskFilter !== "all" && String(t.riskLevel || "M").toUpperCase() !== riskFilter) return false;
-    if (criticalOnly) {
-      const f = parseReviewFindings(t.review || "");
-      const isCrit = t.status === "awaiting_approval" || t.status === "failed" || f.blocking > 0 || String(t.riskLevel || "").toUpperCase() === "L";
-      if (!isCrit) return false;
+    if (statusFilter === "all") return true;
+    const f = parseReviewFindings(t.review || "");
+    const canMerge = t.isolated && !t.worktreeCleaned && !t.worktreeAppliedAt && (t.artifacts || []).length > 0 && t.status === "done";
+    if (statusFilter === "attention") {
+      return t.status === "awaiting_approval" || t.status === "failed" || f.blocking > 0 || canMerge;
+    }
+    if (statusFilter === "running") {
+      return t.status === "running" || t.status === "queued";
+    }
+    if (statusFilter === "done") {
+      return t.status === "done";
     }
     return true;
   });
@@ -2917,8 +2934,8 @@ function workflowPage() {
   const needsLookHtml = dag.needsLookTasks.length ? `<section class="mc-needs-look-banner" aria-label="Cần bạn xử lý">
     <header class="mc-needs-look-head">
       <div>
-        <span class="mc-badge is-attention">${icon("sparkles", 12)} NEEDS A LOOK · ${dag.needsLookTasks.length}</span>
-        <strong>Các tác vụ đang chờ quyết định của bạn (Duyệt Plan GO, Gộp nhánh, hoặc Xử lý lỗi)</strong>
+        <span class="mc-badge is-attention">${icon("shield-check", 12)} CẦN BẠN DUYỆT · ${dag.needsLookTasks.length}</span>
+        <strong>Các tác vụ đang chờ quyết định của bạn (Duyệt kế hoạch, Gộp nhánh, hoặc Xử lý lỗi)</strong>
       </div>
     </header>
     <div class="mc-needs-look-grid">
@@ -2930,13 +2947,12 @@ function workflowPage() {
           <div class="mc-needs-look-main">
             <span class="mc-code-pill">${esc(t.code || "TASK")}</span>
             <button type="button" class="mc-needs-look-title" data-action="open-task-flow" data-id="${esc(t.id)}"><strong>${esc(t.title)}</strong></button>
-            <span class="mc-risk-pill is-risk-${esc((t.riskLevel || "M").toLowerCase())}">${esc(t.riskLevel || "M")}</span>
-            ${isGate ? `<span class="mc-badge is-attention">Chờ duyệt Plan (GO)</span>` : ""}
-            ${stepper.findings.blocking > 0 ? `<span class="mc-badge is-blocking">${stepper.findings.blocking} blocking</span>` : ""}
+            ${isGate ? `<span class="mc-badge is-attention">Chờ duyệt kế hoạch</span>` : ""}
+            ${stepper.findings.blocking > 0 ? `<span class="mc-badge is-blocking">${stepper.findings.blocking} lỗi chặn</span>` : ""}
             ${canMerge ? `<span class="mc-badge is-passed">Sẵn sàng gộp (${(t.artifacts || []).length} tệp)</span>` : ""}
           </div>
           <div class="mc-needs-look-actions">
-            ${isGate ? `<button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(t.id)}">${icon("check", 12)}<span>Duyệt GO</span></button><button type="button" class="button quiet small" data-action="open-stage-doc" data-id="${esc(t.id)}" data-doc-id="plan">Xem Plan</button>` : ""}
+            ${isGate ? `<button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(t.id)}">${icon("check", 12)}<span>Duyệt & Chạy</span></button><button type="button" class="button quiet small" data-action="open-stage-doc" data-id="${esc(t.id)}" data-doc-id="plan">Xem kế hoạch</button>` : ""}
             ${canMerge ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(t.id)}">${icon("check", 12)}<span>Gộp nhánh</span></button>` : ""}
             <button type="button" class="button quiet small" data-action="back-chat" data-id="${esc(t.id)}">Mở Chat</button>
             <button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(t.id)}">Chi tiết</button>
@@ -2946,27 +2962,33 @@ function workflowPage() {
     </div>
   </section>` : "";
 
+  const statusFilters = [
+    { id: "all", label: "Tất cả" },
+    { id: "attention", label: "Cần chú ý", iconName: "shield-check" },
+    { id: "running", label: "Đang chạy", iconName: "refresh-cw" },
+    { id: "done", label: "Hoàn tất", iconName: "check" },
+  ];
+
   const toolbarHtml = `<div class="mc-board-toolbar">
     <div class="mc-counter-strip">
-      <span class="mc-counter-pill ${dag.counters.forYou > 0 ? "is-attention" : ""}"><strong>${dag.counters.forYou}</strong> for you</span>
-      <span class="mc-counter-pill ${dag.counters.running > 0 ? "is-running" : ""}"><strong>${dag.counters.running}</strong> running</span>
-      <span class="mc-counter-pill"><strong>${dag.counters.inReview}</strong> in review</span>
-      <span class="mc-counter-pill"><strong>${dag.counters.ready}</strong> ready</span>
-      <span class="mc-counter-pill ${dag.counters.blocked > 0 ? "is-blocked" : ""}"><strong>${dag.counters.blocked}</strong> blocked</span>
-      <span class="mc-counter-pill is-done"><strong>${dag.counters.done}</strong> done</span>
+      <span class="mc-counter-pill ${dag.counters.forYou > 0 ? "is-attention" : ""}"><strong>${dag.counters.forYou}</strong> cần bạn duyệt</span>
+      <span class="mc-counter-pill ${dag.counters.running > 0 ? "is-running" : ""}"><strong>${dag.counters.running}</strong> đang chạy</span>
+      <span class="mc-counter-pill"><strong>${dag.counters.inReview}</strong> đang đánh giá</span>
+      <span class="mc-counter-pill"><strong>${dag.counters.ready}</strong> sẵn sàng</span>
+      <span class="mc-counter-pill ${dag.counters.blocked > 0 ? "is-blocked" : ""}"><strong>${dag.counters.blocked}</strong> chờ đợt trước</span>
+      <span class="mc-counter-pill is-done"><strong>${dag.counters.done}</strong> hoàn tất</span>
     </div>
-    <div class="mc-filter-strip">
-      <span class="mc-filter-label">Risk:</span>
-      ${["all", "S", "M", "L"].map((r) => `<button type="button" class="filter ${riskFilter === r ? "active" : ""}" data-action="wave-risk-filter" data-risk="${r}">${r === "all" ? "Tất cả" : r}</button>`).join("")}
-      <button type="button" class="filter ${criticalOnly ? "active" : ""}" data-action="wave-critical-toggle">⚡ Critical</button>
+    <div class="mc-filter-strip" role="tablist" aria-label="Bộ lọc trạng thái luồng">
+      <span class="mc-filter-label">Hiển thị:</span>
+      ${statusFilters.map((f) => `<button type="button" class="filter ${statusFilter === f.id ? "active" : ""}" data-action="wave-status-filter" data-status="${f.id}">${f.iconName ? icon(f.iconName, 12) : ""}<span>${f.label}</span></button>`).join("")}
     </div>
   </div>`;
 
   return `<div class="page-head">
     <div>
-      <div class="eyebrow">MISSION CONTROL & WAVE DAG</div>
+      <div class="eyebrow">ĐIỀU PHỐI 6 TRẠM & ĐỢT TÁC VỤ</div>
       <h1>Luồng điều phối</h1>
-      <p>Theo dõi tiến trình 6 trạm (Start → Plan → You → Review → QA → PR), vòng lặp tự sửa lỗi và bảng phụ thuộc Wave DAG.</p>
+      <p>Theo dõi tiến trình 6 trạm (1. Lập kế hoạch → 2. Duyệt kế hoạch → 3. Triển khai → 4. Đánh giá → 5. Kiểm thử QA → 6. Tích hợp), vòng lặp tự sửa lỗi và sơ đồ phụ thuộc theo đợt.</p>
     </div>
     <div class="page-head-actions" style="display:flex;gap:8px;align-items:center">
       <button class="button quiet" data-action="open-wave-decompose">${icon("workflow", 15)} Chiến dịch Wave DAG</button>
@@ -2980,7 +3002,7 @@ function workflowPage() {
     ${dag.waves.map((wave) => `<div class="mc-wave-column" data-wave-index="${wave.index}">
       <header class="mc-wave-column-head">
         <strong>${esc(wave.label)}</strong>
-        <span class="mc-wave-count">${wave.tasks.length} task · ${wave.doneCount}/${wave.tasks.length} hoàn tất</span>
+        <span class="mc-wave-count">${wave.tasks.length} tác vụ · ${wave.doneCount}/${wave.tasks.length} hoàn tất</span>
       </header>
       <div class="mc-wave-column-body">
         ${wave.tasks.map((task) => {
@@ -2995,10 +3017,9 @@ function workflowPage() {
               <div class="mc-card-title-wrap">
                 <div class="mc-card-badges">
                   <span class="mc-code-pill">${esc(task.code || "TASK")}</span>
-                  <span class="mc-risk-pill is-risk-${esc((task.riskLevel || "M").toLowerCase())}">${esc(task.riskLevel || "M")}</span>
-                  <span class="mc-round-pill">R${stepper.currentRound}/${stepper.maxRounds}</span>
-                  ${stepper.findings.blocking > 0 ? `<span class="mc-badge is-blocking">${stepper.findings.blocking} blk</span>` : ""}
-                  ${stepper.findings.advisory > 0 ? `<span class="mc-badge is-advisory">${stepper.findings.advisory} adv</span>` : ""}
+                  <span class="mc-round-pill">Vòng ${stepper.currentRound}/${stepper.maxRounds}</span>
+                  ${stepper.findings.blocking > 0 ? `<span class="mc-badge is-blocking">${stepper.findings.blocking} lỗi chặn</span>` : ""}
+                  ${stepper.findings.advisory > 0 ? `<span class="mc-badge is-advisory">${stepper.findings.advisory} góp ý</span>` : ""}
                   ${stepper.costUsd > 0 ? `<span class="mc-badge is-cost">$${stepper.costUsd.toFixed(2)}</span>` : ""}
                 </div>
                 <button data-action="open-task-flow" data-id="${esc(task.id)}" class="workflow-task-title">
@@ -3016,7 +3037,7 @@ function workflowPage() {
             <footer>
               <span>${task.config.workflow === "chat-only" ? `Chat · ${esc(providerTitle(view.connectors, task.config.chatProvider))}` : task.config.workflow === "plan-only" ? `${esc(providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider))} · chỉ lập kế hoạch` : esc(workflowSummary(task))}</span>
               <div class="mc-card-footer-actions">
-                ${task.status === "awaiting_approval" ? `<button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(task.id)}">Duyệt GO</button>` : ""}
+                ${task.status === "awaiting_approval" ? `<button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(task.id)}">Duyệt & Chạy</button>` : ""}
                 <button type="button" class="workflow-record-link" data-action="back-chat" data-id="${esc(task.id)}">Chat</button>
                 <button class="workflow-record-link" data-action="open-task-flow" data-id="${esc(task.id)}">${icon("workflow", 14)} Mở bản ghi</button>
               </div>
@@ -3026,7 +3047,7 @@ function workflowPage() {
         }).join("")}
       </div>
     </div>`).join("")}
-  </section>` : `<section class="empty-state workflow-empty"><strong>Chưa có bản ghi luồng</strong><p>Bản ghi điều phối sẽ xuất hiện tại đây khi một cuộc trò chuyện hoặc chiến dịch Wave DAG được tạo trong workspace.</p><div style="display:flex;gap:8px;justify-content:center"><button class="button quiet" data-action="open-wave-decompose">${icon("workflow", 15)} Tạo chiến dịch Wave DAG</button><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button></div></section>`}`;
+  </section>` : `<section class="empty-state workflow-empty"><strong>Chưa có bản ghi luồng</strong><p>Bản ghi điều phối sẽ xuất hiện tại đây khi một cuộc trò chuyện hoặc chiến dịch Wave DAG được tạo trong dự án.</p><div style="display:flex;gap:8px;justify-content:center"><button class="button quiet" data-action="open-wave-decompose">${icon("workflow", 15)} Tạo chiến dịch Wave DAG</button><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button></div></section>`}`;
 }
 function memoryPage() {
   const notes = view.state?.memories || [];
@@ -3041,7 +3062,7 @@ function memoryPage() {
 
   return `<div class="page-head">
     <div>
-      <div class="eyebrow">LOCAL MEMORY</div>
+      <div class="eyebrow">BỘ NHỚ CỤC BỘ</div>
       <h1>Bộ nhớ</h1>
       <p>Ghi chú lưu trong máy này. Task chỉ nhận tối đa ba ghi chú có từ khóa phù hợp.</p>
     </div>
@@ -3096,7 +3117,7 @@ function settingsPage() {
         ? cliRefreshButton()
         : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Mở terminal đăng nhập</button>`;
     const detail = status.tone === "ready"
-      ? `${connector.models.length} model${connector.models.length === 1 ? "" : "s"}${connector.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
+      ? `${connector.models.length} model${connector.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
       : status.tone === "missing" ? connector?.error || agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
     return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${esc(status.tone)}">${esc(status.label)}</span></strong><small>${esc(detail)}</small></div><div class="cli-guide-actions">${action}</div></article>`;
   }).join("");
@@ -3142,7 +3163,7 @@ function settingsPage() {
 
   return `<div class="page-head">
     <div>
-      <div class="eyebrow">SYSTEM & PROVIDERS</div>
+      <div class="eyebrow">HỆ THỐNG & NGUỒN AI</div>
       <h1>Cài đặt</h1>
       <p>Định tuyến model mặc định cho từng vai trò điều phối, kết nối Agent CLI cục bộ và quản lý nguồn API.</p>
     </div>
@@ -3168,8 +3189,21 @@ function settingsPage() {
       </header>
       <div class="theme-gallery-groups">${themeGroupsHtml}</div>
     </section>
-    <section class="settings-card" id="settings-roles"><header><div><h2>Ai ra lệnh, ai thực hiện</h2><p>Chọn model lập kế hoạch (ra lệnh), model triển khai (thực hiện) và model review. Mỗi task vẫn có thể dùng bộ model khác.</p></div></header>
-        ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và review.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API / model local</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI agent</button></div></div>` : ""}
+    <section class="settings-card" id="settings-roles"><header><div><h2>Ai ra lệnh, ai thực hiện (Định tuyến 3 AI trong quy trình 6 trạm)</h2><p>Quy trình 6 trạm gồm <strong>3 trạm AI suy luận</strong> (Trạm 1 Lập kế hoạch, Trạm 3 Triển khai, Trạm 4 Đánh giá) và <strong>3 cổng kiểm soát của Bạn / Hệ thống</strong> (Trạm 2 Duyệt kế hoạch, Trạm 5 Kiểm thử QA, Trạm 6 Tích hợp Git) — hoàn toàn đồng bộ và không tốn thêm model AI.</p></div></header>
+        <div class="settings-station-map" aria-label="Sơ đồ 6 trạm và 3 vai trò AI">
+          <div class="station-map-item is-ai"><strong>1. Lập kế hoạch</strong><small>Model Lập kế hoạch</small></div>
+          <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
+          <div class="station-map-item is-gate"><strong>2. Duyệt kế hoạch</strong><small>Bạn duyệt / Tự động</small></div>
+          <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
+          <div class="station-map-item is-ai"><strong>3. Triển khai</strong><small>Model Triển khai</small></div>
+          <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
+          <div class="station-map-item is-ai"><strong>4. Đánh giá</strong><small>Model Đánh giá</small></div>
+          <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
+          <div class="station-map-item is-gate"><strong>5. Kiểm thử QA</strong><small>Hệ thống chạy lệnh test</small></div>
+          <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
+          <div class="station-map-item is-gate"><strong>6. Tích hợp</strong><small>Hệ thống Git / Worktree</small></div>
+        </div>
+        ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và đánh giá.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API / model local</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI agent</button></div></div>` : ""}
       <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
       <div class="form-note">Khi chọn model API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới dịch vụ đó. Model CLI chạy cục bộ theo quyền của CLI.</div>
       ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Model vẫn chọn theo từng task; hãy khởi động lại server để bật lưu model mặc định và gắn skill.</div>`}
@@ -3347,7 +3381,7 @@ function render({ background = false } = {}) {
 }
 
 function drawWaveDagEdges() {
-  if (view.page !== "workflows") return;
+  if (view.page !== "flows") return;
   const board = document.querySelector("[data-wave-dag-board]");
   const svg = board?.querySelector("[data-wave-dag-svg]");
   if (!board || !svg) return;
@@ -3494,7 +3528,6 @@ function chatPage() {
     }
   }
   const activeEfforts = chatSelection.model?.efforts?.length ? chatSelection.model.efforts : ["low", "medium", "high"];
-  const effortDisplay = { low: "Low", medium: "Medium", high: "High", minimal: "Min", standard: "Std", max: "Max" };
   const homeModeOptions = [
     { id: "chat", label: "Chat", icon: "message-circle" },
     { id: "code", label: "Code", icon: "square-terminal", disabled: !pipelineReady },
@@ -3537,7 +3570,7 @@ function chatPage() {
             ${models.length ? models.map((m) => `<option value="${esc(m.id)}" ${m.id === slot.model ? "selected" : ""}>${esc(m.name || m.id)}</option>`).join("") : `<option value="">Mặc định</option>`}
           </select>
           <select class="arena-slot-select is-effort" data-arena-slot-effort="${idx}" aria-label="Mức suy nghĩ nhánh ${idx + 1}">
-            ${slotEfforts.map((ef) => `<option value="${esc(ef)}" ${ef === slot.effort ? "selected" : ""}>${esc(ef)}</option>`).join("")}
+            ${slotEfforts.map((ef) => `<option value="${esc(ef)}" ${ef === slot.effort ? "selected" : ""}>${esc(formatEffortLabel(ef))}</option>`).join("")}
           </select>
           <button type="button" class="arena-slot-icon" data-action="arena-clone-slot" data-index="${idx}" ${arenaSlots.length >= 8 ? "disabled" : ""} title="Nhân bản thêm 1 nhánh giống hệt nhánh này">${icon("copy", 13)}</button>
           <button type="button" class="arena-slot-icon is-danger" data-action="arena-remove-slot" data-index="${idx}" ${arenaSlots.length <= 2 ? "disabled" : ""} title="Xóa nhánh này">${icon("x", 13)}</button>
@@ -3590,13 +3623,13 @@ function chatPage() {
                 ${homeIsolated ? icon("git-branch", 14) : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><line x1="2" y1="20" x2="22" y2="20"/></svg>`}
                 <span>${homeIsolated ? "Git Worktree" : "Máy tính này"}</span>
               </button>
-              ${workflow !== "chat-only" && !isArena ? `<button type="button" class="codex-rail-pill ${view.homePlanGate ? "is-active" : ""}" data-action="toggle-home-plan-gate" title="Cổng duyệt Plan Gate (You · GO): Tạm dừng sau bước Lập kế hoạch để bạn duyệt trước khi Agent sửa code">
+              ${workflow !== "chat-only" && !isArena ? `<button type="button" class="codex-rail-pill ${view.homePlanGate ? "is-active" : ""}" data-action="toggle-home-plan-gate" title="Cổng duyệt kế hoạch (Trạm 2): Tạm dừng sau bước Lập kế hoạch để bạn duyệt trước khi Agent sửa code">
                 ${icon("shield-check", 13)}
-                <span>Plan Gate: ${view.homePlanGate ? "Bật (GO)" : "Tự động"}</span>
+                <span>Duyệt kế hoạch: ${view.homePlanGate ? "Bật" : "Tự động"}</span>
               </button>` : ""}
-              ${workflow === "codex-antigravity" && !isArena ? `<button type="button" class="codex-rail-pill ${(view.homeMaxRounds || 2) > 1 ? "is-active" : ""}" data-action="cycle-home-max-rounds" title="Số vòng tự động sửa lỗi (Build ↔ Review) tối đa khi phát hiện lỗi">
+              ${workflow === "codex-antigravity" && !isArena ? `<button type="button" class="codex-rail-pill ${(view.homeMaxRounds || 2) > 1 ? "is-active" : ""}" data-action="cycle-home-max-rounds" title="Số vòng tự động sửa lỗi (Triển khai ↔ Đánh giá) tối đa khi phát hiện lỗi">
                 ${icon("refresh-cw", 13)}
-                <span>Vòng sửa: R${view.homeMaxRounds || 2}</span>
+                <span>Vòng sửa: ${view.homeMaxRounds || 2}</span>
               </button>` : ""}
             </div>
             <div class="codex-rail-right">${homeModeMenu}</div>
@@ -3627,15 +3660,15 @@ function chatPage() {
                   </div>
                 </details>
                 <details class="codex-pop-menu is-up is-right" data-pop-id="home-effort">
-                  <summary class="codex-inline-trigger is-effort" title="Mức suy luận (Reasoning Effort)">
-                    <span>${esc(effortDisplay[chatSelection.effort] || chatSelection.effort || "Medium")}</span>
+                  <summary class="codex-inline-trigger is-effort" title="Mức suy luận">
+                    <span>${esc(formatEffortLabel(chatSelection.effort))}</span>
                     ${icon("chevron-down", 12)}
                   </summary>
                   <div class="codex-pop-card is-effort-list">
                     <div class="codex-pop-head">Mức suy luận</div>
                     <div class="codex-pop-scroll">
                       ${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === chatSelection.effort ? "is-selected" : ""}" data-action="pick-home-effort" data-effort="${esc(ef)}">
-                        <span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>
+                        <span class="codex-pop-item-main"><span>${esc(formatEffortLabel(ef))}</span></span>
                         ${ef === chatSelection.effort ? icon("check", 13) : ""}
                       </button>`).join("")}
                     </div>
@@ -4139,7 +4172,6 @@ function taskConversationPage(taskId = view.selected, options = {}) {
     }
     return `<article class="chat-message from-agent" id="chat-answer-${options.splitPane ? `${esc(task.id)}-` : ""}${messageIndex}" data-key="assistant-msg-${esc(message.id || messageIndex)}" data-chat-answer-index="${messageIndex}"><header><strong>${esc(sender)}</strong><small>${esc(modelLabel || pending || fmtDate(message.createdAt))}</small></header><div class="chat-message-content agent-message-content">${content}${messageAttachments}${pending ? `<span class="chat-message-status">${esc(pending)}</span>` : ""}${messageError}${responseMeta}</div></article>`;
   }).join("") : `<div class="chat-empty-note">Cuộc trò chuyện này chưa có nội dung hiển thị. Gửi tin nhắn để tiếp tục với agent trong workspace.</div>`;
-  const effortDisplay = { low: "Low", medium: "Medium", high: "High", minimal: "Min", standard: "Std", max: "Max" };
   const activeEfforts = model?.efforts?.length ? model.efforts : ["low", "medium", "high"];
   const taskAgentItems = [];
   let activeTaskModelLabel = model?.name || model?.id || providerTitle(view.connectors, provider);
@@ -4162,7 +4194,7 @@ function taskConversationPage(taskId = view.selected, options = {}) {
   const threadId = options.splitPane ? `chat-thread-${esc(task.id)}` : "chat-thread";
   const composerMarkup = options.locked
     ? `<div class="multi-chat-locked">Chat này chưa có worktree riêng để chạy song song an toàn. Tạo chat mới với “Tách Git worktree riêng”.</div>`
-    : `<form class="chat-composer" data-modal data-form="task-chat" data-id="${esc(task.id)}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(options.draft ?? view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model-${esc(task.id)}"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort-${esc(task.id)}"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(effortDisplay[effort] || effort || "Medium")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-id="${esc(task.id)}" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(effortDisplay[ef] || ef)}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div>${busy ? `<button class="button primary chat-send-button chat-stop-button" type="button" data-action="stop-task" data-id="${esc(task.id)}" aria-label="${view.language === "en" ? "Stop" : "Dừng"}" title="${view.language === "en" ? "Stop task" : "Dừng tác vụ"}">${icon("square", 13)}</button>` : `<button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>`}</div></footer></form>`;
+    : `<form class="chat-composer" data-modal data-form="task-chat" data-id="${esc(task.id)}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(options.draft ?? view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model-${esc(task.id)}"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort-${esc(task.id)}"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(formatEffortLabel(effort))}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-id="${esc(task.id)}" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(formatEffortLabel(ef))}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div>${busy ? `<button class="button primary chat-send-button chat-stop-button" type="button" data-action="stop-task" data-id="${esc(task.id)}" aria-label="${view.language === "en" ? "Stop" : "Dừng"}" title="${view.language === "en" ? "Stop task" : "Dừng tác vụ"}">${icon("square", 13)}</button>` : `<button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>`}</div></footer></form>`;
   return `<section class="task-conversation-page is-unified-chat ${options.splitPane ? "is-split-pane" : ""}" aria-label="Cuộc trò chuyện">
       <section class="task-chat-pane conversation-chat-pane">
         ${outlineMarkup}
@@ -4222,7 +4254,7 @@ function openTaskInstructionModal(task) {
   view.chatEffort = view.chatEffort || (task.config.workflow === "chat-only" ? task.config.chatEffort : defaultRole.effort) || model?.efforts?.find((effort) => effort === "medium") || model?.efforts?.[0] || "";
   const providers = Object.entries(view.connectors || {}).filter(([, connector]) => connectorSupports(connector, "chat"));
   const options = models.map((item) => `<option value="${esc(item.id)}" ${item.id === model?.id ? "selected" : ""}>${esc(item.name)}</option>`).join("");
-  const effortOptions = (model?.efforts || efforts).map((effort) => `<option value="${esc(effort)}" ${effort === view.chatEffort ? "selected" : ""}>${esc(effort)}</option>`).join("");
+  const effortOptions = (model?.efforts || efforts).map((effort) => `<option value="${esc(effort)}" ${effort === view.chatEffort ? "selected" : ""}>${esc(formatEffortLabel(effort))}</option>`).join("");
   const body = `<div class="task-instruction-models"><label>Agent<select name="provider" data-chat-provider>${providers.map(([id, connector]) => `<option value="${esc(id)}" ${provider === id ? "selected" : ""}>${esc(connector.name || id)}${connector.kind === "api" ? " · API" : " · CLI"}</option>`).join("") || `<option value="">Chưa có agent khả dụng</option>`}</select></label><label>Model<select name="model" data-chat-model ${model ? "" : "disabled"}>${options || `<option value="">Chưa có model khả dụng</option>`}</select></label><label>Mức suy nghĩ<select name="effort" data-chat-effort>${effortOptions}</select></label></div>`;
   showModal("Cấu hình lượt chat", body, "Áp dụng", "task-chat-config");
   $(".modal").dataset.id = task.id;
@@ -4249,14 +4281,14 @@ function taskDetails() {
   const events = task.events || [];
   const busy = ["queued", "running"].includes(task.status);
   const nodes = orchestrationNodes(task);
-  const eventLabels = { stage: "AGENT", handoff: "HANDOFF", tool: "TOOL", output: "OUTPUT", chat: "MESSAGE", memory: "MEMORY", error: "ERROR", success: "DONE", warning: "NOTE" };
+  const eventLabels = { stage: "TRẠM AI", handoff: "CHUYỂN GIAO", tool: "CÔNG CỤ", output: "ĐẦU RA", chat: "TIN NHẮN", memory: "BỘ NHỚ", error: "LỖI", success: "HOÀN TẤT", warning: "GHI CHÚ" };
   const sortedEvents = [...events].slice(-150).reverse();
   const stages = [
     [`Kế hoạch · ${providerTitle(view.connectors, roleConfig(task.config, "plan").provider)}`, task.plan],
     [`Triển khai · ${providerTitle(view.connectors, roleConfig(task.config, "build").provider)}`, task.implementation],
-    [`Review · ${providerTitle(view.connectors, roleConfig(task.config, "review").provider)}`, task.review],
+    [`Đánh giá · ${providerTitle(view.connectors, roleConfig(task.config, "review").provider)}`, task.review],
   ].filter(([, output]) => output);
-  const replayStages = task.config.workflow === "plan-only" ? [["plan", "Kế hoạch"]] : [["plan", "Kế hoạch"], ["build", "Triển khai"], ["review", "Review"]];
+  const replayStages = task.config.workflow === "plan-only" ? [["plan", "Kế hoạch"]] : [["plan", "Kế hoạch"], ["build", "Triển khai"], ["review", "Đánh giá"]];
   const defaultReplayStage = task.status === "done"
     ? replayStages.at(-1)[0]
     : replayStages.some(([id]) => id === task.failedPhase) ? task.failedPhase
@@ -4269,10 +4301,10 @@ function taskDetails() {
       ? `<button class="button primary" data-action="rerun-task" data-id="${esc(task.id)}">Chạy lại chat</button>`
       : "";
   const stageRunHistory = (task.stageRunHistory || []).length ? `<section class="orchestration-stage-history"><strong>Lịch sử chạy lại</strong>${[...(task.stageRunHistory || [])].reverse().map((attempt) => {
-    const stageLabel = { plan: "Kế hoạch", build: "Triển khai", review: "Review", chat: "Chat" }[attempt.stage] || attempt.stage;
+    const stageLabel = { plan: "Kế hoạch", build: "Triển khai", review: "Đánh giá", chat: "Chat" }[attempt.stage] || attempt.stage;
     const statusLabel = { queued: "Trong hàng đợi", running: "Đang chạy", done: "Hoàn tất", failed: "Lỗi", cancelled: "Đã dừng" }[attempt.status] || "Đã ghi nhận";
     const outputRows = Object.entries(attempt.previousOutputs || {}).map(([stage, snapshot]) => {
-      const label = { plan: "Kế hoạch trước đó", build: "Triển khai trước đó", review: "Review trước đó" }[stage] || stage;
+      const label = { plan: "Kế hoạch trước đó", build: "Triển khai trước đó", review: "Đánh giá trước đó" }[stage] || stage;
       return `<details><summary>${esc(label)}</summary><pre>${esc(snapshot.text || "")}${snapshot.truncated ? "\n\n… phần cuối đã được rút gọn trong lịch sử." : ""}</pre></details>`;
     }).join("");
     const previousArtifacts = attempt.previousArtifacts?.length ? `<div class="stage-history-files"><small>${esc(translateText("Tệp từ lần chạy trước", view.language))}</small>${attempt.previousArtifacts.slice(0, 30).map((file) => `<code>${esc(file)}</code>`).join("")}</div>` : "";
@@ -4281,11 +4313,11 @@ function taskDetails() {
   const costUsd = estimateTaskCostUsd(task.usage);
   return `<section class="task-orchestration-page" aria-label="Điều phối task">
     <header class="conversation-top"><div class="conversation-context"><span class="conversation-repo">${icon("folder-code", 15)} ${esc(workspace?.name || task.workspacePath)}</span><span class="conversation-separator">/</span><span class="conversation-task-id">${esc(task.code || task.id)}</span></div><div class="detail-head-actions"><button class="button quiet small" data-action="back-flows">${icon("arrow-left", 14)} Bảng Wave DAG</button><button class="button quiet small" data-action="back-chat" data-id="${esc(task.id)}">${icon("square-terminal", 14)} Cuộc trò chuyện</button><button class="button quiet small" data-action="open-folder" data-id="${esc(task.id)}">${icon("folder-code", 14)} Mở workspace</button><button class="button quiet small" data-action="task-instruction" data-id="${esc(task.id)}">${icon("arrow-up-right", 14)} Gửi chỉ dẫn</button><button class="button quiet small" data-action="new-task">${icon("plus", 14)} Task mới</button></div></header>
-    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${esc(task.status)}"><i></i>${esc(statuses[task.status] || task.status)}</span>${presetBadge}<span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${formatNumber(usage)} tokens${costUsd > 0 ? ` · $${costUsd.toFixed(2)}` : ""}</span>` : ""}<span>${formatNumber(events.length)} sự kiện · ${formatNumber(nodes.length)} node</span></div></div></div>
+    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${esc(task.status)}"><i></i>${esc(statuses[task.status] || task.status)}</span>${presetBadge}<span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${formatNumber(usage)} token${costUsd > 0 ? ` · $${costUsd.toFixed(2)}` : ""}</span>` : ""}<span>${formatNumber(events.length)} sự kiện · ${formatNumber(nodes.length)} trạm</span></div></div></div>
     ${missionControlStepperMarkup(task, { compact: false })}
     ${task.skills?.length ? `<div class="skill-used">${icon("notebook-tabs", 14)} Skill đã chọn: ${task.skills.map((skill) => esc(skill.name)).join(" · ")}</div>` : ""}
-    <div class="orchestration-layout"><section class="orchestration-canvas"><header class="orchestration-canvas-head"><div><small>LUỒNG THỰC THI · ${esc(task.config.workflow === "chat-only" ? "CHAT" : task.config.workflow === "plan-only" ? "PLAN ONLY" : "CODE PIPELINE")}</small><h3>${busy ? "Điều phối đang hoạt động" : "Bản ghi điều phối"}</h3></div><span class="activity-live ${busy ? "is-live" : ""}"><i></i>${busy ? "Đang chạy" : "Đã lưu"}</span></header><div class="orchestration-flow">${nodes.map((node, index) => orchestrationNodeHtml(node, index, nodes.length)).join("")}</div></section>
-      <aside class="orchestration-activity"><header class="orchestration-activity-head"><div><small>EVENT LOG</small><h3>Điều phối & hoạt động</h3></div><span>${events.length} sự kiện</span></header><div class="orchestration-activity-note">${icon("workflow", 14)} Chỉ hiện hoạt động, handoff, đầu ra và công cụ được CLI ghi nhận. Suy luận nội bộ của model không được cung cấp.</div><div class="orchestration-event-list" id="agent-activity-feed">${sortedEvents.length ? sortedEvents.map((item) => { const text = String(item.text || ""); const longOutput = item.kind === "output" && text.length > 320; return `<article class="orchestration-event kind-${esc(item.kind)}"><span class="orchestration-event-mark">${icon(({ stage: "square-terminal", handoff: "workflow", tool: "settings-2", output: "file", chat: "book-open-text", memory: "brain", error: "circle-question-mark", success: "check", warning: "circle-question-mark" })[item.kind] || "workflow", 14)}</span><div><header><strong>${esc(eventLabels[item.kind] || "EVENT")}</strong><time>${fmtDate(item.at)}</time>${item.kind === "error" ? `<button type="button" class="event-error-open" data-action="view-error-details" data-error="${esc(text)}">Xem lỗi</button>` : ""}</header>${longOutput ? `<p>${esc(text.slice(0, 280))}…</p><details class="orchestration-event-details"><summary>Xem đầu ra đầy đủ</summary><pre>${esc(text)}</pre></details>` : `<p>${esc(text)}</p>`}</div></article>`; }).join("") : `<p class="orchestration-activity-empty">Các sự kiện sẽ xuất hiện khi task được chạy.</p>`}</div>${stages.length ? `<section class="orchestration-stage-results"><strong>Đầu ra agent</strong>${stages.map(([label, output]) => `<details><summary>${esc(label)}</summary><pre>${esc(output)}</pre></details>`).join("")}</section>` : ""}${(task.artifacts || []).length ? `<section class="orchestration-artifacts"><strong>${icon("file", 14)} Tệp thay đổi · ${task.artifacts.length}</strong>${task.artifacts.slice(0, 20).map((file) => `<div>${icon("file", 13)}<code>${esc(file)}</code></div>`).join("")}</section>` : ""}${stageRunHistory}</aside></div>
+    <div class="orchestration-layout"><section class="orchestration-canvas"><header class="orchestration-canvas-head"><div><small>LUỒNG THỰC THI · ${esc(task.config.workflow === "chat-only" ? "TRÒ CHUYỆN" : task.config.workflow === "plan-only" ? "CHỈ LẬP KẾ HOẠCH" : "QUY TRÌNH 6 TRẠM")}</small><h3>${busy ? "Điều phối đang hoạt động" : "Bản ghi điều phối"}</h3></div><span class="activity-live ${busy ? "is-live" : ""}"><i></i>${busy ? "Đang chạy" : "Đã lưu"}</span></header><div class="orchestration-flow">${nodes.map((node, index) => orchestrationNodeHtml(node, index, nodes.length)).join("")}</div></section>
+      <aside class="orchestration-activity"><header class="orchestration-activity-head"><div><small>NHẬT KÝ SỰ KIỆN</small><h3>Điều phối & hoạt động</h3></div><span>${events.length} sự kiện</span></header><div class="orchestration-activity-note">${icon("workflow", 14)} Chỉ hiện hoạt động, bàn giao, đầu ra và công cụ được CLI ghi nhận. Suy luận nội bộ của model không được cung cấp.</div><div class="orchestration-event-list" id="agent-activity-feed">${sortedEvents.length ? sortedEvents.map((item) => { const text = String(item.text || ""); const longOutput = item.kind === "output" && text.length > 320; return `<article class="orchestration-event kind-${esc(item.kind)}"><span class="orchestration-event-mark">${icon(({ stage: "square-terminal", handoff: "workflow", tool: "settings-2", output: "file", chat: "book-open-text", memory: "brain", error: "circle-question-mark", success: "check", warning: "circle-question-mark" })[item.kind] || "workflow", 14)}</span><div><header><strong>${esc(eventLabels[item.kind] || "SỰ KIỆN")}</strong><time>${fmtDate(item.at)}</time>${item.kind === "error" ? `<button type="button" class="event-error-open" data-action="view-error-details" data-error="${esc(text)}">Xem lỗi</button>` : ""}</header>${longOutput ? `<p>${esc(text.slice(0, 280))}…</p><details class="orchestration-event-details"><summary>Xem đầu ra đầy đủ</summary><pre>${esc(text)}</pre></details>` : `<p>${esc(text)}</p>`}</div></article>`; }).join("") : `<p class="orchestration-activity-empty">Các sự kiện sẽ xuất hiện khi task được chạy.</p>`}</div>${stages.length ? `<section class="orchestration-stage-results"><strong>Đầu ra agent</strong>${stages.map(([label, output]) => `<details><summary>${esc(label)}</summary><pre>${esc(output)}</pre></details>`).join("")}</section>` : ""}${(task.artifacts || []).length ? `<section class="orchestration-artifacts"><strong>${icon("file", 14)} Tệp thay đổi · ${task.artifacts.length}</strong>${task.artifacts.slice(0, 20).map((file) => `<div>${icon("file", 13)}<code>${esc(file)}</code></div>`).join("")}</section>` : ""}${stageRunHistory}</aside></div>
     <footer class="detail-actions">${task.status === "running" || task.status === "queued" ? `<button class="button danger" data-action="stop-task" data-id="${esc(task.id)}">${icon("square", 13)} Dừng task</button>` : replayControls}${task.status !== "queued" ? `<button class="button quiet" data-action="show-diff" data-id="${esc(task.id)}">Xem diff</button>` : ""}</footer>
   </section>`;
 }
@@ -4307,10 +4339,10 @@ async function openTaskModal() {
   if (!providersForRole(view.connectors, "plan").length) { view.page = "settings"; view.selected = null; render(); showToast("Kết nối ít nhất một agent hoặc API rồi bạn có thể tạo task."); return; }
   if (!workspaces.length) return showWorkspaceModal();
   const options = workspaces.map((w) => `<option value="${esc(w.id)}">${esc(w.name)} · ${esc(w.path)}</option>`).join("");
-  const depOptions = `<option value="">Không phụ thuộc (Wave 1)</option>` + (view.state.tasks || []).filter((t) => !t.archived).slice(0, 25).map((t) => `<option value="${esc(t.id)}">${esc(t.code || "TASK")} · ${esc(t.title.slice(0, 56))}</option>`).join("");
+  const depOptions = `<option value="">Không phụ thuộc (Đợt 1)</option>` + (view.state.tasks || []).filter((t) => !t.archived).slice(0, 25).map((t) => `<option value="${esc(t.id)}">${esc(t.code || "TASK")} · ${esc(t.title.slice(0, 56))}</option>`).join("");
   const hasBuild = providersForRole(view.connectors, "build").length > 0;
   const canPlanOnly = providersForRole(view.connectors, "plan").length > 0;
-  const body = `${taskPresetToolsMarkup()}<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="3" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea></label><div class="modal-grid-2"><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label></div><div class="modal-grid-2"><label>Quyền<select name="permissionPreset"><option value="workspace-write" selected>Đọc và sửa workspace</option><option value="read-only">Chỉ đọc workspace</option><option value="full-access">Toàn quyền trên máy</option></select></label><label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label></div><div class="modal-grid-2"><label>Độ phức tạp (Risk) & Vòng lặp tự sửa<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><select name="riskLevel"><option value="S">Risk S · Nhỏ</option><option value="M" selected>Risk M · Vừa</option><option value="L">Risk L · Lớn</option></select><select name="maxRounds"><option value="1">1 vòng</option><option value="2" selected>Tự sửa 2 vòng</option><option value="3">Tự sửa 3 vòng</option></select></div></label><label>Lệnh QA tự động & Phụ thuộc Wave<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input name="qaCommand" placeholder="VD: npm test" autocomplete="off" spellcheck="false"><select name="dependsOnTaskId">${depOptions}</select></div></label></div><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 16)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="planGate"><span><strong>Cổng duyệt Kế hoạch (Human Plan Gate · You)</strong><small>Tạm dừng sau khi lập kế hoạch để bạn duyệt (GO) trước khi Agent viết code.</small></span></label><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
+  const body = `${taskPresetToolsMarkup()}<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="3" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea></label><div class="modal-grid-2"><label>Dự án (Workspace)<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Đánh giá</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label></div><div class="modal-grid-2"><label>Quyền<select name="permissionPreset"><option value="workspace-write" selected>Đọc và sửa workspace</option><option value="read-only">Chỉ đọc workspace</option><option value="full-access">Toàn quyền trên máy</option></select></label><label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label></div><div class="modal-grid-2"><label>Phạm vi thay đổi & Vòng lặp tự sửa<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><select name="riskLevel"><option value="S">Phạm vi nhỏ</option><option value="M" selected>Phạm vi vừa</option><option value="L">Phạm vi lớn</option></select><select name="maxRounds"><option value="1">1 vòng</option><option value="2" selected>Tự sửa 2 vòng</option><option value="3">Tự sửa 3 vòng</option></select></div></label><label>Lệnh QA tự động & Phụ thuộc đợt<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input name="qaCommand" placeholder="VD: npm test" autocomplete="off" spellcheck="false"><select name="dependsOnTaskId">${depOptions}</select></div></label></div><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 16)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="planGate"><span><strong>Cổng duyệt Kế hoạch (Trạm 2 · Duyệt kế hoạch)</strong><small>Tạm dừng sau khi lập kế hoạch để bạn duyệt trước khi Agent viết code.</small></span></label><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
   showModal("Task mới", body, "Tạo và chạy");
   syncWorkflow(); syncIsolation(); syncTaskPresetControls($(".modal"));
 }
@@ -4348,7 +4380,7 @@ function syncProviderModelControls(form, provider, modelSelector, effortSelector
   const effortsForModel = selectedModel?.efforts || [];
   const preferredEffort = (isHomeChat && view.homeChatEffort ? view.homeChatEffort : "") || effortSelect.value;
   const selectedEffort = effortsForModel.includes(preferredEffort) ? preferredEffort : (effortsForModel.includes("medium") ? "medium" : effortsForModel[0] || "");
-  effortSelect.innerHTML = effortsForModel.map((effort) => `<option value="${esc(effort)}" ${effort === selectedEffort ? "selected" : ""}>${esc(effort)}</option>`).join("") || `<option value="">Không áp dụng</option>`;
+  effortSelect.innerHTML = effortsForModel.map((effort) => `<option value="${esc(effort)}" ${effort === selectedEffort ? "selected" : ""}>${esc(formatEffortLabel(effort))}</option>`).join("") || `<option value="">Không áp dụng</option>`;
   if (selectedEffort) effortSelect.value = selectedEffort;
   effortSelect.disabled = !effortsForModel.length;
 }
@@ -4361,7 +4393,7 @@ function syncEffortForModel(form, modelSelector, effortSelector, providerSelecto
   const options = model.efforts || [];
   const preferredEffort = effortSelect.value;
   const selectedEffort = options.includes(preferredEffort) ? preferredEffort : (options.includes("medium") ? "medium" : options[0] || "");
-  effortSelect.innerHTML = options.map((effort) => `<option value="${esc(effort)}" ${effort === selectedEffort ? "selected" : ""}>${esc(effort)}</option>`).join("") || `<option value="">Không áp dụng</option>`;
+  effortSelect.innerHTML = options.map((effort) => `<option value="${esc(effort)}" ${effort === selectedEffort ? "selected" : ""}>${esc(formatEffortLabel(effort))}</option>`).join("") || `<option value="">Không áp dụng</option>`;
   if (selectedEffort) effortSelect.value = selectedEffort;
   effortSelect.disabled = !options.length;
 }
@@ -5974,6 +6006,11 @@ async function handleWorkbenchClick(event) {
     }
     if (action === "open-wave-decompose") {
       openWaveDecomposeModal();
+      return;
+    }
+    if (action === "wave-status-filter") {
+      view.waveStatusFilter = button.dataset.status || "all";
+      render();
       return;
     }
     if (action === "wave-risk-filter") {

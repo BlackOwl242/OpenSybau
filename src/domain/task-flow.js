@@ -79,16 +79,10 @@ export function pipelineStepperData(task) {
 
   const stations = [
     {
-      id: "start",
-      label: "Start",
-      viLabel: "Khởi tạo",
-      state: task.status === "queued" ? "active" : "done",
-      sub: task.code || `#${String(task.id || "").slice(0, 6)}`
-    },
-    {
       id: "plan-review",
-      label: "Plan review",
-      viLabel: "Lập kế hoạch",
+      roleId: "plan",
+      label: "1. Lập kế hoạch",
+      viLabel: "1. Lập kế hoạch",
       state: task.phase === "plan" && task.status === "running"
         ? "active"
         : planDone || (isChat && task.status === "done")
@@ -96,41 +90,60 @@ export function pipelineStepperData(task) {
           : task.failedPhase === "plan" && task.status === "failed"
             ? "failed"
             : "pending",
-      sub: planDone ? "Plan ready" : isChat ? "Direct chat" : "Spec & Plan"
+      sub: planDone ? "Đã có kế hoạch" : isChat ? "Chat trực tiếp" : "AI Lập kế hoạch"
     },
     {
       id: "you",
-      label: "You",
-      viLabel: "Bạn duyệt",
+      label: "2. Duyệt kế hoạch",
+      viLabel: "2. Duyệt kế hoạch",
       isGate: true,
       state: awaitingGate
         ? "attention"
         : task.planGateApprovedAt || (!task.planGate && (buildDone || task.phase === "build" || task.phase === "review" || task.status === "done"))
           ? "done"
           : "pending",
-      sub: awaitingGate ? "Chờ GO / Duyệt" : task.planGateApprovedAt ? "Đã duyệt GO" : task.planGate ? "Plan Gate" : "Auto-GO"
+      sub: awaitingGate ? "Chờ bạn duyệt" : task.planGateApprovedAt ? "Đã duyệt" : task.planGate ? "Cổng duyệt" : "Chuyển tự động"
+    },
+    {
+      id: "build",
+      roleId: "build",
+      label: "3. Triển khai",
+      viLabel: "3. Triển khai",
+      state: task.phase === "build" && task.status === "running"
+        ? "active"
+        : buildDone || (task.status === "done" && !planOnly)
+          ? "done"
+          : task.failedPhase === "build" && task.status === "failed"
+            ? "failed"
+            : "pending",
+      sub: buildDone
+        ? `${(task.artifacts || []).length} tệp thay đổi`
+        : task.phase === "build" && task.status === "running"
+          ? `Đang sửa · Vòng ${currentRound}/${maxRounds}`
+          : "AI Triển khai"
     },
     {
       id: "code-review",
-      label: "Code review",
-      viLabel: "Build & Review",
-      state: (task.phase === "build" || task.phase === "review") && task.status === "running"
+      roleId: "review",
+      label: "4. Đánh giá",
+      viLabel: "4. Đánh giá",
+      state: task.phase === "review" && task.status === "running"
         ? "active"
         : reviewDone
           ? (findings.blocking > 0 && task.status !== "done" ? "attention" : "done")
-          : (task.failedPhase === "build" || task.failedPhase === "review") && task.status === "failed"
+          : task.failedPhase === "review" && task.status === "failed"
             ? "failed"
             : "pending",
       sub: reviewDone
-        ? (findings.blocking > 0 ? `${findings.blocking} blocking` : findings.advisory > 0 ? `${findings.advisory} advisory · clean` : "clean")
-        : buildDone
-          ? "Đang review"
-          : `Round ${currentRound}/${maxRounds}`
+        ? (findings.blocking > 0 ? `${findings.blocking} lỗi chặn` : findings.advisory > 0 ? `${findings.advisory} lưu ý · đạt` : "Đạt chuẩn")
+        : task.phase === "review" && task.status === "running"
+          ? "Đang đánh giá"
+          : "AI Đánh giá"
     },
     {
       id: "qa",
-      label: "QA",
-      viLabel: "Kiểm thử QA",
+      label: "5. Kiểm thử QA",
+      viLabel: "5. Kiểm thử QA",
       state: task.phase === "qa" && task.status === "running"
         ? "active"
         : task.qaResult?.status === "failed"
@@ -138,26 +151,26 @@ export function pipelineStepperData(task) {
           : (qaDone && qaPassed) || (task.status === "done" && !planOnly)
             ? "done"
             : "pending",
-      sub: task.qaResult?.summary || (qaPassed ? "Specs / Pass" : "Verify")
+      sub: task.qaResult?.summary || (qaPassed ? "Đạt kiểm thử" : "Hệ thống kiểm thử")
     },
     {
       id: "pr",
-      label: "Draft PR",
-      viLabel: "Tích hợp / PR",
+      label: "6. Tích hợp",
+      viLabel: "6. Tích hợp",
       state: prDone
         ? "done"
         : task.status === "done" && task.isolated && !task.worktreeAppliedAt
           ? "attention"
           : "pending",
       sub: task.commitHash
-        ? `commit ${String(task.commitHash).slice(0, 7)}`
+        ? `Commit ${String(task.commitHash).slice(0, 7)}`
         : task.worktreeAppliedAt
-          ? "Đã áp dụng"
+          ? "Đã gộp nhánh"
           : task.isolated
             ? "Worktree sẵn sàng"
             : task.status === "done"
               ? "Hoàn tất"
-              : "Merge / Apply"
+              : "Git / Worktree"
     }
   ];
 
@@ -173,11 +186,11 @@ export function pipelineStepperData(task) {
             id: "syn-plan-1",
             round: 1,
             stage: "plan",
-            title: "Round 1 · plan",
+            title: "Vòng 1 · Lập kế hoạch",
             provider: label(planRole.provider),
             model: planRole.model || "",
             status: awaitingGate ? "awaiting_approval" : "clean",
-            badge: awaitingGate ? "awaiting you" : "plan ready",
+            badge: awaitingGate ? "Chờ bạn duyệt" : "Đã có kế hoạch",
             blocking: 0,
             advisory: 0,
             turns: 1,
@@ -193,11 +206,11 @@ export function pipelineStepperData(task) {
             id: "syn-build-1",
             round: currentRound,
             stage: "build",
-            title: `Round ${currentRound} · implement`,
+            title: `Vòng ${currentRound} · Triển khai`,
             provider: label(buildRole.provider),
             model: buildRole.model || "",
             status: "clean",
-            badge: `${(task.artifacts || []).length} files`,
+            badge: `${(task.artifacts || []).length} tệp`,
             blocking: 0,
             advisory: 0,
             turns: Math.max(1, (task.events || []).filter((e) => e.kind === "tool").length || 1),
@@ -213,18 +226,18 @@ export function pipelineStepperData(task) {
             id: "syn-review-1",
             round: currentRound,
             stage: "review",
-            title: `Round ${currentRound} · review`,
+            title: `Vòng ${currentRound} · Đánh giá`,
             provider: label(reviewRole.provider),
             model: reviewRole.model || "",
             status: findings.blocking > 0 ? "blocking" : "clean",
-            badge: findings.blocking > 0 ? `${findings.blocking} blocking` : "clean",
+            badge: findings.blocking > 0 ? `${findings.blocking} lỗi chặn` : "Đạt chuẩn",
             blocking: findings.blocking,
             advisory: findings.advisory,
             turns: 1,
             durationMin: 1,
             durationSec: 20,
             costUsd: Math.round((costUsd * 0.25) * 100) / 100,
-            summary: String(task.review || "").split(/\r?\n/).find((l) => l.trim()) || "Hoàn tất đánh giá code",
+            summary: String(task.review || "").split(/\r?\n/).find((l) => l.trim()) || "Hoàn tất đánh giá mã nguồn",
           });
         }
         if (task.qaResult) {
@@ -232,32 +245,39 @@ export function pipelineStepperData(task) {
             id: "syn-qa-1",
             round: currentRound,
             stage: "qa",
-            title: "QA · verification",
-            provider: "Runner",
+            title: "Kiểm thử QA",
+            provider: "Hệ thống",
             model: task.qaResult.command || "test",
             status: task.qaResult.status === "passed" ? "clean" : "blocking",
-            badge: task.qaResult.summary || task.qaResult.status,
+            badge: task.qaResult.summary || (task.qaResult.status === "passed" ? "Đạt" : "Lỗi"),
             blocking: task.qaResult.status === "failed" ? 1 : 0,
             advisory: 0,
             turns: 1,
             durationMin: Math.max(1, Math.round(Number(task.qaResult.durationMs || 1000) / 60000)),
             durationSec: Math.max(1, Math.round(Number(task.qaResult.durationMs || 1000) / 1000)),
             costUsd: 0,
-            summary: task.qaResult.summary || task.qaResult.command || "QA verification",
+            summary: task.qaResult.summary || task.qaResult.command || "Kiểm thử tự động",
           });
         }
         return synthesized;
       })();
 
+  const stageLabelMap = { plan: "Lập kế hoạch", build: "Triển khai", implement: "Triển khai", review: "Đánh giá", qa: "Kiểm thử QA" };
   const cycles = baseCycles.map((c) => {
     const rawStatus = String(c.status || "clean");
     const normStatus = rawStatus === "blocking" || rawStatus === "failed" ? "failed" : rawStatus === "awaiting_approval" || rawStatus === "running" ? "active" : "done";
     const durSec = Number(c.durationSec || (c.durationMs ? Math.max(1, Math.round(c.durationMs / 1000)) : (c.durationMin ? c.durationMin * 60 : 12)));
     const firstLine = String(c.summary || "").split(/\r?\n/).map((l) => l.replace(/^#+\s*/, "").trim()).find(Boolean) || c.badge || c.provider || "";
+    const fallbackTitle = `Vòng ${c.round || 1} · ${stageLabelMap[c.stage] || c.stage || "Bước"}`;
+    const normalizedTitle = String(c.label || c.title || fallbackTitle)
+      .replace(/^Round\s+(\d+)\s*·\s*plan$/i, "Vòng $1 · Lập kế hoạch")
+      .replace(/^Round\s+(\d+)\s*·\s*(?:implement|build)$/i, "Vòng $1 · Triển khai")
+      .replace(/^Round\s+(\d+)\s*·\s*review$/i, "Vòng $1 · Đánh giá")
+      .replace(/^QA\s*·\s*verification$/i, "Kiểm thử QA");
     return {
       ...c,
-      label: c.label || c.title || `Round ${c.round || 1} · ${c.stage || "step"}`,
-      title: c.title || c.label || `Round ${c.round || 1} · ${c.stage || "step"}`,
+      label: normalizedTitle,
+      title: normalizedTitle,
       status: normStatus,
       durationSec: durSec,
       durationMin: Math.max(1, Math.round(durSec / 60)),
@@ -269,19 +289,19 @@ export function pipelineStepperData(task) {
   const stageDocuments = [
     {
       id: "spec",
-      group: "Intake",
+      group: "Đầu vào",
       title: "spec.md",
       label: "Yêu cầu & Ngữ cảnh",
       ready: Boolean(task.prompt || task.goal),
       available: Boolean(task.prompt || task.goal),
-      content: `# ${task.title || "Task Spec"}\n\n${task.prompt || task.goal || ""}`.trim(),
+      content: `# ${task.title || "Đặc tả tác vụ"}\n\n${task.prompt || task.goal || ""}`.trim(),
       updatedAt: task.createdAt
     },
     {
       id: "plan",
-      group: "Plan",
+      group: "Kế hoạch",
       title: "plan.md",
-      label: "Kế hoạch kiến trúc (Plan)",
+      label: "Kế hoạch kiến trúc",
       ready: Boolean(task.plan),
       available: Boolean(task.plan),
       content: String(task.plan || ""),
@@ -289,9 +309,9 @@ export function pipelineStepperData(task) {
     },
     {
       id: "implementation",
-      group: "Implementation",
+      group: "Triển khai",
       title: "implementation.md",
-      label: "Báo cáo triển khai (Build)",
+      label: "Báo cáo triển khai",
       ready: Boolean(task.implementation),
       available: Boolean(task.implementation),
       content: String(task.implementation || ""),
@@ -299,9 +319,9 @@ export function pipelineStepperData(task) {
     },
     {
       id: "review",
-      group: "Review",
+      group: "Đánh giá",
       title: "review-verdict.md",
-      label: `Đánh giá Code (${findings.blocking} blocking · ${findings.advisory} advisory)`,
+      label: `Đánh giá mã nguồn (${findings.blocking} lỗi chặn · ${findings.advisory} lưu ý)`,
       ready: Boolean(task.review),
       available: Boolean(task.review),
       content: String(task.review || ""),
@@ -309,13 +329,13 @@ export function pipelineStepperData(task) {
     },
     {
       id: "qa",
-      group: "QA & Verification",
+      group: "Kiểm thử QA",
       title: "qa-report.md",
       label: "Báo cáo kiểm thử QA",
       ready: Boolean(task.qaResult?.output || task.qaResult?.summary),
       available: Boolean(task.qaResult?.output || task.qaResult?.summary),
       content: task.qaResult
-        ? `# QA Verification (${task.qaResult.status?.toUpperCase() || "DONE"})\n\nCommand: \`${task.qaResult.command || "auto"}\`\nExit code: ${task.qaResult.exitCode ?? 0}\n\n\`\`\`\n${task.qaResult.output || task.qaResult.summary || ""}\n\`\`\``
+        ? `# Báo cáo kiểm thử QA (${task.qaResult.status === "passed" ? "ĐẠT" : task.qaResult.status === "failed" ? "LỖI" : "HOÀN TẤT"})\n\nLệnh: \`${task.qaResult.command || "auto"}\`\nMã thoát: ${task.qaResult.exitCode ?? 0}\n\n\`\`\`\n${task.qaResult.output || task.qaResult.summary || ""}\n\`\`\``
         : "",
       updatedAt: task.qaResult?.completedAt || task.updatedAt
     }
@@ -460,8 +480,8 @@ export function computeWaveDag(tasks = []) {
     .map(([waveIndex, items]) => ({
       index: waveIndex,
       waveIndex,
-      label: `Wave ${waveIndex}`,
-      title: `Wave ${waveIndex}`,
+      label: `Đợt ${waveIndex}`,
+      title: `Đợt ${waveIndex}`,
       tasks: items.map((item) => item.task),
       doneCount: items.filter((item) => item.task.status === "done").length,
       items
@@ -505,57 +525,57 @@ export function orchestrationNodes(task) {
     if (active || (task.status === "running" || task.status === "awaiting_approval") && order === activeOrder) return "active";
     return (task.status === "running" || task.status === "awaiting_approval") && order < activeOrder ? "complete" : "pending";
   };
-  const nodes = [{ id: "request", group: "WORKBENCH", title: "Nhận yêu cầu & tạo task", detail: "Task được ghi vào hàng đợi cục bộ.", icon: "square-terminal", order: 0, state: status(0, true) }];
+  const nodes = [{ id: "request", group: "HỆ THỐNG", title: "Nhận yêu cầu & tạo task", detail: "Task được ghi vào hàng đợi cục bộ.", icon: "square-terminal", order: 0, state: status(0, true) }];
   const skillEvidence = task.skillSelectionCompleted || hasEvent(/chọn skill|nạp .*skill|không tìm được skill/i);
-  nodes.push({ id: "skills", group: "ROUTER", title: "Tìm và chọn skill", detail: task.skills?.length ? `${task.skills.length} skill được chọn: ${task.skills.map((skill) => skill.name).join(", ")}` : skillEvidence ? "Đã tìm thư viện; task tiếp tục theo lựa chọn của bộ định tuyến." : "Tìm ứng viên phù hợp trong thư viện skill.", icon: "notebook-tabs", order: 1, state: status(1, skillEvidence, false, true), output: task.skillSelectionReason });
+  nodes.push({ id: "skills", group: "ĐỊNH TUYẾN", title: "Tìm và chọn skill", detail: task.skills?.length ? `${task.skills.length} skill được chọn: ${task.skills.map((skill) => skill.name).join(", ")}` : skillEvidence ? "Đã tìm thư viện; task tiếp tục theo lựa chọn của bộ định tuyến." : "Tìm ứng viên phù hợp trong thư viện skill.", icon: "notebook-tabs", order: 1, state: status(1, skillEvidence, false, true), output: task.skillSelectionReason });
   const memoryEvidence = (task.memoryUsed || []).length > 0 || hasEvent(/ghi chú phù hợp từ bộ nhớ|bộ nhớ cục bộ/i);
-  nodes.push({ id: "memory", group: "CONTEXT", title: "Nạp ghi nhớ liên quan (BM25)", detail: (task.memoryUsed || []).length ? `${task.memoryUsed.length} ghi chú: ${task.memoryUsed.map((item) => item.title).join(", ")}` : memoryEvidence ? "Đã kiểm tra bộ nhớ cục bộ." : task.status === "queued" ? "Chờ task bắt đầu để kiểm tra ghi nhớ phù hợp." : "Đã kiểm tra; không có ghi chú phù hợp.", icon: "brain", order: 1.5, state: status(1.5, memoryEvidence || task.status !== "queued"), output: task.memoryUsed?.map((item) => item.title).join("\n") });
+  nodes.push({ id: "memory", group: "NGỮ CẢNH", title: "Nạp ghi nhớ liên quan (BM25)", detail: (task.memoryUsed || []).length ? `${task.memoryUsed.length} ghi chú: ${task.memoryUsed.map((item) => item.title).join(", ")}` : memoryEvidence ? "Đã kiểm tra bộ nhớ cục bộ." : task.status === "queued" ? "Chờ task bắt đầu để kiểm tra ghi nhớ phù hợp." : "Đã kiểm tra; không có ghi chú phù hợp.", icon: "brain", order: 1.5, state: status(1.5, memoryEvidence || task.status !== "queued"), output: task.memoryUsed?.map((item) => item.title).join("\n") });
   if (isChat) {
     const provider = label(task.config.chatProvider);
-    nodes.push({ id: "agent-chat", group: "AGENT", title: `Agent trả lời · ${provider}`, detail: `${task.config.chatModel || "Model theo cấu hình task"} · ${task.config.chatEffort || "mức suy nghĩ đã chọn"}`, icon: "book-open-text", order: 3, state: status(2, task.status === "done", task.phase === "chat", true), output: task.chatMessages?.filter((message) => message.role === "assistant").at(-1)?.content });
-    nodes.push({ id: "result", group: "RESULT", title: "Lưu kết quả hội thoại", detail: task.status === "done" ? "Phản hồi đã được lưu trong task." : "Phản hồi sẽ xuất hiện tại đây khi CLI hoàn tất.", icon: "book-check", order: 9, state: status(9, task.status === "done") });
+    nodes.push({ id: "agent-chat", group: "HỘI THOẠI", title: `Agent trả lời · ${provider}`, detail: `${task.config.chatModel || "Model theo cấu hình task"} · ${task.config.chatEffort || "mức suy nghĩ đã chọn"}`, icon: "book-open-text", order: 3, state: status(2, task.status === "done", task.phase === "chat", true), output: task.chatMessages?.filter((message) => message.role === "assistant").at(-1)?.content });
+    nodes.push({ id: "result", group: "KẾT QUẢ", title: "Lưu kết quả hội thoại", detail: task.status === "done" ? "Phản hồi đã được lưu trong task." : "Phản hồi sẽ xuất hiện tại đây khi CLI hoàn tất.", icon: "book-check", order: 9, state: status(9, task.status === "done") });
     return nodes;
   }
   const planRole = roleConfig(task.config, "plan");
   const buildRole = roleConfig(task.config, "build");
   const reviewRole = roleConfig(task.config, "review");
   const planDone = Boolean(task.plan) || task.phase === "plan-gate" || task.phase === "build" || task.phase === "review" || task.phase === "qa" || pipelineCompleted && planOnly;
-  nodes.push({ id: "plan", group: `${label(planRole.provider).toLocaleUpperCase()} · PLAN`, title: "Phân tích workspace & lập kế hoạch", detail: `${planRole.model || "Model chưa lưu"} · ${planRole.effort || "mức suy nghĩ đã chọn"}`, icon: "list-checks", order: 3, state: status(3, planDone, task.phase === "plan", true), output: task.plan });
+  nodes.push({ id: "plan", group: `TRẠM 1 · ${label(planRole.provider).toLocaleUpperCase()}`, title: "Phân tích dự án & lập kế hoạch", detail: `${planRole.model || "Model chưa lưu"} · ${planRole.effort || "mức suy nghĩ đã chọn"}`, icon: "list-checks", order: 3, state: status(3, planDone, task.phase === "plan", true), output: task.plan });
   if (planOnly) {
-    nodes.push({ id: "result", group: "RESULT", title: "Lưu kế hoạch", detail: pipelineCompleted ? "Kế hoạch đã hoàn tất; chưa chạy triển khai." : "Đầu ra kế hoạch sẽ được lưu ở đây.", icon: "book-check", order: 9, state: status(9, pipelineCompleted), output: task.plan });
+    nodes.push({ id: "result", group: "KẾT QUẢ", title: "Lưu kế hoạch", detail: pipelineCompleted ? "Kế hoạch đã hoàn tất; chưa chạy triển khai." : "Đầu ra kế hoạch sẽ được lưu ở đây.", icon: "book-check", order: 9, state: status(9, pipelineCompleted), output: task.plan });
     return nodes;
   }
   if (task.planGate || task.phase === "plan-gate" || task.status === "awaiting_approval" || task.planGateApprovedAt) {
     const gateDone = Boolean(task.planGateApprovedAt) || task.phase === "build" || task.phase === "review" || task.phase === "qa" || pipelineCompleted;
     nodes.push({
       id: "plan-gate",
-      group: "YOU · PLAN GATE",
-      title: gateDone ? "Đã duyệt kế hoạch (GO)" : "Chờ bạn duyệt kế hoạch (Plan Gate)",
+      group: "TRẠM 2 · BẠN DUYỆT KẾ HOẠCH",
+      title: gateDone ? "Đã duyệt kế hoạch" : "Chờ bạn duyệt kế hoạch",
       detail: gateDone
-        ? `Đã xác nhận GO${task.planGateFeedback ? ` · Ghi chú: ${task.planGateFeedback}` : ""}`
-        : "Tạm dừng an toàn trước khi sửa code. Bạn có thể bấm Duyệt & Triển khai (GO) hoặc yêu cầu lập lại kế hoạch.",
+        ? `Đã xác nhận duyệt${task.planGateFeedback ? ` · Ghi chú: ${task.planGateFeedback}` : ""}`
+        : "Tạm dừng an toàn trước khi sửa code. Bạn có thể bấm Duyệt & Triển khai hoặc yêu cầu lập lại kế hoạch.",
       icon: "shield-check",
       order: 3.5,
       state: status(3.5, gateDone, task.phase === "plan-gate" || task.status === "awaiting_approval", true)
     });
   }
   const handoffToBuild = hasEvent(/Handoff .* → .*kế hoạch được chuyển sang stage triển khai/i);
-  nodes.push({ id: "handoff-build", group: "HANDOFF", title: `Chuyển kế hoạch sang ${label(buildRole.provider)}`, detail: `Bàn giao đầu ra ${label(planRole.provider)} và cấu hình triển khai (Vòng ${Number(task.currentRound || 1)}/${Number(task.maxRounds || 1)}).`, icon: "arrow-up-right", order: 4, state: status(4, handoffToBuild || planDone && (task.phase === "build" || task.phase === "review" || task.phase === "qa" || Boolean(task.implementation) || pipelineCompleted)) });
+  nodes.push({ id: "handoff-build", group: "BÀN GIAO", title: `Chuyển kế hoạch sang ${label(buildRole.provider)}`, detail: `Bàn giao đầu ra ${label(planRole.provider)} và cấu hình triển khai (Vòng ${Number(task.currentRound || 1)}/${Number(task.maxRounds || 1)}).`, icon: "arrow-up-right", order: 4, state: status(4, handoffToBuild || planDone && (task.phase === "build" || task.phase === "review" || task.phase === "qa" || Boolean(task.implementation) || pipelineCompleted)) });
   const buildDone = Boolean(task.implementation) || task.phase === "review" || task.phase === "qa" || pipelineCompleted;
-  nodes.push({ id: "build", group: `${label(buildRole.provider).toLocaleUpperCase()} · BUILD`, title: `Triển khai thay đổi (Round ${Number(task.currentRound || 1)})`, detail: `${buildRole.model || "Model chưa lưu"} · ${buildRole.effort || "mức suy nghĩ đã chọn"}`, icon: "folder-code", order: 5, state: status(5, buildDone, task.phase === "build", true), output: task.implementation });
+  nodes.push({ id: "build", group: `TRẠM 3 · ${label(buildRole.provider).toLocaleUpperCase()}`, title: `Triển khai thay đổi (Vòng ${Number(task.currentRound || 1)})`, detail: `${buildRole.model || "Model chưa lưu"} · ${buildRole.effort || "mức suy nghĩ đã chọn"}`, icon: "folder-code", order: 5, state: status(5, buildDone, task.phase === "build", true), output: task.implementation });
   const toolEvents = events.filter((event) => event.kind === "tool");
-  if (toolEvents.length) nodes.push({ id: "tools", group: "OBSERVED TOOLS", title: `${toolEvents.length} lần gọi công cụ CLI`, detail: "Danh sách chỉ gồm sự kiện công cụ được CLI ghi nhận thực tế.", icon: "settings-2", order: 5.5, state: status(5.5, buildDone || task.status === "running" && task.phase === "review"), events: toolEvents });
+  if (toolEvents.length) nodes.push({ id: "tools", group: "CÔNG CỤ ĐÃ GỌI", title: `${toolEvents.length} lần gọi công cụ CLI`, detail: "Danh sách chỉ gồm sự kiện công cụ được CLI ghi nhận thực tế.", icon: "settings-2", order: 5.5, state: status(5.5, buildDone || task.status === "running" && task.phase === "review"), events: toolEvents });
   const handoffToReview = hasEvent(/stage triển khai đã kết thúc/i);
-  nodes.push({ id: "handoff-review", group: "HANDOFF", title: `Chuyển thay đổi sang ${label(reviewRole.provider)}`, detail: `Bàn giao kết quả ${label(buildRole.provider)} cho stage review.`, icon: "arrow-up-right", order: 6, state: status(6, handoffToReview || task.phase === "review" || task.phase === "qa" || Boolean(task.review) || pipelineCompleted) });
+  nodes.push({ id: "handoff-review", group: "BÀN GIAO", title: `Chuyển thay đổi sang ${label(reviewRole.provider)}`, detail: `Bàn giao kết quả ${label(buildRole.provider)} cho trạm đánh giá.`, icon: "arrow-up-right", order: 6, state: status(6, handoffToReview || task.phase === "review" || task.phase === "qa" || Boolean(task.review) || pipelineCompleted) });
   const findings = parseReviewFindings(task.review);
-  nodes.push({ id: "review", group: `${label(reviewRole.provider).toLocaleUpperCase()} · REVIEW`, title: `Review thay đổi (${findings.blocking} blocking · ${findings.advisory} advisory)`, detail: `${reviewRole.model || "Model chưa lưu"} · ${reviewRole.effort || "mức suy nghĩ đã chọn"}`, icon: "book-check", order: 7, state: status(7, Boolean(task.review) || pipelineCompleted, task.phase === "review", true), output: task.review });
+  nodes.push({ id: "review", group: `TRẠM 4 · ${label(reviewRole.provider).toLocaleUpperCase()}`, title: `Đánh giá thay đổi (${findings.blocking} lỗi chặn · ${findings.advisory} lưu ý)`, detail: `${reviewRole.model || "Model chưa lưu"} · ${reviewRole.effort || "mức suy nghĩ đã chọn"}`, icon: "book-check", order: 7, state: status(7, Boolean(task.review) || pipelineCompleted, task.phase === "review", true), output: task.review });
   if (task.qaCommand || task.qaResult || task.phase === "qa") {
     const qaDone = Boolean(task.qaResult?.completedAt) || pipelineCompleted;
     nodes.push({
       id: "qa",
-      group: "QA · VERIFICATION",
-      title: `Kiểm thử tự động (${task.qaResult?.status === "failed" ? "FAILED" : task.qaResult?.status === "passed" ? "PASSED" : "QA"})`,
-      detail: task.qaResult?.summary || `Lệnh: ${task.qaCommand || "auto-detect"}`,
+      group: "TRẠM 5 · KIỂM THỬ QA",
+      title: `Kiểm thử tự động (${task.qaResult?.status === "failed" ? "LỖI" : task.qaResult?.status === "passed" ? "ĐẠT" : "QA"})`,
+      detail: task.qaResult?.summary || `Lệnh: ${task.qaCommand || "tự động"}`,
       icon: "check-check",
       order: 8,
       state: status(8, qaDone && task.qaResult?.status !== "failed", task.phase === "qa", task.qaResult?.status === "failed"),
@@ -563,7 +583,7 @@ export function orchestrationNodes(task) {
     });
   }
   const artifactCount = (task.artifacts || []).length;
-  nodes.push({ id: "result", group: "RESULT", title: "Ghi nhận đầu ra & tệp thay đổi", detail: pipelineCompleted ? `${artifactCount} tệp thay đổi được ghi nhận trong task.` : "Kết quả và danh sách tệp sẽ hiện sau khi luồng hoàn tất.", icon: "file", order: 9, state: status(9, pipelineCompleted), files: task.artifacts || [] });
+  nodes.push({ id: "result", group: "TRẠM 6 · TÍCH HỢP", title: "Ghi nhận đầu ra & tệp thay đổi", detail: pipelineCompleted ? `${artifactCount} tệp thay đổi được ghi nhận trong task.` : "Kết quả và danh sách tệp sẽ hiện sau khi luồng hoàn tất.", icon: "file", order: 9, state: status(9, pipelineCompleted), files: task.artifacts || [] });
   return nodes;
 }
 
