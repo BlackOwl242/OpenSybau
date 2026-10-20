@@ -1,5 +1,5 @@
 import { $, efforts, esc, fmtDate, formatNumber, icon, statuses, tokenCount, view } from "../../shared/state.js";
-import { orchestrationNodes } from "../../domain/task-flow.js";
+import { computeWaveDag, estimateTaskCostUsd, orchestrationNodes, parseReviewFindings, pipelineStepperData } from "../../domain/task-flow.js";
 import { connectorSupports, providerTitle, providersForRole, roleConfig, workflowRoles } from "../../domain/agent-roles.js";
 import { cliConnectionStatus, cliProviderGuides } from "../../domain/provider-guides.js";
 import { localizeDom, setLanguage, translateText } from "../../shared/i18n.js";
@@ -1157,6 +1157,33 @@ async function openStageFileTab({ workspaceId = "", taskId = "", path = "", pref
 async function reloadStageFileTab(tabId) {
   const tab = (view.stageTabs || []).find((item) => item.id === tabId);
   if (!tab) return;
+  if (tab.kind === "live-url") {
+    tab.loadedAt = Date.now();
+    tab.loading = false;
+    render();
+    return;
+  }
+  if (tab.kind === "stage-doc") {
+    const task = (view.state?.tasks || []).find((t) => t.id === tab.taskId);
+    if (task) {
+      const stepper = pipelineStepperData(task);
+      const doc = stepper.stageDocuments.find((d) => d.id === tab.docId);
+      if (doc) {
+        tab.fileData = {
+          name: doc.title,
+          path: doc.title,
+          extension: ".md",
+          kind: "text",
+          size: (doc.content || "").length,
+          content: doc.content || "Chưa có nội dung cho tài liệu giai đoạn này.",
+        };
+      }
+    }
+    tab.loadedAt = Date.now();
+    tab.loading = false;
+    render();
+    return;
+  }
   tab.loading = true;
   tab.error = "";
   render();
@@ -1171,6 +1198,96 @@ async function reloadStageFileTab(tabId) {
     tab.error = error.message || "Không thể đọc tệp.";
     tab.loading = false;
   }
+  render();
+}
+
+function openStageDocTab(task, docId) {
+  if (!task || !docId) return;
+  const stepper = pipelineStepperData(task);
+  const doc = stepper.stageDocuments.find((d) => d.id === docId);
+  if (!doc) return;
+  const tabId = `doc::${task.id}::${doc.id}`;
+  view.stageTabs ||= [];
+  let tab = view.stageTabs.find((item) => item.id === tabId);
+  const fileData = {
+    name: doc.title,
+    path: `${task.code || task.id.slice(0, 8)}/${doc.title}`,
+    extension: ".md",
+    kind: "text",
+    size: (doc.content || "").length,
+    content: doc.content || "Chưa có nội dung cho giai đoạn này.",
+  };
+  if (!tab) {
+    tab = {
+      id: tabId,
+      kind: "stage-doc",
+      docId: doc.id,
+      workspaceId: task.workspaceId,
+      taskId: task.id,
+      path: `${task.code || task.id.slice(0, 8)}/${doc.title}`,
+      name: doc.title,
+      ext: ".md",
+      mode: "preview",
+      fileData,
+      loading: false,
+      error: "",
+      loadedAt: Date.now(),
+    };
+    view.stageTabs.push(tab);
+    if (view.stageTabs.length > 10) view.stageTabs.shift();
+  } else {
+    tab.fileData = fileData;
+    tab.loadedAt = Date.now();
+  }
+  view.activeStageTabId = tab.id;
+  view.stageSplit = true;
+  render();
+}
+
+function openLiveUrlTab(rawUrl, taskId = "") {
+  let cleanUrl = String(rawUrl || "").trim();
+  if (!cleanUrl) return;
+  if (/^\d{2,5}(\/.*)?$/.test(cleanUrl)) cleanUrl = `http://localhost:${cleanUrl}`;
+  else if (/^localhost:\d+/i.test(cleanUrl)) cleanUrl = `http://${cleanUrl}`;
+  let parsed;
+  try {
+    parsed = new URL(cleanUrl);
+  } catch {
+    showToast("Nhập địa chỉ localhost hợp lệ (ví dụ: http://localhost:3000 hoặc 5173).");
+    return;
+  }
+  if (!["http:", "https:"].includes(parsed.protocol) || !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname.toLowerCase())) {
+    showToast("Trình duyệt Live Dev Server chỉ cho phép kết nối tới localhost / 127.0.0.1 để bảo mật.");
+    return;
+  }
+  const normalizedUrl = parsed.href;
+  view.liveDevServerUrl = normalizedUrl;
+  const tabId = `live::${normalizedUrl}`;
+  view.stageTabs ||= [];
+  let tab = view.stageTabs.find((item) => item.id === tabId);
+  if (!tab) {
+    tab = {
+      id: tabId,
+      kind: "live-url",
+      liveUrl: normalizedUrl,
+      workspaceId: view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "",
+      taskId,
+      path: normalizedUrl,
+      name: `${parsed.hostname}:${parsed.port || (parsed.protocol === "https:" ? "443" : "80")}${parsed.pathname !== "/" ? parsed.pathname : ""}`,
+      ext: ".html",
+      mode: "preview",
+      fileData: { name: normalizedUrl, path: normalizedUrl, extension: ".html", kind: "live-url" },
+      loading: false,
+      error: "",
+      loadedAt: Date.now(),
+    };
+    view.stageTabs.push(tab);
+    if (view.stageTabs.length > 10) view.stageTabs.shift();
+  } else {
+    tab.loadedAt = Date.now();
+  }
+  view.activeStageTabId = tab.id;
+  view.stageSplit = true;
   render();
 }
 
@@ -1568,17 +1685,20 @@ function syncHtmlInspectUi({ focusInput = false } = {}) {
 
 function renderStageFileViewer(tab) {
   if (!tab) return "";
+  const isLiveUrl = tab.kind === "live-url" && Boolean(tab.liveUrl);
   const file = tab.fileData;
   const ext = (file?.extension || tab.ext || "").toLowerCase();
-  const kind = file?.kind || "text";
-  const hasRichPreview = canRichPreviewExtension(ext, kind);
-  const hasCodeView = kind === "text";
+  const kind = isLiveUrl ? "live-url" : (file?.kind || "text");
+  const hasRichPreview = isLiveUrl || canRichPreviewExtension(ext, kind);
+  const hasCodeView = !isLiveUrl && kind === "text";
   let mode = tab.mode === "code" || tab.mode === "preview" ? tab.mode : defaultFileTabMode(ext);
   if (mode === "preview" && !hasRichPreview) mode = "code";
   if (mode === "code" && !hasCodeView) mode = "preview";
 
-  const isWebBrowser = (ext === ".html" || ext === ".htm") && mode === "preview";
-  const rawUrl = `/api/workspaces/${encodeURIComponent(tab.workspaceId)}/raw/${tab.path.split("/").map(encodeURIComponent).join("/")}?${tab.taskId ? `taskId=${encodeURIComponent(tab.taskId)}&` : ""}t=${tab.loadedAt || 0}`;
+  const isWebBrowser = isLiveUrl || ((ext === ".html" || ext === ".htm") && mode === "preview");
+  const rawUrl = isLiveUrl
+    ? `${tab.liveUrl}${tab.liveUrl.includes("?") ? "&" : "?"}_t=${tab.loadedAt || 0}`
+    : `/api/workspaces/${encodeURIComponent(tab.workspaceId)}/raw/${tab.path.split("/").map(encodeURIComponent).join("/")}?${tab.taskId ? `taskId=${encodeURIComponent(tab.taskId)}&` : ""}t=${tab.loadedAt || 0}`;
   const sizeBadge = file?.size !== undefined ? formatCompactBytes(file.size) : "";
   const totalLines = hasCodeView && file?.content ? String(file.content).split(/\r?\n/).length : 0;
 
@@ -1598,7 +1718,7 @@ function renderStageFileViewer(tab) {
       </div>
     </div>`;
   } else if (mode === "preview") {
-    if (ext === ".html" || ext === ".htm") {
+    if (isLiveUrl || ext === ".html" || ext === ".htm") {
       const hasPopover = Boolean(view.stageHtmlInspectActive && view.stageHtmlSelectedElement);
       bodyHtml = `<div class="orca-live-frame-wrap">
         <iframe class="orca-live-frame" src="${esc(rawUrl)}" title="Xem trực tiếp ${esc(tab.name)}" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
@@ -1802,13 +1922,16 @@ function getRightDockTabsForPage(page = view.page, selectedTask = null) {
     return [
       { id: "files", icon: "files", title: "Cây thư mục & Tệp" },
       { id: "search", icon: "search", title: "Tìm kiếm tệp" },
-      { id: "git", icon: "git-branch", title: "Thay đổi (Changes) & Worktree" },
+      { id: "git", icon: "git-branch", title: "Thay đổi (Changes), Commit & Worktree" },
+      { id: "docs", icon: "book-open-text", title: "Tài liệu Stage (Spec / Plan / Review / QA)" },
+      { id: "terminal", icon: "square-terminal", title: "QA Runner, Terminal & Live Localhost" },
       { id: "tasks", icon: "list-checks", title: "Mục tiêu & Công cụ phiên" },
     ];
   }
   return [
     { id: "files", icon: "files", title: "Cây thư mục dự án" },
     { id: "search", icon: "search", title: "Tìm kiếm tệp" },
+    { id: "terminal", icon: "square-terminal", title: "Live Localhost Preview" },
   ];
 }
 
@@ -2030,6 +2153,14 @@ function orcaRightDockMarkup() {
           ${canMergeWt ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(selectedTask.id)}">${icon("check", 13)}<span>Gộp vào dự án</span></button>` : ""}
           ${canManageWt ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${esc(selectedTask.id)}">${icon("delete", 13)}<span>Hủy worktree</span></button>` : ""}
         </div>` : ""}
+        ${selectedTask && !taskBusy && artifacts.length > 0 ? `<div class="orca-git-commit-box">
+          <div class="orca-section-label">QUICK GIT COMMIT (${selectedTask.isolated && !selectedTask.worktreeCleaned ? "WORKTREE" : "WORKSPACE"})</div>
+          <div class="orca-inline-input-row">
+            <input type="text" data-git-commit-msg placeholder="feat: commit thay đổi của task…" value="${esc(selectedTask.code ? `${selectedTask.code}: ${selectedTask.title.slice(0, 48)}` : `feat: ${selectedTask.title.slice(0, 52)}`)}" autocomplete="off">
+            <button type="button" class="button primary small" data-action="task-git-commit" data-id="${esc(selectedTask.id)}">${icon("check", 12)}<span>Commit</span></button>
+          </div>
+          ${selectedTask.lastCommitAt ? `<small class="orca-muted-note">Đã commit lúc ${fmtDate(selectedTask.lastCommitAt)}: <code>${esc(selectedTask.lastCommitMessage || "")}</code></small>` : ""}
+        </div>` : ""}
         ${fanoutSiblings.length > 1 ? `<div class="orca-section-head" style="margin-top:8px">
           <span class="orca-section-label">ĐA LUỒNG (${fanoutSiblings.length})</span>
           <button type="button" class="button quiet small" data-action="compare-fanout" data-fanout-id="${esc(selectedTask.fanoutId)}">So sánh</button>
@@ -2046,6 +2177,74 @@ function orcaRightDockMarkup() {
         <ul class="orca-tree-list">${isolatedTasks.slice(0, 10).map((t) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-task="${esc(t.id)}"><span class="orca-tree-icon">${icon("git-branch", 14)}</span><span class="orca-tree-label">${esc(t.title)}</span><small class="orca-tree-badge">${(t.artifacts || []).length}</small></button></li>`).join("")}</ul>` : ""}
       </div>`;
     }
+  } else if (tab === "docs" && selectedTask) {
+    const stepper = pipelineStepperData(selectedTask);
+    const docs = stepper.stageDocuments || [];
+    const activeStageTab = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId);
+    bodyHtml = `<div class="orca-dock-pad">
+      <div class="orca-section-head">
+        <span class="orca-section-label">STAGE DOCUMENTS (${docs.length})</span>
+        <small class="orca-tree-badge">${esc(selectedTask.code || "TASK")} · R${stepper.currentRound}/${stepper.maxRounds}</small>
+      </div>
+      <p class="orca-muted-note">Nhấn vào bất kỳ tài liệu giai đoạn nào để mở trong Stage Viewer bên trái (hỗ trợ xem Markdown, mã nguồn và gắn nhận xét dòng).</p>
+      <ul class="orca-tree-list" style="margin-top:8px">
+        ${docs.map((doc) => {
+          const tabId = `stage-doc::${selectedTask.id}::${doc.id}`;
+          const isSelected = activeStageTab?.id === tabId;
+          return `<li class="orca-tree-item is-file ${isSelected ? "is-selected" : ""}">
+            <button type="button" class="orca-tree-row ${isSelected ? "is-selected" : ""}" style="padding-left:10px" data-action="open-stage-doc" data-id="${esc(selectedTask.id)}" data-doc-id="${esc(doc.id)}">
+              <span class="orca-tree-icon">${icon(doc.ready ? "file-text" : "circle-dot", 14)}</span>
+              <span class="orca-tree-label"><strong>${esc(doc.group)}</strong> · ${esc(doc.title)}</span>
+              <small class="orca-tree-badge ${doc.ready ? "is-ready" : ""}">${doc.ready ? "Sẵn sàng" : "Chờ"}</small>
+            </button>
+          </li>`;
+        }).join("")}
+      </ul>
+      ${stepper.findings.blocking > 0 || stepper.findings.advisory > 0 ? `<div class="orca-section-label" style="margin-top:14px">PHÁT HIỆN REVIEW</div>
+      <div class="mc-findings-summary">
+        <span class="mc-badge is-blocking">${stepper.findings.blocking} blocking</span>
+        <span class="mc-badge is-advisory">${stepper.findings.advisory} advisory</span>
+        ${stepper.costUsd > 0 ? `<span class="mc-badge is-cost">$${stepper.costUsd.toFixed(2)}</span>` : ""}
+      </div>` : ""}
+    </div>`;
+  } else if (tab === "terminal") {
+    const qaRes = selectedTask?.qaResult || null;
+    const termHistory = selectedTask?.terminalHistory || [];
+    const defaultCmd = selectedTask?.qaCommand || "npm test";
+    const presetCommands = ["npm test", "npm run build", "npm run lint", "npm run check", "git status", "git diff --stat"];
+    bodyHtml = `<div class="orca-dock-pad">
+      <div class="orca-section-label">LIVE LOCALHOST DEV SERVER</div>
+      <p class="orca-muted-note">Mở ứng dụng web đang chạy cục bộ (localhost) ngay trong Stage Viewer kèm công cụ chọn phần tử DOM.</p>
+      <div class="orca-inline-input-row" style="margin-top:6px">
+        <input type="url" data-live-url-input placeholder="http://localhost:3000" value="${esc(view.lastLiveUrl || "http://localhost:3000")}" autocomplete="off" spellcheck="false">
+        <button type="button" class="button primary small" data-action="open-live-url" data-id="${esc(selectedTask?.id || "")}">${icon("globe", 12)}<span>Mở</span></button>
+      </div>
+      <div class="orca-quick-pills" style="margin-top:6px">
+        ${[3000, 5173, 4173, 8080].map((port) => `<button type="button" class="kb-tag-chip" data-action="open-live-url" data-url="http://localhost:${port}" data-id="${esc(selectedTask?.id || "")}">:${port}</button>`).join("")}
+      </div>
+      ${selectedTask ? `
+        <div class="orca-section-head" style="margin-top:16px">
+          <span class="orca-section-label">QA & TERMINAL RUNNER (${selectedTask.isolated && !selectedTask.worktreeCleaned ? "WORKTREE" : "WORKSPACE"})</span>
+          ${qaRes ? `<span class="mc-badge is-${qaRes.status === "passed" ? "passed" : "blocking"}">${qaRes.status === "passed" ? "PASS" : `EXIT ${qaRes.code ?? 1}`}</span>` : ""}
+        </div>
+        <div class="orca-inline-input-row" style="margin-top:6px">
+          <input type="text" data-task-qa-cmd value="${esc(defaultCmd)}" placeholder="npm test, pytest, cargo test…" autocomplete="off" spellcheck="false">
+          <button type="button" class="button primary small" data-action="run-task-qa" data-id="${esc(selectedTask.id)}">${icon("square-terminal", 12)}<span>Chạy</span></button>
+        </div>
+        <div class="orca-quick-pills" style="margin-top:6px">
+          ${presetCommands.map((cmd) => `<button type="button" class="kb-tag-chip" data-action="run-task-qa" data-id="${esc(selectedTask.id)}" data-command="${esc(cmd)}">${esc(cmd)}</button>`).join("")}
+        </div>
+        ${qaRes ? `<div class="orca-terminal-box" style="margin-top:10px">
+          <header><code>$ ${esc(qaRes.command)}</code><small>${qaRes.durationSec}s · ${qaRes.status === "passed" ? "Thành công" : "Thất bại"}</small></header>
+          <pre>${esc(String(qaRes.output || "(Không có đầu ra)").slice(-3500))}</pre>
+          <footer style="margin-top:6px;display:flex;justify-content:flex-end">
+            <button type="button" class="button quiet small" data-action="open-stage-doc" data-id="${esc(selectedTask.id)}" data-doc-id="qa">${icon("book-open-text", 12)}<span>Mở báo cáo QA</span></button>
+          </footer>
+        </div>` : ""}
+        ${termHistory.length > 1 ? `<div class="orca-section-label" style="margin-top:12px">LỊCH SỬ LỆNH (${termHistory.length})</div>
+        <ul class="orca-tree-list">${termHistory.slice(0, 6).map((h) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:8px" data-action="run-task-qa" data-id="${esc(selectedTask.id)}" data-command="${esc(h.command)}"><span class="orca-tree-icon">${icon(h.status === "passed" ? "check" : "x", 13)}</span><span class="orca-tree-label"><code>${esc(h.command)}</code></span><small class="orca-tree-badge">${h.durationSec}s</small></button></li>`).join("")}</ul>` : ""}
+      ` : `<p class="orca-muted-note" style="margin-top:14px">Chọn một task để chạy kiểm thử QA hoặc lệnh Git trực tiếp trong worktree.</p>`}
+    </div>`;
   } else if (tab === "tasks") {
     if (page === "knowledge" && view.vaultPreview?.content) {
       const outline = extractMarkdownOutline(view.vaultPreview.content);
@@ -2561,11 +2760,271 @@ function workflowNodes(task) {
   const labels = { complete: "Hoàn tất", active: "Đang chạy", queued: "Đang chờ", pending: "Chưa chạy", failed: "Lỗi", cancelled: "Đã dừng" };
   return nodes.map((node, index) => `<div class="workflow-step"><button class="workflow-node node-${esc(node.state)}" data-action="inspect-task" data-id="${esc(task.id)}" aria-label="${esc(node.title)} · ${labels[node.state] || "Chưa ghi nhận"}"><span class="workflow-node-mark">${icon(node.state === "complete" ? "check" : node.icon, 14)}</span><strong>${esc(node.title)}</strong><small>${esc(node.group)}</small><em>${labels[node.state] || "Chưa ghi nhận"}</em></button>${index < nodes.length - 1 ? `<span class="workflow-edge ${node.state === "complete" ? "edge-done" : ""}" aria-hidden="true">${icon("chevron-right", 16)}</span>` : ""}</div>`).join("");
 }
+
+function missionControlStepperMarkup(task, { compact = false } = {}) {
+  const data = pipelineStepperData(task);
+  const busy = ["queued", "running"].includes(task.status);
+  const artifactsCount = (task.artifacts || []).length;
+  const canManageWorktree = Boolean(task.isolated && !busy && !task.worktreeCleaned && !task.worktreeAppliedAt);
+  const lastEvent = (task.events || []).filter((e) => e.kind !== "output").at(-1) || (task.events || []).at(-1);
+  const stationDocMap = { start: "spec", "plan-review": "plan", you: "plan", "code-review": "review", qa: "qa", pr: "impl" };
+
+  const stationsHtml = data.stations.map((st, idx) => {
+    const docId = stationDocMap[st.id] || "spec";
+    const iconName = st.state === "done" ? "check" : st.state === "failed" ? "x" : st.state === "attention" ? "sparkles" : st.state === "active" ? "refresh-cw" : "circle-dot";
+    return `<div class="mc-station is-${esc(st.state)}">
+      <button type="button" class="mc-station-btn" data-action="${st.id === "pr" && artifactsCount ? "show-diff" : "open-stage-doc"}" data-id="${esc(task.id)}" data-doc-id="${esc(docId)}" title="${esc(st.label)} · ${esc(st.sub)}">
+        <span class="mc-station-dot">${icon(iconName, 12)}</span>
+        <span class="mc-station-text">
+          <strong>${esc(st.label)}</strong>
+          <small>${esc(st.sub)}</small>
+        </span>
+      </button>
+      ${idx < data.stations.length - 1 ? `<span class="mc-station-line ${st.state === "done" ? "is-done" : ""}"></span>` : ""}
+    </div>`;
+  }).join("");
+
+  const planGateBanner = data.awaitingGate ? `<div class="mc-plan-gate-banner">
+    <div class="mc-plan-gate-info">
+      <span class="mc-badge is-attention">YOU · PLAN GATE</span>
+      <strong>Kế hoạch đã sẵn sàng — Chờ bạn duyệt (GO) trước khi Agent triển khai code</strong>
+    </div>
+    <div class="mc-plan-gate-controls">
+      <input type="text" data-plan-gate-feedback placeholder="Ghi chú thêm hoặc yêu cầu sửa kế hoạch (tùy chọn)…" autocomplete="off">
+      <button type="button" class="button quiet small" data-action="open-stage-doc" data-id="${esc(task.id)}" data-doc-id="plan">${icon("book-open-text", 12)}<span>Xem plan.md</span></button>
+      <button type="button" class="button quiet small" data-action="revise-plan-gate" data-id="${esc(task.id)}">${icon("refresh-cw", 12)}<span>Lập lại Plan</span></button>
+      <button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(task.id)}">${icon("check", 12)}<span>Duyệt & Triển khai (GO)</span></button>
+    </div>
+  </div>` : "";
+
+  const cyclesRows = (data.cycles || []).map((c) => {
+    const rowIcon = c.status === "done" ? "check" : c.status === "failed" ? "x" : "refresh-cw";
+    const stageDoc = c.stage === "plan" ? "plan" : c.stage === "review" ? "review" : c.stage === "qa" ? "qa" : "impl";
+    const durLabel = c.durationSec >= 60 ? `${Math.round(c.durationSec / 60)}m` : `${Math.max(1, c.durationSec || 1)}s`;
+    return `<div class="mc-cycle-row is-${esc(c.status || "done")}" data-action="open-stage-doc" data-id="${esc(task.id)}" data-doc-id="${esc(stageDoc)}" role="button" tabindex="0">
+      <span class="mc-cycle-status">${icon(rowIcon, 12)}</span>
+      <strong class="mc-cycle-label">${esc(c.label || `Round ${c.round} · ${c.stage}`)}</strong>
+      <span class="mc-cycle-summary">${esc(c.summary || "")}</span>
+      <span class="mc-cycle-metrics">
+        ${c.stage === "review" || c.blocking > 0 || c.advisory > 0 ? `<span class="mc-badge ${c.blocking > 0 ? "is-blocking" : "is-zero"}">${c.blocking} blocking</span><span class="mc-badge ${c.advisory > 0 ? "is-advisory" : "is-zero"}">${c.advisory} advisory</span>` : ""}
+        <span class="mc-metric-pill">${c.turns || 1} turns</span>
+        <span class="mc-metric-pill">${durLabel}</span>
+        ${c.costUsd > 0 ? `<span class="mc-metric-pill is-cost">$${Number(c.costUsd).toFixed(2)}</span>` : ""}
+      </span>
+    </div>`;
+  }).join("");
+
+  const docsBar = `<div class="mc-stage-docs-bar">
+    <span class="mc-docs-label">${icon("book-open-text", 12)} Tài liệu Stage:</span>
+    ${(data.stageDocuments || []).map((doc) => `<button type="button" class="mc-doc-pill ${doc.ready ? "is-ready" : ""}" data-action="open-stage-doc" data-id="${esc(task.id)}" data-doc-id="${esc(doc.id)}">${esc(doc.title)}</button>`).join("")}
+  </div>`;
+
+  const worktreeChip = task.isolated
+    ? `<span class="chat-worktree-chip ${task.worktreeAppliedAt ? "is-merged" : ""}" title="${esc(task.worktreePath || task.executionPath || "")}">${icon(task.worktreeAppliedAt ? "check" : "git-branch", 12)} ${task.worktreeAppliedAt ? "Đã gộp vào dự án" : task.worktreeCleaned ? "Worktree đã dọn" : esc(task.worktreeBranch || "Worktree cô lập")}</span>`
+    : "";
+  const activityText = busy && lastEvent?.text ? `<span class="chat-live-event" title="${esc(lastEvent.text)}"><i class="pulse-dot"></i>${esc(String(lastEvent.text).slice(0, 100))}</span>` : "";
+
+  const applyWtBtn = canManageWorktree && artifactsCount > 0
+    ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(task.id)}">${icon("check", 13)}<span>Gộp vào dự án</span></button>`
+    : "";
+  const discardWtBtn = canManageWorktree
+    ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${esc(task.id)}">${icon("delete", 13)}<span>Hủy worktree</span></button>`
+    : "";
+  const qaBtn = !busy ? `<button type="button" class="button quiet small" data-action="run-task-qa" data-id="${esc(task.id)}" title="Chạy kiểm thử QA cho task">${icon("square-terminal", 13)}<span>Chạy QA</span></button>` : "";
+  const diffBtn = task.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${esc(task.id)}">${icon("file", 13)}<span>Diff${artifactsCount ? ` (${artifactsCount})` : ""}</span></button>` : "";
+  const flowBtn = compact ? `<button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(task.id)}">${icon("workflow", 13)}<span>Luồng</span></button>` : "";
+  const stopBtn = busy ? `<button type="button" class="button danger small" data-action="stop-task" data-id="${esc(task.id)}">${icon("square", 12)}<span>Dừng</span></button>` : "";
+
+  return `<section class="mc-stepper-card ${compact ? "is-compact" : "is-full"} ${busy ? "is-running" : ""}" aria-label="Tiến trình 6 bước">
+    <header class="mc-stepper-head">
+      <div class="mc-stepper-meta">
+        <span class="mc-code-pill">${esc(task.code || "TASK")}</span>
+        <span class="mc-risk-pill is-risk-${esc((task.riskLevel || "M").toLowerCase())}">Risk ${esc(task.riskLevel || "M")}</span>
+        <span class="mc-round-pill">Round ${data.currentRound}/${data.maxRounds}</span>
+        ${data.findings.blocking > 0 ? `<span class="mc-badge is-blocking">${data.findings.blocking} blocking</span>` : ""}
+        ${data.findings.advisory > 0 ? `<span class="mc-badge is-advisory">${data.findings.advisory} advisory</span>` : ""}
+        ${data.costUsd > 0 ? `<span class="mc-badge is-cost">$${data.costUsd.toFixed(2)}</span>` : ""}
+        ${worktreeChip}
+        ${activityText}
+      </div>
+      <div class="mc-stepper-actions">${applyWtBtn}${discardWtBtn}${qaBtn}${diffBtn}${flowBtn}${stopBtn}</div>
+    </header>
+    <div class="mc-stations-track">${stationsHtml}</div>
+    ${planGateBanner}
+    ${compact
+      ? (cyclesRows ? `<details class="mc-cycles-Region" ${data.awaitingGate || data.findings.blocking > 0 ? "open" : ""}>
+          <summary class="mc-cycles-summary"><span>Lịch sử vòng lặp (${data.cycles.length} bước) & Tài liệu Stage (5)</span>${icon("chevron-down", 13)}</summary>
+          <div class="mc-cycles-list">${cyclesRows}</div>
+          ${docsBar}
+        </details>` : docsBar)
+      : `<div class="mc-cycles-list">${cyclesRows}</div>${docsBar}`}
+  </section>`;
+}
+
+function openWaveDecomposeModal() {
+  const workspaces = view.state?.workspaces || [];
+  if (!workspaces.length) return showWorkspaceModal();
+  const options = workspaces.map((w) => `<option value="${esc(w.id)}" ${w.id === (view.homeWorkspaceId || workspaces[0]?.id) ? "selected" : ""}>${esc(w.name)} · ${esc(w.path)}</option>`).join("");
+  const defaultCampaign = [
+    "[Wave 1 | S] Phân tích kiến trúc & lập đặc tả giao diện / API nền tảng",
+    "[Wave 2 | M] Triển khai logic nghiệp vụ chính và kết nối dữ liệu",
+    "[Wave 3 | S] Viết kiểm thử QA, rà soát lỗi biên và hoàn thiện tài liệu",
+  ].join("\n");
+  const body = `
+    <p class="form-note">Khởi chạy chiến dịch <strong>Wave DAG</strong>: các task trong cùng một Wave chạy song song (trên nhánh Git worktree cô lập), và Wave sau sẽ tự động đợi Wave trước hoàn tất.</p>
+    <div class="modal-grid-2">
+      <label>Tên chiến dịch (Milestone)<input name="milestone" required maxlength="120" value="Chiến dịch nâng cấp tính năng" placeholder="VD: Auth & Security Overhaul"></label>
+      <label>Workspace<select name="workspaceId" required>${options}</select></label>
+    </div>
+    <label>Danh sách Task theo Wave (mỗi dòng 1 task — cú pháp <code>[Wave 1 | S/M/L] Tiêu đề :: Chi tiết</code>)
+      <textarea name="waveSpec" rows="6" required spellcheck="false">${esc(defaultCampaign)}</textarea>
+    </label>
+    <div class="modal-grid-2">
+      <label>Số vòng tự sửa tối đa (Multi-Round Fix)
+        <select name="maxRounds">
+          <option value="1">1 vòng (Tiêu chuẩn)</option>
+          <option value="2" selected>2 vòng (Tự sửa nếu Review/QA báo lỗi)</option>
+          <option value="3">3 vòng (Khắt khe)</option>
+        </select>
+      </label>
+      <label>Lệnh kiểm thử QA tự động (tùy chọn)
+        <input name="qaCommand" placeholder="VD: npm test" autocomplete="off" spellcheck="false">
+      </label>
+    </div>
+    <label class="check-row"><input type="checkbox" name="planGate"><span><strong>Bật cổng duyệt Kế hoạch (Human Plan Gate · You)</strong><small>Tạm dừng sau bước lập kế hoạch để bạn bấm GO trước khi Agent viết code.</small></span></label>
+    <label class="check-row"><input type="checkbox" name="isolated" checked><span><strong>Tách Git worktree cô lập cho từng task</strong><small>Cho phép các task trong cùng một Wave chạy song song không đụng độ tệp.</small></span></label>
+  `;
+  showModal("Chiến dịch Wave DAG đa tầng", body, "Khởi chạy Wave DAG", "wave-decompose");
+}
+
 function workflowPage() {
   if (view.selected && view.state.tasks.some((task) => task.id === view.selected)) return taskDetails();
-  const tasks = view.state.tasks;
-  const active = tasks.filter((task) => ["queued", "running"].includes(task.status));
-  return `<div class="page-head"><div><div class="eyebrow">TASK ORCHESTRATION</div><h1>Luồng</h1><p>Xem sơ đồ từng bước, log hoạt động và đầu ra được ghi nhận cho mỗi cuộc trò chuyện.</p></div><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task</button></div><div class="flow-summary"><div><small>Đang hoạt động</small><strong>${active.length}</strong></div><div><small>Có bản ghi</small><strong>${tasks.length}</strong></div><p>Chọn một luồng để xem chi tiết điều phối và đầu ra từng agent.</p></div>${tasks.length ? `<section class="workflow-board">${tasks.map((task) => `<article class="workflow-card"><header><button data-action="open-task-flow" data-id="${esc(task.id)}" class="workflow-task-title"><strong>${esc(task.title)}</strong><small>${esc(view.state.workspaces.find((workspace) => workspace.id === task.workspaceId)?.name || task.workspacePath)} · ${esc(taskProgress(task))}</small></button><span class="pill status-${esc(task.status)}"><i></i>${esc(statuses[task.status] || task.status)}</span></header><div class="workflow-lane">${workflowNodes(task)}</div><footer><span>${task.config.workflow === "chat-only" ? `Chat · ${esc(providerTitle(view.connectors, task.config.chatProvider))}` : task.config.workflow === "plan-only" ? `${esc(providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider))} · chỉ lập kế hoạch` : esc(workflowSummary(task))}</span><button class="workflow-record-link" data-action="open-task-flow" data-id="${esc(task.id)}">${icon("workflow", 14)} Mở bản ghi</button><time>${fmtDate(task.updatedAt)}</time></footer></article>`).join("")}</section>` : `<section class="empty-state workflow-empty"><strong>Chưa có bản ghi luồng</strong><p>Bản ghi điều phối sẽ xuất hiện tại đây khi một cuộc trò chuyện hoặc task được tạo trong workspace.</p><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button></section>`}`;
+  const allTasks = (view.state.tasks || []).filter((t) => !t.archived);
+  const riskFilter = view.waveRiskFilter || "all";
+  const criticalOnly = Boolean(view.waveCriticalOnly);
+  const tasks = allTasks.filter((t) => {
+    if (riskFilter !== "all" && String(t.riskLevel || "M").toUpperCase() !== riskFilter) return false;
+    if (criticalOnly) {
+      const f = parseReviewFindings(t.review || "");
+      const isCrit = t.status === "awaiting_approval" || t.status === "failed" || f.blocking > 0 || String(t.riskLevel || "").toUpperCase() === "L";
+      if (!isCrit) return false;
+    }
+    return true;
+  });
+  const dag = computeWaveDag(tasks.length ? tasks : allTasks);
+
+  const needsLookHtml = dag.needsLookTasks.length ? `<section class="mc-needs-look-banner" aria-label="Cần bạn xử lý">
+    <header class="mc-needs-look-head">
+      <div>
+        <span class="mc-badge is-attention">${icon("sparkles", 12)} NEEDS A LOOK · ${dag.needsLookTasks.length}</span>
+        <strong>Các tác vụ đang chờ quyết định của bạn (Duyệt Plan GO, Gộp nhánh, hoặc Xử lý lỗi)</strong>
+      </div>
+    </header>
+    <div class="mc-needs-look-grid">
+      ${dag.needsLookTasks.map((t) => {
+        const stepper = pipelineStepperData(t);
+        const isGate = t.status === "awaiting_approval";
+        const canMerge = t.isolated && !t.worktreeCleaned && !t.worktreeAppliedAt && (t.artifacts || []).length > 0 && t.status === "done";
+        return `<article class="mc-needs-look-card">
+          <div class="mc-needs-look-main">
+            <span class="mc-code-pill">${esc(t.code || "TASK")}</span>
+            <button type="button" class="mc-needs-look-title" data-action="open-task-flow" data-id="${esc(t.id)}"><strong>${esc(t.title)}</strong></button>
+            <span class="mc-risk-pill is-risk-${esc((t.riskLevel || "M").toLowerCase())}">${esc(t.riskLevel || "M")}</span>
+            ${isGate ? `<span class="mc-badge is-attention">Chờ duyệt Plan (GO)</span>` : ""}
+            ${stepper.findings.blocking > 0 ? `<span class="mc-badge is-blocking">${stepper.findings.blocking} blocking</span>` : ""}
+            ${canMerge ? `<span class="mc-badge is-passed">Sẵn sàng gộp (${(t.artifacts || []).length} tệp)</span>` : ""}
+          </div>
+          <div class="mc-needs-look-actions">
+            ${isGate ? `<button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(t.id)}">${icon("check", 12)}<span>Duyệt GO</span></button><button type="button" class="button quiet small" data-action="open-stage-doc" data-id="${esc(t.id)}" data-doc-id="plan">Xem Plan</button>` : ""}
+            ${canMerge ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(t.id)}">${icon("check", 12)}<span>Gộp nhánh</span></button>` : ""}
+            <button type="button" class="button quiet small" data-action="back-chat" data-id="${esc(t.id)}">Mở Chat</button>
+            <button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(t.id)}">Chi tiết</button>
+          </div>
+        </article>`;
+      }).join("")}
+    </div>
+  </section>` : "";
+
+  const toolbarHtml = `<div class="mc-board-toolbar">
+    <div class="mc-counter-strip">
+      <span class="mc-counter-pill ${dag.counters.forYou > 0 ? "is-attention" : ""}"><strong>${dag.counters.forYou}</strong> for you</span>
+      <span class="mc-counter-pill ${dag.counters.running > 0 ? "is-running" : ""}"><strong>${dag.counters.running}</strong> running</span>
+      <span class="mc-counter-pill"><strong>${dag.counters.inReview}</strong> in review</span>
+      <span class="mc-counter-pill"><strong>${dag.counters.ready}</strong> ready</span>
+      <span class="mc-counter-pill ${dag.counters.blocked > 0 ? "is-blocked" : ""}"><strong>${dag.counters.blocked}</strong> blocked</span>
+      <span class="mc-counter-pill is-done"><strong>${dag.counters.done}</strong> done</span>
+    </div>
+    <div class="mc-filter-strip">
+      <span class="mc-filter-label">Risk:</span>
+      ${["all", "S", "M", "L"].map((r) => `<button type="button" class="filter ${riskFilter === r ? "active" : ""}" data-action="wave-risk-filter" data-risk="${r}">${r === "all" ? "Tất cả" : r}</button>`).join("")}
+      <button type="button" class="filter ${criticalOnly ? "active" : ""}" data-action="wave-critical-toggle">⚡ Critical</button>
+    </div>
+  </div>`;
+
+  return `<div class="page-head">
+    <div>
+      <div class="eyebrow">MISSION CONTROL & WAVE DAG</div>
+      <h1>Luồng điều phối</h1>
+      <p>Theo dõi tiến trình 6 trạm (Start → Plan → You → Review → QA → PR), vòng lặp tự sửa lỗi và bảng phụ thuộc Wave DAG.</p>
+    </div>
+    <div class="page-head-actions" style="display:flex;gap:8px;align-items:center">
+      <button class="button quiet" data-action="open-wave-decompose">${icon("workflow", 15)} Chiến dịch Wave DAG</button>
+      <button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task</button>
+    </div>
+  </div>
+  ${needsLookHtml}
+  ${toolbarHtml}
+  ${allTasks.length ? `<section class="workflow-board mc-wave-board" data-wave-dag-board>
+    ${dag.waves.map((wave) => `<div class="mc-wave-column" data-wave-index="${wave.index}">
+      <header class="mc-wave-column-head">
+        <strong>${esc(wave.label)}</strong>
+        <span class="mc-wave-count">${wave.tasks.length} task · ${wave.doneCount}/${wave.tasks.length} hoàn tất</span>
+      </header>
+      <div class="mc-wave-column-body">
+        ${wave.tasks.map((task) => {
+          const stepper = pipelineStepperData(task);
+          const wsName = view.state.workspaces.find((workspace) => workspace.id === task.workspaceId)?.name || task.workspacePath;
+          const depNames = (task.dependsOn || []).map((depId) => {
+            const depTask = allTasks.find((t) => t.id === depId);
+            return depTask ? (depTask.code || depTask.title.slice(0, 22)) : depId.slice(0, 6);
+          });
+          return `<article class="workflow-card mc-wave-card status-${esc(task.status)}" data-wave-task-id="${esc(task.id)}">
+            <header>
+              <div class="mc-card-title-wrap">
+                <div class="mc-card-badges">
+                  <span class="mc-code-pill">${esc(task.code || "TASK")}</span>
+                  <span class="mc-risk-pill is-risk-${esc((task.riskLevel || "M").toLowerCase())}">${esc(task.riskLevel || "M")}</span>
+                  <span class="mc-round-pill">R${stepper.currentRound}/${stepper.maxRounds}</span>
+                  ${stepper.findings.blocking > 0 ? `<span class="mc-badge is-blocking">${stepper.findings.blocking} blk</span>` : ""}
+                  ${stepper.findings.advisory > 0 ? `<span class="mc-badge is-advisory">${stepper.findings.advisory} adv</span>` : ""}
+                  ${stepper.costUsd > 0 ? `<span class="mc-badge is-cost">$${stepper.costUsd.toFixed(2)}</span>` : ""}
+                </div>
+                <button data-action="open-task-flow" data-id="${esc(task.id)}" class="workflow-task-title">
+                  <strong>${esc(task.title)}</strong>
+                  <small>${esc(wsName)} · ${esc(taskProgress(task))}</small>
+                </button>
+              </div>
+              <span class="pill status-${esc(task.status)}"><i></i>${esc(statuses[task.status] || task.status)}</span>
+            </header>
+            <div class="mc-mini-stations">
+              ${stepper.stations.map((st) => `<span class="mc-mini-station is-${esc(st.state)}" title="${esc(st.label)}: ${esc(st.sub)}"><i></i><small>${esc(st.label)}</small></span>`).join("")}
+            </div>
+            <div class="workflow-lane">${workflowNodes(task)}</div>
+            ${depNames.length ? `<div class="mc-dep-row">${icon("git-branch", 12)} <span>Phụ thuộc: ${depNames.map((n) => `<code>${esc(n)}</code>`).join(", ")}</span></div>` : ""}
+            <footer>
+              <span>${task.config.workflow === "chat-only" ? `Chat · ${esc(providerTitle(view.connectors, task.config.chatProvider))}` : task.config.workflow === "plan-only" ? `${esc(providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider))} · chỉ lập kế hoạch` : esc(workflowSummary(task))}</span>
+              <div class="mc-card-footer-actions">
+                ${task.status === "awaiting_approval" ? `<button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(task.id)}">Duyệt GO</button>` : ""}
+                <button type="button" class="workflow-record-link" data-action="back-chat" data-id="${esc(task.id)}">Chat</button>
+                <button class="workflow-record-link" data-action="open-task-flow" data-id="${esc(task.id)}">${icon("workflow", 14)} Mở bản ghi</button>
+              </div>
+              <time>${fmtDate(task.updatedAt)}</time>
+            </footer>
+          </article>`;
+        }).join("")}
+      </div>
+    </div>`).join("")}
+  </section>` : `<section class="empty-state workflow-empty"><strong>Chưa có bản ghi luồng</strong><p>Bản ghi điều phối sẽ xuất hiện tại đây khi một cuộc trò chuyện hoặc chiến dịch Wave DAG được tạo trong workspace.</p><div style="display:flex;gap:8px;justify-content:center"><button class="button quiet" data-action="open-wave-decompose">${icon("workflow", 15)} Tạo chiến dịch Wave DAG</button><button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button></div></section>`}`;
 }
 function memoryPage() {
   const notes = view.state?.memories || [];
@@ -3190,9 +3649,11 @@ function orderedConversationMessages(messages) {
 function taskConversationPipelineStrip(task, busy) {
   const workflow = task.config?.workflow || "codex-antigravity";
   const artifactsCount = (task.artifacts || []).length;
+  if (workflow !== "chat-only" || task.status === "awaiting_approval" || task.qaResult || (task.cycles || []).length > 0) {
+    return missionControlStepperMarkup(task, { compact: true });
+  }
   const lastEvent = (task.events || []).filter((e) => e.kind !== "output").at(-1) || (task.events || []).at(-1);
   if (workflow === "chat-only" && !busy && !artifactsCount && !task.isolated && !task.fanoutId) return "";
-  const stages = workflow === "chat-only" ? "" : (workflow === "plan-only" ? [{ id: "plan", label: "Kế hoạch", done: Boolean(task.plan) }] : [{ id: "plan", label: "Kế hoạch", done: Boolean(task.plan) }, { id: "build", label: "Triển khai", done: Boolean(task.implementation) }, { id: "review", label: "Review", done: Boolean(task.review) }]).map((stage) => `<span class="chat-stage-chip ${stage.done ? "is-done" : (busy && task.phase === stage.id ? "is-active" : "is-pending")}"><i></i>${stage.label}</span>`).join(`<span class="chat-stage-arrow">→</span>`);
   const worktreeChip = task.isolated
     ? `<span class="chat-worktree-chip ${task.worktreeAppliedAt ? "is-merged" : ""}" title="${esc(task.worktreePath || task.executionPath || "")}">${icon(task.worktreeAppliedAt ? "check" : "git-branch", 12)} ${task.worktreeAppliedAt ? "Đã gộp vào dự án" : task.worktreeCleaned ? "Worktree đã dọn" : esc(task.worktreeBranch || "Worktree cô lập")}</span>`
     : "";
@@ -3206,8 +3667,7 @@ function taskConversationPipelineStrip(task, busy) {
     : "";
   const diffBtn = task.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${esc(task.id)}">${icon("file", 13)}<span>Diff & Review${artifactsCount ? ` (${artifactsCount})` : ""}</span></button>` : "";
   const flowBtn = `<button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(task.id)}">${icon("workflow", 13)}<span>Luồng</span></button>`;
-  const stopBtn = busy && workflow !== "chat-only" ? `<button type="button" class="button danger small" data-action="stop-task" data-id="${esc(task.id)}">${icon("square", 12)}<span>Dừng</span></button>` : "";
-  return `<div class="chat-pipeline-strip ${busy ? "is-running" : ""}"><div class="chat-pipeline-stages">${stages}${worktreeChip}${activityText}</div><div class="chat-pipeline-actions">${applyWtBtn}${discardWtBtn}${diffBtn}${flowBtn}${stopBtn}</div></div>`;
+  return `<div class="chat-pipeline-strip ${busy ? "is-running" : ""}"><div class="chat-pipeline-stages">${worktreeChip}${activityText}</div><div class="chat-pipeline-actions">${applyWtBtn}${discardWtBtn}${diffBtn}${flowBtn}</div></div>`;
 }
 function taskArenaBanner(task) {
   if (!task.fanoutId) return "";
@@ -3774,9 +4234,11 @@ function taskDetails() {
     const previousArtifacts = attempt.previousArtifacts?.length ? `<div class="stage-history-files"><small>${esc(translateText("Tệp từ lần chạy trước", view.language))}</small>${attempt.previousArtifacts.slice(0, 30).map((file) => `<code>${esc(file)}</code>`).join("")}</div>` : "";
     return `<details class="stage-history-entry"><summary>${esc(stageLabel)} · ${esc(statusLabel)} · ${fmtDate(attempt.requestedAt)}</summary>${attempt.error ? `<p class="stage-history-error">${esc(attempt.error)}</p>` : ""}${outputRows || "<p>Không có đầu ra cũ cho giai đoạn này.</p>"}${previousArtifacts}</details>`;
   }).join("")}</section>` : "";
+  const costUsd = estimateTaskCostUsd(task.usage);
   return `<section class="task-orchestration-page" aria-label="Điều phối task">
-    <header class="conversation-top"><div class="conversation-context"><span class="conversation-repo">${icon("folder-code", 15)} ${esc(workspace?.name || task.workspacePath)}</span><span class="conversation-separator">/</span><span class="conversation-task-id">${esc(task.id)}</span></div><div class="detail-head-actions"><button class="button quiet small" data-action="back-chat" data-id="${esc(task.id)}">${icon("arrow-left", 14)} Cuộc trò chuyện</button><button class="button quiet small" data-action="open-folder" data-id="${esc(task.id)}">${icon("folder-code", 14)} Mở workspace</button><button class="button quiet small" data-action="task-instruction" data-id="${esc(task.id)}">${icon("arrow-up-right", 14)} Gửi chỉ dẫn</button><button class="button quiet small" data-action="new-task">${icon("plus", 14)} Task mới</button></div></header>
-    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${esc(task.status)}"><i></i>${esc(statuses[task.status] || task.status)}</span>${presetBadge}<span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${formatNumber(usage)} tokens</span>` : ""}<span>${formatNumber(events.length)} sự kiện · ${formatNumber(nodes.length)} node</span></div></div></div>
+    <header class="conversation-top"><div class="conversation-context"><span class="conversation-repo">${icon("folder-code", 15)} ${esc(workspace?.name || task.workspacePath)}</span><span class="conversation-separator">/</span><span class="conversation-task-id">${esc(task.code || task.id)}</span></div><div class="detail-head-actions"><button class="button quiet small" data-action="back-flows">${icon("arrow-left", 14)} Bảng Wave DAG</button><button class="button quiet small" data-action="back-chat" data-id="${esc(task.id)}">${icon("square-terminal", 14)} Cuộc trò chuyện</button><button class="button quiet small" data-action="open-folder" data-id="${esc(task.id)}">${icon("folder-code", 14)} Mở workspace</button><button class="button quiet small" data-action="task-instruction" data-id="${esc(task.id)}">${icon("arrow-up-right", 14)} Gửi chỉ dẫn</button><button class="button quiet small" data-action="new-task">${icon("plus", 14)} Task mới</button></div></header>
+    <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${esc(task.status)}"><i></i>${esc(statuses[task.status] || task.status)}</span>${presetBadge}<span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${formatNumber(usage)} tokens${costUsd > 0 ? ` · $${costUsd.toFixed(2)}` : ""}</span>` : ""}<span>${formatNumber(events.length)} sự kiện · ${formatNumber(nodes.length)} node</span></div></div></div>
+    ${missionControlStepperMarkup(task, { compact: false })}
     ${task.skills?.length ? `<div class="skill-used">${icon("notebook-tabs", 14)} Skill đã chọn: ${task.skills.map((skill) => esc(skill.name)).join(" · ")}</div>` : ""}
     <div class="orchestration-layout"><section class="orchestration-canvas"><header class="orchestration-canvas-head"><div><small>LUỒNG THỰC THI · ${esc(task.config.workflow === "chat-only" ? "CHAT" : task.config.workflow === "plan-only" ? "PLAN ONLY" : "CODE PIPELINE")}</small><h3>${busy ? "Điều phối đang hoạt động" : "Bản ghi điều phối"}</h3></div><span class="activity-live ${busy ? "is-live" : ""}"><i></i>${busy ? "Đang chạy" : "Đã lưu"}</span></header><div class="orchestration-flow">${nodes.map((node, index) => orchestrationNodeHtml(node, index, nodes.length)).join("")}</div></section>
       <aside class="orchestration-activity"><header class="orchestration-activity-head"><div><small>EVENT LOG</small><h3>Điều phối & hoạt động</h3></div><span>${events.length} sự kiện</span></header><div class="orchestration-activity-note">${icon("workflow", 14)} Chỉ hiện hoạt động, handoff, đầu ra và công cụ được CLI ghi nhận. Suy luận nội bộ của model không được cung cấp.</div><div class="orchestration-event-list" id="agent-activity-feed">${sortedEvents.length ? sortedEvents.map((item) => { const text = String(item.text || ""); const longOutput = item.kind === "output" && text.length > 320; return `<article class="orchestration-event kind-${esc(item.kind)}"><span class="orchestration-event-mark">${icon(({ stage: "square-terminal", handoff: "workflow", tool: "settings-2", output: "file", chat: "book-open-text", memory: "brain", error: "circle-question-mark", success: "check", warning: "circle-question-mark" })[item.kind] || "workflow", 14)}</span><div><header><strong>${esc(eventLabels[item.kind] || "EVENT")}</strong><time>${fmtDate(item.at)}</time>${item.kind === "error" ? `<button type="button" class="event-error-open" data-action="view-error-details" data-error="${esc(text)}">Xem lỗi</button>` : ""}</header>${longOutput ? `<p>${esc(text.slice(0, 280))}…</p><details class="orchestration-event-details"><summary>Xem đầu ra đầy đủ</summary><pre>${esc(text)}</pre></details>` : `<p>${esc(text)}</p>`}</div></article>`; }).join("") : `<p class="orchestration-activity-empty">Các sự kiện sẽ xuất hiện khi task được chạy.</p>`}</div>${stages.length ? `<section class="orchestration-stage-results"><strong>Đầu ra agent</strong>${stages.map(([label, output]) => `<details><summary>${esc(label)}</summary><pre>${esc(output)}</pre></details>`).join("")}</section>` : ""}${(task.artifacts || []).length ? `<section class="orchestration-artifacts"><strong>${icon("file", 14)} Tệp thay đổi · ${task.artifacts.length}</strong>${task.artifacts.slice(0, 20).map((file) => `<div>${icon("file", 13)}<code>${esc(file)}</code></div>`).join("")}</section>` : ""}${stageRunHistory}</aside></div>
@@ -3801,9 +4263,10 @@ async function openTaskModal() {
   if (!providersForRole(view.connectors, "plan").length) { view.page = "settings"; view.selected = null; render(); showToast("Kết nối ít nhất một agent hoặc API rồi bạn có thể tạo task."); return; }
   if (!workspaces.length) return showWorkspaceModal();
   const options = workspaces.map((w) => `<option value="${esc(w.id)}">${esc(w.name)} · ${esc(w.path)}</option>`).join("");
+  const depOptions = `<option value="">Không phụ thuộc (Wave 1)</option>` + (view.state.tasks || []).filter((t) => !t.archived).slice(0, 25).map((t) => `<option value="${esc(t.id)}">${esc(t.code || "TASK")} · ${esc(t.title.slice(0, 56))}</option>`).join("");
   const hasBuild = providersForRole(view.connectors, "build").length > 0;
   const canPlanOnly = providersForRole(view.connectors, "plan").length > 0;
-  const body = `${taskPresetToolsMarkup()}<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="3" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea></label><div class="modal-grid-2"><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label></div><div class="modal-grid-2"><label>Quyền<select name="permissionPreset"><option value="workspace-write" selected>Đọc và sửa workspace</option><option value="read-only">Chỉ đọc workspace</option><option value="full-access">Toàn quyền trên máy</option></select></label><label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label></div><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 16)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
+  const body = `${taskPresetToolsMarkup()}<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="3" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea></label><div class="modal-grid-2"><label>Workspace<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Review</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label></div><div class="modal-grid-2"><label>Quyền<select name="permissionPreset"><option value="workspace-write" selected>Đọc và sửa workspace</option><option value="read-only">Chỉ đọc workspace</option><option value="full-access">Toàn quyền trên máy</option></select></label><label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label></div><div class="modal-grid-2"><label>Độ phức tạp (Risk) & Vòng lặp tự sửa<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><select name="riskLevel"><option value="S">Risk S · Nhỏ</option><option value="M" selected>Risk M · Vừa</option><option value="L">Risk L · Lớn</option></select><select name="maxRounds"><option value="1">1 vòng</option><option value="2" selected>Tự sửa 2 vòng</option><option value="3">Tự sửa 3 vòng</option></select></div></label><label>Lệnh QA tự động & Phụ thuộc Wave<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input name="qaCommand" placeholder="VD: npm test" autocomplete="off" spellcheck="false"><select name="dependsOnTaskId">${depOptions}</select></div></label></div><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 16)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="planGate"><span><strong>Cổng duyệt Kế hoạch (Human Plan Gate · You)</strong><small>Tạm dừng sau khi lập kế hoạch để bạn duyệt (GO) trước khi Agent viết code.</small></span></label><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
   showModal("Task mới", body, "Tạo và chạy");
   syncWorkflow(); syncIsolation(); syncTaskPresetControls($(".modal"));
 }
@@ -4138,10 +4601,54 @@ async function handleSubmit(event) {
       view.taskMenuId = "";
       showToast("Đã đổi tên chat.");
     } else if (form.dataset.form === "task") {
-      const { taskPresetVersion, taskPresetName, appliedPresetId, appliedPresetVersion, ...taskInput } = object;
+      const { taskPresetVersion, taskPresetName, appliedPresetId, appliedPresetVersion, dependsOnTaskId, ...taskInput } = object;
       const presetRef = appliedPresetId && appliedPresetVersion ? { id: appliedPresetId, version: Number(appliedPresetVersion) } : null;
-      const task = await api("/api/tasks", { method: "POST", body: JSON.stringify({ ...taskInput, ...(presetRef ? { presetRef } : {}), isolated: data.has("isolated") }) });
+      const task = await api("/api/tasks", {
+        method: "POST",
+        body: JSON.stringify({
+          ...taskInput,
+          ...(presetRef ? { presetRef } : {}),
+          isolated: data.has("isolated"),
+          planGate: data.has("planGate"),
+          maxRounds: Number(object.maxRounds) || 2,
+          riskLevel: object.riskLevel || "M",
+          qaCommand: object.qaCommand || "",
+          dependsOn: dependsOnTaskId ? [dependsOnTaskId] : [],
+        }),
+      });
       view.selected = task.task.id; view.page = "chat"; view.chatProvider = task.task.config.chatProvider || task.task.config.roles?.plan?.provider || "codex"; view.chatModel = task.task.config.workflow === "chat-only" ? task.task.config.chatModel : task.task.config.roles?.plan?.model || ""; view.chatEffort = task.task.config.workflow === "chat-only" ? task.task.config.chatEffort : task.task.config.roles?.plan?.effort || ""; view.chatDraft = ""; showToast("Task thật đã vào hàng đợi.");
+    } else if (form.dataset.form === "wave-decompose") {
+      const rawLines = String(object.waveSpec || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const waveMap = new Map();
+      for (const line of rawLines) {
+        const match = line.match(/^(?:\[Wave\s*(\d+)(?:\s*\|\s*([SML]))?\]\s*)?(.+)$/i);
+        const wIdx = Math.max(1, Math.min(8, Number(match?.[1]) || 1));
+        const risk = String(match?.[2] || "M").toUpperCase();
+        const rest = String(match?.[3] || line).trim();
+        if (rest.length < 6) continue;
+        const [titlePart, promptPart] = rest.includes("::") ? rest.split("::").map((s) => s.trim()) : [rest.slice(0, 90), rest];
+        if (!waveMap.has(wIdx)) waveMap.set(wIdx, []);
+        waveMap.get(wIdx).push({ title: titlePart, prompt: promptPart || titlePart, riskLevel: risk });
+      }
+      const waves = [...waveMap.entries()].sort((a, b) => a[0] - b[0]).map(([index, tasks]) => ({ index, tasks }));
+      if (!waves.length) throw new Error("Nhập ít nhất 1 dòng task hợp lệ (tối thiểu 6 ký tự).");
+      const res = await api("/api/tasks/decompose", {
+        method: "POST",
+        body: JSON.stringify({
+          workspaceId: object.workspaceId,
+          milestone: object.milestone || "Wave Campaign",
+          workflow: "codex-antigravity",
+          permissionPreset: "workspace-write",
+          isolated: data.has("isolated"),
+          planGate: data.has("planGate"),
+          maxRounds: Number(object.maxRounds) || 2,
+          qaCommand: object.qaCommand || "",
+          waves,
+        }),
+      });
+      view.selected = null;
+      view.page = "flows";
+      showToast(`Đã khởi chạy chiến dịch Wave DAG gồm ${res.tasks?.length || 0} task!`);
     } else if (form.dataset.form === "home-task") {
       if (view.homeMode === "arena") {
         const slots = ensureHomeArenaSlots();
@@ -5357,6 +5864,81 @@ async function handleWorkbenchClick(event) {
       view.taskMenuId = "";
       await refresh();
       showToast("Đã xóa chat vĩnh viễn.");
+    }
+    if (action === "open-stage-doc") {
+      const task = view.state.tasks.find((item) => item.id === (id || view.selected));
+      if (task) {
+        view.page = "chat";
+        view.selected = task.id;
+        openStageDocTab(task, button.dataset.docId || "spec");
+      }
+      return;
+    }
+    if (action === "open-live-url") {
+      const rawUrl = button.dataset.url || $("[data-live-url-input]")?.value || "http://localhost:3000";
+      view.lastLiveUrl = rawUrl;
+      view.page = "chat";
+      openLiveUrlTab(rawUrl, id || view.selected || "");
+      return;
+    }
+    if (action === "approve-plan-gate" || action === "revise-plan-gate") {
+      const feedback = String($("[data-plan-gate-feedback]")?.value || "").trim();
+      const gateAction = action === "approve-plan-gate" ? "approve" : "revise";
+      if (gateAction === "revise" && !feedback) {
+        showToast("Nhập ghi chú yêu cầu chỉnh sửa kế hoạch trước khi bấm Lập lại Plan.");
+        $("[data-plan-gate-feedback]")?.focus();
+        return;
+      }
+      await api(`/api/tasks/${encodeURIComponent(id)}/plan-gate`, {
+        method: "POST",
+        body: JSON.stringify({ action: gateAction, feedback }),
+      });
+      await refresh();
+      showToast(gateAction === "approve" ? "Đã duyệt kế hoạch (GO) — Agent bắt đầu triển khai!" : "Đã gửi yêu cầu lập lại kế hoạch cho Agent.");
+      return;
+    }
+    if (action === "run-task-qa") {
+      const task = view.state.tasks.find((item) => item.id === (id || view.selected));
+      if (!task) return;
+      const command = button.dataset.command || $("[data-task-qa-cmd]")?.value || task.qaCommand || "npm test";
+      showToast(`Đang chạy lệnh QA: ${command}…`);
+      const res = await api(`/api/tasks/${encodeURIComponent(task.id)}/qa`, {
+        method: "POST",
+        body: JSON.stringify({ command }),
+      });
+      await refresh();
+      const statusMsg = res.qaResult?.status === "passed" ? "Thành công (PASS)" : `Thất bại (Exit ${res.qaResult?.code ?? 1})`;
+      showToast(`QA hoàn tất: ${command} · ${statusMsg}`);
+      return;
+    }
+    if (action === "task-git-commit") {
+      const message = String($("[data-git-commit-msg]")?.value || "").trim();
+      if (!message) {
+        showToast("Nhập nội dung commit message trước khi Commit.");
+        $("[data-git-commit-msg]")?.focus();
+        return;
+      }
+      await api(`/api/tasks/${encodeURIComponent(id)}/git-commit`, {
+        method: "POST",
+        body: JSON.stringify({ message }),
+      });
+      await refresh();
+      showToast(`Đã commit thay đổi Git: ${message}`);
+      return;
+    }
+    if (action === "open-wave-decompose") {
+      openWaveDecomposeModal();
+      return;
+    }
+    if (action === "wave-risk-filter") {
+      view.waveRiskFilter = button.dataset.risk || "all";
+      render();
+      return;
+    }
+    if (action === "wave-critical-toggle") {
+      view.waveCriticalOnly = !view.waveCriticalOnly;
+      render();
+      return;
     }
     if (action === "edit-task-goal") { const task = view.state.tasks.find((item) => item.id === id); if (task) openTaskGoalModal(task); return; }
     if (action === "task-permissions") { const task = view.state.tasks.find((item) => item.id === id); if (task) openTaskPermissionsModal(task); return; }

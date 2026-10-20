@@ -100,11 +100,16 @@ export const view = {
   renderedSelection: "",
   desktopSetupOpen: !setupAlreadyDismissed(),
   cliInstallProvider: "",
+  waveRiskFilter: "all",
+  waveCriticalOnly: false,
+  homePlanGate: false,
+  homeMaxRounds: 2,
 };
 
 export const statuses = {
   queued: "Đang chờ",
   running: "Đang chạy",
+  awaiting_approval: "Chờ duyệt Plan",
   done: "Hoàn tất",
   failed: "Lỗi",
   cancelled: "Đã dừng",

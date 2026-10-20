@@ -12,6 +12,7 @@ import { completeWithApi, configuredApiProviders, findClaudeCode, listProviderMo
 import { cliIsInstalled } from "./src/server/cli-status.mjs";
 import { findAntigravityCli, parseWindowsRegisteredEnvironmentValue, probeAntigravityCli } from "./src/server/antigravity-cli.mjs";
 import { roleConfig, workflowRoles } from "./src/domain/agent-roles.js";
+import { estimateTaskCostUsd, parseReviewFindings } from "./src/domain/task-flow.js";
 import { createStateSnapshot } from "./src/server/state-snapshot.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
@@ -1365,17 +1366,213 @@ function publicState() {
     serverTime: new Date().toISOString(),
   };
 }
+function tokenizeTerms(text) {
+  return (String(text || "").toLowerCase().match(/[\p{L}\p{N}_-]{3,}/gu) || []).filter(
+    (word) => !["the", "and", "for", "with", "this", "that", "cua", "codex", "task", "hãy", "của", "với", "cho", "một", "các", "trong", "được", "thực", "hiện"].includes(word)
+  );
+}
 function tokenize(text) {
-  return [...new Set((text.toLowerCase().match(/[\p{L}\p{N}_-]{3,}/gu) || []).filter((word) => !["the", "and", "for", "with", "this", "that", "cua", "codex", "task", "hãy", "của", "với", "cho", "một", "các", "trong", "được", "thực", "hiện"].includes(word)))];
+  return [...new Set(tokenizeTerms(text))];
 }
 function relevantMemory(task, workspace) {
-  const words = tokenize(`${task.title} ${task.prompt}`);
-  return memories.map((item) => {
-    const scopeMatches = item.workspaceId === "all" || item.workspaceId === workspace.id;
-    const bodyWords = tokenize(`${item.title} ${item.content}`);
-    const score = scopeMatches ? bodyWords.filter((word) => words.includes(word)).length + (item.workspaceId === workspace.id ? 2 : 0) : 0;
-    return { item, score };
-  }).filter((row) => row.score > 0).sort((a, b) => b.score - a.score).slice(0, 3).map((row) => row.item);
+  const queryTerms = tokenize(`${task.title || ""} ${task.prompt || ""} ${task.goal || ""}`);
+  if (!queryTerms.length || !memories.length) return [];
+  const scopedDocs = memories
+    .filter((item) => item && (item.workspaceId === "all" || item.workspaceId === workspace?.id))
+    .map((item) => {
+      const terms = tokenizeTerms(`${item.title || ""} ${item.title || ""} ${item.content || ""}`);
+      const tf = new Map();
+      for (const term of terms) tf.set(term, (tf.get(term) || 0) + 1);
+      return { item, tf, len: Math.max(1, terms.length) };
+    });
+  if (!scopedDocs.length) return [];
+  const N = scopedDocs.length;
+  const avgDl = scopedDocs.reduce((sum, doc) => sum + doc.len, 0) / N;
+  const k1 = 1.5;
+  const b = 0.75;
+  const df = new Map();
+  for (const term of queryTerms) {
+    let count = 0;
+    for (const doc of scopedDocs) if (doc.tf.has(term)) count += 1;
+    df.set(term, count);
+  }
+  return scopedDocs
+    .map((doc) => {
+      let bm25 = 0;
+      for (const term of queryTerms) {
+        const f = doc.tf.get(term) || 0;
+        if (!f) continue;
+        const docFreq = df.get(term) || 0;
+        const idf = Math.log(1 + (N - docFreq + 0.5) / (docFreq + 0.5));
+        const norm = f + k1 * (1 - b + b * (doc.len / avgDl));
+        bm25 += idf * ((f * (k1 + 1)) / norm);
+      }
+      const workspaceBoost = doc.item.workspaceId === workspace?.id && bm25 > 0 ? 1.25 : 0;
+      return { item: doc.item, score: bm25 + workspaceBoost };
+    })
+    .filter((row) => row.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4)
+    .map((row) => row.item);
+}
+function autoDistillTaskMemory(task, workspace) {
+  try {
+    if (!task || !workspace || task.config?.workflow === "chat-only") return;
+    const filesSummary = (task.artifacts || []).slice(0, 8).join(", ");
+    const reviewSummary = String(task.review || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean).slice(0, 4).join(" · ").slice(0, 320);
+    const planSummary = String(task.plan || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean).slice(0, 3).join(" · ").slice(0, 260);
+    if (!filesSummary && !planSummary && !reviewSummary) return;
+    const title = `[Auto-Lesson] ${task.code ? `${task.code}: ` : ""}${String(task.title || "Task").slice(0, 80)}`;
+    const contentParts = [];
+    if (filesSummary) contentParts.push(`Changed files: ${filesSummary}.`);
+    if (planSummary) contentParts.push(`Plan: ${planSummary}`);
+    if (reviewSummary) contentParts.push(`Review: ${reviewSummary}`);
+    const content = contentParts.join(" ").slice(0, 1200);
+    const existing = memories.find((item) => item.sourceTaskId === task.id);
+    if (existing) {
+      existing.title = title;
+      existing.content = content;
+      existing.updatedAt = new Date().toISOString();
+    } else {
+      memories.unshift({
+        id: `mem-${randomUUID().slice(0, 8)}`,
+        workspaceId: workspace.id,
+        sourceTaskId: task.id,
+        title,
+        content,
+        createdAt: new Date().toISOString(),
+      });
+      if (memories.length > 200) memories.length = 200;
+    }
+    persistMemory();
+  } catch { }
+}
+function areTaskDependenciesMet(task) {
+  const deps = Array.isArray(task?.dependsOn) ? task.dependsOn : [];
+  if (!deps.length) return true;
+  for (const depRef of deps) {
+    const ref = String(depRef || "").trim();
+    if (!ref) continue;
+    const parent = state.tasks.find(
+      (item) => item.id === ref || (item.code && String(item.code).toUpperCase() === ref.toUpperCase())
+    );
+    if (parent && parent.id !== task.id && parent.status !== "done") {
+      return false;
+    }
+  }
+  return true;
+}
+function recordTaskCycle(task, cycleInput) {
+  task.cycles ||= [];
+  task.costUsd = estimateTaskCostUsd(task.usage);
+  const entry = {
+    id: cycleInput.id || `cycle-${randomUUID().slice(0, 8)}`,
+    round: Number(cycleInput.round || task.currentRound || 1),
+    stage: String(cycleInput.stage || "build"),
+    title: String(cycleInput.title || `Round ${Number(cycleInput.round || 1)} · ${cycleInput.stage || "stage"}`),
+    provider: String(cycleInput.provider || "Agent"),
+    model: String(cycleInput.model || ""),
+    status: String(cycleInput.status || "clean"),
+    badge: String(cycleInput.badge || "clean"),
+    blocking: Number(cycleInput.blocking || 0),
+    advisory: Number(cycleInput.advisory || 0),
+    turns: Math.max(1, Number(cycleInput.turns || 1)),
+    durationMs: Math.max(0, Number(cycleInput.durationMs || 0)),
+    durationMin: Math.max(1, Math.round(Math.max(1000, Number(cycleInput.durationMs || 1000)) / 60000)),
+    costUsd: Number(cycleInput.costUsd ?? task.costUsd ?? 0),
+    summary: String(cycleInput.summary || "").slice(0, 1200),
+    completedAt: new Date().toISOString(),
+  };
+  const existingIdx = task.cycles.findIndex((item) => item.id === entry.id || (item.round === entry.round && item.stage === entry.stage));
+  if (existingIdx >= 0) task.cycles[existingIdx] = entry;
+  else task.cycles.push(entry);
+  task.cycles = task.cycles.slice(-24);
+}
+async function resolveSafeExecCommand(rawCommand, cwd) {
+  const cmd = String(rawCommand || "npm test").trim();
+  const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
+  const npxBin = process.platform === "win32" ? "npx.cmd" : "npx";
+  const presets = {
+    "npm test": { executable: npmBin, args: ["test"], label: "npm test" },
+    "npm run build": { executable: npmBin, args: ["run", "build"], label: "npm run build" },
+    "npm run lint": { executable: npmBin, args: ["run", "lint"], label: "npm run lint" },
+    "npm run check": { executable: npmBin, args: ["run", "check"], label: "npm run check" },
+    "npm run typecheck": { executable: npmBin, args: ["run", "typecheck"], label: "npm run typecheck" },
+    "node --test": { executable: process.execPath, args: ["--test"], label: "node --test" },
+    "pytest": { executable: process.platform === "win32" ? "pytest.exe" : "pytest", args: ["-q"], label: "pytest -q" },
+    "cargo test": { executable: process.platform === "win32" ? "cargo.exe" : "cargo", args: ["test"], label: "cargo test" },
+    "go test ./...": { executable: process.platform === "win32" ? "go.exe" : "go", args: ["test", "./..."], label: "go test ./..." },
+    "git status": { executable: "git", args: ["status", "--short", "--branch"], label: "git status --short --branch" },
+    "git status --short": { executable: "git", args: ["status", "--short"], label: "git status --short" },
+    "git log": { executable: "git", args: ["log", "-n", "8", "--oneline", "--decorate"], label: "git log -n 8 --oneline" },
+    "git diff --stat": { executable: "git", args: ["diff", "--stat"], label: "git diff --stat" },
+    "vitest run": { executable: npxBin, args: ["--no-install", "vitest", "run"], label: "npx vitest run" },
+  };
+  if (presets[cmd]) return presets[cmd];
+  const npmRunMatch = cmd.match(/^npm\s+run\s+([\w:.-]{1,64})$/);
+  if (npmRunMatch) {
+    const scriptName = npmRunMatch[1];
+    try {
+      const pkgRaw = await fs.readFile(resolve(cwd, "package.json"), "utf8");
+      const pkg = JSON.parse(pkgRaw);
+      if (pkg?.scripts && Object.prototype.hasOwnProperty.call(pkg.scripts, scriptName)) {
+        return { executable: npmBin, args: ["run", scriptName], label: `npm run ${scriptName}` };
+      }
+    } catch { }
+    throw new Error(`Script "${scriptName}" không tồn tại trong package.json của workspace.`);
+  }
+  throw new Error("Chỉ cho phép chạy các lệnh kiểm thử/build chuẩn trong danh sách an toàn hoặc script có trong package.json.");
+}
+async function runTaskQaCheck(task, cwd, rawCommand = "") {
+  const targetCwd = cwd || task.executionPath || task.workspacePath;
+  if (!targetCwd || !existsSync(targetCwd)) throw new Error("Thư mục thực thi của task không tồn tại.");
+  let commandToRun = String(rawCommand || task.qaCommand || "").trim();
+  if (!commandToRun) {
+    try {
+      const pkg = JSON.parse(await fs.readFile(resolve(targetCwd, "package.json"), "utf8"));
+      if (pkg?.scripts?.test) commandToRun = "npm test";
+      else if (pkg?.scripts?.check) commandToRun = "npm run check";
+      else if (pkg?.scripts?.build) commandToRun = "npm run build";
+    } catch { }
+  }
+  if (!commandToRun) commandToRun = "git status";
+  const resolved = await resolveSafeExecCommand(commandToRun, targetCwd);
+  const startedAt = Date.now();
+  record(task, `Đang chạy kiểm tra QA / Terminal · ${resolved.label}`, "tool", {
+    toolName: "qa-runner",
+    command: resolved.label,
+    status: "running",
+  });
+  const res = await run(resolved.executable, resolved.args, { cwd: targetCwd, timeout: 90_000, maxBuffer: 500_000 });
+  const durationMs = Date.now() - startedAt;
+  const combinedOutput = `${res.stdout || ""}${res.stderr ? `\n${res.stderr}` : ""}`.trim().slice(-16_000);
+  const passed = res.code === 0;
+  const qaResult = {
+    command: resolved.label,
+    status: passed ? "passed" : "failed",
+    code: res.code,
+    exitCode: res.code,
+    durationMs,
+    durationSec: Math.max(1, Math.round(durationMs / 1000)),
+    summary: passed ? `${resolved.label} · PASS (${(durationMs / 1000).toFixed(1)}s)` : `${resolved.label} · FAIL (mã ${res.code})`,
+    output: combinedOutput || (passed ? "Hoàn tất thành công (mã thoát 0)." : `Lệnh trả về mã lỗi ${res.code}.`),
+    completedAt: new Date().toISOString(),
+  };
+  task.qaResult = qaResult;
+  task.terminalHistory ||= [];
+  task.terminalHistory.unshift({
+    id: `term-${randomUUID().slice(0, 8)}`,
+    ...qaResult,
+  });
+  task.terminalHistory = task.terminalHistory.slice(0, 20);
+  record(task, `Hoàn tất ${resolved.label} · ${passed ? "PASSED" : `FAILED (code ${res.code})`}`, passed ? "success" : "warning", {
+    toolName: "qa-runner",
+    command: resolved.label,
+    exitCode: res.code,
+    detail: qaResult.output.slice(0, 600),
+    status: "done",
+  });
+  return qaResult;
 }
 function projectSourceFolders(task, workspace) {
   if (!usesSharedCheckout(task)) return [task.executionPath || task.workspacePath || workspace?.path].filter(Boolean);
@@ -1652,22 +1849,26 @@ async function applyApiBuildResult(cwd, responseText, buildSnapshotHashes) {
   }
   return `${operations.summary}${changed.length ? `\n\n${changed.join("\n")}` : "\n\nNo workspace files were changed."}`;
 }
-function makePrompt(task, stage, plan, memory, workspace, skillInstructionsList = []) {
+function makePrompt(task, stage, plan, memory, workspace, skillInstructionsList = [], roundInfo = null) {
   const memoryText = memory.length ? `\n\nRelevant local memory (only matching notes):\n${memory.map((m) => `- ${m.title}: ${m.content}`).join("\n").slice(0, 4500)}` : "";
   const provider = stageSelection(task, stage).provider;
   const applicableSkills = skillInstructionsList.filter((skill) => skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"]));
   const skillText = applicableSkills.length ? `\n\nSelected skills for ${provider} (follow only when relevant to the user's request):\n${applicableSkills.map((skill) => `<skill name="${skill.name}">\n${skill.instruction}${skill.runtimeDirectory ? `\n\nSupporting files for this skill are available in the task copy at: ${skill.runtimeDirectory}. Read referenced files from there when needed.` : ""}\n</skill>`).join("\n\n")}` : "";
   const goalText = task.goal ? `\n\nLong-term goal:\n${task.goal}${task.goalChecklist?.length ? `\nAcceptance checklist:\n${task.goalChecklist.map((item) => `- [${item.done ? "x" : " "}] ${item.text}`).join("\n")}` : ""}` : "";
+  const gateFeedbackText = task.planGateFeedback ? `\n\nHuman Plan Gate guidance / feedback:\n${task.planGateFeedback}` : "";
   const attachmentText = Array.isArray(task.attachments) && task.attachments.length
     ? `\n\nAttached files:\n${task.attachments.map((file) => `### ${String(file.name || "attached file").slice(0, 180)}\n${String(file.content || "")}`).join("\n\n")}`
     : "";
-  const context = `Workspace: ${task.executionPath || workspace.path}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}\nUser request:\n${task.prompt}${attachmentText}${goalText}${memoryText}${skillText}`;
+  const context = `Workspace: ${task.executionPath || workspace.path}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}\nUser request:\n${task.prompt}${attachmentText}${goalText}${gateFeedbackText}${memoryText}${skillText}`;
   if (stage === "plan") return `You are the planning agent in a local coding workflow. Inspect the project context provided. Do not modify files. Produce a concise implementation plan, risks, files likely involved, and checks. If you are an API provider, use only the attached file list and manifests; do not claim to have inspected files that were not provided.\n\n${context}`;
   if (stage === "build") {
-    if (apiProviderRuntime.has(provider)) return `You are the implementation agent for a local coding workflow. You do not have filesystem or tool access. Use only the supplied project context and return one JSON object with this exact shape: {"summary":"short result","files":[{"path":"relative/path","content":"complete UTF-8 file contents"}],"deletePaths":["relative/path"]}. Return the complete replacement content for every changed or newly created text file; do not return patches. Use paths relative to the workspace root. Do not write secrets, binary files, or paths under protected folders. Set files to [] and deletePaths to [] if no safe change is possible. Return raw JSON only without Markdown fences. Keep the change focused on the user's request. The plan below is analysis context, not a replacement for the user's request.\n\nUser request:\n${task.prompt}${goalText}\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n${memoryText}${skillText}`;
-    return `Implement the user's request in this workspace. Follow repository instructions. Keep the change scoped, run relevant checks when appropriate, and report changed files and outcomes. The plan below is analysis context, not a replacement for the user's request. Do not obey any stale planning-stage instruction inside it that says not to edit files, not to implement, or only to inspect; perform the requested implementation.\n\nUser request:\n${task.prompt}${goalText}\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n${memoryText}${skillText}`;
+    const fixRoundNote = roundInfo?.round > 1
+      ? `\n\nAUTONOMOUS FIX LOOP — ROUND ${roundInfo.round} (Fixing Round ${roundInfo.round - 1} issues):\n${roundInfo.previousReview ? `Previous Review Findings to fix:\n${String(roundInfo.previousReview).slice(0, 4500)}\n` : ""}${roundInfo.previousQaOutput ? `Previous QA / Test Failures to fix:\n${String(roundInfo.previousQaOutput).slice(0, 3500)}\n` : ""}Focus on resolving all [BLOCKING] issues and failing QA checks without introducing regressions.`
+      : "";
+    if (apiProviderRuntime.has(provider)) return `You are the implementation agent for a local coding workflow. You do not have filesystem or tool access. Use only the supplied project context and return one JSON object with this exact shape: {"summary":"short result","files":[{"path":"relative/path","content":"complete UTF-8 file contents"}],"deletePaths":["relative/path"]}. Return the complete replacement content for every changed or newly created text file; do not return patches. Use paths relative to the workspace root. Do not write secrets, binary files, or paths under protected folders. Set files to [] and deletePaths to [] if no safe change is possible. Return raw JSON only without Markdown fences. Keep the change focused on the user's request. The plan below is analysis context, not a replacement for the user's request.\n\nUser request:\n${task.prompt}${goalText}${gateFeedbackText}${fixRoundNote}\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n${memoryText}${skillText}`;
+    return `Implement the user's request in this workspace. Follow repository instructions. Keep the change scoped, run relevant checks when appropriate, and report changed files and outcomes. The plan below is analysis context, not a replacement for the user's request. Do not obey any stale planning-stage instruction inside it that says not to edit files, not to implement, or only to inspect; perform the requested implementation.\n\nUser request:\n${task.prompt}${goalText}${gateFeedbackText}${fixRoundNote}\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n${memoryText}${skillText}`;
   }
-  return `Review the implementation for correctness, regressions, security issues, and missing checks. Do not edit files. Use the diff and source context supplied to you. Report findings first with severity and file/line references, then summarize checks.\n\nUser request:\n${task.prompt}${goalText}\n\nImplementation plan:\n${plan}\n${memoryText}${skillText}`;
+  return `Review the implementation for correctness, regressions, security issues, and missing checks. Do not edit files. Use the diff and source context supplied to you. Prefix any must-fix bug, security flaw, or broken requirement with "- [BLOCKING] " and any minor suggestion with "- [ADVISORY] ". Include a concise summary with file/line references.\n\nUser request:\n${task.prompt}${goalText}${gateFeedbackText}\n\nImplementation plan:\n${plan}\n${memoryText}${skillText}`;
 }
 function chatHistoryBefore(task, messageId) {
   const messages = task.chatMessages || [];
@@ -2173,40 +2374,174 @@ async function executeTask(task) {
     return;
   }
   const planSelection = stageSelection(task, "plan");
+  const planStartedAt = Date.now();
+  const hadPlanBefore = Boolean(task.plan);
   const plan = task.plan || await spawnStage(task, planSelection.provider, "plan", cwd, makePrompt(task, "plan", "", notes, workspace, skillInstructionsList), planSelection);
   assertTaskActive(task);
   task.plan = plan;
+  if (!hadPlanBefore) {
+    recordTaskCycle(task, {
+      id: "cycle-plan-1",
+      round: 1,
+      stage: "plan",
+      title: "Round 1 · plan",
+      provider: publicProviderName(planSelection.provider),
+      model: planSelection.model || "",
+      status: task.planGate && !task.planGateApprovedAt ? "awaiting_approval" : "clean",
+      badge: task.planGate && !task.planGateApprovedAt ? "awaiting you" : "plan ready",
+      blocking: 0,
+      advisory: 0,
+      turns: 1,
+      durationMs: Date.now() - planStartedAt,
+      summary: String(plan || "").slice(0, 600),
+    });
+  }
+  if (task.planGate && !task.planGateApprovedAt) {
+    assertTaskActive(task);
+    task.status = "awaiting_approval";
+    task.phase = "plan-gate";
+    task.costUsd = estimateTaskCostUsd(task.usage);
+    record(task, "Kế hoạch đã sẵn sàng tại Plan Gate (You). Chờ bạn bấm Duyệt & Triển khai (GO) hoặc gửi góp ý điều chỉnh.", "stage");
+    persist();
+    publish("task");
+    return;
+  }
   if (task.config.workflow === "plan-only") {
     assertTaskActive(task);
+    task.costUsd = estimateTaskCostUsd(task.usage);
     task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
     finishStageRerun(task, "done");
+    autoDistillTaskMemory(task, workspace);
     record(task, "Hoàn tất kế hoạch (chưa chạy phần triển khai)", "success");
     return;
   }
   const buildSelection = stageSelection(task, "build");
-  if (!(task.resumeFrom === "review" && task.implementation)) {
-    record(task, `Handoff ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} · kế hoạch được chuyển sang stage triển khai.`, "handoff");
-    task.phase = "build"; persist(); publish("task");
-    const buildStartedAt = Date.now();
-    const implementation = await spawnStage(task, buildSelection.provider, "build", cwd, makePrompt(task, "build", plan, notes, workspace, skillInstructionsList), buildSelection);
-    assertTaskActive(task);
-    task.implementation = implementation || `${publicProviderName(buildSelection.provider)} hoàn tất nhưng không gửi văn bản cuối. Kiểm tra danh sách tệp/diff bên dưới.`;
-    await fs.writeFile(resolve(task.storagePath, "implementation.md"), task.implementation, "utf8");
-    task.artifacts = mergeTaskArtifacts(task.artifacts, await changedFilesSince(cwd, Math.min(Date.parse(task.startedAt) || buildStartedAt, buildStartedAt)));
-  }
   const reviewSelection = stageSelection(task, "review");
-  record(task, `Handoff ${publicProviderName(buildSelection.provider)} → ${publicProviderName(reviewSelection.provider)} · stage triển khai đã kết thúc; reviewer bắt đầu kiểm tra.`, "handoff");
-  task.resumeFrom = null;
-  task.phase = "review"; persist(); publish("task");
-  const review = await spawnStage(task, reviewSelection.provider, "review", cwd, makePrompt(task, "review", plan, notes, workspace, skillInstructionsList), reviewSelection);
+  const maxRounds = Math.max(1, Math.min(3, Number(task.maxRounds) || 1));
+  let round = Math.max(1, Number(task.currentRound) || 1);
+  let previousReview = task.review || "";
+  let previousQaOutput = task.qaResult?.output || "";
+
+  while (round <= maxRounds) {
+    task.currentRound = round;
+    const skipBuildForReviewOnlyRerun = round === 1 && task.resumeFrom === "review" && Boolean(task.implementation);
+    if (!skipBuildForReviewOnlyRerun) {
+      record(
+        task,
+        round === 1
+          ? `Handoff ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} · kế hoạch được chuyển sang stage triển khai.`
+          : `Vòng tự sửa lỗi ${round}/${maxRounds} · Chuyển phản hồi Review/QA sang ${publicProviderName(buildSelection.provider)} để khắc phục lỗi blocking.`,
+        "handoff"
+      );
+      task.phase = "build"; persist(); publish("task");
+      const buildStartedAt = Date.now();
+      const toolCountBefore = (task.events || []).filter((e) => e.kind === "tool").length;
+      const implementation = await spawnStage(
+        task,
+        buildSelection.provider,
+        "build",
+        cwd,
+        makePrompt(task, "build", plan, notes, workspace, skillInstructionsList, { round, previousReview, previousQaOutput }),
+        buildSelection
+      );
+      assertTaskActive(task);
+      task.implementation = implementation || `${publicProviderName(buildSelection.provider)} hoàn tất nhưng không gửi văn bản cuối. Kiểm tra danh sách tệp/diff bên dưới.`;
+      await fs.writeFile(resolve(task.storagePath, "implementation.md"), task.implementation, "utf8");
+      task.artifacts = mergeTaskArtifacts(task.artifacts, await changedFilesSince(cwd, Math.min(Date.parse(task.startedAt) || buildStartedAt, buildStartedAt)));
+      const toolTurns = Math.max(1, (task.events || []).filter((e) => e.kind === "tool").length - toolCountBefore);
+      recordTaskCycle(task, {
+        id: `cycle-build-${round}`,
+        round,
+        stage: "build",
+        title: round > 1 ? `Round ${round} · implement (fix r${round - 1})` : `Round ${round} · implement`,
+        provider: publicProviderName(buildSelection.provider),
+        model: buildSelection.model || "",
+        status: "clean",
+        badge: `${(task.artifacts || []).length} files`,
+        blocking: 0,
+        advisory: 0,
+        turns: toolTurns,
+        durationMs: Date.now() - buildStartedAt,
+        summary: String(task.implementation || "").slice(0, 600),
+      });
+    }
+
+    record(task, `Handoff ${publicProviderName(buildSelection.provider)} → ${publicProviderName(reviewSelection.provider)} · stage triển khai đã kết thúc; reviewer bắt đầu kiểm tra (Round ${round}).`, "handoff");
+    task.resumeFrom = null;
+    task.phase = "review"; persist(); publish("task");
+    const reviewStartedAt = Date.now();
+    const review = await spawnStage(task, reviewSelection.provider, "review", cwd, makePrompt(task, "review", plan, notes, workspace, skillInstructionsList, { round }), reviewSelection);
+    assertTaskActive(task);
+    task.review = review;
+    const findings = parseReviewFindings(review);
+    task.reviewFindings = findings;
+    task.artifacts = mergeTaskArtifacts(task.artifacts, await changedFilesSince(cwd, Date.parse(task.startedAt)));
+    recordTaskCycle(task, {
+      id: `cycle-review-${round}`,
+      round,
+      stage: "review",
+      title: `Round ${round} · review`,
+      provider: publicProviderName(reviewSelection.provider),
+      model: reviewSelection.model || "",
+      status: findings.blocking > 0 ? "blocking" : "clean",
+      badge: findings.blocking > 0 ? `${findings.blocking} blocking` : "clean",
+      blocking: findings.blocking,
+      advisory: findings.advisory,
+      turns: 1,
+      durationMs: Date.now() - reviewStartedAt,
+      summary: String(review || "").slice(0, 600),
+    });
+
+    if (task.qaCommand) {
+      task.phase = "qa"; persist(); publish("task");
+      const qaRes = await runTaskQaCheck(task, cwd, task.qaCommand).catch((err) => ({
+        command: task.qaCommand,
+        status: "failed",
+        exitCode: 1,
+        durationMs: 0,
+        summary: `QA lỗi: ${safeError(err)}`,
+        output: safeError(err),
+      }));
+      assertTaskActive(task);
+      recordTaskCycle(task, {
+        id: `cycle-qa-${round}`,
+        round,
+        stage: "qa",
+        title: `QA · ${qaRes.status === "passed" ? "specs passed" : "specs failed"}`,
+        provider: "QA Runner",
+        model: qaRes.command || "",
+        status: qaRes.status === "passed" ? "clean" : "blocking",
+        badge: qaRes.summary || qaRes.status,
+        blocking: qaRes.status === "failed" ? 1 : 0,
+        advisory: 0,
+        turns: 1,
+        durationMs: qaRes.durationMs || 1000,
+        summary: String(qaRes.output || "").slice(0, 600),
+      });
+    }
+
+    const needFixLoop = (findings.blocking > 0 || task.qaResult?.status === "failed") && round < maxRounds && task.permissionPreset !== "read-only";
+    if (needFixLoop) {
+      previousReview = review;
+      previousQaOutput = task.qaResult?.status === "failed" ? task.qaResult.output : "";
+      record(
+        task,
+        `Phát hiện ${findings.blocking} lỗi blocking${task.qaResult?.status === "failed" ? " và QA thất bại" : ""} ở Round ${round}. Tự động kích hoạt Round ${round + 1}/${maxRounds} để sửa triệt để.`,
+        "warning"
+      );
+      round += 1;
+      continue;
+    }
+    break;
+  }
+
   assertTaskActive(task);
-  task.review = review;
-  task.artifacts = mergeTaskArtifacts(task.artifacts, await changedFilesSince(cwd, Date.parse(task.startedAt)));
-  assertTaskActive(task);
+  task.costUsd = estimateTaskCostUsd(task.usage);
   record(task, `${publicProviderName(reviewSelection.provider)} review hoàn tất · xem kết quả và diff trong task detail.`, "handoff");
   task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
   finishStageRerun(task, "done");
-  record(task, `Hoàn tất luồng ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} → ${publicProviderName(reviewSelection.provider)}. Thay đổi nằm trong workspace hiển thị bên dưới.`, "success");
+  autoDistillTaskMemory(task, workspace);
+  record(task, `Hoàn tất luồng ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} → ${publicProviderName(reviewSelection.provider)} (${round} vòng). Thay đổi nằm trong workspace hiển thị bên dưới.`, "success");
 }
 function drainQueuedChats() {
   if (shuttingDown) return;
@@ -2331,7 +2666,7 @@ function pump() {
         const task = state.tasks.find((item) => {
           const path = state.workspaces.find((w) => w.id === item.workspaceId)?.path;
           const lockKey = workspaceLockKey(path);
-          return item.status === "queued" && !running.has(item.id) && Boolean(lockKey) && (item.isolated || !busyWorkspaces.has(lockKey));
+          return item.status === "queued" && !running.has(item.id) && Boolean(lockKey) && areTaskDependenciesMet(item) && (item.isolated || !busyWorkspaces.has(lockKey));
         });
         if (!task) break;
         const workspacePath = state.workspaces.find((w) => w.id === task.workspaceId)?.path;
@@ -2357,12 +2692,12 @@ function pump() {
             if (count <= 0) isolatedWorkspaces.delete(runKey); else isolatedWorkspaces.set(runKey, count);
           }
           running.delete(task.id);
-          if (task.status !== "done" && task.chatQueue?.length) {
+          if (task.status !== "done" && task.status !== "awaiting_approval" && task.chatQueue?.length) {
             failQueuedChatTurns(task);
           }
           try { persist(); } catch {}
           publish("task");
-          if (task.chatQueue?.length && task.status === "done" && !shuttingDown) void processTaskChatQueue(task);
+          if (task.chatQueue?.length && (task.status === "done" || task.status === "awaiting_approval") && !shuttingDown) void processTaskChatQueue(task);
           drainQueuedChats();
           pump();
         });
@@ -3310,14 +3645,41 @@ async function api(request, response, pathname) {
     const isolated = body.isolated === true;
     if (isolated && (!info.isGit || !info.head)) return json(response, 400, { error: "Tách task cần Git repo có ít nhất một commit. Bỏ chọn cách ly để chạy tuần tự trong workspace." });
     const id = `task-${randomUUID().slice(0, 8)}`;
+    const nextSeq = state.tasks.length + 1;
+    const rawCode = String(body.code || "").trim().slice(0, 32);
+    const code = rawCode || (workflow === "codex-antigravity" ? `LOOP-${String(nextSeq).padStart(2, "0")}` : `TASK-${String(nextSeq).padStart(2, "0")}`);
+    const riskLevel = ["S", "M", "L"].includes(String(body.riskLevel || "").toUpperCase())
+      ? String(body.riskLevel).toUpperCase()
+      : (workflow === "codex-antigravity" ? "M" : "S");
+    const milestone = String(body.milestone || "Core").trim().slice(0, 60) || "Core";
+    const dependsOn = Array.isArray(body.dependsOn)
+      ? [...new Set(body.dependsOn.map((d) => String(d || "").trim()).filter(Boolean))].slice(0, 16)
+      : [];
+    const planGate = Boolean(body.planGate);
+    const maxRounds = Math.max(1, Math.min(3, Number(body.maxRounds) || (workflow === "codex-antigravity" ? 2 : 1)));
+    const qaCommand = String(body.qaCommand || "").trim().slice(0, 80);
+    const waveIndex = Number(body.waveIndex) > 0 ? Number(body.waveIndex) : undefined;
     const task = {
-      id, title: String(body.title || prompt.split(/\r?\n/)[0]).trim().slice(0, 120) || safeAttachments[0]?.name || "Task mới",
+      id,
+      code,
+      riskLevel,
+      milestone,
+      dependsOn,
+      planGate,
+      planGateApprovedAt: null,
+      planGateFeedback: "",
+      maxRounds,
+      currentRound: 1,
+      qaCommand,
+      waveIndex,
+      cycles: [],
+      title: String(body.title || prompt.split(/\r?\n/)[0]).trim().slice(0, 120) || safeAttachments[0]?.name || "Task mới",
       prompt, attachments: safeAttachments, workspaceId: workspace.id, workspacePath: info.path, status: "queued", phase: "queued",
       isolated, config, permissionPreset, presetRef, goal: String(body.goal || "").trim().slice(0, 2000), goalChecklist: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), events: [],
       skillSelectionMode: "auto", skillSelectionCompleted: false, skillIds: [], skills: [],
       memoryUsed: [], storagePath: resolve(taskDir, id),
     };
-    state.tasks.unshift(task); persist(); record(task, "Task được tạo từ giao diện và đưa vào hàng đợi thật.", "success"); pump();
+    state.tasks.unshift(task); persist(); record(task, `Task ${code} được tạo từ giao diện và đưa vào hàng đợi thật.${dependsOn.length ? ` Phụ thuộc: ${dependsOn.join(", ")}.` : ""}`, "success"); pump();
     return json(response, 201, { task });
   }
   if (request.method === "POST" && pathname === "/api/tasks/fanout") {
@@ -3415,7 +3777,155 @@ async function api(request, response, pathname) {
     persist(); publish("tasks"); pump();
     return json(response, 201, { fanoutId, tasks: createdTasks });
   }
-  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist|apply-worktree|discard-worktree|worktree\/apply|worktree\/discard))?$/);
+  if (request.method === "POST" && pathname === "/api/tasks/decompose") {
+    const body = await readBody(request);
+    const workspace = state.workspaces.find((w) => w.id === body.workspaceId);
+    if (!workspace) return json(response, 400, { error: "Chọn workspace thật trước khi khởi tạo chiến dịch Wave DAG." });
+    const info = await inspectWorkspace(workspace.path);
+    const connectors = await loadModels();
+    const roles = Object.fromEntries(workflowRoles.map((role) => [role.id, requestedRole(body, role.id, connectors)]));
+    const chatProvider = String(body.chatProvider || state.settings.defaults?.chatProvider || "codex");
+    const chatConnector = connectors[chatProvider];
+    const chatModel = String(body.chatModel || state.settings.defaults?.chatModel || chatConnector?.models?.[0]?.id || "");
+    const chatModelInfo = chatConnector?.models?.find((item) => item.id === chatModel);
+    const chatEffort = String(body.chatEffort || state.settings.defaults?.chatEffort || chatModelInfo?.efforts?.find((item) => item === "medium") || chatModelInfo?.efforts?.[0] || "");
+    const milestone = String(body.milestone || "Wave Campaign").trim().slice(0, 60) || "Wave Campaign";
+    const campaignGoal = String(body.goal || body.prompt || "").trim();
+    let rawItems = [];
+    if (Array.isArray(body.waves) && body.waves.length) {
+      let prevWaveCodes = [];
+      let seq = 0;
+      for (const wave of body.waves.slice(0, 8)) {
+        const wIdx = Math.max(1, Math.min(8, Number(wave.index) || 1));
+        const currentWaveCodes = [];
+        for (const t of (Array.isArray(wave.tasks) ? wave.tasks : []).slice(0, 8)) {
+          seq += 1;
+          const code = String(t.code || `WAVE-${String(seq).padStart(2, "0")}`).trim().slice(0, 32);
+          currentWaveCodes.push(code);
+          rawItems.push({
+            ...t,
+            code,
+            waveIndex: wIdx,
+            workflow: t.workflow || body.workflow || "codex-antigravity",
+            planGate: t.planGate !== undefined ? Boolean(t.planGate) : Boolean(body.planGate),
+            maxRounds: Number(t.maxRounds || body.maxRounds) || 2,
+            qaCommand: String(t.qaCommand || body.qaCommand || "").trim(),
+            dependsOn: Array.isArray(t.dependsOn) && t.dependsOn.length ? t.dependsOn : [...prevWaveCodes],
+          });
+        }
+        if (currentWaveCodes.length) prevWaveCodes = currentWaveCodes;
+      }
+    } else if (Array.isArray(body.items) && body.items.length) {
+      rawItems = body.items.slice(0, 12);
+    } else if (campaignGoal.length >= 6) {
+      const shortTitle = campaignGoal.split(/\r?\n/)[0].trim().slice(0, 72);
+      rawItems = [
+        {
+          code: "WAVE-01",
+          waveIndex: 1,
+          riskLevel: "S",
+          workflow: "plan-only",
+          planGate: false,
+          title: `[Wave 1 · Spec & Kiến trúc] ${shortTitle}`,
+          prompt: `Phân tích yêu cầu tổng thể, xác định các tệp liên quan, giao thức dữ liệu và rủi ro cho chiến dịch:\n\n${campaignGoal}`,
+          dependsOn: [],
+        },
+        {
+          code: "WAVE-02",
+          waveIndex: 2,
+          riskLevel: "M",
+          workflow: body.workflow || "codex-antigravity",
+          planGate: Boolean(body.planGate),
+          maxRounds: 2,
+          title: `[Wave 2 · Triển khai Core] ${shortTitle}`,
+          prompt: `Triển khai mã nguồn cốt lõi theo kiến trúc của chiến dịch:\n\n${campaignGoal}`,
+          dependsOn: ["WAVE-01"],
+        },
+        {
+          code: "WAVE-03",
+          waveIndex: 3,
+          riskLevel: "L",
+          workflow: body.workflow || "codex-antigravity",
+          planGate: false,
+          maxRounds: 2,
+          qaCommand: String(body.qaCommand || "").trim(),
+          title: `[Wave 3 · Kiểm thử QA & Hoàn thiện] ${shortTitle}`,
+          prompt: `Rà soát tích hợp, bổ sung kiểm thử và xác minh toàn bộ tính năng cho chiến dịch:\n\n${campaignGoal}`,
+          dependsOn: ["WAVE-02"],
+        },
+      ];
+    }
+    if (!rawItems.length) {
+      return json(response, 400, { error: "Nhập mục tiêu chiến dịch (tối thiểu 6 ký tự) hoặc danh sách các node trong Wave." });
+    }
+    const campaignId = `wave-${randomUUID().slice(0, 8)}`;
+    const codeToId = new Map();
+    const createdTasks = [];
+    const isolatedDefault = Boolean(body.isolated && info.isGit && info.head);
+    for (const [idx, item] of rawItems.entries()) {
+      const id = `task-${randomUUID().slice(0, 8)}`;
+      const itemWorkflow = ["chat-only", "plan-only", "codex-antigravity"].includes(item.workflow || body.workflow) ? (item.workflow || body.workflow) : "codex-antigravity";
+      const code = String(item.code || `WAVE-${String(idx + 1).padStart(2, "0")}`).trim().slice(0, 32);
+      codeToId.set(code.toUpperCase(), id);
+      const itemDeps = Array.isArray(item.dependsOn)
+        ? item.dependsOn.map((dep) => {
+            const ref = String(dep || "").trim();
+            return codeToId.get(ref.toUpperCase()) || ref;
+          }).filter(Boolean)
+        : [];
+      const config = {
+        roles: structuredClone(roles),
+        codexModel: roles.plan.provider === "codex" ? roles.plan.model : String(state.settings.defaults?.codexModel || ""),
+        codexEffort: roles.plan.provider === "codex" ? roles.plan.effort : String(state.settings.defaults?.codexEffort || "medium"),
+        agyModel: roles.build.provider === "antigravity" ? roles.build.model : String(state.settings.defaults?.agyModel || ""),
+        agyEffort: roles.build.provider === "antigravity" ? roles.build.effort : String(state.settings.defaults?.agyEffort || "medium"),
+        chatProvider, chatModel, chatEffort, workflow: itemWorkflow,
+      };
+      const now = new Date().toISOString();
+      const task = {
+        id,
+        campaignId,
+        code,
+        waveIndex: Number(item.waveIndex) > 0 ? Number(item.waveIndex) : idx + 1,
+        riskLevel: ["S", "M", "L"].includes(String(item.riskLevel || "").toUpperCase()) ? String(item.riskLevel).toUpperCase() : "M",
+        milestone: String(item.milestone || milestone).trim().slice(0, 60),
+        dependsOn: itemDeps,
+        planGate: Boolean(item.planGate),
+        planGateApprovedAt: null,
+        planGateFeedback: "",
+        maxRounds: Math.max(1, Math.min(3, Number(item.maxRounds) || 2)),
+        currentRound: 1,
+        qaCommand: String(item.qaCommand || body.qaCommand || "").trim().slice(0, 80),
+        cycles: [],
+        title: String(item.title || `Wave ${idx + 1}`).trim().slice(0, 120),
+        prompt: String(item.prompt || campaignGoal).trim().slice(0, 50000),
+        attachments: [],
+        workspaceId: workspace.id,
+        workspacePath: info.path,
+        status: "queued",
+        phase: "queued",
+        isolated: item.isolated !== undefined ? Boolean(item.isolated && info.isGit && info.head) : isolatedDefault,
+        config,
+        permissionPreset: "workspace-write",
+        goal: campaignGoal.slice(0, 2000),
+        goalChecklist: [],
+        createdAt: now,
+        updatedAt: now,
+        events: [{ at: now, kind: "success", text: `Khởi tạo trong chiến dịch Wave DAG (${code} · Wave ${Number(item.waveIndex) || idx + 1}).` }],
+        skillSelectionMode: "auto",
+        skillSelectionCompleted: false,
+        skillIds: [],
+        skills: [],
+        memoryUsed: [],
+        storagePath: resolve(taskDir, id),
+      };
+      createdTasks.push(task);
+    }
+    for (const task of [...createdTasks].reverse()) state.tasks.unshift(task);
+    persist(); publish("tasks"); pump();
+    return json(response, 201, { campaignId, tasks: createdTasks });
+  }
+  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist|plan-gate|qa|exec|git-commit|apply-worktree|discard-worktree|worktree\/apply|worktree\/discard))?$/);
   if (match) {
     const id = decodeURIComponent(match[1]);
     const action = match[2] || "";
@@ -3446,9 +3956,132 @@ async function api(request, response, pathname) {
         const title = String(body.title || "").trim();
         if (!title || title.length > 120) return json(response, 400, { error: "Tên chat cần từ 1 đến 120 ký tự." });
         task.title = title;
-        task.updatedAt = new Date().toISOString();
       }
-      persist(); publish("tasks"); return json(response, 200, { task });
+      if (body.riskLevel !== undefined && ["S", "M", "L"].includes(String(body.riskLevel).toUpperCase())) {
+        task.riskLevel = String(body.riskLevel).toUpperCase();
+      }
+      if (body.milestone !== undefined) {
+        task.milestone = String(body.milestone || "Core").trim().slice(0, 60) || "Core";
+      }
+      if (body.code !== undefined) {
+        task.code = String(body.code || "").trim().slice(0, 32) || task.code;
+      }
+      if (body.planGate !== undefined) {
+        task.planGate = Boolean(body.planGate);
+      }
+      if (body.maxRounds !== undefined) {
+        task.maxRounds = Math.max(1, Math.min(3, Number(body.maxRounds) || 1));
+      }
+      if (body.qaCommand !== undefined) {
+        task.qaCommand = String(body.qaCommand || "").trim().slice(0, 80);
+      }
+      if (Array.isArray(body.dependsOn)) {
+        task.dependsOn = [...new Set(body.dependsOn.map((d) => String(d || "").trim()).filter((d) => d && d !== task.id))].slice(0, 16);
+      }
+      task.updatedAt = new Date().toISOString();
+      persist(); publish("tasks"); pump(); return json(response, 200, { task });
+    }
+    if (request.method === "POST" && action === "plan-gate") {
+      const body = await readBody(request);
+      const decision = String(body.decision || body.action || "approve").toLowerCase();
+      const feedback = String(body.feedback || "").trim().slice(0, 4000);
+      if (running.has(task.id)) return json(response, 409, { error: "Task đang chạy tiến trình; vui lòng đợi giây lát." });
+      if (feedback) task.planGateFeedback = feedback;
+      if (decision === "revise" || decision === "reject") {
+        task.plan = "";
+        task.planGateApprovedAt = null;
+        task.resumeFrom = "plan";
+        task.status = "queued";
+        task.phase = "plan";
+        task.updatedAt = new Date().toISOString();
+        record(task, `Bạn đã yêu cầu lập lại kế hoạch tại Plan Gate${feedback ? `: "${feedback.slice(0, 200)}"` : "."}`, "warning");
+        persist(); publish("tasks"); pump();
+        return json(response, 200, { ok: true, decision: "revise", task });
+      }
+      task.planGateApprovedAt = new Date().toISOString();
+      const planCycle = (task.cycles || []).find((c) => c.stage === "plan");
+      if (planCycle) {
+        planCycle.status = "clean";
+        planCycle.badge = "GO approved";
+      }
+      if (task.config?.workflow === "plan-only") {
+        task.status = "done";
+        task.phase = "done";
+        task.completedAt = task.planGateApprovedAt;
+        task.updatedAt = task.planGateApprovedAt;
+        const ws = state.workspaces.find((w) => w.id === task.workspaceId);
+        if (ws) autoDistillTaskMemory(task, ws);
+        record(task, `Bạn đã duyệt kế hoạch (Plan Gate · GO)${feedback ? ` với ghi chú: "${feedback.slice(0, 200)}"` : ""}.`, "success");
+        persist(); publish("tasks"); pump();
+        return json(response, 200, { ok: true, decision: "approve", task });
+      }
+      task.resumeFrom = "build";
+      task.status = "queued";
+      task.phase = "build";
+      task.updatedAt = task.planGateApprovedAt;
+      record(task, `Bạn đã duyệt kế hoạch (Plan Gate · GO)${feedback ? ` với ghi chú: "${feedback.slice(0, 200)}"` : ""}. Bắt đầu triển khai code.`, "success");
+      persist(); publish("tasks"); pump();
+      return json(response, 200, { ok: true, decision: "approve", task });
+    }
+    if (request.method === "POST" && (action === "qa" || action === "exec")) {
+      const body = await readBody(request);
+      const cwd = task.executionPath || task.workspacePath;
+      if (!cwd || !existsSync(cwd)) return json(response, 404, { error: "Không tìm thấy thư mục thực thi của task." });
+      try {
+        const result = await runTaskQaCheck(task, cwd, body.command);
+        recordTaskCycle(task, {
+          id: `cycle-qa-${Number(task.currentRound || 1)}`,
+          round: Number(task.currentRound || 1),
+          stage: "qa",
+          title: `QA · ${result.status === "passed" ? "specs passed" : "specs failed"}`,
+          provider: "QA Runner",
+          model: result.command,
+          status: result.status === "passed" ? "clean" : "blocking",
+          badge: result.summary,
+          blocking: result.status === "failed" ? 1 : 0,
+          advisory: 0,
+          turns: 1,
+          durationMs: result.durationMs,
+          summary: String(result.output || "").slice(0, 600),
+        });
+        persist(); publish("task");
+        return json(response, 200, { ok: true, result, qaResult: result, task });
+      } catch (error) {
+        return json(response, 400, { error: safeError(error) });
+      }
+    }
+    if (request.method === "POST" && action === "git-commit") {
+      const body = await readBody(request);
+      const cwd = task.executionPath || task.workspacePath;
+      if (!cwd || !existsSync(cwd)) return json(response, 404, { error: "Không tìm thấy thư mục workspace để commit." });
+      const info = await inspectWorkspace(cwd).catch(() => null);
+      if (!info?.isGit) return json(response, 400, { error: "Workspace không phải là Git repository." });
+      const message = String(body.message || `${task.code ? `${task.code}: ` : ""}${task.title || "Update from OpenSybau"}`).trim().slice(0, 200);
+      if (!message) return json(response, 400, { error: "Nhập nội dung commit message." });
+      const repoRoot = info.gitRoot || cwd;
+      try {
+        const commitInfo = await withGitRepoLock(repoRoot, async () => {
+          await git(cwd, ["add", "-A"]);
+          const statusRes = await git(cwd, ["status", "--porcelain"]);
+          if (!(statusRes.stdout || "").trim()) {
+            throw new Error("Không có thay đổi nào cần commit trong workspace/worktree này.");
+          }
+          const commitRes = await git(cwd, ["commit", "-m", message]);
+          if (commitRes.code !== 0) {
+            throw new Error((commitRes.stderr || commitRes.stdout || "git commit thất bại").trim().slice(0, 400));
+          }
+          const headRes = await git(cwd, ["rev-parse", "--short", "HEAD"]);
+          return { hash: (headRes.stdout || "").trim(), output: (commitRes.stdout || "").trim() };
+        });
+        task.commitHash = commitInfo.hash;
+        task.lastCommitMessage = message;
+        task.committedAt = new Date().toISOString();
+        record(task, `Đã tạo Git commit ${commitInfo.hash} ("${message}").`, "success");
+        persist(); publish("tasks");
+        return json(response, 200, { ok: true, commitHash: commitInfo.hash, output: commitInfo.output, task });
+      } catch (error) {
+        return json(response, 409, { error: safeError(error) });
+      }
     }
     if (request.method === "POST" && action === "fork") {
       const body = await readBody(request);

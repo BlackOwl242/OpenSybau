@@ -5,6 +5,36 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.98] - 2026-10-20
+
+### English
+- **Unified 6-Station Pipeline Stepper & Ferry Delivery Lifecycle (`src/domain/task-flow.js`, `src/features/workbench/controller.js`)**:
+  - Upgrade the conversation pipeline strip and task orchestration view with a 6-station horizontal stepper (`Start` → `Plan review` → `You (Plan Gate)` → `Code review` → `QA` → `Draft PR`), interactive **Stage Documents** (`spec.md`, `plan.md`, `implementation.md`, `review-verdict.md`, `qa-report.md`), and per-cycle telemetry (`Round 1..3`, `blocking`, `advisory`, `turns`, `duration`, `$cost`).
+- **Human Plan Gate (`You · GO`) & Multi-Round Autonomous Quality Loop (`server.mjs`)**:
+  - Add optional **Human Plan Gate (`planGate`)** that pauses execution (`awaiting_approval`) after planning so you can inspect `plan.md`, leave feedback, and click **Approve & Deploy (GO)** or **Revise Plan**.
+  - Add **Multi-Round Autonomous Fix Loop (`maxRounds: 1..3`)** that parses `[BLOCKING]` vs. `[ADVISORY]` review findings and QA test exit codes, automatically feeding failures back into subsequent `Build (fix rN) -> Review -> QA` rounds.
+- **Mission Control Wave DAG Board (`/api/tasks/decompose`, `workflowPage`)**:
+  - Transform the Flows screen into a **Mission Control Wave DAG Board** with topological wave columns (`Wave 1..N`), `"Needs a look"` human-attention banner, live status counters (`for you`, `running`, `in review`, `ready`, `blocked`, `done`), `Risk S/M/L` and `⚡ Critical` filters, and multi-wave campaign decomposition with automatic `dependsOn` scheduling.
+- **Orca Worktree QA Runner, Live Localhost Browser & Quick Git Commit (`orcaRightDockMarkup`)**:
+  - Add safe argument-array QA & terminal execution (`/api/tasks/:id/qa`, `npm test`, `npm run build`, `npm run lint`, `git status`, `git diff --stat`), one-click **Quick Git Commit** (`/api/tasks/:id/git-commit`), and **Live Localhost Dev Server Preview** (`:3000`, `:5173`, `:4173`, `:8080`) with DOM Element Inspector inside the unified Stage Viewer.
+- **Okapi BM25 Memory Ranking & Auto-Distillation (`server.mjs`)**:
+  - Upgrade local memory retrieval (`relevantMemory`) to Okapi BM25 ($k_1 = 1.5, b = 0.75$) with workspace-scope boosting, and automatically distill completed pipeline lessons (`autoDistillTaskMemory`) without duplicate notes.
+
+### Tiếng Việt
+- **Thanh tiến trình 6 trạm & Vòng đời tài liệu Stage (`Ferry Lifecycle` + `Orca Stage Viewer`)**:
+  - Nâng cấp thanh tiến trình trong khung Chat và màn hình Chi tiết luồng thành **6 trạm trực quan** (`Start` → `Plan review` → `You (Plan Gate)` → `Code review` → `QA` → `Draft PR`), tích hợp cây **Tài liệu Stage** (`spec.md`, `plan.md`, `implementation.md`, `review-verdict.md`, `qa-report.md`) mở trực tiếp trong Stage Viewer cùng thống kê từng vòng lặp (`Round 1..3`, `blocking`, `advisory`, `turns`, thời lượng, chi phí `$cost`).
+- **Cổng duyệt Kế hoạch (`Human Plan Gate · You · GO`) & Vòng lặp Tự sửa lỗi đa tầng (`Multi-Round Fix Loop`)**:
+  - Cho phép bật **Plan Gate** để tạm dừng sau bước lập kế hoạch (`Chờ duyệt Plan`), giúp bạn đọc `plan.md`, ghi chú điều chỉnh và bấm **Duyệt & Triển khai (GO)** hoặc **Yêu cầu lập lại Plan**.
+  - Tự động phân tích lỗi `[BLOCKING]` / `[ADVISORY]` từ Reviewer và kết quả kiểm thử QA để kích hoạt vòng lặp `Round 2..3 · implement (fix r1)` cho đến khi sạch lỗi blocking.
+- **Bảng điều hành Mission Control & Chiến dịch Wave DAG (`workflowPage`, `/api/tasks/decompose`)**:
+  - Nâng cấp màn hình **Luồng** thành bảng **Mission Control Wave DAG** chia cột `Wave 1..N` theo quan hệ phụ thuộc (`dependsOn`), kèm khu vực **`Needs a look`**, bộ đếm thời gian thực (`for you`, `running`, `in review`, `ready`, `blocked`, `done`), bộ lọc `Risk S/M/L`, `⚡ Critical` và hộp thoại khởi chạy chiến dịch Wave DAG đa tầng.
+- **Trình chạy QA/Terminal cô lập, Duyệt Web Localhost trực tiếp & Quick Git Commit**:
+  - Bổ sung tab **Tài liệu Stage** và **QA Runner / Terminal / Live Localhost** trên thanh công cụ bên phải: chạy kiểm thử an toàn (`npm test`, `npm run build`, `npm run lint`, `git status`...) trực tiếp trong worktree của task, **Quick Git Commit** nhanh thay đổi, và mở máy chủ dev cục bộ (`http://localhost:3000`, `:5173`...) ngay trong Stage Viewer kèm công cụ chọn phần tử DOM.
+- **Xếp hạng Bộ nhớ BM25 & Tự động đúc kết bài học (`BM25 Memory & Auto-Distillation`)**:
+  - Nâng cấp thuật toán truy xuất bộ nhớ cục bộ lên **Okapi BM25** có ưu tiên theo dự án, đồng thời tự động đúc kết kinh nghiệm từ các pipeline hoàn tất vào kho bộ nhớ mà không tạo bản ghi trùng lặp.
+
+---
+
 ## [0.2.97] - 2026-10-20
 
 ### English

@@ -290,12 +290,76 @@ try {
   });
   assert.equal(forbiddenRootWorkspace.status, 400, "Filesystem root must be rejected as a workspace.");
 
+  // Test Human Plan Gate (awaiting_approval -> approve -> done), Cycles, Auto-Distilled Memory & QA Runner
+  const gatedCreate = await request("/api/tasks", "POST", {
+    workspaceId: "workspace-test",
+    prompt: "Implement authentication token validation with Plan Gate approval",
+    workflow: "plan-only",
+    planGate: true,
+    maxRounds: 2,
+    riskLevel: "L",
+    planProvider: "test-api",
+    planModel: "test-model",
+    planEffort: "standard",
+  });
+  assert.equal(gatedCreate.status, 201);
+  const gatedId = gatedCreate.body.task.id;
+  const gateDeadline = Date.now() + 15_000;
+  let awaitingTask = null;
+  while (Date.now() < gateDeadline) {
+    const res = await request(`/api/tasks/${gatedId}`);
+    if (res.body?.status === "awaiting_approval") {
+      awaitingTask = res.body;
+      break;
+    }
+    await delay(80);
+  }
+  assert.ok(awaitingTask, "Task with planGate:true must pause at awaiting_approval after plan stage.");
+  assert.equal(awaitingTask.phase, "plan-gate");
+
+  const approveGate = await request(`/api/tasks/${gatedId}/plan-gate`, "POST", {
+    action: "approve",
+    feedback: "Approved, proceed with implementation.",
+  });
+  assert.equal(approveGate.status, 200);
+  const completedGated = await waitForTask(gatedId);
+  assert.equal(Boolean(completedGated.planGateApprovedAt), true);
+  assert.equal(Array.isArray(completedGated.cycles) && completedGated.cycles.length >= 1, true);
+
+  const qaExec = await request(`/api/tasks/${gatedId}/qa`, "POST", {
+    command: "git status --short",
+  });
+  assert.equal(qaExec.status, 200);
+  assert.equal(qaExec.body.qaResult.status, "passed");
+
+  // Test Wave DAG Decompose
+  const waveRes = await request("/api/tasks/decompose", "POST", {
+    workspaceId: "workspace-test",
+    milestone: "Wave DAG Test",
+    workflow: "plan-only",
+    isolated: false,
+    planProvider: "test-api",
+    planModel: "test-model",
+    planEffort: "standard",
+    waves: [
+      { index: 1, tasks: [{ title: "Wave 1 Spec", prompt: "Write base specification for Wave 1", riskLevel: "S" }] },
+      { index: 2, tasks: [{ title: "Wave 2 Followup", prompt: "Build on Wave 1 specification", riskLevel: "M" }] },
+    ],
+  });
+  assert.equal(waveRes.status, 201);
+  assert.equal(waveRes.body.tasks.length, 2);
+  assert.equal(waveRes.body.tasks[1].dependsOn.includes(waveRes.body.tasks[0].id), true);
+  await waitForTask(waveRes.body.tasks[0].id);
+  await waitForTask(waveRes.body.tasks[1].id);
+
   const persisted = JSON.parse(await readFile(path.join(dataDir, "state.json"), "utf8"));
-  assert.equal(persisted.tasks.length, 6);
+  const persistedMemories = JSON.parse(await readFile(path.join(dataDir, "memory.json"), "utf8"));
+  assert.equal(persisted.tasks.length, 9);
+  assert.equal(persistedMemories.some((m) => m.sourceTaskId === gatedId), true, "Completed pipeline task must auto-distill a lesson memory.");
   assert.equal(persisted.tasks.some((task) => task.forkedFromMessageId === userTwo.id), true);
   assert.equal(persisted.tasks.find((task) => task.id === createdTask.id).presetRef.version, 2);
   assert.equal(persisted.settings.taskPresets[0].versions.length, 2);
-  process.stdout.write("Task feature integration checks passed: goal/checklist, permissions, archived chat deletion, forks, stage reruns with history, versioned task presets, telemetry, file-index, diff studio parser, parallel arena fanout, and persistence.\n");
+  process.stdout.write("Task feature integration checks passed: goal/checklist, permissions, archived chat deletion, forks, stage reruns with history, versioned task presets, telemetry, file-index, diff studio parser, parallel arena fanout, Plan Gate, Multi-Round Cycles, QA Runner, Wave DAG, BM25 memory distillation, and persistence.\n");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));
