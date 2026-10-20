@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { cliIsInstalled } from "../src/server/cli-status.mjs";
+import { pipelineStepperData, computeWaveDag } from "../src/domain/task-flow.js";
 
 const root = process.cwd();
 assert.equal(cliIsInstalled("C:\\Users\\test\\agy.exe", -1, () => true), true, "An executable present on disk is installed even if its version command cannot start.");
@@ -316,6 +317,12 @@ try {
   }
   assert.ok(awaitingTask, "Task with planGate:true must pause at awaiting_approval after plan stage.");
   assert.equal(awaitingTask.phase, "plan-gate");
+  const awaitingStepper = pipelineStepperData(awaitingTask);
+  assert.equal(awaitingStepper.stations.length, 6);
+  assert.equal(awaitingStepper.stations.find((s) => s.id === "you")?.state, "attention");
+  assert.equal(awaitingStepper.currentRound, 1);
+  assert.equal(awaitingStepper.maxRounds, 2);
+  assert.equal(awaitingStepper.stageDocuments.find((d) => d.id === "plan")?.ready, true);
 
   const approveGate = await request(`/api/tasks/${gatedId}/plan-gate`, "POST", {
     action: "approve",
@@ -325,6 +332,11 @@ try {
   const completedGated = await waitForTask(gatedId);
   assert.equal(Boolean(completedGated.planGateApprovedAt), true);
   assert.equal(Array.isArray(completedGated.cycles) && completedGated.cycles.length >= 1, true);
+  const completedStepper = pipelineStepperData(completedGated);
+  assert.equal(completedStepper.stations.find((s) => s.id === "you")?.state, "done");
+  assert.equal(completedStepper.cycles.length >= 1, true);
+  assert.equal(Boolean(completedStepper.cycles[0].label), true);
+  assert.equal(completedStepper.cycles[0].status, "done");
 
   const qaExec = await request(`/api/tasks/${gatedId}/qa`, "POST", {
     command: "git status --short",
@@ -354,6 +366,12 @@ try {
 
   const persisted = JSON.parse(await readFile(path.join(dataDir, "state.json"), "utf8"));
   const persistedMemories = JSON.parse(await readFile(path.join(dataDir, "memory.json"), "utf8"));
+  const dag = computeWaveDag(persisted.tasks);
+  assert.equal(dag.waves.length >= 2, true, "Wave DAG must compute at least 2 waves.");
+  assert.equal(Array.isArray(dag.waves[0].tasks) && dag.waves[0].tasks.length >= 1, true);
+  assert.equal(dag.waves[0].label, "Wave 1");
+  assert.equal(dag.edges.length >= 1, true, "Wave DAG must include dependency edges.");
+  assert.equal(Array.isArray(dag.needsLookTasks), true);
   assert.equal(persisted.tasks.length, 9);
   assert.equal(persistedMemories.some((m) => m.sourceTaskId === gatedId), true, "Completed pipeline task must auto-distill a lesson memory.");
   assert.equal(persisted.tasks.some((task) => task.forkedFromMessageId === userTwo.id), true);

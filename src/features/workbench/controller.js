@@ -1203,8 +1203,9 @@ async function reloadStageFileTab(tabId) {
 
 function openStageDocTab(task, docId) {
   if (!task || !docId) return;
+  const cleanId = docId === "impl" ? "implementation" : docId;
   const stepper = pipelineStepperData(task);
-  const doc = stepper.stageDocuments.find((d) => d.id === docId);
+  const doc = stepper.stageDocuments.find((d) => d.id === cleanId);
   if (!doc) return;
   const tabId = `doc::${task.id}::${doc.id}`;
   view.stageTabs ||= [];
@@ -2189,7 +2190,7 @@ function orcaRightDockMarkup() {
       <p class="orca-muted-note">Nhấn vào bất kỳ tài liệu giai đoạn nào để mở trong Stage Viewer bên trái (hỗ trợ xem Markdown, mã nguồn và gắn nhận xét dòng).</p>
       <ul class="orca-tree-list" style="margin-top:8px">
         ${docs.map((doc) => {
-          const tabId = `stage-doc::${selectedTask.id}::${doc.id}`;
+          const tabId = `doc::${selectedTask.id}::${doc.id}`;
           const isSelected = activeStageTab?.id === tabId;
           return `<li class="orca-tree-item is-file ${isSelected ? "is-selected" : ""}">
             <button type="button" class="orca-tree-row ${isSelected ? "is-selected" : ""}" style="padding-left:10px" data-action="open-stage-doc" data-id="${esc(selectedTask.id)}" data-doc-id="${esc(doc.id)}">
@@ -2975,6 +2976,7 @@ function workflowPage() {
   ${needsLookHtml}
   ${toolbarHtml}
   ${allTasks.length ? `<section class="workflow-board mc-wave-board" data-wave-dag-board>
+    <svg class="mc-wave-svg-layer" data-wave-dag-svg aria-hidden="true"></svg>
     ${dag.waves.map((wave) => `<div class="mc-wave-column" data-wave-index="${wave.index}">
       <header class="mc-wave-column-head">
         <strong>${esc(wave.label)}</strong>
@@ -3337,10 +3339,44 @@ function render({ background = false } = {}) {
   }
   if (view.page === "skills") applySkillFilter($("[data-skill-filter=library]", nextContent));
   mountKnowledgeGraphCanvas();
+  drawWaveDagEdges();
   if (overlay && !overlay.querySelector(".modal")) {
     overlay.innerHTML = "";
   }
   syncWorkflow();
+}
+
+function drawWaveDagEdges() {
+  if (view.page !== "workflows") return;
+  const board = document.querySelector("[data-wave-dag-board]");
+  const svg = board?.querySelector("[data-wave-dag-svg]");
+  if (!board || !svg) return;
+  const allTasks = view.state?.tasks || [];
+  const boardRect = board.getBoundingClientRect();
+  if (!boardRect.width || !boardRect.height) return;
+  svg.setAttribute("viewBox", `0 0 ${Math.round(boardRect.width)} ${Math.round(boardRect.height)}`);
+  const paths = [];
+  for (const task of allTasks) {
+    const deps = Array.isArray(task.dependsOn) ? task.dependsOn : [];
+    if (!deps.length) continue;
+    const toEl = board.querySelector(`[data-wave-task-id="${CSS.escape(task.id)}"]`);
+    if (!toEl) continue;
+    const toRect = toEl.getBoundingClientRect();
+    const x2 = toRect.left - boardRect.left;
+    const y2 = toRect.top - boardRect.top + toRect.height * 0.5;
+    for (const depId of deps) {
+      const fromEl = board.querySelector(`[data-wave-task-id="${CSS.escape(depId)}"]`);
+      if (!fromEl) continue;
+      const fromRect = fromEl.getBoundingClientRect();
+      const x1 = fromRect.right - boardRect.left;
+      const y1 = fromRect.top - boardRect.top + fromRect.height * 0.5;
+      const dx = Math.max(36, Math.abs(x2 - x1) * 0.45);
+      const isActive = task.status === "running" || task.status === "awaiting_approval";
+      const isDone = task.status === "done";
+      paths.push(`<path class="mc-wave-edge ${isActive ? "is-active" : isDone ? "is-done" : ""}" d="M ${x1.toFixed(1)} ${y1.toFixed(1)} C ${(x1 + dx).toFixed(1)} ${y1.toFixed(1)}, ${(x2 - dx).toFixed(1)} ${y2.toFixed(1)}, ${x2.toFixed(1)} ${y2.toFixed(1)}" />`);
+    }
+  }
+  svg.innerHTML = paths.join("");
 }
 async function ensureWorkspaceFileIndex(workspaceId) {
   if (!workspaceId) return [];
@@ -3554,6 +3590,14 @@ function chatPage() {
                 ${homeIsolated ? icon("git-branch", 14) : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><line x1="2" y1="20" x2="22" y2="20"/></svg>`}
                 <span>${homeIsolated ? "Git Worktree" : "Máy tính này"}</span>
               </button>
+              ${workflow !== "chat-only" && !isArena ? `<button type="button" class="codex-rail-pill ${view.homePlanGate ? "is-active" : ""}" data-action="toggle-home-plan-gate" title="Cổng duyệt Plan Gate (You · GO): Tạm dừng sau bước Lập kế hoạch để bạn duyệt trước khi Agent sửa code">
+                ${icon("shield-check", 13)}
+                <span>Plan Gate: ${view.homePlanGate ? "Bật (GO)" : "Tự động"}</span>
+              </button>` : ""}
+              ${workflow === "codex-antigravity" && !isArena ? `<button type="button" class="codex-rail-pill ${(view.homeMaxRounds || 2) > 1 ? "is-active" : ""}" data-action="cycle-home-max-rounds" title="Số vòng tự động sửa lỗi (Build ↔ Review) tối đa khi phát hiện lỗi">
+                ${icon("refresh-cw", 13)}
+                <span>Vòng sửa: R${view.homeMaxRounds || 2}</span>
+              </button>` : ""}
             </div>
             <div class="codex-rail-right">${homeModeMenu}</div>
           </div>
@@ -4699,6 +4743,8 @@ async function handleSubmit(event) {
           workflow,
           isolated: Boolean(view.chatSplitReturnWorkspaceId) || data.has("isolated") || Boolean(view.homeIsolated),
           permissionPreset: view.homePermissionPreset || object.permissionPreset || "workspace-write",
+          planGate: Boolean(view.homePlanGate),
+          maxRounds: Number(view.homeMaxRounds) || 2,
         };
         const task = await api("/api/tasks", { method: "POST", body: JSON.stringify(payload) });
         const splitWorkspaceId = view.chatSplitReturnWorkspaceId;
@@ -5937,6 +5983,17 @@ async function handleWorkbenchClick(event) {
     }
     if (action === "wave-critical-toggle") {
       view.waveCriticalOnly = !view.waveCriticalOnly;
+      render();
+      return;
+    }
+    if (action === "toggle-home-plan-gate") {
+      view.homePlanGate = !view.homePlanGate;
+      render();
+      return;
+    }
+    if (action === "cycle-home-max-rounds") {
+      const current = Number(view.homeMaxRounds) || 2;
+      view.homeMaxRounds = current >= 3 ? 1 : current + 1;
       render();
       return;
     }

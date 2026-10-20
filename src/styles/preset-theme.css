@@ -9344,12 +9344,39 @@ html[data-color-scheme="light"] *::-webkit-scrollbar-thumb:hover {
 }
 
 .mc-wave-board {
+  position: relative;
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-  gap: 14px;
+  gap: 18px;
   align-items: start;
 }
+.mc-wave-svg-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: visible;
+}
+.mc-wave-edge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--wb-border-strong) 85%, transparent);
+  stroke-width: 1.75;
+  stroke-dasharray: 5 4;
+}
+.mc-wave-edge.is-active {
+  stroke: var(--wb-accent);
+  stroke-dasharray: none;
+  stroke-width: 2;
+}
+.mc-wave-edge.is-done {
+  stroke: var(--wb-green);
+  stroke-dasharray: none;
+}
 .mc-wave-column {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 10px;

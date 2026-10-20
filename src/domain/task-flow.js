@@ -60,7 +60,7 @@ export function parseReviewFindings(reviewText = "") {
 
 export function pipelineStepperData(task) {
   if (!task || typeof task !== "object") {
-    return { stations: [], cycles: [], stageDocuments: [], findings: { blocking: 0, advisory: 0, status: "pending", items: [] }, costUsd: 0 };
+    return { stations: [], cycles: [], stageDocuments: [], findings: { blocking: 0, advisory: 0, status: "pending", items: [] }, costUsd: 0, currentRound: 1, maxRounds: 1, awaitingGate: false };
   }
   const isChat = task.config?.workflow === "chat-only";
   const planOnly = task.config?.workflow === "plan-only";
@@ -68,6 +68,8 @@ export function pipelineStepperData(task) {
   const planDone = Boolean(task.plan);
   const buildDone = Boolean(task.implementation);
   const reviewDone = Boolean(task.review);
+  const currentRound = Math.max(1, Number(task.currentRound || 1));
+  const maxRounds = Math.max(1, Number(task.maxRounds || (isChat || planOnly ? 1 : 2)));
   const findings = task.reviewFindings && typeof task.reviewFindings === "object"
     ? task.reviewFindings
     : parseReviewFindings(task.review);
@@ -80,17 +82,17 @@ export function pipelineStepperData(task) {
       id: "start",
       label: "Start",
       viLabel: "Khởi tạo",
-      state: task.status === "queued" ? "active" : "complete",
+      state: task.status === "queued" ? "active" : "done",
       sub: task.code || `#${String(task.id || "").slice(0, 6)}`
     },
     {
-      id: "plan",
+      id: "plan-review",
       label: "Plan review",
       viLabel: "Lập kế hoạch",
       state: task.phase === "plan" && task.status === "running"
         ? "active"
         : planDone || (isChat && task.status === "done")
-          ? "complete"
+          ? "done"
           : task.failedPhase === "plan" && task.status === "failed"
             ? "failed"
             : "pending",
@@ -102,9 +104,9 @@ export function pipelineStepperData(task) {
       viLabel: "Bạn duyệt",
       isGate: true,
       state: awaitingGate
-        ? "gate-waiting"
+        ? "attention"
         : task.planGateApprovedAt || (!task.planGate && (buildDone || task.phase === "build" || task.phase === "review" || task.status === "done"))
-          ? "complete"
+          ? "done"
           : "pending",
       sub: awaitingGate ? "Chờ GO / Duyệt" : task.planGateApprovedAt ? "Đã duyệt GO" : task.planGate ? "Plan Gate" : "Auto-GO"
     },
@@ -115,7 +117,7 @@ export function pipelineStepperData(task) {
       state: (task.phase === "build" || task.phase === "review") && task.status === "running"
         ? "active"
         : reviewDone
-          ? (findings.blocking > 0 && task.status !== "done" ? "warning" : "complete")
+          ? (findings.blocking > 0 && task.status !== "done" ? "attention" : "done")
           : (task.failedPhase === "build" || task.failedPhase === "review") && task.status === "failed"
             ? "failed"
             : "pending",
@@ -123,7 +125,7 @@ export function pipelineStepperData(task) {
         ? (findings.blocking > 0 ? `${findings.blocking} blocking` : findings.advisory > 0 ? `${findings.advisory} advisory · clean` : "clean")
         : buildDone
           ? "Đang review"
-          : `Round ${Number(task.currentRound || 1)}/${Number(task.maxRounds || 1)}`
+          : `Round ${currentRound}/${maxRounds}`
     },
     {
       id: "qa",
@@ -134,7 +136,7 @@ export function pipelineStepperData(task) {
         : task.qaResult?.status === "failed"
           ? "failed"
           : (qaDone && qaPassed) || (task.status === "done" && !planOnly)
-            ? "complete"
+            ? "done"
             : "pending",
       sub: task.qaResult?.summary || (qaPassed ? "Specs / Pass" : "Verify")
     },
@@ -143,9 +145,9 @@ export function pipelineStepperData(task) {
       label: "Draft PR",
       viLabel: "Tích hợp / PR",
       state: prDone
-        ? "complete"
+        ? "done"
         : task.status === "done" && task.isolated && !task.worktreeAppliedAt
-          ? "ready"
+          ? "attention"
           : "pending",
       sub: task.commitHash
         ? `commit ${String(task.commitHash).slice(0, 7)}`
@@ -161,7 +163,7 @@ export function pipelineStepperData(task) {
 
   const costUsd = Number(task.costUsd || estimateTaskCostUsd(task.usage));
   const rawCycles = Array.isArray(task.cycles) && task.cycles.length ? task.cycles : [];
-  const cycles = rawCycles.length
+  const baseCycles = rawCycles.length
     ? rawCycles
     : (() => {
         const synthesized = [];
@@ -180,16 +182,18 @@ export function pipelineStepperData(task) {
             advisory: 0,
             turns: 1,
             durationMin: 1,
-            costUsd: Math.round((costUsd * 0.25) * 100) / 100
+            durationSec: 18,
+            costUsd: Math.round((costUsd * 0.25) * 100) / 100,
+            summary: String(task.plan || "").split(/\r?\n/).find((l) => l.trim()) || "Kế hoạch đã hoàn tất",
           });
         }
         if (task.implementation) {
           const buildRole = roleConfig(task.config || {}, "build");
           synthesized.push({
             id: "syn-build-1",
-            round: Number(task.currentRound || 1),
+            round: currentRound,
             stage: "build",
-            title: `Round ${Number(task.currentRound || 1)} · implement`,
+            title: `Round ${currentRound} · implement`,
             provider: label(buildRole.provider),
             model: buildRole.model || "",
             status: "clean",
@@ -198,16 +202,18 @@ export function pipelineStepperData(task) {
             advisory: 0,
             turns: Math.max(1, (task.events || []).filter((e) => e.kind === "tool").length || 1),
             durationMin: 2,
-            costUsd: Math.round((costUsd * 0.5) * 100) / 100
+            durationSec: 45,
+            costUsd: Math.round((costUsd * 0.5) * 100) / 100,
+            summary: `${(task.artifacts || []).length} tệp thay đổi · ${String(task.implementation || "").split(/\r?\n/).find((l) => l.trim()) || "Đã triển khai"}`,
           });
         }
         if (task.review) {
           const reviewRole = roleConfig(task.config || {}, "review");
           synthesized.push({
             id: "syn-review-1",
-            round: Number(task.currentRound || 1),
+            round: currentRound,
             stage: "review",
-            title: `Round ${Number(task.currentRound || 1)} · review`,
+            title: `Round ${currentRound} · review`,
             provider: label(reviewRole.provider),
             model: reviewRole.model || "",
             status: findings.blocking > 0 ? "blocking" : "clean",
@@ -216,13 +222,15 @@ export function pipelineStepperData(task) {
             advisory: findings.advisory,
             turns: 1,
             durationMin: 1,
-            costUsd: Math.round((costUsd * 0.25) * 100) / 100
+            durationSec: 20,
+            costUsd: Math.round((costUsd * 0.25) * 100) / 100,
+            summary: String(task.review || "").split(/\r?\n/).find((l) => l.trim()) || "Hoàn tất đánh giá code",
           });
         }
         if (task.qaResult) {
           synthesized.push({
             id: "syn-qa-1",
-            round: Number(task.currentRound || 1),
+            round: currentRound,
             stage: "qa",
             title: "QA · verification",
             provider: "Runner",
@@ -233,11 +241,30 @@ export function pipelineStepperData(task) {
             advisory: 0,
             turns: 1,
             durationMin: Math.max(1, Math.round(Number(task.qaResult.durationMs || 1000) / 60000)),
-            costUsd: 0
+            durationSec: Math.max(1, Math.round(Number(task.qaResult.durationMs || 1000) / 1000)),
+            costUsd: 0,
+            summary: task.qaResult.summary || task.qaResult.command || "QA verification",
           });
         }
         return synthesized;
       })();
+
+  const cycles = baseCycles.map((c) => {
+    const rawStatus = String(c.status || "clean");
+    const normStatus = rawStatus === "blocking" || rawStatus === "failed" ? "failed" : rawStatus === "awaiting_approval" || rawStatus === "running" ? "active" : "done";
+    const durSec = Number(c.durationSec || (c.durationMs ? Math.max(1, Math.round(c.durationMs / 1000)) : (c.durationMin ? c.durationMin * 60 : 12)));
+    const firstLine = String(c.summary || "").split(/\r?\n/).map((l) => l.replace(/^#+\s*/, "").trim()).find(Boolean) || c.badge || c.provider || "";
+    return {
+      ...c,
+      label: c.label || c.title || `Round ${c.round || 1} · ${c.stage || "step"}`,
+      title: c.title || c.label || `Round ${c.round || 1} · ${c.stage || "step"}`,
+      status: normStatus,
+      durationSec: durSec,
+      durationMin: Math.max(1, Math.round(durSec / 60)),
+      costUsd: Number(c.costUsd ?? (c.stage === "build" ? costUsd * 0.5 : c.stage === "plan" || c.stage === "review" ? costUsd * 0.25 : 0)),
+      summary: firstLine.slice(0, 140),
+    };
+  });
 
   const stageDocuments = [
     {
@@ -245,6 +272,7 @@ export function pipelineStepperData(task) {
       group: "Intake",
       title: "spec.md",
       label: "Yêu cầu & Ngữ cảnh",
+      ready: Boolean(task.prompt || task.goal),
       available: Boolean(task.prompt || task.goal),
       content: `# ${task.title || "Task Spec"}\n\n${task.prompt || task.goal || ""}`.trim(),
       updatedAt: task.createdAt
@@ -254,6 +282,7 @@ export function pipelineStepperData(task) {
       group: "Plan",
       title: "plan.md",
       label: "Kế hoạch kiến trúc (Plan)",
+      ready: Boolean(task.plan),
       available: Boolean(task.plan),
       content: String(task.plan || ""),
       updatedAt: task.planGateApprovedAt || task.updatedAt
@@ -263,6 +292,7 @@ export function pipelineStepperData(task) {
       group: "Implementation",
       title: "implementation.md",
       label: "Báo cáo triển khai (Build)",
+      ready: Boolean(task.implementation),
       available: Boolean(task.implementation),
       content: String(task.implementation || ""),
       updatedAt: task.updatedAt
@@ -272,6 +302,7 @@ export function pipelineStepperData(task) {
       group: "Review",
       title: "review-verdict.md",
       label: `Đánh giá Code (${findings.blocking} blocking · ${findings.advisory} advisory)`,
+      ready: Boolean(task.review),
       available: Boolean(task.review),
       content: String(task.review || ""),
       updatedAt: task.updatedAt
@@ -281,6 +312,7 @@ export function pipelineStepperData(task) {
       group: "QA & Verification",
       title: "qa-report.md",
       label: "Báo cáo kiểm thử QA",
+      ready: Boolean(task.qaResult?.output || task.qaResult?.summary),
       available: Boolean(task.qaResult?.output || task.qaResult?.summary),
       content: task.qaResult
         ? `# QA Verification (${task.qaResult.status?.toUpperCase() || "DONE"})\n\nCommand: \`${task.qaResult.command || "auto"}\`\nExit code: ${task.qaResult.exitCode ?? 0}\n\n\`\`\`\n${task.qaResult.output || task.qaResult.summary || ""}\n\`\`\``
@@ -295,6 +327,8 @@ export function pipelineStepperData(task) {
     stageDocuments,
     findings,
     costUsd,
+    currentRound,
+    maxRounds,
     awaitingGate
   };
 }
@@ -424,8 +458,12 @@ export function computeWaveDag(tasks = []) {
   const waves = [...wavesMap.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([waveIndex, items]) => ({
+      index: waveIndex,
       waveIndex,
+      label: `Wave ${waveIndex}`,
       title: `Wave ${waveIndex}`,
+      tasks: items.map((item) => item.task),
+      doneCount: items.filter((item) => item.task.status === "done").length,
       items
     }));
 
@@ -445,7 +483,8 @@ export function computeWaveDag(tasks = []) {
     edges,
     counters,
     enrichedTasks,
-    needsLookTasks: enrichedTasks.filter((item) => item.needsHumanLook)
+    needsLookTasks: enrichedTasks.filter((item) => item.needsHumanLook).map((item) => item.task),
+    needsLookItems: enrichedTasks.filter((item) => item.needsHumanLook)
   };
 }
 

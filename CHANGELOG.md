@@ -5,6 +5,26 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.99] - 2026-10-20
+
+### English
+- **Orca & Mission Control End-to-End Verification & Schema Alignment (`src/domain/task-flow.js`, `src/features/workbench/controller.js`)**:
+  - Align `pipelineStepperData` and `computeWaveDag` data contracts with Mission Control UI views (`wave.tasks`, `wave.index`, `wave.label`, `wave.doneCount`, `dag.needsLookTasks`, `currentRound`, `maxRounds`, normalized cycle telemetry, and `doc::` stage document tab IDs).
+  - Add **SVG Bezier Dependency Connectors (`drawWaveDagEdges`)** across Wave columns on the Mission Control DAG Board (`[data-wave-dag-board]`) to visually link `dependsOn` tasks across waves.
+  - Add **Plan Gate (`GO`)** toggle pill and **Max Rounds (`R1..R3`)** selector pill directly on the Home Composer rail when in `Code` or `Plan` mode.
+- **Live DOM Patching & Multi-Pane Scroll Stability (`src/shared/dom-patch.js`)**:
+  - Fix `patchHtml` (`morphdom`) so foreground composer submissions reliably clear active `<textarea>` inputs while background SSE updates preserve drafts, focus, selection ranges, and independent scroll positions per `.multi-chat-pane`.
+
+### Tiếng Việt
+- **Hoàn thiện & Kiểm thử toàn diện hệ thống Orca / Mission Control (`src/domain/task-flow.js`, `src/features/workbench/controller.js`)**:
+  - Đồng bộ hóa cấu trúc dữ liệu `pipelineStepperData` và `computeWaveDag` với giao diện Mission Control (`wave.tasks`, `wave.index`, `wave.label`, `wave.doneCount`, `dag.needsLookTasks`, `currentRound`, `maxRounds`, chuẩn hóa lịch sử vòng lặp và mã tab `doc::` của Tài liệu Stage).
+  - Bổ sung **đường nối phụ thuộc SVG Bezier (`drawWaveDagEdges`)** nối trực tiếp giữa các thẻ task có quan hệ `dependsOn` qua các cột `Wave 1..N` trên bảng Mission Control.
+  - Bổ sung nút bật nhanh **Plan Gate (`GO`)** và chọn nhanh **Vòng sửa (`R1..R3`)** ngay trên thanh công cụ Home Composer khi ở chế độ `Code` hoặc `Kế hoạch`.
+- **Sửa lỗi cập nhật DOM thời gian thực & cuộn đa khung (`src/shared/dom-patch.js`)**:
+  - Khắc phục lỗi `patchHtml` (`morphdom`) giữ lại văn bản cũ sau khi bấm gửi tin nhắn ở foreground, đồng thời bảo toàn tuyệt đối vị trí cuộn độc lập của từng khung chat song song (`.multi-chat-pane`), con trỏ soạn thảo và bộ gõ tiếng Việt khi nhận luồng SSE ngầm.
+
+---
+
 ## [0.2.98] - 2026-10-20
 
 ### English

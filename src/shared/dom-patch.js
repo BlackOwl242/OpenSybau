@@ -2,7 +2,10 @@ import morphdom from "morphdom";
 
 const SCROLL_SELECTOR = ".chat-thread, .codex-pop-scroll, .multi-chat-picker-list, .orca-dock-body, .orca-code-scroll, .orca-doc-scroll, .orca-diff-scroll, .orca-table-scroll, .kb-doc-scroll, .kb-file-list, .kb-inspector-scroll, .chat-tool-stream-body, .orchestration-event-list, .wb-side-scroll, .diff-hunk-list, .diff-file-list";
 
-const scrollKey = (el, idx) => el.id || el.dataset?.key || el.dataset?.scrollKey || `${el.className}::${idx}`;
+const scrollKey = (el, idx) => {
+  const pane = el.closest(".multi-chat-pane")?.dataset?.taskId || "";
+  return el.id || el.dataset?.key || el.dataset?.scrollKey || (pane ? `${pane}::${el.className}` : `${el.className}::${idx}`);
+};
 
 function nodeKey(node) {
   if (node.nodeType !== 1) return undefined;
@@ -29,7 +32,6 @@ export function patchHtml(element, html, { background = false } = {}) {
       end: el.matches(".chat-thread") && el.scrollHeight - el.scrollTop - el.clientHeight < 48,
     };
     scrollMap.set(scrollKey(el, idx), entry);
-    if (el.className && !scrollMap.has(el.className)) scrollMap.set(el.className, entry);
   });
   const focused = element.ownerDocument.activeElement;
   const selection = focused && typeof focused.selectionStart === "number"
@@ -44,7 +46,7 @@ export function patchHtml(element, html, { background = false } = {}) {
     onBeforeElUpdated(from, to) {
       if (background && from.matches(".multi-chat-create-form")) return false;
       if (from.tagName === "DETAILS") to.toggleAttribute("open", from.open);
-      if ((background || from === document.activeElement) && from.matches("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, select")) {
+      if (background && from.matches("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, select")) {
         return false;
       }
       // Canvas state and dimensions are managed by its renderer.
@@ -54,7 +56,7 @@ export function patchHtml(element, html, { background = false } = {}) {
     },
   });
   [...element.querySelectorAll(SCROLL_SELECTOR)].forEach((el, idx) => {
-    const saved = scrollMap.get(scrollKey(el, idx)) || (el.className ? scrollMap.get(el.className) : null);
+    const saved = scrollMap.get(scrollKey(el, idx));
     if (!saved) return;
     el.scrollTop = saved.end ? el.scrollHeight : saved.top;
     el.scrollLeft = saved.left;
