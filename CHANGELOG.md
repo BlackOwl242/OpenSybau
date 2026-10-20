@@ -5,6 +5,30 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.101] - 2026-10-21
+
+### English
+- **Compact & Mobile-Size Desktop Window Resizing (`desktop/main.cjs`, `src/styles/preset-theme.css`)**:
+  - Lower Electron `BrowserWindow` constraints from `minWidth: 960, minHeight: 640` to `minWidth: 360, minHeight: 480` so the desktop window can be freely resized down to phone, split-screen, or compact sidebar dimensions.
+  - Preserve the `140px` right-side safe zone on `.wb-window-chrome.is-desktop` at narrow viewports (`<= 740px`) and compact right-hand chrome pills so the native Windows Minimize/Maximize/Close overlay buttons (`titleBarOverlay`) are never covered or blocked.
+- **Plain, Natural Language & Elimination of Technical Jargon (`src/domain/task-flow.js`, `src/domain/agent-roles.js`, `src/features/workbench/controller.js`, `src/shared/i18n.js`)**:
+  - Replace cryptic/robotic terms (`Chiến dịch Wave DAG` / `Wave DAG Campaign`, `Luồng điều phối`, `6 Trạm`, `Bản ghi điều phối`) with clear, human-friendly phrasing (`Giao việc theo đợt` / `Batch tasks`, `Tiến trình công việc` / `Work progress`, `Bước 1`–`Bước 6` / `Step 1`–`Step 6`, `Chi tiết các bước đã chạy` / `Step-by-step run details`).
+  - Simplify the 6-step progress labels to everyday workflow steps: `1. Lên kế hoạch` (`1. Plan`), `2. Duyệt kế hoạch` (`2. Approve plan`), `3. Viết code` (`3. Write code`), `4. Kiểm tra code` (`4. Check code`), `5. Chạy thử` (`5. Test run`), and `6. Gộp vào dự án` (`6. Merge to project`).
+- **Full Mobile & Compact Viewport Responsiveness (`src/styles/preset-theme.css`)**:
+  - Upgrade responsive layouts across `@media (max-width: 740px)` and `@media (max-width: 560px)` for the 6-step progress bar (`.mc-stations-track` 2-column and 1-column grids), batch task board (`.mc-wave-board`), plan approval banner (`.mc-plan-gate-banner`), horizontal filter strip, composer rail, Arena compare strip, Settings 6-step map, and Knowledge Base topbar.
+
+### Tiếng Việt
+- **Thu nhỏ cửa sổ linh hoạt xuống kích thước điện thoại (`desktop/main.cjs`, `src/styles/preset-theme.css`)**:
+  - Hạ giới hạn thu nhỏ cửa sổ Electron từ `960x640` xuống `360x480` (`minWidth: 360, minHeight: 480`), cho phép thu gọn cửa sổ ứng dụng xuống kích thước màn hình điện thoại hoặc chia đôi/chia ba màn hình.
+  - Giữ vùng đệm an toàn `140px` bên phải thanh tiêu đề `.wb-window-chrome.is-desktop` khi thu hẹp cửa sổ để cụm nút Thu nhỏ / Phóng to / Đóng của Windows không bao giờ bị đè lấp.
+- **Ngôn ngữ tự nhiên, gần gũi – Loại bỏ thuật ngữ máy móc (`src/domain/task-flow.js`, `src/domain/agent-roles.js`, `src/features/workbench/controller.js`, `src/shared/i18n.js`)**:
+  - Thay thế toàn bộ các cụm từ kỹ thuật khó hiểu (`Chiến dịch Wave DAG`, `Luồng điều phối`, `Trạm 1..6`, `Bản ghi điều phối`) bằng ngôn từ đời thường, dễ hiểu (`Giao việc theo đợt`, `Tiến trình công việc`, `Bước 1..6`, `Chi tiết các bước đã chạy`).
+  - Đơn giản hóa tên gọi 6 bước làm việc: `1. Lên kế hoạch`, `2. Duyệt kế hoạch`, `3. Viết code`, `4. Kiểm tra code`, `5. Chạy thử`, `6. Gộp vào dự án`.
+- **Nâng cấp toàn diện giao diện Điện thoại & Màn hình nhỏ (`src/styles/preset-theme.css`)**:
+  - Tối ưu hóa bố cục responsive (`<= 740px` và `<= 560px`) cho toàn bộ tính năng mới: Thanh 6 bước công việc tự động co thành lưới 2 cột / 1 cột, bảng công việc theo đợt tự xếp chồng gọn gàng, thanh duyệt kế hoạch, thanh lọc trạng thái vuốt ngang mượt mà, thanh công cụ khung nhập lệnh, bảng so sánh Arena và sơ đồ phân vai trong Cài đặt.
+
+---
+
 ## [0.2.100] - 2026-10-20
 
 ### English

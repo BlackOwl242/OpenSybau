@@ -1,7 +1,7 @@
 export const workflowRoles = [
-  { id: "plan", label: "Lập kế hoạch", stationBadge: "Trạm 1/6 · AI Lập kế hoạch", capability: "plan", legacyProvider: "codex", legacyModel: "codexModel", legacyEffort: "codexEffort" },
-  { id: "build", label: "Triển khai", stationBadge: "Trạm 3/6 · AI Triển khai", capability: "build", legacyProvider: "antigravity", legacyModel: "agyModel", legacyEffort: "agyEffort" },
-  { id: "review", label: "Đánh giá (Review)", stationBadge: "Trạm 4/6 · AI Đánh giá", capability: "review", legacyProvider: "codex", legacyModel: "codexModel", legacyEffort: "codexEffort" },
+  { id: "plan", label: "Lên kế hoạch", stationBadge: "Bước 1/6 · AI Lên kế hoạch", capability: "plan", legacyProvider: "codex", legacyModel: "codexModel", legacyEffort: "codexEffort" },
+  { id: "build", label: "Viết code", stationBadge: "Bước 3/6 · AI Viết code", capability: "build", legacyProvider: "antigravity", legacyModel: "agyModel", legacyEffort: "agyEffort" },
+  { id: "review", label: "Kiểm tra code", stationBadge: "Bước 4/6 · AI Kiểm tra code", capability: "review", legacyProvider: "codex", legacyModel: "codexModel", legacyEffort: "codexEffort" },
 ];
 
 export function roleConfig(config, roleId) {
