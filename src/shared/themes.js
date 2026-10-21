@@ -1,5 +1,24 @@
 const THEME_STORAGE_KEY = "opensybau.theme";
+const MOBILE_OLED_MIGRATION_KEY = "opensybau.mobile-oled-default.v1";
 export const DEFAULT_THEME_ID = "obsidian";
+export const MOBILE_DEFAULT_THEME_ID = "carbon-oled";
+
+export function isMobileThemeRuntime() {
+  if (typeof window === "undefined") return false;
+  if (window.opensybauAndroid) return true;
+  const host = String(window.location?.hostname || "").toLowerCase();
+  if (host === "appassets.androidplatform.net") return true;
+  const ua = String(window.navigator?.userAgent || "");
+  if (/OpenSybauAndroid|Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true;
+  if (typeof window.matchMedia === "function" && window.matchMedia("(max-width: 740px)").matches) {
+    return true;
+  }
+  return false;
+}
+
+export function getDefaultThemeId() {
+  return isMobileThemeRuntime() ? MOBILE_DEFAULT_THEME_ID : DEFAULT_THEME_ID;
+}
 
 export const THEME_GROUPS = [
   {
@@ -168,11 +187,17 @@ export const THEMES = [
 const THEME_MAP = new Map(THEMES.map((theme) => [theme.id, theme]));
 
 export function getThemeDefinition(themeId) {
-  return THEME_MAP.get(String(themeId || "").trim()) || THEME_MAP.get(DEFAULT_THEME_ID);
+  return THEME_MAP.get(String(themeId || "").trim()) || THEME_MAP.get(getDefaultThemeId()) || THEME_MAP.get(DEFAULT_THEME_ID);
 }
 
 export function getSavedThemeId() {
+  const fallbackId = getDefaultThemeId();
   try {
+    if (isMobileThemeRuntime() && !localStorage.getItem(MOBILE_OLED_MIGRATION_KEY)) {
+      localStorage.setItem(MOBILE_OLED_MIGRATION_KEY, "1");
+      localStorage.setItem(THEME_STORAGE_KEY, MOBILE_DEFAULT_THEME_ID);
+      return MOBILE_DEFAULT_THEME_ID;
+    }
     const raw = localStorage.getItem(THEME_STORAGE_KEY);
     if (raw && THEME_MAP.has(raw)) {
       return raw;
@@ -180,7 +205,7 @@ export function getSavedThemeId() {
   } catch {
     // ignore storage errors
   }
-  return DEFAULT_THEME_ID;
+  return fallbackId;
 }
 
 export function applyThemeToDom(themeId) {

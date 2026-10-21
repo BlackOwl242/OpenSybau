@@ -13,8 +13,14 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
 
 import org.json.JSONObject;
@@ -32,9 +38,39 @@ public class MainActivity extends AppCompatActivity {
 
         captureDeepLinkIntent(getIntent());
 
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        getWindow().setStatusBarColor(Color.parseColor("#050507"));
+        getWindow().setNavigationBarColor(Color.parseColor("#050507"));
+
+        FrameLayout rootLayout = new FrameLayout(this);
+        rootLayout.setBackgroundColor(Color.parseColor("#050507"));
+
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.parseColor("#0c0c0f"));
-        setContentView(webView);
+        webView.setBackgroundColor(Color.parseColor("#050507"));
+        rootLayout.addView(
+            webView,
+            new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        );
+        setContentView(rootLayout);
+
+        WindowInsetsControllerCompat insetsController = WindowCompat.getInsetsController(getWindow(), rootLayout);
+        if (insetsController != null) {
+            insetsController.setAppearanceLightStatusBars(false);
+            insetsController.setAppearanceLightNavigationBars(false);
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(rootLayout, (v, windowInsets) -> {
+            Insets insets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars()
+                | WindowInsetsCompat.Type.displayCutout()
+                | WindowInsetsCompat.Type.ime()
+            );
+            v.setPadding(insets.left, insets.top, insets.right, insets.bottom);
+            return WindowInsetsCompat.CONSUMED;
+        });
 
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -42,10 +78,12 @@ public class MainActivity extends AppCompatActivity {
         settings.setDatabaseEnabled(true);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.2.103 Capacitor");
+        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.2.104 Capacitor");
 
+        webView.clearCache(true);
         WebView.setWebContentsDebuggingEnabled(true);
         webView.addJavascriptInterface(new OpenSybauNativeBridge(), "opensybauAndroid");
 
@@ -77,6 +115,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                     WebResourceResponse response = assetLoader.shouldInterceptRequest(url);
                     if (response != null) {
+                        response.setResponseHeaders(java.util.Collections.singletonMap("Cache-Control", "no-store"));
                         return response;
                     }
                 }
@@ -154,7 +193,7 @@ public class MainActivity extends AppCompatActivity {
     public class OpenSybauNativeBridge {
         @JavascriptInterface
         public String getAppVersion() {
-            return "0.2.103";
+            return "0.2.104";
         }
 
         @JavascriptInterface

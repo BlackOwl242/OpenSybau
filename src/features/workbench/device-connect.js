@@ -55,7 +55,7 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
         <label>Chuỗi ghép nối nhanh (Android APK / thiết bị khác)
           <div class="device-input-action-row">
             <input type="text" readonly value="${esc(info?.pairingUri || "")}" data-pairing-uri-input spellcheck="false" placeholder="opensybau://connect?...">
-            <button type="button" class="button quiet small" data-action="copy-pairing-uri" data-uri="${esc(info?.pairingUri || "")}">${icon("copy", 13)} Sao chép</button>
+            <button type="button" class="button quiet" data-action="copy-pairing-uri" data-uri="${esc(info?.pairingUri || "")}">${icon("copy", 13)} Sao chép</button>
           </div>
           <small>Mở OpenSybau trên điện thoại Android (cùng mạng Wi-Fi hoặc Tailscale) để quét mã QR bên trái hoặc dán chuỗi ghép nối này.</small>
         </label>
@@ -121,8 +121,8 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
       <label>Ghép nối nhanh bằng mã URI hoặc địa chỉ IP
         <div class="device-input-action-row">
           <input type="text" data-orca-quick-pair-input placeholder="opensybau://connect?host=http%3A%2F%2F192.168.1.3%3A4173&user=opensybau" value="${esc(draft.quickPair || "")}" autocomplete="off" spellcheck="false">
-          <button type="button" class="button quiet small" data-action="paste-quick-pair">${icon("clipboard", 13)} Dán</button>
-          <button type="button" class="button primary small" data-action="apply-quick-pair">Nạp cấu hình</button>
+          <button type="button" class="button quiet" data-action="paste-quick-pair">${icon("clipboard", 13)} Dán</button>
+          <button type="button" class="button primary" data-action="apply-quick-pair">Nạp cấu hình</button>
         </div>
         <small>Dán chuỗi <code>opensybau://connect?...</code> sao chép từ máy chủ PC để tự động điền thông tin bên dưới.</small>
       </label>

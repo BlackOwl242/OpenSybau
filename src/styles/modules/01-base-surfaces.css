@@ -395,23 +395,78 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   display: block;
   overflow: visible;
 }
-.wb-mark-svg .wireframe {
+.wb-mark-svg .wireframe,
+.wb-hero-svg .wireframe {
   stroke: currentColor;
   stroke-width: 2.2;
   fill: none;
   stroke-dasharray: 160;
   opacity: 0;
 }
-.wb-mark-svg .solid-fill-rect {
+.wb-mark-svg .solid-fill-rect,
+.wb-hero-svg .solid-fill-rect {
   transform: translate(0px, 0px);
 }
 .wb-mark:hover .wb-mark-svg .wireframe,
-.wb-mark.is-busy .wb-mark-svg .wireframe {
+.wb-mark.is-busy .wb-mark-svg .wireframe,
+.codex-hero-emblem:hover .wb-hero-svg .wireframe {
   animation: wb-wire-draw 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 .wb-mark:hover .wb-mark-svg .solid-fill-rect,
-.wb-mark.is-busy .wb-mark-svg .solid-fill-rect {
+.wb-mark.is-busy .wb-mark-svg .solid-fill-rect,
+.codex-hero-emblem:hover .wb-hero-svg .solid-fill-rect {
   animation: wb-clip-wave-fill 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.wb-hero-svg .wireframe {
+  animation: wb-wire-draw 2.2s cubic-bezier(0.4, 0, 0.2, 1) 1;
+}
+.wb-hero-svg .solid-fill-rect {
+  animation: wb-clip-wave-fill-once 2.2s cubic-bezier(0.4, 0, 0.2, 1) 1;
+}
+.wb-boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: var(--wb-bg, #050507);
+  color: var(--wb-ink-strong, #f4f4f5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 28px;
+  text-align: center;
+  user-select: none;
+  animation: wb-boot-splash-fade 1.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.wb-boot-splash .wb-boot-svg .wireframe {
+  stroke: currentColor;
+  stroke-width: 2.2;
+  fill: none;
+  stroke-dasharray: 160;
+  animation: wb-wire-draw 1.45s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.wb-boot-splash .wb-boot-svg .solid-fill-rect {
+  animation: wb-clip-wave-fill-once 1.45s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes wb-wire-draw {
+  0% { stroke-dashoffset: 160; opacity: 0.35; }
+  38%, 85% { stroke-dashoffset: 0; opacity: 0.9; }
+  100% { stroke-dashoffset: -160; opacity: 0.35; }
+}
+@keyframes wb-clip-wave-fill {
+  0%, 20% { transform: translate(-64px, 64px); }
+  55%, 82% { transform: translate(0px, 0px); }
+  100% { transform: translate(64px, -64px); }
+}
+@keyframes wb-clip-wave-fill-once {
+  0%, 18% { transform: translate(-64px, 64px); }
+  62%, 100% { transform: translate(0px, 0px); }
+}
+@keyframes wb-boot-splash-fade {
+  0%, 76% { opacity: 1; visibility: visible; }
+  100% { opacity: 0; visibility: hidden; }
 }
 
 /* Home composer worktree toggle chip */

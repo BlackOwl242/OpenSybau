@@ -5,6 +5,28 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.104] - 2026-10-21
+
+### English
+- **Mobile Workbench Layout Overhaul, Safe-Area Insets & Button Proportion Polish (`src/shell/shell.jsx`, `src/shell/components/MobileNav.jsx`, `src/features/workbench/controller.js`, `src/features/workbench/device-connect.js`, `src/styles/modules/07-themes-mission-control.css`, `android/app/src/main/java/com/opensybau/mobile/MainActivity.java`)**:
+  - Fix Android 15 (SDK 35) status bar, camera punch-hole cutout, bottom gesture bar, and IME keyboard overlap by applying `WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.ime()` padding on the root container in `MainActivity.java` alongside CSS `env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` rules.
+  - Consolidate the mobile header (`<= 740px`) into a single unified 48px app bar in `WindowChrome` displaying the sidebar drawer toggle, active page/chat title, quick new-chat action, theme selector, language toggle, and right inspector drawer toggle, eliminating the redundant stacked second top bar when no file tabs are open.
+  - Standardize button heights and grid proportions across `.page-head-actions`, `.device-input-action-row`, `.device-form-actions`, `.provider-connect-callout`, `.cli-guide-actions`, `.workspace-card-actions`, `.quick-stats` (compact `2x2` mobile grid), `.settings-nav-sidebar`, and `.wb-mobile-nav` (single-line tab labels).
+- **Default Carbon OLED Theme on Mobile & Option 3 Startup Splash Transition (`src/shared/themes.js`, `index.html`, `src/shell/shell.jsx`, `src/styles/modules/01-base-surfaces.css`, `android/app/src/main/res/values/styles.xml`)**:
+  - Default mobile and Android APK sessions to **Carbon OLED (`carbon-oled`, `#050507`)** via `isMobileThemeRuntime()` and `getDefaultThemeId()`, with matching `#050507` native Android window/status/navigation bars.
+  - Add a non-blocking `.wb-boot-splash` startup transition and `.wb-hero-svg` home emblem featuring the **Option 3 Isometric Stroke & Liquid Fill** SVG animation (`wb-wire-draw` + `wb-clip-wave-fill-once`), and enforce `LOAD_NO_CACHE` + `Cache-Control: no-store` in `MainActivity.java` so Android WebView never serves stale cached assets.
+
+### Tiếng Việt
+- **Tối ưu Bố cục Giao diện Điện thoại, Chống Khuyết Thanh Trạng Thái & Đồng bộ Kích cỡ Nút (`src/shell/shell.jsx`, `src/shell/components/MobileNav.jsx`, `src/features/workbench/controller.js`, `src/features/workbench/device-connect.js`, `src/styles/modules/07-themes-mission-control.css`, `android/app/src/main/java/com/opensybau/mobile/MainActivity.java`)**:
+  - Xử lý triệt để lỗi thanh trạng thái (giờ, sóng, pin, camera đục lỗ) và thanh cử chỉ đáy đè lên giao diện trên Android 15 (SDK 35) bằng `WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.ime()` trong `MainActivity.java` kết hợp `env(safe-area-inset-top)` / `env(safe-area-inset-bottom)` trong CSS.
+  - Hợp nhất phần đầu trang trên điện thoại (`<= 740px`) thành một thanh điều hướng 48px duy nhất gồm nút mở ngăn bên trái, tiêu đề trang/cuộc trò chuyện, nút tạo nhanh hội thoại, chọn chủ đề, đổi ngôn ngữ và mở thanh công cụ bên phải; tự động ẩn thanh tiêu đề phụ trùng lặp khi không mở tab tệp.
+  - Đồng bộ kích thước chiều cao (`38px`) và tỷ lệ chia cột đều nhau cho toàn bộ các hàng nút thao tác (`.page-head-actions`, `.device-input-action-row`, `.device-form-actions`, `.provider-connect-callout`, `.cli-guide-actions`, `.workspace-card-actions`), thu gọn bảng `.quick-stats` thành lưới `2x2`, tinh gọn thanh danh mục cài đặt ngang và chuẩn hóa nhãn 1 dòng cho 5 nút điều hướng đáy (`.wb-mobile-nav`).
+- **Mặc định Chủ đề Carbon OLED Tối trên Điện thoại & Hiệu ứng Khởi động Phương án 3 (`src/shared/themes.js`, `index.html`, `src/shell/shell.jsx`, `src/styles/modules/01-base-surfaces.css`, `android/app/src/main/res/values/styles.xml`)**:
+  - Đặt chủ đề mặc định trên ứng dụng điện thoại / Android APK là **Carbon OLED (`carbon-oled`, `#050507`)** đen tuyền đồng bộ với thanh trạng thái hệ thống.
+  - Bổ sung màn hình chuyển cảnh khởi động `.wb-boot-splash` và biểu tượng trung tâm `.wb-hero-svg` chạy trọn vẹn hiệu ứng **Phương án 3 (Isometric Stroke & Liquid Fill — chạy nét viền và quét mực đặc xuyên chéo)**, đồng thời bật `LOAD_NO_CACHE` trong `MainActivity.java` để WebView luôn nạp giao diện mới nhất.
+
+---
+
 ## [0.2.103] - 2026-10-21
 
 ### English

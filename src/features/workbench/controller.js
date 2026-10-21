@@ -1750,7 +1750,7 @@ function settingsPage() {
       <p>Định tuyến model mặc định cho từng vai trò điều phối, kết nối Agent CLI cục bộ, quản lý nguồn API và thiết bị từ xa.</p>
     </div>
     <div class="page-head-actions">
-      ${cliRefreshButton()}
+      ${cliRefreshButton("Quét lại", { small: false })}
       <button class="button primary" type="button" data-action="provider-add">${icon("plus", 15)} Thêm nguồn AI</button>
     </div>
   </div>
@@ -1843,9 +1843,9 @@ function showCliProviderModal() {
   showModal("Thêm / kết nối CLI agent", body, "Xong", "dismiss");
   $(".modal-actions .button.quiet")?.remove();
 }
-function cliRefreshButton(label = "Quét lại") {
+function cliRefreshButton(label = "Quét lại", { small = true } = {}) {
   const busy = cliScanInProgress;
-  return `<button class="button quiet small" type="button" data-action="provider-cli-refresh" ${busy ? 'disabled aria-busy="true"' : ""}>${icon("refresh-cw", 13)} ${busy ? "Đang quét..." : label}</button>`;
+  return `<button class="button quiet${small ? " small" : ""}" type="button" data-action="provider-cli-refresh" ${busy ? 'disabled aria-busy="true"' : ""}>${icon("refresh-cw", 13)} ${busy ? "Đang quét..." : label}</button>`;
 }
 function apiProviderId(name) {
   return String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
@@ -2186,10 +2186,22 @@ function chatPage() {
   </div>` : "";
 
   const heroEmblem = `<div class="codex-hero-emblem" aria-hidden="true">
-    <svg viewBox="0 0 64 64" width="30" height="30" fill="none">
-      <circle cx="19.6" cy="19.8" r="6.8" fill="currentColor" />
-      <circle cx="44.4" cy="44.2" r="6.8" fill="currentColor" />
-      <path d="M29.8 24.2C29.8 23.45 30.22 22.76 30.89 22.43L48.72 13.51C49.91 12.92 51.2 13.78 51.2 15.11V24.9C51.2 25.65 50.78 26.34 50.11 26.67L35.09 34.18C34.55 34.45 34.2 35 34.2 35.61V39.8C34.2 40.55 33.78 41.24 33.11 41.57L15.28 50.49C14.09 51.08 12.8 50.22 12.8 48.89V39.1C12.8 38.35 13.22 37.66 13.89 37.33L28.91 29.82C29.45 29.55 29.8 29 29.8 28.39V24.2Z" fill="currentColor" />
+    <svg class="wb-hero-svg" viewBox="0 0 64 64" width="30" height="30" fill="none">
+      <defs>
+        <clipPath id="wbHeroLogoClip">
+          <circle cx="19.6" cy="19.8" r="6.8" />
+          <circle cx="44.4" cy="44.2" r="6.8" />
+          <path d="M29.8 24.2C29.8 23.45 30.22 22.76 30.89 22.43L48.72 13.51C49.91 12.92 51.2 13.78 51.2 15.11V24.9C51.2 25.65 50.78 26.34 50.11 26.67L35.09 34.18C34.55 34.45 34.2 35 34.2 35.61V39.8C34.2 40.55 33.78 41.24 33.11 41.57L15.28 50.49C14.09 51.08 12.8 50.22 12.8 48.89V39.1C12.8 38.35 13.22 37.66 13.89 37.33L28.91 29.82C29.45 29.55 29.8 29 29.8 28.39V24.2Z" />
+        </clipPath>
+      </defs>
+      <g class="wireframe">
+        <circle cx="19.6" cy="19.8" r="6.1" />
+        <circle cx="44.4" cy="44.2" r="6.1" />
+        <path d="M29.8 24.2C29.8 23.45 30.22 22.76 30.89 22.43L48.72 13.51C49.91 12.92 51.2 13.78 51.2 15.11V24.9C51.2 25.65 50.78 26.34 50.11 26.67L35.09 34.18C34.55 34.45 34.2 35 34.2 35.61V39.8C34.2 40.55 33.78 41.24 33.11 41.57L15.28 50.49C14.09 51.08 12.8 50.22 12.8 48.89V39.1C12.8 38.35 13.22 37.66 13.89 37.33L28.91 29.82C29.45 29.55 29.8 29 29.8 28.39V24.2Z" />
+      </g>
+      <g clip-path="url(#wbHeroLogoClip)">
+        <rect class="solid-fill-rect" x="-10" y="-10" width="84" height="84" fill="currentColor" />
+      </g>
     </svg>
   </div>`;
 

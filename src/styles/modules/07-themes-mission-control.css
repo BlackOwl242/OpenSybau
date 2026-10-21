@@ -1633,3 +1633,348 @@ html[data-color-scheme="light"] *::-webkit-scrollbar-thumb:hover {
     padding-top: 6px;
   }
 }
+
+/* ==========================================================================
+   Smart Mobile Workbench Layout, Safe-Area Insets & Button Proportion Polish
+   ========================================================================== */
+.wb-mobile-chrome-title,
+.wb-mobile-only-btn {
+  display: none;
+}
+
+.device-input-action-row > .button,
+.device-input-action-row > .button.small {
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 12px !important;
+  border-radius: 9px !important;
+  font-size: 12.5px !important;
+}
+
+.wb-page-content .page-head-actions > .button,
+.wb-page-content .page-head-actions > .button.small {
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 13px !important;
+  border-radius: 8px !important;
+  font-size: 12.5px !important;
+}
+
+@media (max-width: 740px) {
+  /* 1. Safe-area top & unified 48px mobile top header */
+  .wb-app-shell,
+  .wb-app-shell.has-context-sidebar,
+  .wb-app-shell.has-page-sidebar,
+  .wb-app-shell.has-both-sidebars {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: calc(48px + env(safe-area-inset-top, 0px)) minmax(0, 1fr) !important;
+  }
+
+  .wb-window-chrome {
+    height: calc(48px + env(safe-area-inset-top, 0px)) !important;
+    min-height: calc(48px + env(safe-area-inset-top, 0px)) !important;
+    padding: env(safe-area-inset-top, 0px) 10px 0 10px !important;
+    background: var(--wb-panel) !important;
+    border-bottom: 1px solid var(--wb-line) !important;
+    gap: 8px !important;
+  }
+  .wb-window-chrome.is-desktop,
+  .wb-window-chrome.is-web {
+    padding-right: 10px !important;
+  }
+  .wb-desktop-nav-btn {
+    display: none !important;
+  }
+  .wb-window-chrome-left {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    gap: 8px !important;
+  }
+  .wb-window-chrome-left > .wb-sidebar-toggle-btn,
+  .wb-window-chrome-right > .wb-chrome-icon,
+  .wb-window-chrome-right > .wb-chrome-pill,
+  .wb-window-chrome-right .wb-theme-trigger {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    display: inline-grid !important;
+    place-items: center !important;
+    border: 1px solid var(--wb-line) !important;
+    border-radius: 8px !important;
+    background: var(--wb-control) !important;
+    color: var(--wb-ink) !important;
+  }
+  .wb-window-chrome-left > .wb-sidebar-toggle-btn.is-active,
+  .wb-window-chrome-right > .wb-chrome-icon.is-active {
+    border-color: var(--wb-border-strong) !important;
+    background: var(--wb-raised) !important;
+    color: var(--wb-ink-strong) !important;
+  }
+  .wb-mobile-only-btn {
+    display: inline-grid !important;
+  }
+  .wb-mobile-chrome-title {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    gap: 1px !important;
+  }
+  .wb-mobile-chrome-title > strong {
+    font-size: 14px !important;
+    font-weight: 650 !important;
+    color: var(--wb-ink-strong) !important;
+    line-height: 1.2 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .wb-mobile-chrome-title > small {
+    font-size: 11px !important;
+    color: var(--wb-muted) !important;
+    line-height: 1.15 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .wb-window-chrome-right {
+    flex: 0 0 auto !important;
+    gap: 6px !important;
+  }
+
+  /* Eliminate redundant second topbar when no file/split stage tabs are open */
+  .wb-main:not(.has-stage-tabs) > .wb-workspace-split > .wb-stage-column > .wb-topbar,
+  .wb-home-dock-trigger {
+    display: none !important;
+  }
+  .wb-main.has-stage-tabs > .wb-workspace-split > .wb-stage-column > .wb-topbar {
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 10px !important;
+    background: var(--wb-surface) !important;
+  }
+
+  /* 2. Mobile drawers (ContextSidebar & Right Dock) respect top header & bottom nav */
+  .wb-app-shell .wb-context-sidebar,
+  .wb-app-shell .wb-context-sidebar.is-mobile-only {
+    top: calc(48px + env(safe-area-inset-top, 0px)) !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    height: auto !important;
+    width: min(320px, 86vw) !important;
+    z-index: 95 !important;
+  }
+  .wb-mobile-sidebar-backdrop {
+    top: calc(48px + env(safe-area-inset-top, 0px)) !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 94 !important;
+  }
+  .wb-app-shell .orca-right-dock {
+    top: calc(48px + env(safe-area-inset-top, 0px)) !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    width: min(330px, 88vw) !important;
+    z-index: 95 !important;
+  }
+  .wb-dock-backdrop {
+    inset: calc(48px + env(safe-area-inset-top, 0px)) 0 calc(58px + env(safe-area-inset-bottom, 0px)) 0 !important;
+    z-index: 94 !important;
+  }
+
+  /* 3. Smart Mobile Bottom Navigation Bar */
+  .wb-app-shell .wb-main {
+    padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .wb-mobile-nav {
+    height: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px)) !important;
+    gap: 4px !important;
+    background: var(--wb-panel) !important;
+    border-top: 1px solid var(--wb-line) !important;
+    z-index: 90 !important;
+  }
+  .wb-mobile-nav > button {
+    width: 100% !important;
+    max-width: none !important;
+    height: 48px !important;
+    padding: 4px 2px !important;
+    gap: 3px !important;
+    border-radius: 10px !important;
+    font-size: 10.5px !important;
+    font-weight: 560 !important;
+    color: var(--wb-muted) !important;
+    background: transparent !important;
+  }
+  .wb-mobile-nav > button > span {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .wb-mobile-nav > button.is-active {
+    color: var(--wb-ink-strong) !important;
+    background: var(--wb-raised) !important;
+    border: 1px solid var(--wb-line) !important;
+    font-weight: 650 !important;
+  }
+  .wb-mobile-more-backdrop {
+    z-index: 96 !important;
+  }
+  .wb-mobile-more-menu {
+    bottom: calc(66px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* 4. Uniform Button Heights & Proportional Action Grids on Mobile */
+  body .wb-page-content .button:not(.home-submit):not(.chat-send-button),
+  body .wb-page-content .button.small:not(.home-submit):not(.chat-send-button),
+  body #overlay .button,
+  body #overlay .button.small {
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 12px !important;
+    border-radius: 9px !important;
+    font-size: 12.5px !important;
+  }
+
+  .wb-page-content > .page-head {
+    min-height: 0 !important;
+    margin: 0 0 14px !important;
+    gap: 10px !important;
+  }
+  .wb-page-content .page-head h1 {
+    font-size: 20px !important;
+  }
+  .wb-page-content .page-head p {
+    font-size: 12.5px !important;
+    line-height: 1.45 !important;
+  }
+  .wb-page-content .page-head-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .wb-page-content .page-head-actions > .button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Compact 2x2 Quick Stats grid on mobile */
+  .wb-page-content .quick-stats {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    padding: 10px !important;
+    margin-bottom: 12px !important;
+  }
+  .wb-page-content .quick-stats > div {
+    padding: 8px 10px !important;
+    border: 1px solid var(--wb-line) !important;
+    border-radius: 9px !important;
+    background: var(--wb-field) !important;
+  }
+  .wb-page-content .quick-stats > .stats-note {
+    grid-column: 1 / -1 !important;
+    font-size: 11.5px !important;
+  }
+
+  /* Sleek horizontal pill strip for Settings categories on mobile */
+  .settings-nav-sidebar {
+    padding: 5px !important;
+    gap: 5px !important;
+    scrollbar-width: none !important;
+  }
+  .settings-nav-sidebar::-webkit-scrollbar {
+    display: none !important;
+  }
+  .settings-nav-item {
+    min-height: 34px !important;
+    padding: 0 11px !important;
+    border-radius: 8px !important;
+  }
+  .settings-nav-meta {
+    display: none !important;
+  }
+
+  /* Device Connect & Settings Card mobile alignment */
+  .wb-page-content .settings-card > header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .device-card-head-right {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+  .device-mode-switch {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    padding: 3px !important;
+  }
+  .device-mode-btn {
+    height: 32px !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  .device-quick-pair-box .device-input-action-row {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .device-quick-pair-box .device-input-action-row > input {
+    grid-column: 1 / -1 !important;
+    min-height: 38px !important;
+  }
+  .device-quick-pair-box .device-input-action-row > .button {
+    width: 100% !important;
+  }
+  .device-form-actions {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .device-form-actions > .button {
+    width: 100% !important;
+  }
+  .provider-connect-callout {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .provider-connect-callout > div:last-child {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .provider-connect-callout > div:last-child > .button {
+    width: 100% !important;
+  }
+  .cli-guide-row,
+  .provider-setup-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .cli-guide-actions,
+  .provider-row-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .cli-guide-actions > .button,
+  .provider-row-actions > .button {
+    width: 100% !important;
+  }
+  .wb-page-content .workspace-card-actions {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .wb-page-content .workspace-card-actions > .button {
+    width: 100% !important;
+  }
+}
