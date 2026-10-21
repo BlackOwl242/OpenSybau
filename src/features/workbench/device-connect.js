@@ -14,37 +14,41 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
   const probe = view.orcaConnectProbeResult || null;
   const draft = view.orcaConnectDraft || {
     name: activeHost?.name || info?.hostname || "",
-    url: activeHost?.url || info?.primaryUrl || "http://192.168.1.3:4173",
+    url: activeHost?.url || info?.primaryUrl || "192.168.1.3:4173",
     username: activeHost?.username || info?.accessUsername || "opensybau",
     password: activeHost?.password || "",
     quickPair: "",
   };
 
   const isConnectedRemote = Boolean(activeHost?.url);
-  const statusPill = isConnectedRemote
-    ? { label: `Từ xa · ${activeHost.name || activeHost.url}`, cls: "status-running" }
-    : info?.mode === "network"
-      ? { label: "Mạng LAN đang mở", cls: "status-running" }
-      : { label: "Cục bộ · 127.0.0.1", cls: "status-done" };
-
-  const connectors = info?.connectorsSummary || [];
-  const readyClis = connectors.filter((c) => c.available).map((c) => c.id);
   const lanList = info?.lanAddresses || [];
-  const launchers = info?.launchers || null;
+  const currentPassword = view.connectionPasswordDraft ?? info?.accessPassword ?? info?.launchers?.suggestedPassword ?? "";
+  const hasSavedPassword = Boolean(info?.authRequired || info?.accessPassword);
 
   const hostPaneHtml = `<div class="device-connect-pane">
-    <div class="cli-guide-list">
-      <article class="cli-guide-row">
-        <span class="cli-guide-icon">${icon("globe", 16)}</span>
+    <div class="device-password-box">
+      <div class="device-password-head">
         <div>
-          <strong>${esc(info?.hostname ? `Máy trạm ${info.hostname}` : "Máy chủ cục bộ")} <span class="cli-guide-status ${info?.mode === "network" ? "ready" : "needs-action"}">${info?.mode === "network" ? "Mạng LAN & Basic Auth" : "Chỉ cục bộ (Loopback)"}</span></strong>
-          <small>Địa chỉ chính: <code>${esc(info?.primaryUrl || "http://127.0.0.1:4173")}</code>${readyClis.length ? ` · CLI sẵn sàng: ${esc(readyClis.join(", "))}` : ""}</small>
+          <strong>1. Tạo mật khẩu kết nối</strong>
+          <small>${hasSavedPassword ? "Đã bật mật khẩu bảo vệ. Điện thoại dùng mật khẩu này (hoặc quét mã QR bên dưới) để kết nối." : "Nhập mật khẩu bạn muốn dùng hoặc bấm Tạo tự động rồi bấm Lưu để mở kết nối cho điện thoại."}</small>
         </div>
-        <div class="cli-guide-actions">
-          <button class="button quiet small" type="button" data-action="refresh-connection-info">${icon("refresh-cw", 13)} Làm mới</button>
-          <button class="button primary small" type="button" data-action="copy-pairing-uri" data-uri="${esc(info?.pairingUri || "")}">${icon("copy", 13)} Sao chép URI</button>
-        </div>
-      </article>
+      </div>
+      <div class="device-input-action-row">
+        <input
+          type="text"
+          data-connection-password-input
+          value="${esc(currentPassword)}"
+          placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)…"
+          autocomplete="off"
+          spellcheck="false"
+        >
+        <button type="button" class="button quiet" data-action="generate-connection-password">
+          ${icon("sparkles", 13)} Tạo tự động
+        </button>
+        <button type="button" class="button primary" data-action="save-connection-password">
+          ${icon("check", 13)} Lưu mật khẩu
+        </button>
+      </div>
     </div>
 
     <div class="device-qr-panel">
@@ -52,48 +56,26 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
         ${info?.qrSvg || `<div class="device-qr-placeholder">${icon("qr-code", 28)}</div>`}
       </div>
       <div class="device-qr-body">
-        <label>Chuỗi ghép nối nhanh (Android APK / thiết bị khác)
+        <div class="device-qr-step-title">
+          <strong>2. Quét mã QR hoặc sao chép mã sang điện thoại</strong>
+          <small>Mở ứng dụng OpenSybau trên điện thoại (cùng mạng Wi-Fi) và dán mã kết nối dưới đây.</small>
+        </div>
+        <label>Mã kết nối nhanh (đã kèm địa chỉ IP & mật khẩu)
           <div class="device-input-action-row">
             <input type="text" readonly value="${esc(info?.pairingUri || "")}" data-pairing-uri-input spellcheck="false" placeholder="opensybau://connect?...">
-            <button type="button" class="button quiet" data-action="copy-pairing-uri" data-uri="${esc(info?.pairingUri || "")}">${icon("copy", 13)} Sao chép</button>
+            <button type="button" class="button primary" data-action="copy-pairing-uri" data-uri="${esc(info?.pairingUri || "")}">${icon("copy", 13)} Sao chép mã</button>
+            <button type="button" class="button quiet" data-action="refresh-connection-info" title="Làm mới địa chỉ mạng">${icon("refresh-cw", 13)}</button>
           </div>
-          <small>Mở OpenSybau trên điện thoại Android (cùng mạng Wi-Fi hoặc Tailscale) để quét mã QR bên trái hoặc dán chuỗi ghép nối này.</small>
         </label>
         ${lanList.length ? `<div class="device-lan-chips">
-          <span class="device-lan-label">Địa chỉ mạng phát hiện trên máy:</span>
+          <span class="device-lan-label">Địa chỉ IP máy tính này:</span>
           ${lanList.map((item) => `<button type="button" class="button quiet small device-lan-chip" data-action="copy-lan-url" data-url="${esc(item.url)}" title="Sao chép ${esc(item.url)}">
-            <span>${item.kind === "tailscale" ? "Tailscale" : "LAN"}</span>
             <code>${esc(item.url.replace(/^https?:\/\//, ""))}</code>
             ${icon("copy", 11)}
           </button>`).join("")}
-        </div>` : `<p class="form-note">Chưa phát hiện địa chỉ mạng LAN ngoài loopback (127.0.0.1).</p>`}
+        </div>` : `<p class="form-note">Máy tính chưa kết nối mạng Wi-Fi / LAN.</p>`}
       </div>
     </div>
-
-    <details class="provider-env-help" ${info?.mode === "network" ? "" : "open"}>
-      <summary>Hướng dẫn bật truy cập mạng LAN / Tailscale an toàn (Basic Auth)</summary>
-      ${info?.mode === "network" ? `
-        <p>Máy chủ hiện đang cho phép kết nối mạng với tài khoản Basic Auth <code>${esc(info.accessUsername || "opensybau")}</code> và danh sách host được duyệt: <code>${esc((info.allowedHosts || []).join(", "))}</code>.</p>
-      ` : `
-        <p>Mặc định OpenSybau chỉ lắng nghe trên <code>127.0.0.1</code> để đảm bảo an toàn. Khi cần điều khiển từ điện thoại hoặc máy khác trong mạng LAN/Tailscale, hãy khởi động server ở chế độ Production kèm danh sách IP cho phép và mật khẩu tối thiểu 16 ký tự.</p>
-        ${launchers ? `
-          <div class="device-cmd-row">
-            <div>
-              <strong>Lệnh khởi động PowerShell (đã điền sẵn IP LAN & mật khẩu ngẫu nhiên)</strong>
-              <code class="device-cmd-preview">${esc(launchers.powershell)}</code>
-            </div>
-            <button type="button" class="button quiet small" data-action="copy-lan-command" data-cmd="${esc(launchers.powershell)}">${icon("copy", 13)} Sao chép lệnh</button>
-          </div>
-          <div class="device-cmd-row">
-            <div>
-              <strong>Thông tin đăng nhập trên thiết bị từ xa</strong>
-              <code class="device-cmd-preview">Tài khoản: ${esc(info?.accessUsername || "opensybau")} · Mật khẩu: ${esc(launchers.suggestedPassword)}</code>
-            </div>
-            <button type="button" class="button quiet small" data-action="copy-lan-command" data-cmd="${esc(launchers.suggestedPassword)}">${icon("copy", 13)} Sao chép mật khẩu</button>
-          </div>
-        ` : ""}
-      `}
-    </details>
   </div>`;
 
   const savedHostsHtml = savedHosts.length
@@ -102,8 +84,8 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
         return `<div class="provider-setup-row">
           <span class="provider-status-dot ${isCurrent ? "ready" : ""}"></span>
           <div>
-            <strong>${esc(item.name || item.url)} <span class="provider-protocol">${isCurrent ? "Đang kết nối" : "Đã lưu"}${item.latencyMs ? ` · ${item.latencyMs}ms` : ""}</span></strong>
-            <small>${esc(item.url)} · Tài khoản: ${esc(item.username || "opensybau")} · ${fmtDate(item.lastConnectedAt)}</small>
+            <strong>${esc(item.name || item.url)}</strong>
+            <small>${esc(item.url.replace(/^https?:\/\//, ""))}${isCurrent ? " · Đang kết nối" : ""} · ${fmtDate(item.lastConnectedAt)}</small>
           </div>
           <div class="provider-row-actions">
             ${isCurrent
@@ -114,43 +96,48 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
           </div>
         </div>`;
       }).join("")}</div>`
-    : `<div class="provider-empty-state"><strong>Chưa có máy chủ từ xa nào được lưu</strong><p>Dán mã ghép nối nhanh hoặc nhập địa chỉ IP LAN / Tailscale của máy trạm bên dưới để kết nối.</p></div>`;
+    : "";
 
   const clientPaneHtml = `<div class="device-connect-pane">
     <div class="device-quick-pair-box">
-      <label>Ghép nối nhanh bằng mã URI hoặc địa chỉ IP
+      <label>Cách 1: Dán mã kết nối nhanh từ máy tính
         <div class="device-input-action-row">
-          <input type="text" data-orca-quick-pair-input placeholder="opensybau://connect?host=http%3A%2F%2F192.168.1.3%3A4173&user=opensybau" value="${esc(draft.quickPair || "")}" autocomplete="off" spellcheck="false">
+          <input type="text" data-orca-quick-pair-input placeholder="Dán mã opensybau://connect?... vào đây" value="${esc(draft.quickPair || "")}" autocomplete="off" spellcheck="false">
           <button type="button" class="button quiet" data-action="paste-quick-pair">${icon("clipboard", 13)} Dán</button>
-          <button type="button" class="button primary" data-action="apply-quick-pair">Nạp cấu hình</button>
+          <button type="button" class="button primary" data-action="apply-quick-pair">${icon("check", 13)} Kết nối ngay</button>
         </div>
-        <small>Dán chuỗi <code>opensybau://connect?...</code> sao chép từ máy chủ PC để tự động điền thông tin bên dưới.</small>
       </label>
     </div>
 
     ${savedHostsHtml}
 
     <div class="device-host-form">
-      <div class="modal-grid-2">
-        <label>Tên gợi nhớ máy chủ
-          <input type="text" data-orca-host-name value="${esc(draft.name || "")}" placeholder="Ví dụ: Máy trạm PC tại nhà" autocomplete="off">
-        </label>
-        <label>Địa chỉ máy chủ (LAN IP / Tailscale / HTTPS)
-          <input type="url" data-orca-host-url value="${esc(draft.url || "")}" placeholder="http://192.168.1.3:4173" autocomplete="off" spellcheck="false">
-        </label>
+      <div class="device-form-head">
+        <strong>Cách 2: Nhập địa chỉ IP máy tính & mật khẩu</strong>
       </div>
       <div class="modal-grid-2">
-        <label>Tài khoản Basic Auth
-          <input type="text" data-orca-host-user value="${esc(draft.username || "opensybau")}" placeholder="opensybau" autocomplete="off" spellcheck="false">
+        <label>Địa chỉ IP máy tính
+          <input type="text" data-orca-host-url value="${esc(draft.url || "")}" placeholder="Ví dụ: 192.168.1.3:4173" autocomplete="off" spellcheck="false">
         </label>
-        <label>Mật khẩu truy cập
-          <input type="password" data-orca-host-pass value="${esc(draft.password || "")}" placeholder="Mật khẩu máy chủ (>= 16 ký tự)" autocomplete="new-password">
+        <label>Mật khẩu kết nối
+          <input type="text" data-orca-host-pass value="${esc(draft.password || "")}" placeholder="Nhập mật khẩu đã tạo trên máy tính" autocomplete="off" spellcheck="false">
         </label>
       </div>
-      ${probe ? `<p class="${probe.ok ? "form-note" : "provider-config-error"}">${esc(probe.ok ? `Kết nối thành công tới ${probe.info?.hostname || probe.url} (${probe.latencyMs}ms). Chọn "Lưu & Kết nối" để áp dụng.` : probe.error)}</p>` : ""}
+      <details class="device-advanced-details">
+        <summary>Tùy chọn thêm (Tên gợi nhớ & tài khoản)</summary>
+        <div class="modal-grid-2">
+          <label>Tên gợi nhớ máy tính
+            <input type="text" data-orca-host-name value="${esc(draft.name || "")}" placeholder="Ví dụ: Máy tính ở nhà" autocomplete="off">
+          </label>
+          <label>Tài khoản (mặc định: opensybau)
+            <input type="text" data-orca-host-user value="${esc(draft.username || "opensybau")}" placeholder="opensybau" autocomplete="off" spellcheck="false">
+          </label>
+        </div>
+      </details>
+      ${probe ? `<p class="${probe.ok ? "form-note" : "provider-config-error"}">${esc(probe.ok ? `Kết nối thành công tới ${probe.info?.hostname || probe.url} (${probe.latencyMs}ms).` : probe.error)}</p>` : ""}
       <footer class="settings-actions device-form-actions">
         ${isConnectedRemote ? `<button type="button" class="button danger" data-action="disconnect-remote-host">Ngắt kết nối hiện tại</button>` : ""}
-        <button type="button" class="button quiet" data-action="test-orca-host-connection">${icon("refresh-cw", 13)} Kiểm tra kết nối</button>
+        <button type="button" class="button quiet" data-action="test-orca-host-connection">${icon("refresh-cw", 13)} Kiểm tra thử</button>
         <button type="button" class="button primary" data-action="save-connect-orca-host">${icon("check", 13)} Lưu & Kết nối</button>
       </footer>
     </div>
@@ -159,14 +146,13 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
   return `<section class="settings-card device-connect-card" id="settings-devices" ${hidden ? "hidden" : ""}>
     <header>
       <div>
-        <h2>Kết nối thiết bị & Máy trạm từ xa</h2>
-        <p>Chia sẻ máy trạm hiện tại qua mạng LAN / Tailscale cho ứng dụng di động hoặc kết nối tới một máy chủ OpenSybau khác.</p>
+        <h2>Kết nối điện thoại</h2>
+        <p>Tạo mật khẩu trên máy tính rồi quét mã hoặc nhập IP trên điện thoại để điều khiển từ xa.</p>
       </div>
       <div class="device-card-head-right">
-        <span class="pill ${statusPill.cls}"><i></i>${esc(statusPill.label)}</span>
         <div class="device-mode-switch" role="tablist" aria-label="Chế độ kết nối thiết bị">
-          <button type="button" class="device-mode-btn ${tab === "host" ? "is-active" : ""}" data-action="orca-connect-tab" data-tab="host">Máy tính này (Host)</button>
-          <button type="button" class="device-mode-btn ${tab === "client" ? "is-active" : ""}" data-action="orca-connect-tab" data-tab="client">Máy chủ từ xa (${savedHosts.length})</button>
+          <button type="button" class="device-mode-btn ${tab === "host" ? "is-active" : ""}" data-action="orca-connect-tab" data-tab="host">Trên máy tính này</button>
+          <button type="button" class="device-mode-btn ${tab === "client" ? "is-active" : ""}" data-action="orca-connect-tab" data-tab="client">Kết nối sang máy khác${savedHosts.length ? ` (${savedHosts.length})` : ""}</button>
         </div>
       </div>
     </header>

@@ -5,6 +5,26 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.105] - 2026-10-21
+
+### English
+- **Direct In-App Connection Password Creation & Instant LAN Pairing (`server.mjs`, `src/server/network-pairing.mjs`, `src/features/workbench/device-connect.js`, `src/features/workbench/controller.js`)**:
+  - Add `POST /api/connection-config` and `.runtime/connection-config.json` persistence with dynamic LAN companion listeners (`syncLanCompanionServers`) so users can set a custom password (or click **Generate**) directly in **Settings → Phone & Remote Connect** without running manual PowerShell environment commands.
+  - Embed the active connection password directly into `pairingUri` (`opensybau://connect?host=...&user=...&pass=...&name=...`) and the QR code on local hosts, enabling 1-tap auto-connect on mobile via **Paste quick pairing code → Connect now**.
+- **Decluttered Settings UI & Badge Cleanup (`src/features/workbench/controller.js`, `src/features/workbench/device-connect.js`, `src/styles/modules/07-themes-mission-control.css`, `src/shared/i18n.js`)**:
+  - Remove cluttered badges across the Settings view, including `.settings-nav-meta` sidebar counters, `.quick-stats` top cards, `.settings-station-map` 6-step overview grid, `.role-station-badge` step pills on AI role cards, `.theme-gallery-badge` theme code pills, `.cli-guide-status` pills, and `.provider-protocol` badges.
+  - Simplify the Phone & Remote Connect card into a clear 2-step flow on PC (`1. Create connection password`, `2. Scan QR code or copy pairing code`) and a streamlined 2-option flow on mobile (`Option 1: Paste quick pairing code`, `Option 2: Enter computer IP & password` with advanced fields tucked inside `<details class="device-advanced-details">`).
+
+### Tiếng Việt
+- **Tạo & Lưu Mật khẩu Kết nối Trực tiếp Ngay trong Ứng dụng (`server.mjs`, `src/server/network-pairing.mjs`, `src/features/workbench/device-connect.js`, `src/features/workbench/controller.js`)**:
+  - Bổ sung endpoint `POST /api/connection-config`, lưu trữ `.runtime/connection-config.json` và tự động mở cổng lắng nghe mạng nội bộ (`syncLanCompanionServers`) bảo vệ bằng Basic Auth ngay khi người dùng nhập mật khẩu tự chọn (tối thiểu 6 ký tự) hoặc bấm **Tạo tự động** — loại bỏ hoàn toàn bước phải mở PowerShell chạy lệnh thủ công.
+  - Tự động nhúng mật khẩu đã lưu vào chuỗi ghép nối nhanh (`opensybau://connect?...&pass=...`) và mã QR trên máy chủ để điện thoại chỉ cần quét QR hoặc dán mã và bấm **Kết nối ngay** là kết nối 1 chạm.
+- **Loại bỏ Badge Rườm rà & Tối giản hóa Trang Cài đặt (`src/features/workbench/controller.js`, `src/features/workbench/device-connect.js`, `src/styles/modules/07-themes-mission-control.css`, `src/shared/i18n.js`)**:
+  - Gỡ bỏ toàn bộ các badge gây rối mắt trên trang Cài đặt: số đếm trên thanh danh mục bên trái, các ô thống kê đầu trang, sơ đồ 6 bước màu sắc ở mục Phân vai AI, badge `Bước 1/6 · ...` trên từng thẻ vai trò, badge mã màu trên thẻ chọn giao diện (`CARBON`, `OLED`, `AGY`,...), badge trạng thái CLI và badge giao thức `OpenSybau`.
+  - Thiết kế lại thẻ **Kết nối điện thoại** thành quy trình 2 bước trực quan trên máy tính (`1. Tạo mật khẩu kết nối`, `2. Quét mã QR hoặc sao chép mã sang điện thoại`) và 2 cách kết nối gọn nhẹ trên điện thoại (thu gọn tên máy gợi nhớ và tài khoản vào mục *Tùy chọn nâng cao*).
+
+---
+
 ## [0.2.104] - 2026-10-21
 
 ### English

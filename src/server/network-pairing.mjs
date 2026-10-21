@@ -33,7 +33,7 @@ export function discoverLanAddresses(port = 4173, protocol = "http") {
 }
 
 export function generateStrongAccessPassword() {
-  return randomBytes(18).toString("base64url");
+  return randomBytes(12).toString("base64url");
 }
 
 // ============================================================================
@@ -291,23 +291,27 @@ export function buildConnectionInfoPayload({
   port,
   protocol = "http",
   isLoopbackBind = true,
+  lanActive = false,
   productionMode = false,
   accessUsername = "opensybau",
+  accessPassword = "",
+  includePassword = false,
   hasAccessPassword = false,
   allowedHosts = [],
-  version = "0.2.101",
+  version = "0.2.105",
   connectors = {},
   activeWorktreesCount = 0,
   runningTasksCount = 0,
 } = {}) {
   const lanAddresses = discoverLanAddresses(port, protocol);
   const primaryLan = lanAddresses[0] || null;
-  const primaryUrl = !isLoopbackBind && primaryLan
+  const networkReady = !isLoopbackBind || Boolean(lanActive);
+  const primaryUrl = networkReady && primaryLan
     ? primaryLan.url
     : primaryLan
       ? primaryLan.url
       : `${protocol}://127.0.0.1:${port}`;
-  const suggestedPassword = generateStrongAccessPassword();
+  const suggestedPassword = accessPassword || generateStrongAccessPassword();
   const allowedHostList = lanAddresses.length
     ? lanAddresses.map((item) => item.hostPort).join(",")
     : `192.168.1.20:${port}`;
@@ -319,8 +323,9 @@ export function buildConnectionInfoPayload({
     user: accessUsername || "opensybau",
     lan: lanAddresses.map((item) => item.url),
   };
-  const pairingUri = `opensybau://connect?host=${encodeURIComponent(primaryUrl)}&user=${encodeURIComponent(accessUsername || "opensybau")}&name=${encodeURIComponent(pairingPayload.name)}`;
-  const qrSvg = generateQrCodeSvg(pairingUri, { size: 184, margin: 2 });
+  const passParam = includePassword && accessPassword ? `&pass=${encodeURIComponent(accessPassword)}` : "";
+  const pairingUri = `opensybau://connect?host=${encodeURIComponent(primaryUrl)}&user=${encodeURIComponent(accessUsername || "opensybau")}${passParam}&name=${encodeURIComponent(pairingPayload.name)}`;
+  const qrSvg = generateQrCodeSvg(pairingUri, { size: 176, margin: 2 });
 
   const powershellCommand = [
     `$env:WORKBENCH_MODE="production"`,
@@ -350,10 +355,13 @@ export function buildConnectionInfoPayload({
     host,
     port,
     protocol,
-    mode: isLoopbackBind ? "loopback" : "network",
+    mode: networkReady ? "network" : "loopback",
+    lanActive: Boolean(lanActive),
     productionMode: Boolean(productionMode),
-    authRequired: Boolean(hasAccessPassword),
+    authRequired: Boolean(hasAccessPassword || accessPassword),
+    hasPassword: Boolean(hasAccessPassword || accessPassword),
     accessUsername: accessUsername || "opensybau",
+    accessPassword: includePassword ? String(accessPassword || "") : "",
     allowedHosts: [...allowedHosts],
     lanAddresses,
     primaryUrl,

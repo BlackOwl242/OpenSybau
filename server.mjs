@@ -64,7 +64,7 @@ import {
   createTaskGithubPullRequest,
   listWorkspaceGithubIssues,
 } from "./src/server/github-cli.mjs";
-import { buildConnectionInfoPayload } from "./src/server/network-pairing.mjs";
+import { buildConnectionInfoPayload, discoverLanAddresses, generateStrongAccessPassword } from "./src/server/network-pairing.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const host = process.env.WORKBENCH_HOST || "127.0.0.1";
@@ -77,6 +77,7 @@ const memoryFile = resolve(runtime, "memory.json");
 const providerConfigFile = resolve(runtime, "providers.json");
 const providerSecretsFile = resolve(runtime, "provider-secrets.json");
 const cliPathsFile = resolve(runtime, "cli-paths.json");
+const connectionConfigFile = resolve(runtime, "connection-config.json");
 const clients = new Set();
 const pendingClientUpdates = new WeakSet();
 const running = new Map();
@@ -248,6 +249,14 @@ function loadJson(file, fallback) {
   try { return JSON.parse(readFileSync(file, "utf8")); } catch { return fallback; }
 }
 
+let connectionConfig = loadJson(connectionConfigFile, {});
+if (!connectionConfig || typeof connectionConfig !== "object" || Array.isArray(connectionConfig)) connectionConfig = {};
+function getEffectiveAccessUsername() {
+  return String(process.env.WORKBENCH_ACCESS_USERNAME || connectionConfig?.username || "opensybau").trim() || "opensybau";
+}
+function getEffectiveAccessPassword() {
+  return String(process.env.WORKBENCH_ACCESS_PASSWORD || connectionConfig?.password || "");
+}
 let state = loadJson(stateFile, initialState());
 state.settings ||= { maxConcurrent: 2 };
 state.settings.defaults ||= {};
@@ -567,19 +576,20 @@ function matchesCredential(input, expected) {
 function hasValidAccess(request) {
   // Development and the local operator of a LAN server should not need to enter
   // the shared password. Keep auth enabled for production loopback servers,
-  // which may be exposed through a reverse proxy.
+  // which may be exposed through a reverse proxy, when WORKBENCH_ACCESS_PASSWORD is set.
   const requestHost = String(request.headers.host || "").toLowerCase();
   const localHost = /^(?:localhost|127\.0\.0\.1|\[::1\]|::1)(?::\d{1,5})?$/.test(requestHost);
-  if (isLoopbackClient(request) && (process.env.WORKBENCH_MODE !== "production" || (!isLoopbackBind && localHost))) return true;
-  if (!accessPassword) return isLoopbackBind;
+  if (isLoopbackClient(request) && (!accessPassword || process.env.WORKBENCH_MODE !== "production" || (!isLoopbackBind && localHost))) return true;
+  const activePassword = getEffectiveAccessPassword();
+  if (!activePassword) return isLoopbackBind && isLoopbackClient(request);
   const match = String(request.headers.authorization || "").match(/^Basic\s+([A-Za-z0-9+/]+=*)$/i);
   if (!match) return false;
   let value;
   try { value = Buffer.from(match[1], "base64").toString("utf8"); } catch { return false; }
   const separator = value.indexOf(":");
   if (separator < 0) return false;
-  const userOk = matchesCredential(value.slice(0, separator), accessUsername);
-  const passOk = matchesCredential(value.slice(separator + 1), accessPassword);
+  const userOk = matchesCredential(value.slice(0, separator), getEffectiveAccessUsername());
+  const passOk = matchesCredential(value.slice(separator + 1), activePassword);
   return userOk && passOk;
 }
 function normalizeDirectoryInput(value) {
@@ -1951,26 +1961,80 @@ async function api(request, response, pathname) {
       ok: true,
       app: "OpenSybau",
       name: "OpenSybau",
-      version: "0.2.102",
-      mode: isLoopbackBind ? "loopback" : "network",
+      version: "0.2.105",
+      mode: (!isLoopbackBind || lanCompanionServers.length > 0) ? "network" : "loopback",
       ts: Date.now(),
     });
   }
   if (request.method === "GET" && pathname === "/api/connection-info") {
-    const boundPort = server?.address?.()?.port || port;
+    const boundPort = activeLanPort || server?.address?.()?.port || port;
     const connectors = await loadModels().catch(() => ({}));
     const activeWorktreesCount = state.tasks.filter((t) => t.isolated && !t.worktreeCleaned && !t.archived).length;
     const runningTasksCount = state.tasks.filter((t) => t.status === "running").length;
+    const activePass = getEffectiveAccessPassword();
     return json(response, 200, buildConnectionInfoPayload({
       host,
       port: boundPort,
       protocol: secureTransport ? "https" : "http",
       isLoopbackBind,
+      lanActive: lanCompanionServers.length > 0,
       productionMode,
-      accessUsername,
-      hasAccessPassword: Boolean(accessPassword),
+      accessUsername: getEffectiveAccessUsername(),
+      accessPassword: activePass,
+      includePassword: isLoopbackClient(request),
+      hasAccessPassword: Boolean(activePass),
       allowedHosts,
-      version: "0.2.102",
+      version: "0.2.105",
+      connectors,
+      activeWorktreesCount,
+      runningTasksCount,
+    }));
+  }
+  if (request.method === "POST" && pathname === "/api/connection-config") {
+    if (!isLoopbackClient(request) && !secureTransport) {
+      return json(response, 403, { error: "Chỉ có thể đổi mật khẩu kết nối trực tiếp trên máy tính chủ." });
+    }
+    const body = await readBody(request);
+    const generateNew = Boolean(body.generate);
+    const nextUsername = String(body.username ?? getEffectiveAccessUsername() ?? "opensybau").trim() || "opensybau";
+    if (nextUsername.includes(":") || nextUsername.length > 64) {
+      return json(response, 400, { error: "Tên tài khoản không hợp lệ." });
+    }
+    const nextPassword = generateNew
+      ? generateStrongAccessPassword()
+      : String(body.password ?? "").trim();
+    if (nextPassword && nextPassword.length < 6) {
+      return json(response, 400, { error: "Mật khẩu cần tối thiểu 6 ký tự." });
+    }
+    if (nextPassword.length > 256) {
+      return json(response, 400, { error: "Mật khẩu tối đa 256 ký tự." });
+    }
+    connectionConfig = {
+      username: nextUsername,
+      password: nextPassword,
+      remoteEnabled: Boolean(nextPassword),
+      updatedAt: new Date().toISOString(),
+    };
+    persistJsonFile(connectionConfigFile, connectionConfig);
+    await syncLanCompanionServers();
+    const boundPort = activeLanPort || server?.address?.()?.port || port;
+    const connectors = await loadModels().catch(() => ({}));
+    const activeWorktreesCount = state.tasks.filter((t) => t.isolated && !t.worktreeCleaned && !t.archived).length;
+    const runningTasksCount = state.tasks.filter((t) => t.status === "running").length;
+    const activePass = getEffectiveAccessPassword();
+    return json(response, 200, buildConnectionInfoPayload({
+      host,
+      port: boundPort,
+      protocol: secureTransport ? "https" : "http",
+      isLoopbackBind,
+      lanActive: lanCompanionServers.length > 0,
+      productionMode,
+      accessUsername: getEffectiveAccessUsername(),
+      accessPassword: activePass,
+      includePassword: true,
+      hasAccessPassword: Boolean(activePass),
+      allowedHosts,
+      version: "0.2.105",
       connectors,
       activeWorktreesCount,
       runningTasksCount,
@@ -3359,7 +3423,57 @@ async function api(request, response, pathname) {
 
 let vite;
 let server;
+let lanCompanionServers = [];
+let activeLanPort = 0;
 const productionMode = process.env.WORKBENCH_MODE === "production";
+
+async function closeLanCompanionServers() {
+  const prev = lanCompanionServers;
+  lanCompanionServers = [];
+  activeLanPort = 0;
+  await Promise.all(prev.map(async (srv) => {
+    try {
+      srv.closeIdleConnections?.();
+      srv.closeAllConnections?.();
+      await Promise.race([
+        new Promise((resolvePromise) => srv.close(() => resolvePromise())),
+        new Promise((resolvePromise) => setTimeout(resolvePromise, 500)),
+      ]);
+    } catch {}
+  }));
+}
+
+async function syncLanCompanionServers() {
+  await closeLanCompanionServers();
+  if (shuttingDown || !server?.listening || !isLoopbackBind) return;
+  const activePass = getEffectiveAccessPassword();
+  if (!activePass || activePass.length < 6 || connectionConfig?.remoteEnabled === false) return;
+  const mainPort = server.address()?.port || port || 4173;
+  const preferredPort = process.env.OPENSYBAU_DESKTOP === "1" ? 4173 : mainPort;
+  const lanList = discoverLanAddresses(preferredPort, secureTransport ? "https" : "http");
+  for (const item of lanList) {
+    for (const candidatePort of [...new Set([preferredPort, mainPort])]) {
+      if (!candidatePort) continue;
+      const srv = createWorkbenchServer();
+      try {
+        await new Promise((resolvePromise, reject) => {
+          srv.once("error", reject);
+          srv.listen(candidatePort, item.address, () => {
+            srv.off("error", reject);
+            resolvePromise();
+          });
+        });
+        const actualPort = srv.address()?.port || candidatePort;
+        if (!activeLanPort) activeLanPort = actualPort;
+        allowedHosts.add(`${item.address}:${actualPort}`.toLowerCase());
+        lanCompanionServers.push(srv);
+        break;
+      } catch {
+        try { srv.close(); } catch {}
+      }
+    }
+  }
+}
 const securityHeaders = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
@@ -3524,6 +3638,7 @@ export async function startWorkbench() {
   if (isLoopbackBind) {
     for (const name of [host, "localhost", "127.0.0.1", "[::1]"]) allowedHosts.add(`${name}:${boundPort}`.toLowerCase());
   }
+  await syncLanCompanionServers();
   console.log(`OpenSybau ready at ${secureTransport ? "https" : "http"}://${host}:${boundPort}`);
   console.log(`Frontend: ${productionMode ? "production build" : "Preact + Vite development mode (hot reload enabled)"}`);
   console.log(`Codex: ${codexExe}`);
@@ -3562,6 +3677,7 @@ export async function stopWorkbench() {
   if (publishTimer) { clearTimeout(publishTimer); publishTimer = null; pendingPublishType = null; }
   for (const client of clients) client.end();
   clients.clear();
+  await closeLanCompanionServers();
   await vite?.close();
   vite = undefined;
   if (server?.listening) {

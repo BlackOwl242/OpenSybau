@@ -1407,6 +1407,12 @@ html[data-color-scheme="light"] *::-webkit-scrollbar-thumb:hover {
   display: grid;
   gap: 12px;
 }
+.device-password-box {
+  padding-top: 12px;
+  border-top: 1px solid var(--wb-line);
+  display: grid;
+  gap: 6px;
+}
 .device-qr-panel {
   display: grid;
   grid-template-columns: 124px minmax(0, 1fr);
@@ -1440,12 +1446,19 @@ html[data-color-scheme="light"] *::-webkit-scrollbar-thumb:hover {
   display: grid;
   gap: 10px;
 }
+.device-qr-step-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wb-ink-strong);
+}
 .device-input-action-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   align-items: center;
 }
+.device-password-box .device-input-action-row,
+.device-qr-body .device-input-action-row,
 .device-quick-pair-box .device-input-action-row {
   grid-template-columns: minmax(0, 1fr) auto auto;
 }
@@ -1464,45 +1477,37 @@ html[data-color-scheme="light"] *::-webkit-scrollbar-thumb:hover {
   font-family: var(--mono);
   font-size: 11px;
 }
-.device-cmd-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  margin-top: 8px;
-  padding: 9px 11px;
-  border-radius: 8px;
-  border: 1px solid var(--wb-line);
-  background: var(--wb-field);
-}
-.device-cmd-row > div {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-.device-cmd-row strong {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--wb-ink-strong);
-}
-.device-cmd-preview {
-  display: block;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--wb-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .device-quick-pair-box {
   padding-top: 12px;
   border-top: 1px solid var(--wb-line);
+  display: grid;
+  gap: 6px;
 }
 .device-host-form {
   display: grid;
   gap: 10px;
   padding-top: 12px;
   border-top: 1px solid var(--wb-line);
+}
+.device-form-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wb-ink-strong);
+}
+.device-advanced-details {
+  border-top: 1px dashed var(--wb-line);
+  padding-top: 8px;
+  display: grid;
+  gap: 10px;
+}
+.device-advanced-details > summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--wb-muted);
+  user-select: none;
+}
+.device-advanced-details > summary:hover {
+  color: var(--wb-ink-strong);
 }
 .device-form-actions {
   display: flex;
@@ -1918,14 +1923,20 @@ html[data-color-scheme="light"] *::-webkit-scrollbar-thumb:hover {
     justify-content: center !important;
     text-align: center !important;
   }
+  .device-password-box .device-input-action-row,
+  .device-qr-body .device-input-action-row,
   .device-quick-pair-box .device-input-action-row {
     grid-template-columns: 1fr 1fr !important;
     gap: 8px !important;
   }
+  .device-password-box .device-input-action-row > input,
+  .device-qr-body .device-input-action-row > input,
   .device-quick-pair-box .device-input-action-row > input {
     grid-column: 1 / -1 !important;
     min-height: 38px !important;
   }
+  .device-password-box .device-input-action-row > .button,
+  .device-qr-body .device-input-action-row > .button,
   .device-quick-pair-box .device-input-action-row > .button {
     width: 100% !important;
   }

@@ -382,9 +382,17 @@ try {
   assert.equal(connInfoRes.body.ok, true);
   assert.equal(typeof connInfoRes.body.pairingUri, "string");
   assert.equal(connInfoRes.body.pairingUri.startsWith("opensybau://connect?"), true);
+  assert.equal(connInfoRes.body.pairingUri.includes("pass=test-password"), true);
   assert.equal(typeof connInfoRes.body.qrSvg, "string");
   assert.equal(connInfoRes.body.qrSvg.startsWith("<svg"), true);
   assert.equal(typeof connInfoRes.body.launchers?.powershell, "string");
+
+  const updatePassRes = await request("/api/connection-config", "POST", {
+    password: "test-password",
+  });
+  assert.equal(updatePassRes.status, 200);
+  assert.equal(updatePassRes.body.hasPassword, true);
+  assert.equal(updatePassRes.body.accessPassword, "test-password");
 
   const apkCorsRes = await fetch(`${serverUrl}/api/ping`, {
     method: "GET",

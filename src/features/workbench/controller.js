@@ -328,12 +328,10 @@ function roleEditor(roleId, overrides = {}) {
   const selection = normalizedRoleSelection(roleId, overrides);
   const connector = view.connectors?.[selection.provider];
   const model = connector?.models?.find((item) => item.id === selection.model);
-  const providerOptions = selection.candidates.map(([id, item]) => ({ value: id, label: `${item.name || id}${item.kind === "api" ? " · API" : " · CLI"}` }));
+  const providerOptions = selection.candidates.map(([id, item]) => ({ value: id, label: item.name || id }));
   const modelOptions = (connector?.models || []).map((item) => ({ value: item.id, label: item.name || item.id }));
   const effortOptions = (model?.efforts || []).map((item) => ({ value: item, label: formatEffortLabel(item) }));
-  const providerHint = connector?.kind === "api" ? roleId === "build" ? "API ngoài · trả nội dung tệp" : "API ngoài · gửi ngữ cảnh" : connector ? "Agent cục bộ" : "Chưa có provider sẵn sàng";
-  const stationBadge = role.stationBadge ? `<span class="role-station-badge">${esc(role.stationBadge)}</span>` : "";
-  return `<section class="agent-role-card" data-role-card="${roleId}"><header><div class="agent-role-card-title"><strong>${esc(role.label)}</strong>${stationBadge}</div><small>${selection.candidates.length ? esc(providerHint) : "Chưa có provider sẵn sàng"}</small></header>${rolePickerField(roleId, "provider", "Agent", "Agent & Model", providerOptions, selection.provider)}${rolePickerField(roleId, "model", "Model", "Agent & Model", modelOptions, selection.model, providerTitle(view.connectors, selection.provider))}${rolePickerField(roleId, "effort", "Mức suy nghĩ", "Mức suy nghĩ", effortOptions, selection.effort)}</section>`;
+  return `<section class="agent-role-card" data-role-card="${roleId}"><header><div class="agent-role-card-title"><strong>${esc(role.label)}</strong></div></header>${rolePickerField(roleId, "provider", "Agent", "Agent & Model", providerOptions, selection.provider)}${rolePickerField(roleId, "model", "Model", "Agent & Model", modelOptions, selection.model, providerTitle(view.connectors, selection.provider))}${rolePickerField(roleId, "effort", "Mức suy nghĩ", "Mức suy nghĩ", effortOptions, selection.effort)}</section>`;
 }
 function taskPresetRefValue(id, version) { return id && version ? `${id}@${version}` : ""; }
 function parseTaskPresetRef(value) {
@@ -1673,7 +1671,7 @@ function settingsPage() {
   const defaults = view.state?.settings?.defaults || {};
   const maxConcurrent = view.state?.settings?.maxConcurrent || 2;
   const canSaveRoles = workflowRoles.every((role) => providersForRole(view.connectors, role.id).length > 0);
-  const apiSetup = (view.providers || []).map((provider) => `<div class="provider-setup-row"><span class="provider-status-dot ${provider.available ? "ready" : "missing"}"></span><div><strong>${esc(provider.name)} <span class="provider-protocol">${provider.managedBy === "local" ? "OpenSybau" : "Từ biến môi trường"}</span></strong><small>${provider.available ? `${provider.models.length} model · đã cấu hình${provider.apiKeyConfigured ? " · API key đã lưu" : ""}` : esc(provider.error || "Chưa đủ cấu hình")} · ${esc(provider.baseUrl)}</small></div><div class="provider-row-actions">${provider.managedBy === "local" ? `<button class="button quiet small" type="button" data-action="provider-edit" data-id="${esc(provider.id)}">Sửa</button><button class="button quiet small" type="button" data-action="provider-delete" data-id="${esc(provider.id)}">Xóa</button>` : `<button class="button quiet small" type="button" data-action="provider-import-env" data-id="${esc(provider.id)}">Quản lý trong app</button>`}</div></div>`).join("");
+  const apiSetup = (view.providers || []).map((provider) => `<div class="provider-setup-row"><span class="provider-status-dot ${provider.available ? "ready" : "missing"}"></span><div><strong>${esc(provider.name)}</strong><small>${provider.available ? `${provider.models.length} model · sẵn sàng${provider.apiKeyConfigured ? " · đã lưu khóa API" : ""}` : esc(provider.error || "Chưa đủ cấu hình")} · ${esc(provider.baseUrl)}</small></div><div class="provider-row-actions">${provider.managedBy === "local" ? `<button class="button quiet small" type="button" data-action="provider-edit" data-id="${esc(provider.id)}">Sửa</button><button class="button quiet small" type="button" data-action="provider-delete" data-id="${esc(provider.id)}">Xóa</button>` : `<button class="button quiet small" type="button" data-action="provider-import-env" data-id="${esc(provider.id)}">Quản lý trong app</button>`}</div></div>`).join("");
   const cliSetup = cliProviderGuides.map((agent) => {
     const connector = view.connectors?.[agent.id];
     const status = cliConnectionStatus(connector);
@@ -1685,13 +1683,11 @@ function settingsPage() {
         ? cliRefreshButton()
         : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Mở terminal đăng nhập</button>`;
     const detail = status.tone === "ready"
-      ? `${connector.models.length} model${connector.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
+      ? `${status.label} · ${connector.models.length} model${connector.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
       : status.tone === "missing" ? connector?.error || agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
-    return `<article class="cli-guide-row"><span class="cli-guide-icon">${icon("square-terminal", 16)}</span><div><strong>${esc(agent.name)} <span class="cli-guide-status ${esc(status.tone)}">${esc(status.label)}</span></strong><small>${esc(detail)}</small></div><div class="cli-guide-actions">${action}</div></article>`;
+    return `<article class="cli-guide-row"><span class="provider-status-dot ${status.tone === "ready" ? "ready" : "missing"}"></span><div><strong>${esc(agent.name)}</strong><small>${esc(detail)}</small></div><div class="cli-guide-actions">${action}</div></article>`;
   }).join("");
   const noReadyConnector = !Object.values(view.connectors || {}).some((connector) => connector?.available && connector.capabilities?.plan);
-  const readyCliCount = cliProviderGuides.filter((agent) => cliConnectionStatus(view.connectors?.[agent.id]).tone === "ready").length;
-  const readyApiCount = (view.providers || []).filter((p) => p.available).length;
   const activeTheme = getThemeDefinition(view.theme);
   const themeGroupsHtml = THEME_GROUPS.map((group) => {
     const groupThemes = THEMES.filter((item) => item.group === group.id);
@@ -1710,7 +1706,6 @@ function settingsPage() {
         <div class="theme-gallery-meta">
           <div class="theme-gallery-title-row">
             <strong>${esc(theme.label)}</strong>
-            <span class="theme-gallery-badge">${esc(theme.badge)}</span>
           </div>
           <small>${esc(theme.description)}</small>
           <div class="theme-gallery-swatches">
@@ -1731,40 +1726,30 @@ function settingsPage() {
 
   const activeSection = view.settingsSection || "all";
   const showSection = (id) => activeSection === "all" || activeSection === id;
-  const activeRemoteHost = getActiveRemoteHost();
-  const deviceBadge = activeRemoteHost ? "Từ xa" : view.connectionInfo?.mode === "network" ? "LAN" : "127.0.0.1";
   const settingsNavItems = [
-    { id: "all", label: "Tất cả cài đặt", icon: "sliders-horizontal", meta: "" },
-    { id: "theme", label: "Giao diện & Chủ đề", icon: "sparkles", meta: activeTheme.label },
-    { id: "roles", label: "Phân vai AI", icon: "workflow", meta: "6 bước" },
-    { id: "cli", label: "Agent CLI", icon: "square-terminal", meta: `${readyCliCount}/${cliProviderGuides.length}` },
-    { id: "api", label: "Nguồn API & Local", icon: "plug-zap", meta: String(readyApiCount) },
-    { id: "devices", label: "Kết nối thiết bị", icon: "smartphone", meta: deviceBadge },
-    { id: "concurrency", label: "Tác vụ đồng thời", icon: "layers", meta: String(maxConcurrent) },
+    { id: "all", label: "Tất cả cài đặt", icon: "sliders-horizontal" },
+    { id: "theme", label: "Giao diện", icon: "sparkles" },
+    { id: "roles", label: "Chọn model AI", icon: "workflow" },
+    { id: "cli", label: "Công cụ CLI", icon: "square-terminal" },
+    { id: "api", label: "Kết nối API", icon: "plug-zap" },
+    { id: "devices", label: "Kết nối điện thoại", icon: "smartphone" },
+    { id: "concurrency", label: "Hiệu năng", icon: "layers" },
   ];
 
   return `<div class="page-head">
     <div>
-      <div class="eyebrow">HỆ THỐNG & NGUỒN AI</div>
       <h1>Cài đặt</h1>
-      <p>Định tuyến model mặc định cho từng vai trò điều phối, kết nối Agent CLI cục bộ, quản lý nguồn API và thiết bị từ xa.</p>
+      <p>Tùy chỉnh giao diện, chọn model AI mặc định và kết nối với điện thoại.</p>
     </div>
     <div class="page-head-actions">
       ${cliRefreshButton("Quét lại", { small: false })}
       <button class="button primary" type="button" data-action="provider-add">${icon("plus", 15)} Thêm nguồn AI</button>
     </div>
   </div>
-  <div class="quick-stats">
-    <div><small>Agent CLI sẵn sàng</small><strong>${readyCliCount}/${cliProviderGuides.length}</strong></div>
-    <div><small>Nguồn API / Local</small><strong>${readyApiCount}</strong></div>
-    <div><small>Chạy đồng thời</small><strong>${maxConcurrent}</strong></div>
-    <div class="stats-note">Khóa API và cấu hình điều phối chỉ lưu cục bộ trên máy này.</div>
-  </div>
   <div class="settings-workbench-layout">
     <nav class="settings-nav-sidebar" aria-label="Danh mục cài đặt">
       ${settingsNavItems.map((item) => `<button type="button" class="settings-nav-item ${activeSection === item.id ? "is-active" : ""}" data-action="settings-nav" data-section="${esc(item.id)}" aria-current="${activeSection === item.id ? "true" : "false"}">
         <span class="settings-nav-item-main">${icon(item.icon, 15)}<span>${esc(item.label)}</span></span>
-        ${item.meta ? `<small class="settings-nav-meta">${esc(item.meta)}</small>` : ""}
       </button>`).join("")}
     </nav>
     <form class="settings-form" data-modal data-form="settings">
@@ -1772,36 +1757,21 @@ function settingsPage() {
         <header>
           <div>
             <h2>Giao diện & Chủ đề màu</h2>
-            <p>Chuyển đổi tức thì giữa chủ đề Tối nguyên bản, Đa sắc Antigravity và Sáng thanh lịch. Bạn cũng có thể đổi nhanh trên thanh tiêu đề góc phải trên cùng.</p>
+            <p>Chuyển đổi tức thì giữa chủ đề Tối, Đa sắc và Sáng.</p>
           </div>
-          <span class="pill status-done"><i></i>${esc(activeTheme.label)}</span>
         </header>
         <div class="theme-gallery-groups">${themeGroupsHtml}</div>
       </section>
-      <section class="settings-card" id="settings-roles" ${showSection("roles") ? "" : "hidden"}><header><div><h2>Phân vai cho AI (Chọn model cho từng bước làm việc)</h2><p>Khi giao việc có viết code, quy trình gồm 6 bước nhưng chỉ có <strong>3 bước cần AI suy nghĩ</strong> (Bước 1 Lên kế hoạch, Bước 3 Viết code, Bước 4 Kiểm tra code). Còn Bước 2, 5, 6 là bước bạn duyệt hoặc máy tự chạy lệnh nên <strong>3 ô chọn model bên dưới là hoàn toàn khớp và không hề mâu thuẫn</strong>.</p></div></header>
-          <div class="settings-station-map" aria-label="Sơ đồ 6 bước và 3 vai trò AI">
-            <div class="station-map-item is-ai"><strong>1. Lên kế hoạch</strong><small>AI Lên kế hoạch</small></div>
-            <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
-            <div class="station-map-item is-gate"><strong>2. Duyệt kế hoạch</strong><small>Bạn duyệt / Tự động</small></div>
-            <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
-            <div class="station-map-item is-ai"><strong>3. Viết code</strong><small>AI Viết code</small></div>
-            <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
-            <div class="station-map-item is-ai"><strong>4. Kiểm tra code</strong><small>AI Kiểm tra code</small></div>
-            <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
-            <div class="station-map-item is-gate"><strong>5. Chạy thử</strong><small>Máy chạy lệnh test</small></div>
-            <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
-            <div class="station-map-item is-gate"><strong>6. Gộp vào dự án</strong><small>Lưu thay đổi Git</small></div>
-          </div>
-          ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và đánh giá.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API / model local</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI agent</button></div></div>` : ""}
+      <section class="settings-card" id="settings-roles" ${showSection("roles") ? "" : "hidden"}><header><div><h2>Chọn model AI cho từng việc</h2><p>Chọn AI mặc định phụ trách từng khâu: Lên kế hoạch, Viết code và Kiểm tra code.</p></div></header>
+          ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI</button></div></div>` : ""}
         <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
-        <div class="form-note">Khi chọn model API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới dịch vụ đó. Model CLI chạy cục bộ theo quyền của CLI.</div>
-        ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Model vẫn chọn theo từng task; hãy khởi động lại server để bật lưu model mặc định và gắn skill.</div>`}
-        <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu định tuyến mặc định</button></footer>
+        ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Hãy khởi động lại để lưu model mặc định.</div>`}
+        <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu model mặc định</button></footer>
       </section>
-      <section class="settings-card cli-setup-card" id="cli-setup" ${showSection("cli") ? "" : "hidden"}><header><div><h2>Agent CLI</h2><p>OpenSybau tự dò Codex, Antigravity và Claude Code trên máy. Nếu CLI đã cài nhưng chưa đăng nhập, mở terminal đăng nhập ngay tại đây.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div><p class="form-note">Terminal được mở trên máy đang chạy OpenSybau. Hoàn tất OAuth hoặc đăng nhập ở đó rồi chọn Quét lại; CLI không cần khai báo API key riêng.</p></section>
-      <section class="settings-card provider-setup-card" id="settings-api" ${showSection("api") ? "" : "hidden"}><header><div><h2>Nguồn API và model local</h2><p>Kết nối OpenAI/ChatGPT API, Google Gemini API, Claude API, Ollama, LM Studio hoặc endpoint tương thích.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa có API hoặc model local</strong><p>Chọn cấu hình nhanh để nhập API key và model, hoặc kết nối Ollama/LM Studio. Bạn không cần API nếu dùng CLI.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm API hoặc model local</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div><details class="provider-env-help"><summary>Hướng dẫn kết nối cloud và model local</summary><p><strong>OpenAI / ChatGPT API:</strong> chọn cấu hình sẵn, nhập API key OpenAI rồi tải model. <strong>Google Gemini API:</strong> chọn Google Gemini, nhập key Google AI Studio rồi tải model. <strong>Claude API:</strong> chọn Claude API, nhập Anthropic key và model.</p><p><strong>Ollama:</strong> dùng endpoint <code>http://localhost:11434/v1</code> và ID từ <code>ollama list</code>. <strong>LM Studio:</strong> dùng endpoint <code>http://localhost:1234/v1</code>. Thường không cần API key.</p><p>API key được lưu trong thư mục dữ liệu riêng của OpenSybau, không hiển thị lại trong giao diện. Chỉ nhập key qua localhost hoặc HTTPS; provider API không có quyền chạy lệnh trong workspace.</p></details></section>
+      <section class="settings-card cli-setup-card" id="cli-setup" ${showSection("cli") ? "" : "hidden"}><header><div><h2>Công cụ CLI trên máy</h2><p>Tự động nhận diện Codex, Antigravity và Claude Code đã cài trên máy tính.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div></section>
+      <section class="settings-card provider-setup-card" id="settings-api" ${showSection("api") ? "" : "hidden"}><header><div><h2>Kết nối API & Model cục bộ</h2><p>Dùng thêm khóa API (OpenAI, Gemini, Claude) hoặc model chạy qua Ollama, LM Studio.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa thêm nguồn API nào</strong><p>Bấm Thêm nguồn nếu bạn muốn dùng API key riêng hoặc kết nối Ollama / LM Studio.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm nguồn API</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div></section>
       ${renderDeviceConnectSettingsSection({ hidden: !showSection("devices") })}
-      <section class="settings-card concurrency-card" id="settings-concurrency" ${showSection("concurrency") ? "" : "hidden"}><header><div><h2>Tác vụ chạy đồng thời</h2><p>Giới hạn số task có thể chạy cùng lúc trên các workspace.</p></div></header>
+      <section class="settings-card concurrency-card" id="settings-concurrency" ${showSection("concurrency") ? "" : "hidden"}><header><div><h2>Số công việc chạy cùng lúc</h2><p>Giới hạn số công việc AI được phép chạy song song trên máy.</p></div></header>
         <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${maxConcurrent}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
       </section>
     </form>
@@ -3941,11 +3911,40 @@ async function handleWorkbenchClick(event) {
       render();
       return;
     }
+    if (action === "generate-connection-password") {
+      const info = await api("/api/connection-config", {
+        method: "POST",
+        body: JSON.stringify({ generate: true }),
+      });
+      view.connectionInfo = info;
+      view.connectionPasswordDraft = info.accessPassword || "";
+      render();
+      showToast("Đã tạo tự động và lưu mật khẩu kết nối mới!");
+      return;
+    }
+    if (action === "save-connection-password") {
+      const passInput = $("[data-connection-password-input]");
+      const password = String(passInput?.value ?? view.connectionPasswordDraft ?? "").trim();
+      if (!password || password.length < 6) {
+        showToast("Mật khẩu cần tối thiểu 6 ký tự.");
+        passInput?.focus();
+        return;
+      }
+      const info = await api("/api/connection-config", {
+        method: "POST",
+        body: JSON.stringify({ password }),
+      });
+      view.connectionInfo = info;
+      view.connectionPasswordDraft = info.accessPassword || password;
+      render();
+      showToast("Đã lưu mật khẩu và mở kết nối cho điện thoại!");
+      return;
+    }
     if (action === "copy-pairing-uri") {
       const uri = button.dataset.uri || $("[data-pairing-uri-input]")?.value || "";
       if (uri) {
         await navigator.clipboard?.writeText(uri);
-        showToast("Đã sao chép mã ghép nối thiết bị.");
+        showToast("Đã sao chép mã kết nối.");
       }
       return;
     }
@@ -3953,7 +3952,7 @@ async function handleWorkbenchClick(event) {
       const url = button.dataset.url || "";
       if (url) {
         await navigator.clipboard?.writeText(url);
-        showToast(`Đã sao chép địa chỉ LAN: ${url}`);
+        showToast(`Đã sao chép địa chỉ: ${url}`);
       }
       return;
     }
@@ -3975,18 +3974,38 @@ async function handleWorkbenchClick(event) {
       return;
     }
     if (action === "apply-quick-pair") {
-      const raw = $("[data-orca-quick-pair-input]")?.value || view.orcaConnectDraft?.quickPair || "";
+      let raw = $("[data-orca-quick-pair-input]")?.value || view.orcaConnectDraft?.quickPair || "";
+      if (!raw) {
+        raw = (await navigator.clipboard?.readText().catch(() => "")) || "";
+      }
       const parsed = parsePairingInput(raw);
-      view.orcaConnectDraft = {
+      const draft = {
         name: parsed.name || "",
         url: parsed.url || "",
         username: parsed.username || "opensybau",
         password: parsed.password || view.orcaConnectDraft?.password || "",
         quickPair: raw,
       };
-      view.orcaConnectProbeResult = await probeRemoteHost(view.orcaConnectDraft);
+      view.orcaConnectDraft = draft;
+      const probe = await probeRemoteHost(draft);
+      view.orcaConnectProbeResult = probe;
+      if (probe.ok) {
+        const saved = setActiveRemoteHost({
+          ...draft,
+          name: draft.name || probe.info?.hostname || draft.url,
+          hostname: probe.info?.hostname || "",
+          platform: probe.info?.platform || "",
+          latencyMs: probe.latencyMs,
+        });
+        view.connectionInfo = probe.info || view.connectionInfo;
+        view.streamConnected = true;
+        connectEventStream();
+        await refresh({ configuration: true });
+        showToast(`Đã kết nối tới ${saved.name} (${probe.latencyMs}ms)!`);
+        return;
+      }
       render();
-      showToast(`Đã nạp cấu hình máy chủ ${parsed.url}.`);
+      showToast(probe.error || `Đã nạp địa chỉ ${parsed.url}. Nhập mật khẩu để kết nối.`);
       return;
     }
     if (action === "test-orca-host-connection") {
@@ -5175,6 +5194,11 @@ document.addEventListener("input", (event) => {
     const tabId = stageFileEditor.dataset.stageFileEditor || view.activeStageTabId;
     const tab = (view.stageTabs || []).find((item) => item.id === tabId);
     if (tab) tab.editDraft = stageFileEditor.value;
+    return;
+  }
+  const connPassInput = event.target.closest("[data-connection-password-input]");
+  if (connPassInput) {
+    view.connectionPasswordDraft = connPassInput.value;
     return;
   }
   const input = event.target.closest("[data-skill-filter]");
