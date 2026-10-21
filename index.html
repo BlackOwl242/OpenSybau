@@ -56,19 +56,15 @@
         display: block;
         overflow: visible;
       }
-      .wb-boot-svg .wing-top {
-        animation: wb-split-wing-top 2.1s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      .wb-boot-svg .wireframe {
+        stroke: currentColor;
+        stroke-width: 2.2;
+        fill: none;
+        stroke-dasharray: 160;
+        animation: wb-wire-draw 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
       }
-      .wb-boot-svg .wing-bot {
-        animation: wb-split-wing-bot 2.1s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-      }
-      .wb-boot-svg .dot-tl {
-        transform-origin: 19.6px 19.8px;
-        animation: wb-split-dot-tl 2.1s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
-      }
-      .wb-boot-svg .dot-br {
-        transform-origin: 44.4px 44.2px;
-        animation: wb-split-dot-br 2.1s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+      .wb-boot-svg .solid-fill-rect {
+        animation: wb-clip-wave-fill 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
       }
       .wb-boot-copy {
         display: flex;
@@ -88,27 +84,15 @@
         max-width: 320px;
         line-height: 1.45;
       }
-      @keyframes wb-split-wing-top {
-        0%, 100% { transform: translate(0, 0); opacity: 1; }
-        26% { transform: translate(9.5px, -4.75px); opacity: 0.42; }
-        56%, 88% { transform: translate(0, 0); opacity: 1; }
+      @keyframes wb-wire-draw {
+        0% { stroke-dashoffset: 160; opacity: 0.35; }
+        38%, 85% { stroke-dashoffset: 0; opacity: 0.9; }
+        100% { stroke-dashoffset: -160; opacity: 0.35; }
       }
-      @keyframes wb-split-wing-bot {
-        0%, 100% { transform: translate(0, 0); opacity: 1; }
-        26% { transform: translate(-9.5px, 4.75px); opacity: 0.42; }
-        56%, 88% { transform: translate(0, 0); opacity: 1; }
-      }
-      @keyframes wb-split-dot-tl {
-        0%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
-        26% { transform: translate(-5px, -5px) scale(0.72); opacity: 0.5; }
-        50% { transform: translate(1.2px, 1.2px) scale(1.12); opacity: 1; }
-        70%, 88% { transform: translate(0, 0) scale(1); opacity: 1; }
-      }
-      @keyframes wb-split-dot-br {
-        0%, 100% { transform: translate(0, 0) scale(1); opacity: 1; }
-        26% { transform: translate(5px, 5px) scale(0.72); opacity: 0.5; }
-        50% { transform: translate(-1.2px, -1.2px) scale(1.12); opacity: 1; }
-        70%, 88% { transform: translate(0, 0) scale(1); opacity: 1; }
+      @keyframes wb-clip-wave-fill {
+        0%, 20% { transform: translate(-64px, 64px); }
+        55%, 82% { transform: translate(0px, 0px); }
+        100% { transform: translate(64px, -64px); }
       }
     </style>
   </head>
@@ -117,10 +101,21 @@
       <div class="boot-screen" role="status" aria-live="polite">
         <div class="wb-boot-logo-stage" aria-hidden="true">
           <svg class="wb-boot-svg" viewBox="0 0 64 64" fill="none">
-            <circle class="dot-tl" cx="19.6" cy="19.8" r="6.8" fill="currentColor" />
-            <circle class="dot-br" cx="44.4" cy="44.2" r="6.8" fill="currentColor" />
-            <path class="wing-top" d="M29.8 24.2C29.8 23.45 30.22 22.76 30.89 22.43L48.72 13.51C49.91 12.92 51.2 13.78 51.2 15.11V24.9C51.2 25.65 50.78 26.34 50.11 26.67L35.09 34.18C34.55 34.45 34.2 35 34.2 35.61L29.8 28.39V24.2Z" fill="currentColor" />
-            <path class="wing-bot" d="M29.8 28.39L34.2 35.61V39.8C34.2 40.55 33.78 41.24 33.11 41.57L15.28 50.49C14.09 51.08 12.8 50.22 12.8 48.89V39.1C12.8 38.35 13.22 37.66 13.89 37.33L28.91 29.82C29.45 29.55 29.8 29 29.8 28.39Z" fill="currentColor" />
+            <defs>
+              <clipPath id="wbBootLogoClip">
+                <circle cx="19.6" cy="19.8" r="6.8" />
+                <circle cx="44.4" cy="44.2" r="6.8" />
+                <path d="M29.8 24.2C29.8 23.45 30.22 22.76 30.89 22.43L48.72 13.51C49.91 12.92 51.2 13.78 51.2 15.11V24.9C51.2 25.65 50.78 26.34 50.11 26.67L35.09 34.18C34.55 34.45 34.2 35 34.2 35.61V39.8C34.2 40.55 33.78 41.24 33.11 41.57L15.28 50.49C14.09 51.08 12.8 50.22 12.8 48.89V39.1C12.8 38.35 13.22 37.66 13.89 37.33L28.91 29.82C29.45 29.55 29.8 29 29.8 28.39V24.2Z" />
+              </clipPath>
+            </defs>
+            <g class="wireframe">
+              <circle cx="19.6" cy="19.8" r="6.1" />
+              <circle cx="44.4" cy="44.2" r="6.1" />
+              <path d="M29.8 24.2C29.8 23.45 30.22 22.76 30.89 22.43L48.72 13.51C49.91 12.92 51.2 13.78 51.2 15.11V24.9C51.2 25.65 50.78 26.34 50.11 26.67L35.09 34.18C34.55 34.45 34.2 35 34.2 35.61V39.8C34.2 40.55 33.78 41.24 33.11 41.57L15.28 50.49C14.09 51.08 12.8 50.22 12.8 48.89V39.1C12.8 38.35 13.22 37.66 13.89 37.33L28.91 29.82C29.45 29.55 29.8 29 29.8 28.39V24.2Z" />
+            </g>
+            <g clip-path="url(#wbBootLogoClip)">
+              <rect class="solid-fill-rect" x="-10" y="-10" width="84" height="84" fill="currentColor" />
+            </g>
           </svg>
         </div>
         <div class="wb-boot-copy">

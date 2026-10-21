@@ -395,23 +395,23 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   display: block;
   overflow: visible;
 }
-.wb-mark-svg .dot-tl { transform-origin: 19.6px 19.8px; }
-.wb-mark-svg .dot-br { transform-origin: 44.4px 44.2px; }
-.wb-mark:hover .wb-mark-svg .wing-top,
-.wb-mark.is-busy .wb-mark-svg .wing-top {
-  animation: wb-split-wing-top 2.1s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+.wb-mark-svg .wireframe {
+  stroke: currentColor;
+  stroke-width: 2.2;
+  fill: none;
+  stroke-dasharray: 160;
+  opacity: 0;
 }
-.wb-mark:hover .wb-mark-svg .wing-bot,
-.wb-mark.is-busy .wb-mark-svg .wing-bot {
-  animation: wb-split-wing-bot 2.1s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+.wb-mark-svg .solid-fill-rect {
+  transform: translate(0px, 0px);
 }
-.wb-mark:hover .wb-mark-svg .dot-tl,
-.wb-mark.is-busy .wb-mark-svg .dot-tl {
-  animation: wb-split-dot-tl 2.1s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+.wb-mark:hover .wb-mark-svg .wireframe,
+.wb-mark.is-busy .wb-mark-svg .wireframe {
+  animation: wb-wire-draw 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
-.wb-mark:hover .wb-mark-svg .dot-br,
-.wb-mark.is-busy .wb-mark-svg .dot-br {
-  animation: wb-split-dot-br 2.1s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+.wb-mark:hover .wb-mark-svg .solid-fill-rect,
+.wb-mark.is-busy .wb-mark-svg .solid-fill-rect {
+  animation: wb-clip-wave-fill 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 /* Home composer worktree toggle chip */
