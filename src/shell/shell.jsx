@@ -225,7 +225,7 @@ export function AppShell({ snapshot, pageMarkup }) {
       <div class={`wb-workspace-split ${hasRightDock ? "has-right-dock" : ""}`}>
         <div class="wb-stage-column">
       <TopBar snapshot={snapshot} />
-          <StableHtml id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${(page === "chat" && snapshot.selected) || isViewingFileTab || chatSplit ? "is-task-detail" : ""} ${isViewingFileTab ? "is-orca-tab-stage" : ""} ${(page === "knowledge" && snapshot.state?.settings?.vaultPath) || page === "skills" || (page === "workspaces" && (snapshot.selected || snapshot.state?.workspaces?.length)) ? "is-knowledge-detail" : ""}`} html={pageMarkup} background={snapshot.backgroundUpdate} scope={`${page}:${snapshot.chatSplitWorkspaceId || snapshot.selected || ""}`} />
+          <StableHtml id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${(page === "chat" && snapshot.selected) || isViewingFileTab || chatSplit ? "is-task-detail" : ""} ${isViewingFileTab ? "is-orca-tab-stage" : ""} ${(page === "knowledge" && snapshot.state?.settings?.vaultPath) || page === "skills" ? "is-knowledge-detail" : ""}`} html={pageMarkup} background={snapshot.backgroundUpdate} scope={`${page}:${snapshot.chatSplitWorkspaceId || snapshot.selected || ""}`} />
         </div>
         {hasRightDock ? (
           <>

@@ -557,34 +557,71 @@ function workspacePage() {
   const workspaces = view.state.workspaces || [];
   if (!workspaces.length) {
     return `<div class="page-head"><div><div class="eyebrow">THƯ MỤC DỰ ÁN</div><h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div>
-    <section class="workspace-list"><div class="empty-state"><strong>Chưa có dự án</strong><p>Thêm đường dẫn repository hoặc thư mục làm việc trên máy.</p><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div></section>`;
+    <section class="workspace-list"><div class="empty-state"><div class="empty-symbol">${icon("folder-code", 18)}</div><strong>Chưa có dự án</strong><p>Thêm đường dẫn repository hoặc thư mục làm việc trên máy để bắt đầu điều phối AI và duyệt mã nguồn.</p><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div></section>`;
   }
   const activeWs = workspaces.find((item) => item.id === view.selected)
     || workspaces.find((item) => item.id === view.homeWorkspaceId)
     || workspaces[0];
-  if (activeWs && !view.workspaceOverviewMode) {
-    if (view.selected !== activeWs.id) {
-      view.selected = activeWs.id;
-      view.workspaceDir = "";
-      view.workspaceEntries = [];
-    }
+  if (activeWs) {
+    view.selected = activeWs.id;
     view.homeWorkspaceId = activeWs.id;
-    const targetKey = `${activeWs.id}:${view.workspaceDir || ""}`;
-    if (view.workspaceLoadedKey !== targetKey && view.workspaceLoadingId !== targetKey) {
-      view.workspaceLoadingId = targetKey;
-      void loadWorkspaceDir(activeWs.id, view.workspaceDir || "").finally(() => {
-        if (view.workspaceLoadingId === targetKey) view.workspaceLoadingId = "";
-      });
+    if (!view.workspaceFileIndex?.[activeWs.id]) {
+      void ensureWorkspaceFileIndex(activeWs.id).then(() => render());
     }
-    return projectDetailPage(activeWs);
   }
-  const status = (w) => w.runtime ? `${w.runtime.isGit ? `Git · ${w.runtime.branch || "nhánh detached"}` : "Thư mục thường"}${w.runtime.head ? " · Có commit" : w.runtime.isGit ? " · Chưa có commit" : ""}${w.runtime.dirty ? " · Có thay đổi chưa commit" : ""}` : "Sẽ kiểm tra khi chạy task";
-  const countTasks = (wId) => (view.state.tasks || []).filter((t) => t.workspaceId === wId && !t.archived).length;
-  return `<div class="page-head"><div><div class="eyebrow">THƯ MỤC DỰ ÁN</div><h1>Tất cả dự án (${workspaces.length})</h1><p>Chọn một dự án để mở không gian làm việc, duyệt mã nguồn hoặc khởi tạo phiên AI mới.</p></div><div class="page-head-actions">${activeWs ? `<button type="button" class="button quiet" data-action="open-workspace" data-id="${esc(activeWs.id)}">${icon("folder-open", 14)} Mở ${esc(activeWs.name)}</button>` : ""}<button type="button" class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div></div>
+  const allTasks = (view.state.tasks || []).filter((t) => !t.archived);
+  const gitCount = workspaces.filter((w) => w.runtime?.isGit).length;
+  const statusText = (w) => {
+    if (!w.runtime) return "Sẽ kiểm tra trạng thái khi chạy tác vụ";
+    if (!w.runtime.isGit) return "Thư mục cục bộ";
+    const commitPart = w.runtime.head ? "Đã có commit" : "Chưa có commit";
+    const treePart = w.runtime.dirty ? "Có thay đổi chưa commit" : "Working tree sạch";
+    return `${commitPart} · ${treePart}`;
+  };
+
+  return `<div class="page-head">
+    <div>
+      <div class="eyebrow">THƯ MỤC DỰ ÁN</div>
+      <h1>Dự án</h1>
+      <p>Quản lý thư mục mã nguồn cục bộ, chọn không gian làm việc đang hoạt động và cấu hình phạm vi cho AI.</p>
+    </div>
+    <div class="page-head-actions">
+      <button type="button" class="button primary" data-action="add-workspace">${icon("plus", 15)} <span>Thêm dự án</span></button>
+    </div>
+  </div>
+  <div class="quick-stats">
+    <div><small>Tổng dự án</small><strong>${workspaces.length}</strong></div>
+    <div><small>Git repository</small><strong>${gitCount}/${workspaces.length}</strong></div>
+    <div><small>Phiên làm việc</small><strong>${allTasks.length}</strong></div>
+    <div class="stats-note">Cây thư mục và mã nguồn của dự án đang chọn luôn hiển thị ở thanh công cụ bên phải.</div>
+  </div>
   <section class="workspace-list">${workspaces.map((w) => {
-    const isCurrent = w.id === (view.selected || view.homeWorkspaceId);
-    const taskTotal = countTasks(w.id);
-    return `<article class="workspace-card ${isCurrent ? "is-active-workspace" : ""}"><div class="workspace-card-icon">${icon("folder-code", 17)}</div><div class="workspace-card-main"><strong>${esc(w.name)} ${isCurrent ? `<span class="kb-tag-chip is-accent">Đang chọn</span>` : ""}</strong><code>${esc(w.path)}</code><small>${esc(status(w))} · ${taskTotal} phiên làm việc</small></div><button class="button primary small" data-action="open-workspace" data-id="${esc(w.id)}">Mở dự án ${icon("chevron-right", 14)}</button><button class="button quiet small" data-action="new-chat" data-workspace-id="${esc(w.id)}">${icon("square-pen", 13)} Chat mới</button><button class="icon-button" data-action="edit-project" data-id="${esc(w.id)}" title="Cấu hình dự án" aria-label="Cấu hình dự án">${icon("settings-2", 15)}</button><button class="icon-button" data-action="remove-workspace" data-id="${esc(w.id)}" title="Gỡ workspace" aria-label="Gỡ workspace">${icon("x", 16)}</button></article>`;
+    const isCurrent = w.id === activeWs?.id;
+    const wsTasks = allTasks.filter((t) => t.workspaceId === w.id);
+    const runningCount = wsTasks.filter((t) => ["running", "queued"].includes(t.status)).length;
+    const isGit = Boolean(w.runtime?.isGit);
+    const branchLabel = isGit ? (w.runtime.branch || "HEAD") : "Thư mục thường";
+    const extraFolders = (w.sourceFolders || []).filter((p) => p.toLowerCase() !== w.path.toLowerCase());
+    return `<article class="workspace-card ${isCurrent ? "is-active-workspace" : ""}">
+      <div class="workspace-card-icon">${icon("folder-code", 17)}</div>
+      <div class="workspace-card-main" data-action="open-workspace" data-id="${esc(w.id)}" role="button" tabindex="0" title="Chọn ${esc(w.name)} làm dự án đang làm việc">
+        <div class="workspace-card-title-row">
+          <strong data-localize-skip="true">${esc(w.name)}</strong>
+          ${isCurrent ? `<span class="workspace-meta-pill is-current">Đang chọn</span>` : ""}
+          <span class="workspace-meta-pill">${icon(isGit ? "git-branch" : "folder", 11)}<span data-localize-skip="true">${esc(branchLabel)}</span></span>
+          ${extraFolders.length ? `<span class="workspace-meta-pill">+${extraFolders.length} thư mục phụ</span>` : ""}
+        </div>
+        <code data-localize-skip="true">${esc(w.path)}</code>
+        <small>${esc(statusText(w))} · ${wsTasks.length} phiên làm việc${runningCount ? ` (${runningCount} đang chạy)` : ""}</small>
+      </div>
+      <div class="workspace-card-actions">
+        ${!isCurrent ? `<button type="button" class="button quiet small" data-action="open-workspace" data-id="${esc(w.id)}">Chọn dự án</button>` : ""}
+        <button type="button" class="button ${isCurrent ? "primary" : "quiet"} small" data-action="new-chat" data-workspace-id="${esc(w.id)}">${icon("square-pen", 13)} <span>Chat mới</span></button>
+        <button type="button" class="icon-button" data-action="open-project-folder" data-id="${esc(w.id)}" title="Mở thư mục trong Explorer" aria-label="Mở thư mục trong Explorer">${icon("folder-open", 15)}</button>
+        <button type="button" class="icon-button" data-action="edit-project" data-id="${esc(w.id)}" title="Cấu hình dự án" aria-label="Cấu hình dự án">${icon("settings-2", 15)}</button>
+        <button type="button" class="icon-button" data-action="remove-workspace" data-id="${esc(w.id)}" title="Gỡ dự án" aria-label="Gỡ dự án">${icon("x", 16)}</button>
+      </div>
+    </article>`;
   }).join("")}</section>
   <aside class="info-panel"><strong>Task chạy ở đâu?</strong><p>Chế độ thường sửa trực tiếp thư mục này và chỉ cho một task chạy trong cùng workspace tại một thời điểm. Chế độ Git worktree tạo nhánh riêng; cần repository đã có commit. Task trên các workspace khác nhau có thể chạy song song.</p></aside>`;
 }
@@ -637,20 +674,14 @@ async function loadWorkspaceDir(workspaceId, path = "") {
   const workspace = view.state.workspaces.find((item) => item.id === workspaceId);
   if (!workspace) return;
   view.page = "workspaces";
-  view.workspaceOverviewMode = false;
   view.selected = workspaceId;
   view.homeWorkspaceId = workspaceId;
   view.activeStageTabId = "chat";
   view.workspaceDir = path;
   view.filePreview = null;
-  view.workspaceEntries = [];
+  view.collapsedDockFolders = null;
   render();
-  const data = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/files?path=${encodeURIComponent(path)}`);
-  if (view.selected !== workspaceId || view.workspaceDir !== path) return;
-  if (view.workspaceDir !== data.path) replaceBrowserRoute = true;
-  view.workspaceDir = data.path;
-  view.workspaceEntries = data.entries || [];
-  view.workspaceLoadedKey = `${workspaceId}:${data.path || ""}`;
+  await ensureWorkspaceFileIndex(workspaceId);
   render();
 }
 async function loadWorkspacePreview(workspaceId, path) {
@@ -904,180 +935,6 @@ function orcaRightDockMarkup() {
     vaultNoteOptionsMenu,
     render,
   });
-}
-
-function projectDetailPage(workspace) {
-  const activeFile = view.filePreview || null;
-  const workspaces = view.state.workspaces || [];
-  const allTasks = view.state.tasks || [];
-  const wsTasks = allTasks
-    .filter((t) => t.workspaceId === workspace.id && !t.archived)
-    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
-  const runningCount = wsTasks.filter((t) => ["running", "queued"].includes(t.status)).length;
-  const isGit = Boolean(workspace.runtime?.isGit);
-  const gitBranch = isGit ? (workspace.runtime.branch || "HEAD") : "Chưa khởi tạo Git";
-  const gitStateLabel = isGit
-    ? (workspace.runtime?.dirty ? "Có thay đổi chưa commit" : "Working tree sạch")
-    : "Thư mục cục bộ";
-  const indexedFiles = view.workspaceFileIndex?.[workspace.id];
-  if (!indexedFiles) {
-    void ensureWorkspaceFileIndex(workspace.id).then(() => render());
-  }
-  const indexedCount = Array.isArray(indexedFiles) ? indexedFiles.length : (view.workspaceEntries || []).length;
-  const extraFolders = (workspace.sourceFolders || []).filter((p) => p.toLowerCase() !== workspace.path.toLowerCase());
-
-  const switcherHtml = `<nav class="project-hub-bar" aria-label="Chuyển đổi dự án">
-    <div class="project-hub-switcher" role="tablist">
-      ${workspaces.map((w) => {
-        const isActive = w.id === workspace.id;
-        const count = allTasks.filter((t) => t.workspaceId === w.id && !t.archived).length;
-        return `<button type="button" role="tab" aria-selected="${isActive}" class="project-hub-pill ${isActive ? "is-active" : ""}" data-action="open-workspace" data-id="${esc(w.id)}" title="${esc(w.path)}">
-          ${icon("folder-code", 14)}
-          <span class="project-hub-pill-name" data-localize-skip="true">${esc(w.name)}</span>
-          <small class="project-hub-pill-count">${count}</small>
-        </button>`;
-      }).join("")}
-    </div>
-    <div class="project-hub-bar-actions">
-      <button type="button" class="button quiet small" data-action="toggle-workspace-overview" title="Xem danh sách toàn bộ dự án">${icon("list", 13)}<span>Tất cả dự án (${workspaces.length})</span></button>
-      <button type="button" class="button primary small" data-action="add-workspace">${icon("plus", 13)}<span>Thêm dự án</span></button>
-    </div>
-  </nav>`;
-
-  const centerBodyHtml = activeFile ? `<div class="kb-doc-scroll">
-    <div class="kb-doc-container project-hub-container">
-      ${switcherHtml}
-      <div class="kb-doc-context-bar">
-        <span class="kb-tag-chip">${esc(activeFile.path)}</span>
-        <span class="kb-tag-chip">${formatNumber(activeFile.size)} B · ${fmtDate(activeFile.modifiedAt)}</span>
-        <button type="button" class="kb-tag-chip" data-action="close-workspace-preview">Đóng xem tệp</button>
-      </div>
-      ${[".md", ".mdx", ".markdown"].includes(activeFile.extension)
-        ? `<article class="markdown-preview kb-markdown-doc">${renderMarkdown(activeFile.content)}</article>`
-        : `<pre class="code-preview"><code>${esc(activeFile.content)}</code></pre>`}
-    </div>
-  </div>` : `<div class="kb-doc-scroll">
-    <div class="kb-doc-container project-hub-container">
-      ${switcherHtml}
-      <section class="minimal-stage-hero project-hub-hero">
-        <div class="minimal-stage-title">
-          <span class="minimal-stage-icon">${icon("folder-code", 22)}</span>
-          <div>
-            <div class="project-hub-title-row">
-              <h1 data-localize-skip="true">${esc(workspace.name)}</h1>
-              <span class="project-hub-badge ${isGit ? "is-git" : ""}">${icon("git-branch", 12)} <span data-localize-skip="true">${esc(gitBranch)}</span> · ${esc(gitStateLabel)}</span>
-            </div>
-            <p class="project-hub-path" data-localize-skip="true">${esc(workspace.path)}</p>
-            <div class="project-hub-badges">
-              <span class="project-hub-stat">${icon("files", 12)} <strong>${formatNumber(indexedCount)}</strong> tệp mã nguồn</span>
-              <span class="project-hub-stat">${icon("message-circle", 12)} <strong>${wsTasks.length}</strong> phiên làm việc${runningCount ? ` (${runningCount} đang chạy)` : ""}</span>
-              ${extraFolders.length ? `<span class="project-hub-stat">${icon("folder-plus", 12)} +${extraFolders.length} thư mục nguồn phụ</span>` : ""}
-            </div>
-          </div>
-        </div>
-        <div class="minimal-stage-actions">
-          <button type="button" class="button primary small" data-action="new-chat" data-workspace-id="${esc(workspace.id)}">${icon("square-pen", 13)}<span>Chat mới</span></button>
-          <button type="button" class="button quiet small" data-action="project-quick-mode" data-workspace-id="${esc(workspace.id)}" data-mode="code">${icon("workflow", 13)}<span>Giao việc 6 bước</span></button>
-          <button type="button" class="button quiet small" data-action="open-project-folder" data-id="${esc(workspace.id)}">${icon("folder-open", 13)}<span>Mở Explorer</span></button>
-          <button type="button" class="button quiet small" data-action="open-github-issues" data-workspace-id="${esc(workspace.id)}">${icon("git-branch", 13)}<span>GitHub</span></button>
-          <button type="button" class="button quiet small" data-action="edit-project" data-id="${esc(workspace.id)}">${icon("settings-2", 13)}<span>Cấu hình</span></button>
-        </div>
-      </section>
-
-      <div class="project-hub-grid">
-        <section class="project-hub-card project-explorer-card file-browser" aria-label="Trình duyệt tệp dự án">
-          <header class="project-hub-card-head">
-            <div>
-              <strong>Mã nguồn & Cấu trúc thư mục</strong>
-              <small>Bấm vào thư mục để mở, bấm vào tệp để đọc hoặc sửa trực tiếp trên thanh Tab</small>
-            </div>
-            <div class="project-hub-card-tools">
-              ${view.workspaceDir ? `<button type="button" class="button quiet small" data-action="workspace-up">${icon("arrow-left", 12)}<span>Lên một cấp</span></button>` : ""}
-              <button type="button" class="icon-button" data-action="refresh-project-files" title="Làm mới danh sách tệp" aria-label="Làm mới danh sách tệp">${icon("refresh-cw", 14)}</button>
-            </div>
-          </header>
-          <nav class="path-breadcrumbs project-hub-breadcrumbs" aria-label="Đường dẫn thư mục">
-            ${breadcrumbButtons(view.workspaceDir, "workspace-dir")}
-          </nav>
-          <label class="file-search-box project-hub-file-search">
-            ${icon("search", 14)}
-            <input data-file-filter="workspace" placeholder="Lọc nhanh tệp hoặc thư mục trong dự án…" autocomplete="off" spellcheck="false" aria-label="Lọc nhanh tệp trong dự án">
-          </label>
-          <ul class="file-list project-hub-file-list">
-            ${localFileRows(view.workspaceEntries, "workspace-file-action")}
-          </ul>
-        </section>
-
-        <div class="project-hub-side">
-          <section class="project-hub-card" aria-label="Khởi tạo nhanh trong dự án">
-            <header class="project-hub-card-head">
-              <div>
-                <strong>Khởi tạo nhanh cho dự án này</strong>
-                <small>Chọn chế độ điều phối phù hợp với công việc</small>
-              </div>
-            </header>
-            <div class="project-quickstart-list">
-              <button type="button" class="project-quickstart-btn" data-action="project-quick-mode" data-workspace-id="${esc(workspace.id)}" data-mode="chat">
-                <span class="project-quickstart-icon">${icon("message-circle", 16)}</span>
-                <span class="project-quickstart-copy">
-                  <strong>Trò chuyện & Hỏi đáp mã nguồn</strong>
-                  <small>Hỏi đáp trực tiếp, giải thích kiến trúc hoặc sửa nhanh với @mention tệp</small>
-                </span>
-                ${icon("chevron-right", 14)}
-              </button>
-              <button type="button" class="project-quickstart-btn" data-action="project-quick-mode" data-workspace-id="${esc(workspace.id)}" data-mode="plan">
-                <span class="project-quickstart-icon">${icon("book-open-text", 16)}</span>
-                <span class="project-quickstart-copy">
-                  <strong>Lập kế hoạch kiến trúc (Plan)</strong>
-                  <small>Phân tích yêu cầu, khảo sát mã nguồn và xuất bản thiết kế kỹ thuật</small>
-                </span>
-                ${icon("chevron-right", 14)}
-              </button>
-              <button type="button" class="project-quickstart-btn" data-action="project-quick-mode" data-workspace-id="${esc(workspace.id)}" data-mode="code">
-                <span class="project-quickstart-icon">${icon("workflow", 16)}</span>
-                <span class="project-quickstart-copy">
-                  <strong>Giao việc 6 bước (Plan · Code · Review · QA)</strong>
-                  <small>Phối hợp 3 vai trò AI tự động viết code, kiểm tra chéo và chạy test</small>
-                </span>
-                ${icon("chevron-right", 14)}
-              </button>
-              <button type="button" class="project-quickstart-btn" data-action="project-quick-mode" data-workspace-id="${esc(workspace.id)}" data-mode="arena">
-                <span class="project-quickstart-icon">${icon("git-branch", 16)}</span>
-                <span class="project-quickstart-copy">
-                  <strong>Đa luồng Arena (Git Worktree song song)</strong>
-                  <small>Chạy nhiều Agent cùng lúc trên các nhánh cô lập và chọn bản tốt nhất</small>
-                </span>
-                ${icon("chevron-right", 14)}
-              </button>
-            </div>
-          </section>
-
-          <section class="project-hub-card" aria-label="Phiên làm việc trong dự án">
-            <header class="project-hub-card-head">
-              <div>
-                <strong>Phiên làm việc trong dự án (${wsTasks.length})</strong>
-                <small>Lịch sử chat và tác vụ gắn với ${esc(workspace.name)}</small>
-              </div>
-              <button type="button" class="button quiet small" data-action="new-chat" data-workspace-id="${esc(workspace.id)}">${icon("plus", 12)}<span>Mới</span></button>
-            </header>
-            ${wsTasks.length ? `<div class="minimal-list project-hub-task-list">
-              ${wsTasks.slice(0, 12).map((t) => `<button type="button" class="minimal-list-row" data-task="${esc(t.id)}">
-                <span class="wb-task-dot is-${t.status || "done"}"></span>
-                <strong data-localize-skip="true">${esc(t.title)}</strong>
-                <small>${esc(statuses[t.status] || t.status)} · ${fmtDate(t.updatedAt)}</small>
-              </button>`).join("")}
-            </div>` : `<div class="project-hub-empty-sessions">
-              <p>Dự án <strong>${esc(workspace.name)}</strong> chưa có phiên làm việc nào. Chọn một chế độ khởi tạo ở trên hoặc bấm vào tệp bên trái để đọc/sửa mã nguồn ngay.</p>
-            </div>`}
-          </section>
-        </div>
-      </div>
-    </div>
-  </div>`;
-
-  return `<section class="minimal-center-stage" aria-label="Không gian Dự án">
-    ${centerBodyHtml}
-  </section>`;
 }
 
 function knowledgePage() {

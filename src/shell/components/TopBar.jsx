@@ -43,7 +43,7 @@ export function TopBar({ snapshot }) {
       ? snapshot.state?.workspaces?.find((item) => item.id === snapshot.selected)
       : snapshot.state?.workspaces?.find((item) => item.id === snapshot.homeWorkspaceId) || snapshot.state?.workspaces?.[0] || null;
 
-  const useOrcaTabs = page === "chat" || page === "workspaces";
+  const useOrcaTabs = page === "chat" || (page === "workspaces" && stageTabs.length > 0 && (activeStageTabId !== "chat" || stageSplit));
 
   if (useOrcaTabs) {
     const primaryTitle = task

@@ -965,6 +965,15 @@ const english = {
   "Cục bộ · 127.0.0.1": "Local · 127.0.0.1",
   "Mạng LAN đang mở": "LAN Active",
   "Đã làm mới thông tin kết nối thiết bị.": "Refreshed device connection info.",
+  "Tổng dự án": "Total projects",
+  "Git repository": "Git repositories",
+  "Phiên làm việc": "Sessions",
+  "Chọn dự án": "Select project",
+  "Mở thư mục trong Explorer": "Open folder in Explorer",
+  "Quản lý thư mục mã nguồn cục bộ, chọn không gian làm việc đang hoạt động và cấu hình phạm vi cho AI.": "Manage local source folders, select the active workspace, and configure project scope for AI.",
+  "Cây thư mục và mã nguồn của dự án đang chọn luôn hiển thị ở thanh công cụ bên phải.": "The file tree and source files of the selected project are always available in the right sidebar.",
+  "Đã có commit": "Has commits",
+  "Sẽ kiểm tra trạng thái khi chạy tác vụ": "Status will be checked when a task runs",
 };
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));

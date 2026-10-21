@@ -8,19 +8,25 @@ All notable changes to **OpenSybau** are documented in this file.
 ## [0.2.103] - 2026-10-21
 
 ### English
+- **Unified Projects View & Theme-Native Surfaces (`src/features/workbench/controller.js`, `src/shell/shell.jsx`, `src/shell/components/TopBar.jsx`, `src/styles/modules/07-themes-mission-control.css`)**:
+  - Replace the split `workspaceOverviewMode` / `projectDetailPage` layout and top project switcher bar with a single, clean **Projects (`workspacePage`)** management view featuring `.quick-stats` telemetry (`Total projects`, `Git repositories`, `Sessions`) and streamlined `.workspace-card` rows that sync directly with the Right Dock file tree.
+  - Fix `.wb-page-content` padding and `TopBar` breadcrumb rendering on the Projects page, and replace all hardcoded accent colors with theme-native CSS tokens (`var(--wb-raised)`, `var(--wb-field)`, `var(--wb-line)`, `var(--wb-border-strong)`, `var(--wb-ink-strong)`).
 - **Antigravity-Style Settings Layout & Native Device Connect Integration (`src/features/workbench/controller.js`, `src/features/workbench/device-connect.js`, `src/shell/shell.jsx`, `src/styles/modules/07-themes-mission-control.css`)**:
   - Remove the top window-chrome Device Connect pill and modal overlay; integrate **Device Connect & Remote Workstations (`#settings-devices`)** directly into **Settings (`settingsPage`)** with a 2-column category navigation sidebar (`All settings`, `Appearance & Themes`, `AI Roles`, `Agent CLI`, `API & Local Models`, `Device Connect`, `Concurrency`).
   - Redesign the Device Connect card to use native OpenSybau surfaces (`.settings-card`, `.cli-guide-row`, `.provider-setup-row`, `.provider-env-help`, `.modal-grid-2`, `.pill`) for visual consistency across all 13 themes.
-- **Animated Startup Logo Splash & Android APK Cold-Start Fix (`index.html`, `src/shell/mount.jsx`, `android/app/src/main/java/com/opensybau/mobile/MainActivity.java`, `src/shared/state.js`)**:
-  - Add an animated Bauhaus Constructivist OpenSybau logo loading screen (`boot-screen` and `.wb-boot-loader`) for Desktop, Web, and Android startup.
+- **Isometric Stroke & Liquid Fill SVG Logo Animation & Android APK Cold-Start Fix (`index.html`, `src/shell/mount.jsx`, `src/shell/components/NavRail.jsx`, `src/styles/modules/01-base-surfaces.css`, `android/app/src/main/java/com/opensybau/mobile/MainActivity.java`, `src/shared/state.js`)**:
+  - Add the internal SVG **Isometric Stroke & Liquid Fill** animation (`wb-wire-draw` wireframe trace + `wb-clip-wave-fill` diagonal liquid fill inside `<clipPath>`) to the startup screens (`boot-screen`, `.wb-boot-loader`) and navigation rail mark (`.wb-mark`).
   - Fix `WebViewAssetLoader` path rewriting in `MainActivity.java` (`!path.startsWith("/assets/public/")`) so Vite `/assets/*.js` and `/assets/*.css` bundles load reliably inside the Android APK, and short-circuit unconfigured `/api/*` requests on `appassets.androidplatform.net` to prevent cold-start network hangs.
 
 ### Tiếng Việt
+- **Thiết kế lại Trang Dự án Đồng nhất & Chuẩn hóa Màu sắc theo Theme (`src/features/workbench/controller.js`, `src/shell/shell.jsx`, `src/shell/components/TopBar.jsx`, `src/styles/modules/07-themes-mission-control.css`)**:
+  - Gỡ bỏ cơ chế chuyển đổi 2 màn hình (`workspaceOverviewMode` / `projectDetailPage`), thanh chọn dự án rối mắt phía trên và các khối trùng lặp với thanh công cụ bên phải; hợp nhất thành một trang **Dự án (`workspacePage`)** tinh gọn, đồng bộ thanh chỉ số `.quick-stats` (`Tổng dự án`, `Git repository`, `Phiên làm việc`) và danh sách `.workspace-card` kết nối trực tiếp với Cây thư mục bên phải.
+  - Sửa lỗi mất khoảng đệm (`.is-knowledge-detail`) và thanh tiêu đề trên trang Dự án; loại bỏ hoàn toàn các mã màu cứng lòe loẹt, chuyển sang dùng 100% biến token của chủ đề hiện hành (`var(--wb-raised)`, `var(--wb-field)`, `var(--wb-line)`, `var(--wb-border-strong)`, `var(--wb-ink-strong)`).
 - **Bố cục Cài đặt 2 cột kiểu Antigravity & Tích hợp Kết nối thiết bị nguyên bản (`src/features/workbench/controller.js`, `src/features/workbench/device-connect.js`, `src/shell/shell.jsx`, `src/styles/modules/07-themes-mission-control.css`)**:
   - Gỡ bỏ nút trên thanh tiêu đề cửa sổ và hộp thoại modal; tích hợp mục **Kết nối thiết bị & Máy trạm từ xa (`#settings-devices`)** trực tiếp vào trang **Cài đặt** kèm thanh điều hướng danh mục bên trái (`Tất cả cài đặt`, `Giao diện & Chủ đề`, `Phân vai AI`, `Agent CLI`, `Nguồn API & Local`, `Kết nối thiết bị`, `Tác vụ đồng thời`).
   - Thiết kế lại toàn bộ khu vực Kết nối thiết bị theo đúng chuẩn thẻ `.settings-card`, `.cli-guide-row`, `.provider-setup-row` và `.provider-env-help` đồng bộ 100% với hệ thống.
-- **Hiệu ứng Logo Khởi động & Sửa lỗi treo khi mở Android APK (`index.html`, `src/shell/mount.jsx`, `android/app/src/main/java/com/opensybau/mobile/MainActivity.java`, `src/shared/state.js`)**:
-  - Bổ sung màn hình khởi động kèm hiệu ứng chuyển động Logo OpenSybau (`boot-screen` và `.wb-boot-loader`) cho cả máy tính, trình duyệt và điện thoại Android.
+- **Hiệu ứng Logo SVG Isometric Stroke & Liquid Fill & Sửa lỗi treo khi mở Android APK (`index.html`, `src/shell/mount.jsx`, `src/shell/components/NavRail.jsx`, `src/styles/modules/01-base-surfaces.css`, `android/app/src/main/java/com/opensybau/mobile/MainActivity.java`, `src/shared/state.js`)**:
+  - Áp dụng hiệu ứng chuyển động nội tại **Isometric Stroke & Liquid Fill** (vẽ nét viền kỹ thuật `wb-wire-draw` kết hợp quét sóng mực đặc xuyên chéo `wb-clip-wave-fill` bên trong `<clipPath>`) cho màn hình khởi động (`boot-screen`, `.wb-boot-loader`) và biểu tượng thanh điều hướng (`.wb-mark`).
   - Sửa lỗi định tuyến tài nguyên trong `MainActivity.java` (`!path.startsWith("/assets/public/")`) giúp WebView tải đầy đủ gói `/assets/*.js` và `/assets/*.css` của Vite, đồng thời chuyển thẳng tới mục **Cài đặt → Kết nối thiết bị** khi điện thoại chưa ghép nối máy chủ mà không bị treo chờ mạng.
 
 ---
