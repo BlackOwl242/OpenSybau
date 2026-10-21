@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#1b1c1d" />
+    <meta name="theme-color" content="#121316" />
     <meta name="color-scheme" content="dark" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -15,9 +15,152 @@
     <link rel="icon" type="image/svg+xml" href="/opensybau.svg" />
     <link rel="alternate icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <style>
+      html, body, #root {
+        margin: 0;
+        height: 100%;
+        background: #121316;
+        color: #e4e4e7;
+        font-family: "Nunito Sans Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+      }
+      .boot-screen,
+      .wb-boot-loader {
+        height: 100%;
+        min-height: 320px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        padding: 28px;
+        box-sizing: border-box;
+        text-align: center;
+        user-select: none;
+      }
+      .wb-boot-logo-stage {
+        position: relative;
+        width: 76px;
+        height: 76px;
+        display: grid;
+        place-items: center;
+      }
+      .wb-boot-orbit {
+        position: absolute;
+        inset: 0;
+        border-radius: 22px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        animation: wb-boot-box-pulse 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      .wb-boot-ring {
+        position: absolute;
+        inset: -6px;
+        border-radius: 26px;
+        border: 1.5px solid transparent;
+        border-top-color: rgba(255, 255, 255, 0.42);
+        border-right-color: rgba(255, 255, 255, 0.12);
+        animation: wb-boot-spin 1.65s linear infinite;
+        pointer-events: none;
+      }
+      .wb-boot-svg {
+        position: relative;
+        z-index: 1;
+        width: 42px;
+        height: 42px;
+        color: #f4f4f5;
+        animation: wb-boot-float 2.2s ease-in-out infinite;
+      }
+      .wb-boot-svg .node-a {
+        transform-origin: 19.6px 19.8px;
+        animation: wb-boot-node 1.8s ease-in-out infinite;
+      }
+      .wb-boot-svg .node-b {
+        transform-origin: 44.4px 44.2px;
+        animation: wb-boot-node 1.8s ease-in-out infinite 0.9s;
+      }
+      .wb-boot-svg .bridge {
+        animation: wb-boot-bridge 1.8s ease-in-out infinite;
+      }
+      .wb-boot-copy {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+      }
+      .wb-boot-title {
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+        color: #f4f4f5;
+      }
+      .wb-boot-subtitle {
+        font-size: 12.5px;
+        color: #a1a1aa;
+        max-width: 320px;
+        line-height: 1.45;
+      }
+      .wb-boot-bar {
+        width: 136px;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow: hidden;
+        position: relative;
+      }
+      .wb-boot-bar::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: 45%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+        animation: wb-boot-shimmer 1.25s ease-in-out infinite;
+      }
+      @keyframes wb-boot-spin {
+        to { transform: rotate(360deg); }
+      }
+      @keyframes wb-boot-float {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+      @keyframes wb-boot-box-pulse {
+        0%, 100% { border-color: rgba(255, 255, 255, 0.1); }
+        50% { border-color: rgba(255, 255, 255, 0.22); }
+      }
+      @keyframes wb-boot-node {
+        0%, 100% { opacity: 0.65; transform: scale(0.9); }
+        50% { opacity: 1; transform: scale(1.12); }
+      }
+      @keyframes wb-boot-bridge {
+        0%, 100% { opacity: 0.82; }
+        50% { opacity: 1; }
+      }
+      @keyframes wb-boot-shimmer {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(240%); }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"><div class="boot-screen">OpenSybau · đang khởi động…</div></div>
+    <div id="root">
+      <div class="boot-screen" role="status" aria-live="polite">
+        <div class="wb-boot-logo-stage" aria-hidden="true">
+          <span class="wb-boot-orbit"></span>
+          <span class="wb-boot-ring"></span>
+          <svg class="wb-boot-svg" viewBox="0 0 64 64" fill="none">
+            <circle class="node-a" cx="19.6" cy="19.8" r="6.8" fill="currentColor" />
+            <circle class="node-b" cx="44.4" cy="44.2" r="6.8" fill="currentColor" />
+            <path class="bridge" d="M29.8 24.2C29.8 23.45 30.22 22.76 30.89 22.43L48.72 13.51C49.91 12.92 51.2 13.78 51.2 15.11V24.9C51.2 25.65 50.78 26.34 50.11 26.67L35.09 34.18C34.55 34.45 34.2 35 34.2 35.61V39.8C34.2 40.55 33.78 41.24 33.11 41.57L15.28 50.49C14.09 51.08 12.8 50.22 12.8 48.89V39.1C12.8 38.35 13.22 37.66 13.89 37.33L28.91 29.82C29.45 29.55 29.8 29 29.8 28.39V24.2Z" fill="currentColor" />
+          </svg>
+        </div>
+        <div class="wb-boot-copy">
+          <strong class="wb-boot-title">OpenSybau</strong>
+          <span class="wb-boot-subtitle">Đang khởi động không gian làm việc…</span>
+        </div>
+        <div class="wb-boot-bar" aria-hidden="true"></div>
+      </div>
+    </div>
     <div id="overlay"></div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script type="module" src="/src/main.jsx"></script>

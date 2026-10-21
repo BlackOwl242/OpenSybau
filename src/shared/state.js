@@ -1,4 +1,5 @@
 import { getLanguage, formatNumber } from "./i18n.js";
+import { isAndroidApkRuntime } from "./remote-host.js";
 import { getSavedThemeId } from "./themes.js";
 import { iconSvg } from "./ui/icons.js";
 
@@ -95,10 +96,10 @@ export const view = {
   skillDraft: "",
   memoryWorkspaceFilter: "all",
   memoryTestPrompt: "",
-  settingsSection: "roles",
+  settingsSection: "all",
   renderedPage: "",
   renderedSelection: "",
-  desktopSetupOpen: !setupAlreadyDismissed(),
+  desktopSetupOpen: !setupAlreadyDismissed() && !isAndroidApkRuntime(),
   cliInstallProvider: "",
   waveRiskFilter: "all",
   waveCriticalOnly: false,

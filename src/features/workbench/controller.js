@@ -60,8 +60,7 @@ import {
   setActiveRemoteHost,
 } from "../../shared/remote-host.js";
 import {
-  openOrcaConnectModal,
-  refreshOrcaConnectModalIfOpen,
+  renderDeviceConnectSettingsSection,
 } from "./device-connect.js";
 
 Object.assign(view, readBrowserRoute());
@@ -116,6 +115,10 @@ async function hydrateRouteData() {
   if (!view.state) return;
   if (view.page === "workspaces" && view.selected) await loadWorkspaceDir(view.selected, view.workspaceDir);
   else if (view.page === "knowledge" && view.state.settings.vaultPath) await loadVaultDir(view.vaultDir);
+  else if (view.page === "settings" && !view.connectionInfo) {
+    view.connectionInfo = await api("/api/connection-info").catch(() => null);
+    render({ background: true });
+  }
 }
 
 async function api(path, options = {}) {
@@ -131,9 +134,29 @@ async function api(path, options = {}) {
   return data;
 }
 async function refreshSnapshot(includeConfiguration, background) {
+  if (isAndroidApkRuntime() && !getActiveRemoteHost()) {
+    if (!view.state) {
+      await new Promise((resolve) => setTimeout(resolve, 420));
+      view.state = { version: 1, settings: { maxConcurrent: 2, defaults: {}, vaultPath: "", taskPresets: [] }, workspaces: [], tasks: [] };
+      view.connectors = {};
+      view.providers = [];
+      view.skills = [];
+      view.skillsLoaded = true;
+      view.streamConnected = false;
+      view.page = "settings";
+      view.settingsSection = "devices";
+      view.orcaConnectTab = "client";
+    }
+    render({ background });
+    return;
+  }
   const statePromise = loadState();
   const configurationPromise = includeConfiguration
-    ? Promise.all([api("/api/connectors"), api("/api/providers").catch(() => ({ providers: [] }))])
+    ? Promise.all([
+        api("/api/connectors"),
+        api("/api/providers").catch(() => ({ providers: [] })),
+        api("/api/connection-info").catch(() => null),
+      ])
     : Promise.resolve(null);
   const [{ state, changed }, configuration] = await Promise.all([statePromise, configurationPromise]);
   lastSnapshotRefresh = Date.now();
@@ -144,6 +167,7 @@ async function refreshSnapshot(includeConfiguration, background) {
   if (configuration) {
     view.connectors = configuration[0];
     view.providers = configuration[1].providers || [];
+    if (configuration[2]) view.connectionInfo = configuration[2];
     lastConfigurationRefresh = Date.now();
   }
   view.skills = skills.skills || [];
@@ -183,8 +207,9 @@ function refresh({ configuration = false, background = false } = {}) {
       if (!view.state && (isAndroidApkRuntime() || getActiveRemoteHost())) {
         view.state = { version: 1, settings: { maxConcurrent: 2, defaults: {}, vaultPath: "", taskPresets: [] }, workspaces: [], tasks: [] };
         view.streamConnected = false;
+        view.page = "settings";
+        view.settingsSection = "devices";
         render();
-        void openOrcaConnectModal({ api, showModal });
       } else {
         showToast(error.message);
       }
@@ -1847,11 +1872,25 @@ function settingsPage() {
     </div>`;
   }).join("");
 
+  const activeSection = view.settingsSection || "all";
+  const showSection = (id) => activeSection === "all" || activeSection === id;
+  const activeRemoteHost = getActiveRemoteHost();
+  const deviceBadge = activeRemoteHost ? "Từ xa" : view.connectionInfo?.mode === "network" ? "LAN" : "127.0.0.1";
+  const settingsNavItems = [
+    { id: "all", label: "Tất cả cài đặt", icon: "sliders-horizontal", meta: "" },
+    { id: "theme", label: "Giao diện & Chủ đề", icon: "sparkles", meta: activeTheme.label },
+    { id: "roles", label: "Phân vai AI", icon: "workflow", meta: "6 bước" },
+    { id: "cli", label: "Agent CLI", icon: "square-terminal", meta: `${readyCliCount}/${cliProviderGuides.length}` },
+    { id: "api", label: "Nguồn API & Local", icon: "plug-zap", meta: String(readyApiCount) },
+    { id: "devices", label: "Kết nối thiết bị", icon: "smartphone", meta: deviceBadge },
+    { id: "concurrency", label: "Tác vụ đồng thời", icon: "layers", meta: String(maxConcurrent) },
+  ];
+
   return `<div class="page-head">
     <div>
       <div class="eyebrow">HỆ THỐNG & NGUỒN AI</div>
       <h1>Cài đặt</h1>
-      <p>Định tuyến model mặc định cho từng vai trò điều phối, kết nối Agent CLI cục bộ và quản lý nguồn API.</p>
+      <p>Định tuyến model mặc định cho từng vai trò điều phối, kết nối Agent CLI cục bộ, quản lý nguồn API và thiết bị từ xa.</p>
     </div>
     <div class="page-head-actions">
       ${cliRefreshButton()}
@@ -1864,43 +1903,52 @@ function settingsPage() {
     <div><small>Chạy đồng thời</small><strong>${maxConcurrent}</strong></div>
     <div class="stats-note">Khóa API và cấu hình điều phối chỉ lưu cục bộ trên máy này.</div>
   </div>
-  <form class="settings-form" data-modal data-form="settings">
-    <section class="settings-card theme-gallery-card" id="settings-theme">
-      <header>
-        <div>
-          <h2>Giao diện & Chủ đề màu</h2>
-          <p>Chuyển đổi tức thì giữa chủ đề Tối nguyên bản, Đa sắc Antigravity và Sáng thanh lịch. Bạn cũng có thể đổi nhanh trên thanh tiêu đề góc phải trên cùng.</p>
-        </div>
-        <span class="pill status-done"><i></i>${esc(activeTheme.label)}</span>
-      </header>
-      <div class="theme-gallery-groups">${themeGroupsHtml}</div>
-    </section>
-    <section class="settings-card" id="settings-roles"><header><div><h2>Phân vai cho AI (Chọn model cho từng bước làm việc)</h2><p>Khi giao việc có viết code, quy trình gồm 6 bước nhưng chỉ có <strong>3 bước cần AI suy nghĩ</strong> (Bước 1 Lên kế hoạch, Bước 3 Viết code, Bước 4 Kiểm tra code). Còn Bước 2, 5, 6 là bước bạn duyệt hoặc máy tự chạy lệnh nên <strong>3 ô chọn model bên dưới là hoàn toàn khớp và không hề mâu thuẫn</strong>.</p></div></header>
-        <div class="settings-station-map" aria-label="Sơ đồ 6 bước và 3 vai trò AI">
-          <div class="station-map-item is-ai"><strong>1. Lên kế hoạch</strong><small>AI Lên kế hoạch</small></div>
-          <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
-          <div class="station-map-item is-gate"><strong>2. Duyệt kế hoạch</strong><small>Bạn duyệt / Tự động</small></div>
-          <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
-          <div class="station-map-item is-ai"><strong>3. Viết code</strong><small>AI Viết code</small></div>
-          <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
-          <div class="station-map-item is-ai"><strong>4. Kiểm tra code</strong><small>AI Kiểm tra code</small></div>
-          <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
-          <div class="station-map-item is-gate"><strong>5. Chạy thử</strong><small>Máy chạy lệnh test</small></div>
-          <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
-          <div class="station-map-item is-gate"><strong>6. Gộp vào dự án</strong><small>Lưu thay đổi Git</small></div>
-        </div>
-        ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và đánh giá.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API / model local</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI agent</button></div></div>` : ""}
-      <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
-      <div class="form-note">Khi chọn model API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới dịch vụ đó. Model CLI chạy cục bộ theo quyền của CLI.</div>
-      ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Model vẫn chọn theo từng task; hãy khởi động lại server để bật lưu model mặc định và gắn skill.</div>`}
-      <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu định tuyến mặc định</button></footer>
-    </section>
-    <section class="settings-card cli-setup-card" id="cli-setup"><header><div><h2>Agent CLI</h2><p>OpenSybau tự dò Codex, Antigravity và Claude Code trên máy. Nếu CLI đã cài nhưng chưa đăng nhập, mở terminal đăng nhập ngay tại đây.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div><p class="form-note">Terminal được mở trên máy đang chạy OpenSybau. Hoàn tất OAuth hoặc đăng nhập ở đó rồi chọn Quét lại; CLI không cần khai báo API key riêng.</p></section>
-    <section class="settings-card provider-setup-card" id="settings-api"><header><div><h2>Nguồn API và model local</h2><p>Kết nối OpenAI/ChatGPT API, Google Gemini API, Claude API, Ollama, LM Studio hoặc endpoint tương thích.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa có API hoặc model local</strong><p>Chọn cấu hình nhanh để nhập API key và model, hoặc kết nối Ollama/LM Studio. Bạn không cần API nếu dùng CLI.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm API hoặc model local</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div><details class="provider-env-help"><summary>Hướng dẫn kết nối cloud và model local</summary><p><strong>OpenAI / ChatGPT API:</strong> chọn cấu hình sẵn, nhập API key OpenAI rồi tải model. <strong>Google Gemini API:</strong> chọn Google Gemini, nhập key Google AI Studio rồi tải model. <strong>Claude API:</strong> chọn Claude API, nhập Anthropic key và model.</p><p><strong>Ollama:</strong> dùng endpoint <code>http://localhost:11434/v1</code> và ID từ <code>ollama list</code>. <strong>LM Studio:</strong> dùng endpoint <code>http://localhost:1234/v1</code>. Thường không cần API key.</p><p>API key được lưu trong thư mục dữ liệu riêng của OpenSybau, không hiển thị lại trong giao diện. Chỉ nhập key qua localhost hoặc HTTPS; provider API không có quyền chạy lệnh trong workspace.</p></details></section>
-    <section class="settings-card concurrency-card" id="settings-concurrency"><header><div><h2>Tác vụ chạy đồng thời</h2><p>Giới hạn số task có thể chạy cùng lúc trên các workspace.</p></div></header>
-      <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${maxConcurrent}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
-    </section>
-  </form>`;
+  <div class="settings-workbench-layout">
+    <nav class="settings-nav-sidebar" aria-label="Danh mục cài đặt">
+      ${settingsNavItems.map((item) => `<button type="button" class="settings-nav-item ${activeSection === item.id ? "is-active" : ""}" data-action="settings-nav" data-section="${esc(item.id)}" aria-current="${activeSection === item.id ? "true" : "false"}">
+        <span class="settings-nav-item-main">${icon(item.icon, 15)}<span>${esc(item.label)}</span></span>
+        ${item.meta ? `<small class="settings-nav-meta">${esc(item.meta)}</small>` : ""}
+      </button>`).join("")}
+    </nav>
+    <form class="settings-form" data-modal data-form="settings">
+      <section class="settings-card theme-gallery-card" id="settings-theme" ${showSection("theme") ? "" : "hidden"}>
+        <header>
+          <div>
+            <h2>Giao diện & Chủ đề màu</h2>
+            <p>Chuyển đổi tức thì giữa chủ đề Tối nguyên bản, Đa sắc Antigravity và Sáng thanh lịch. Bạn cũng có thể đổi nhanh trên thanh tiêu đề góc phải trên cùng.</p>
+          </div>
+          <span class="pill status-done"><i></i>${esc(activeTheme.label)}</span>
+        </header>
+        <div class="theme-gallery-groups">${themeGroupsHtml}</div>
+      </section>
+      <section class="settings-card" id="settings-roles" ${showSection("roles") ? "" : "hidden"}><header><div><h2>Phân vai cho AI (Chọn model cho từng bước làm việc)</h2><p>Khi giao việc có viết code, quy trình gồm 6 bước nhưng chỉ có <strong>3 bước cần AI suy nghĩ</strong> (Bước 1 Lên kế hoạch, Bước 3 Viết code, Bước 4 Kiểm tra code). Còn Bước 2, 5, 6 là bước bạn duyệt hoặc máy tự chạy lệnh nên <strong>3 ô chọn model bên dưới là hoàn toàn khớp và không hề mâu thuẫn</strong>.</p></div></header>
+          <div class="settings-station-map" aria-label="Sơ đồ 6 bước và 3 vai trò AI">
+            <div class="station-map-item is-ai"><strong>1. Lên kế hoạch</strong><small>AI Lên kế hoạch</small></div>
+            <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
+            <div class="station-map-item is-gate"><strong>2. Duyệt kế hoạch</strong><small>Bạn duyệt / Tự động</small></div>
+            <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
+            <div class="station-map-item is-ai"><strong>3. Viết code</strong><small>AI Viết code</small></div>
+            <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
+            <div class="station-map-item is-ai"><strong>4. Kiểm tra code</strong><small>AI Kiểm tra code</small></div>
+            <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
+            <div class="station-map-item is-gate"><strong>5. Chạy thử</strong><small>Máy chạy lệnh test</small></div>
+            <span class="station-map-arrow">${icon("chevron-right", 12)}</span>
+            <div class="station-map-item is-gate"><strong>6. Gộp vào dự án</strong><small>Lưu thay đổi Git</small></div>
+          </div>
+          ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và đánh giá.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API / model local</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI agent</button></div></div>` : ""}
+        <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
+        <div class="form-note">Khi chọn model API, yêu cầu và ngữ cảnh dự án tương ứng sẽ được gửi tới dịch vụ đó. Model CLI chạy cục bộ theo quyền của CLI.</div>
+        ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Model vẫn chọn theo từng task; hãy khởi động lại server để bật lưu model mặc định và gắn skill.</div>`}
+        <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu định tuyến mặc định</button></footer>
+      </section>
+      <section class="settings-card cli-setup-card" id="cli-setup" ${showSection("cli") ? "" : "hidden"}><header><div><h2>Agent CLI</h2><p>OpenSybau tự dò Codex, Antigravity và Claude Code trên máy. Nếu CLI đã cài nhưng chưa đăng nhập, mở terminal đăng nhập ngay tại đây.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div><p class="form-note">Terminal được mở trên máy đang chạy OpenSybau. Hoàn tất OAuth hoặc đăng nhập ở đó rồi chọn Quét lại; CLI không cần khai báo API key riêng.</p></section>
+      <section class="settings-card provider-setup-card" id="settings-api" ${showSection("api") ? "" : "hidden"}><header><div><h2>Nguồn API và model local</h2><p>Kết nối OpenAI/ChatGPT API, Google Gemini API, Claude API, Ollama, LM Studio hoặc endpoint tương thích.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa có API hoặc model local</strong><p>Chọn cấu hình nhanh để nhập API key và model, hoặc kết nối Ollama/LM Studio. Bạn không cần API nếu dùng CLI.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm API hoặc model local</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div><details class="provider-env-help"><summary>Hướng dẫn kết nối cloud và model local</summary><p><strong>OpenAI / ChatGPT API:</strong> chọn cấu hình sẵn, nhập API key OpenAI rồi tải model. <strong>Google Gemini API:</strong> chọn Google Gemini, nhập key Google AI Studio rồi tải model. <strong>Claude API:</strong> chọn Claude API, nhập Anthropic key và model.</p><p><strong>Ollama:</strong> dùng endpoint <code>http://localhost:11434/v1</code> và ID từ <code>ollama list</code>. <strong>LM Studio:</strong> dùng endpoint <code>http://localhost:1234/v1</code>. Thường không cần API key.</p><p>API key được lưu trong thư mục dữ liệu riêng của OpenSybau, không hiển thị lại trong giao diện. Chỉ nhập key qua localhost hoặc HTTPS; provider API không có quyền chạy lệnh trong workspace.</p></details></section>
+      ${renderDeviceConnectSettingsSection({ hidden: !showSection("devices") })}
+      <section class="settings-card concurrency-card" id="settings-concurrency" ${showSection("concurrency") ? "" : "hidden"}><header><div><h2>Tác vụ chạy đồng thời</h2><p>Giới hạn số task có thể chạy cùng lúc trên các workspace.</p></div></header>
+        <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${maxConcurrent}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
+      </section>
+    </form>
+  </div>`;
 }
 
 function showApiProviderModal(provider = null) {
@@ -3987,16 +4035,41 @@ async function handleWorkbenchClick(event) {
     if (action === "new-memory") showMemoryModal();
     if (action === "new-skill") showSkillCreateModal();
     if (action === "provider-add") showApiProviderModal();
-    if (action === "open-orca-connect") {
+    if (action === "settings-nav") {
+      view.settingsSection = button.dataset.section || "all";
+      if ((view.settingsSection === "devices" || view.settingsSection === "all") && !view.connectionInfo) {
+        api("/api/connection-info").then((info) => {
+          view.connectionInfo = info;
+          render({ background: true });
+        }).catch(() => {});
+      }
+      render();
+      return;
+    }
+    if (action === "refresh-connection-info") {
       try {
         view.connectionInfo = await api("/api/connection-info");
-      } catch {}
-      await openOrcaConnectModal({ api, showModal });
+        render();
+        showToast("Đã làm mới thông tin kết nối thiết bị.");
+      } catch (error) {
+        showToast(error.message);
+      }
+      return;
+    }
+    if (action === "open-orca-connect") {
+      view.page = "settings";
+      view.settingsSection = "devices";
+      view.selected = null;
+      api("/api/connection-info").then((info) => {
+        view.connectionInfo = info;
+        render({ background: true });
+      }).catch(() => {});
+      render();
       return;
     }
     if (action === "orca-connect-tab") {
       view.orcaConnectTab = button.dataset.tab || "host";
-      refreshOrcaConnectModalIfOpen({ showModal });
+      render();
       return;
     }
     if (action === "copy-pairing-uri") {
@@ -4043,7 +4116,7 @@ async function handleWorkbenchClick(event) {
         quickPair: raw,
       };
       view.orcaConnectProbeResult = await probeRemoteHost(view.orcaConnectDraft);
-      refreshOrcaConnectModalIfOpen({ showModal });
+      render();
       showToast(`Đã nạp cấu hình máy chủ ${parsed.url}.`);
       return;
     }
@@ -4057,7 +4130,7 @@ async function handleWorkbenchClick(event) {
       };
       view.orcaConnectDraft = draft;
       view.orcaConnectProbeResult = await probeRemoteHost(draft);
-      refreshOrcaConnectModalIfOpen({ showModal });
+      render();
       showToast(view.orcaConnectProbeResult.ok ? `Ping thành công (${view.orcaConnectProbeResult.latencyMs}ms)!` : view.orcaConnectProbeResult.error);
       return;
     }
@@ -4072,7 +4145,7 @@ async function handleWorkbenchClick(event) {
       view.orcaConnectProbeResult = probe;
       if (!probe.ok) {
         view.orcaConnectDraft = draft;
-        refreshOrcaConnectModalIfOpen({ showModal });
+        render();
         showToast(probe.error);
         return;
       }
@@ -4085,7 +4158,6 @@ async function handleWorkbenchClick(event) {
       });
       view.connectionInfo = probe.info || view.connectionInfo;
       view.streamConnected = true;
-      closeOverlay();
       connectEventStream();
       await refresh({ configuration: true });
       showToast(`Đã kết nối tới máy chủ ${saved.name} (${probe.latencyMs}ms)!`);
@@ -4098,7 +4170,7 @@ async function handleWorkbenchClick(event) {
       if (!probe.ok) {
         view.orcaConnectDraft = { ...target };
         view.orcaConnectProbeResult = probe;
-        refreshOrcaConnectModalIfOpen({ showModal });
+        render();
         showToast(probe.error);
         return;
       }
@@ -4110,7 +4182,6 @@ async function handleWorkbenchClick(event) {
       });
       view.connectionInfo = probe.info || view.connectionInfo;
       view.streamConnected = true;
-      closeOverlay();
       connectEventStream();
       await refresh({ configuration: true });
       showToast(`Đã chuyển sang máy chủ ${saved.name} (${probe.latencyMs}ms)!`);
@@ -4120,7 +4191,7 @@ async function handleWorkbenchClick(event) {
       setActiveRemoteHost(null);
       view.orcaConnectProbeResult = null;
       connectEventStream();
-      refreshOrcaConnectModalIfOpen({ showModal });
+      render();
       await refresh({ configuration: true }).catch(() => {});
       showToast("Đã ngắt kết nối máy chủ từ xa.");
       return;
@@ -4130,13 +4201,13 @@ async function handleWorkbenchClick(event) {
       if (target) {
         view.orcaConnectDraft = { ...target, quickPair: "" };
         view.orcaConnectProbeResult = null;
-        refreshOrcaConnectModalIfOpen({ showModal });
+        render();
       }
       return;
     }
     if (action === "remove-saved-host") {
       removeRemoteHostProfile(id);
-      refreshOrcaConnectModalIfOpen({ showModal });
+      render();
       showToast("Đã xóa máy chủ khỏi danh sách lưu.");
       return;
     }
@@ -5524,6 +5595,10 @@ function connectEventStream() {
     remotePollTimer = null;
   }
   const activeHost = getActiveRemoteHost();
+  if (isAndroidApkRuntime() && !activeHost?.url) {
+    view.streamConnected = false;
+    return;
+  }
   if (activeHost?.url && activeHost.password) {
     // Authenticated cross-origin Android APK connection uses fast ETag conditional polling
     view.streamConnected = true;
@@ -5557,6 +5632,9 @@ window.addEventListener("opensybau:pair", async (event) => {
   if (!uri) return;
   try {
     const parsed = parsePairingInput(uri);
+    view.page = "settings";
+    view.settingsSection = "devices";
+    view.selected = null;
     view.orcaConnectTab = "client";
     view.orcaConnectDraft = {
       name: parsed.name || "",
@@ -5566,7 +5644,7 @@ window.addEventListener("opensybau:pair", async (event) => {
       quickPair: uri,
     };
     view.orcaConnectProbeResult = await probeRemoteHost(view.orcaConnectDraft);
-    await openOrcaConnectModal({ api, showModal });
+    render();
   } catch (error) {
     showToast(error.message);
   }

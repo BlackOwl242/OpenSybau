@@ -59,7 +59,20 @@ public class MainActivity extends AppCompatActivity {
                 Uri url = request.getUrl();
                 if (url != null && "appassets.androidplatform.net".equals(url.getHost())) {
                     String path = url.getPath();
-                    if (path != null && !path.startsWith("/assets/")) {
+                    if (path == null || path.isEmpty() || "/".equals(path)) {
+                        path = "/assets/public/index.html";
+                        url = url.buildUpon().path(path).build();
+                    } else if (path.startsWith("/api/") || path.startsWith("/__events")) {
+                        byte[] body = "{\"error\":\"Chưa kết nối máy chủ OpenSybau.\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                        return new WebResourceResponse(
+                            "application/json",
+                            "UTF-8",
+                            503,
+                            "Service Unavailable",
+                            java.util.Collections.singletonMap("Cache-Control", "no-store"),
+                            new java.io.ByteArrayInputStream(body)
+                        );
+                    } else if (!path.startsWith("/assets/public/")) {
                         url = url.buildUpon().path("/assets/public" + path).build();
                     }
                     WebResourceResponse response = assetLoader.shouldInterceptRequest(url);

@@ -111,16 +111,6 @@ function WindowChrome({ snapshot, sidebarCollapsed, onToggleSidebar }) {
       </button>
     </div>
     <div class="wb-window-chrome-right">
-      <button
-        class={`wb-chrome-pill wb-orca-connect-pill ${snapshot.streamConnected !== false ? "is-online" : "is-offline"}`}
-        type="button"
-        data-action="open-orca-connect"
-        title="Kết nối thiết bị · Android APK & Mạng LAN"
-      >
-        <span class={`wb-conn-dot ${snapshot.streamConnected !== false ? "is-online" : "is-offline"}`} />
-        <Icon name="smartphone" size={12} />
-        <span>{snapshot.activeRemoteHostName || "Kết nối thiết bị"}</span>
-      </button>
       <details class="codex-pop-menu is-down is-right wb-theme-menu">
         <summary class="wb-chrome-pill wb-theme-trigger" title="Đổi chủ đề màu sắc (Theme)">
           <span
