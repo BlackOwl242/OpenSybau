@@ -240,7 +240,7 @@ export function AppShell({ snapshot, pageMarkup }) {
   const chatSplit = page === "chat" && Boolean(snapshot.chatSplitWorkspaceId);
   const home = page === "chat" && !snapshot.selected && !isViewingFileTab && !chatSplit;
   const hasContextSidebar = pageLayouts[page]?.sidebar === "context" && !sidebarCollapsed;
-  const hasPageSidebar = Boolean(snapshot.pageSidebarMarkup);
+  const hasPageSidebar = Boolean(snapshot.pageSidebarMarkup) && !sidebarCollapsed;
   const hasRightDock = Boolean(snapshot.chatDrawerOpen && snapshot.rightDockMarkup);
   const shellClasses = [
     "wb-app-shell",

@@ -1411,7 +1411,24 @@ html[data-color-scheme="light"] *::-webkit-scrollbar-thumb:hover {
   padding-top: 12px;
   border-top: 1px solid var(--wb-line);
   display: grid;
-  gap: 6px;
+  gap: 8px;
+}
+.device-password-head > div,
+.device-qr-step-title {
+  display: grid;
+  gap: 3px;
+}
+.device-password-head strong,
+.device-qr-step-title strong {
+  font-size: 12.5px;
+  font-weight: 620;
+  color: var(--wb-ink-strong);
+}
+.device-password-head small,
+.device-qr-step-title small {
+  font-size: 11.5px;
+  color: var(--wb-muted);
+  line-height: 1.4;
 }
 .device-qr-panel {
   display: grid;
@@ -1988,4 +2005,211 @@ html[data-color-scheme="light"] *::-webkit-scrollbar-thumb:hover {
   .wb-page-content .workspace-card-actions > .button {
     width: 100% !important;
   }
+}
+
+/* ==========================================================================
+   Settings Left System Sidebar, Role Header Station Badge & Unified Custom Dropdowns
+   ========================================================================== */
+.wb-page-sidebar .wb-settings-sidebar {
+  padding: 12px 10px 18px;
+}
+.wb-page-sidebar .wb-settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.wb-page-sidebar .wb-settings-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.wb-page-sidebar .wb-settings-side-link {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--wb-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 110ms ease, color 110ms ease;
+}
+.wb-page-sidebar .wb-settings-side-link:hover {
+  background: var(--wb-hover);
+  color: var(--wb-ink-strong);
+}
+.wb-page-sidebar .wb-settings-side-link.is-active {
+  background: color-mix(in srgb, var(--wb-tint) 9%, transparent);
+  color: var(--wb-ink-strong);
+  font-weight: 620;
+}
+.wb-page-sidebar .wb-settings-side-link .wb-side-link-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.wb-page-sidebar .wb-settings-side-link .wb-side-link-main > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-mobile-nav {
+  display: none !important;
+}
+@media (max-width: 740px) {
+  .wb-app-shell .wb-page-sidebar {
+    display: none !important;
+  }
+  .settings-mobile-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    overflow-x: auto !important;
+    margin-bottom: 14px !important;
+  }
+}
+
+/* Role header: title on the left, step badge on the right (replaces 'Agent cục bộ') */
+.agent-role-card > header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  flex-wrap: nowrap !important;
+  padding-bottom: 4px !important;
+}
+.agent-role-card > header > strong {
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  color: var(--wb-ink-strong) !important;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-role-card > header > .role-station-badge {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: inline-flex !important;
+  align-items: center;
+  height: 21px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 560;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: var(--wb-muted);
+  background: var(--wb-field);
+  border: 1px solid var(--wb-line);
+}
+
+/* Unified custom dropdowns (.home-config-select-field & .custom-select-wrap) everywhere */
+.home-config-select-field,
+.custom-select-wrap {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  position: relative;
+}
+.home-config-select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  position: relative;
+}
+.home-config-select > .codex-inline-trigger {
+  width: 100% !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  justify-content: space-between !important;
+  padding: 0 11px !important;
+  border: 1px solid var(--wb-border-subtle) !important;
+  border-radius: 8px !important;
+  background: var(--wb-field) !important;
+  color: var(--wb-ink-strong) !important;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 12.5px !important;
+  font-weight: 520 !important;
+  text-align: left !important;
+}
+.home-config-select > .codex-inline-trigger > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-config-select > .codex-inline-trigger:hover,
+.home-config-select[open] > .codex-inline-trigger {
+  border-color: var(--wb-border-strong) !important;
+  background: var(--wb-hover) !important;
+}
+.home-config-select[data-disabled] > .codex-inline-trigger {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.home-config-select > .home-config-select-card {
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  min-width: 170px !important;
+  max-width: none !important;
+  padding: 5px !important;
+  border: 1px solid var(--wb-border-subtle) !important;
+  border-radius: 10px !important;
+  background: var(--wb-panel) !important;
+  z-index: 85 !important;
+  box-sizing: border-box !important;
+}
+.home-config-select.is-down > .home-config-select-card {
+  top: calc(100% + 5px) !important;
+  bottom: auto !important;
+}
+.home-config-select.is-up > .home-config-select-card {
+  bottom: calc(100% + 5px) !important;
+  top: auto !important;
+}
+.home-config-select > .home-config-select-card .codex-pop-scroll {
+  max-height: var(--role-picker-list-height, 210px);
+  gap: 2px;
+}
+
+/* Compact custom dropdowns inside Multi-Agent Worktree Arena rows */
+.arena-slot-row:has([open]) {
+  position: relative;
+  z-index: 45;
+}
+.arena-slot-picker > .home-config-select > .codex-inline-trigger {
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 9px !important;
+  border-radius: 6px !important;
+  font-size: 11.5px !important;
+  background: var(--wb-surface-soft) !important;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
+}
+.arena-slot-picker > .home-config-select > .home-config-select-card {
+  min-width: 190px !important;
+}
+@media (max-width: 680px) {
+  .arena-slot-picker.is-effort {
+    display: none;
+  }
+}
+.stage-rerun-controls {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.stage-rerun-controls > .home-config-select-field {
+  min-width: 150px;
 }

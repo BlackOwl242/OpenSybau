@@ -5,6 +5,24 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.106] - 2026-10-21
+
+### English
+- **Settings Left System Sidebar, Role Header Step Badge & Unified Custom Dropdowns (`src/shell/shell.jsx`, `src/features/workbench/controller.js`, `src/styles/modules/07-themes-mission-control.css`, `src/shared/i18n.js`)**:
+  - Move the Settings category navigation into the system left sidebar slot (`.wb-page-sidebar` via `settingsSidebarMarkup()`) next to `NavRail`, with full support for the top-left sidebar collapse/expand toggle and a responsive horizontal pill bar on mobile (`<= 740px`).
+  - Replace the redundant `Agent cục bộ` subtitle on the right side of AI role card headers with the step badge (`Bước 1/6 · AI Lên kế hoạch`, `Bước 3/6 · AI Viết code`, `Bước 4/6 · AI Kiểm tra code`), separating it cleanly from the role title.
+  - Replace all remaining native OS `<select>` menus across the Multi-Agent Worktree Arena strip (`#1 | Agent | Model | Effort`), Task Creation modal, Wave Decompose modal, API Provider modal, Skill Creation modal, Memory modal, Task Permissions modal, and Stage Rerun controls with the unified custom `.home-config-select` / `customSelectControl` popover dropdown component.
+  - Complete English translations for all Settings and Phone & Remote Connect labels in `src/shared/i18n.js`.
+
+### Tiếng Việt
+- **Chuyển Danh mục Cài đặt sang Sidebar Hệ thống Bên trái, Đặt Badge Bước về Phía Phải Tiêu đề Vai trò & Đồng bộ Toàn bộ Dropdown (`src/shell/shell.jsx`, `src/features/workbench/controller.js`, `src/styles/modules/07-themes-mission-control.css`, `src/shared/i18n.js`)**:
+  - Chuyển thanh danh mục Cài đặt sang khung sidebar hệ thống bên trái (`.wb-page-sidebar` qua `settingsSidebarMarkup()`) sát cạnh thanh điều hướng chính và đồng bộ với nút đóng/mở sidebar góc trên bên trái (trên điện thoại `<= 740px` tự động hiển thị dạng thanh cuộn ngang gọn nhẹ).
+  - Thay thế dòng chữ `Agent cục bộ` ở góc phải tiêu đề từng thẻ vai trò bằng badge bước (`Bước 1/6 · AI Lên kế hoạch`, `Bước 3/6 · AI Viết code`, `Bước 4/6 · AI Kiểm tra code`), giúp badge nằm gọn bên phải thay vì dính sát tên tiêu đề.
+  - Đồng bộ toàn bộ các menu thả xuống (dropdown) còn dùng `<select>` mặc định của hệ điều hành trên thanh Đa luồng Worktree (`#1 | Agent | Model | Mức suy nghĩ`), hộp thoại Tạo task, Chia việc theo đợt, Thêm nguồn API, Tạo skill, Thêm ghi nhớ, Quyền truy cập và Chạy lại bước sang bộ chọn tùy chỉnh `.home-config-select` / `customSelectControl` đồng nhất với toàn ứng dụng.
+  - Bổ sung đầy đủ bản dịch tiếng Anh cho toàn bộ trang Cài đặt và Kết nối điện thoại trong `src/shared/i18n.js`.
+
+---
+
 ## [0.2.105] - 2026-10-21
 
 ### English

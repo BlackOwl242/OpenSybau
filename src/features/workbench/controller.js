@@ -291,11 +291,41 @@ function rolePickerItems(roleId, field, options, selectedValue) {
   }).join("");
 }
 
+function customSelectControl(name, dataAttribute, options, selectedValue, { disabled = false, up = false, extraClass = "", ariaLabel = "Chọn", popId = "" } = {}) {
+  const safeOptions = options.length ? options : [{ value: "", label: "—" }];
+  const selected = safeOptions.find((option) => String(option.value) === String(selectedValue)) || safeOptions[0];
+  const optionMarkup = safeOptions.map((option) => `<option value="${esc(option.value)}" ${String(option.value) === String(selectedValue) ? "selected" : ""} ${option.disabled ? "disabled" : ""}>${esc(option.label)}</option>`).join("");
+  const items = safeOptions.map((option) => `<button type="button" class="codex-pop-item ${String(option.value) === String(selectedValue) ? "is-selected" : ""}" data-action="pick-home-select" data-select-name="${esc(name)}" data-value="${esc(option.value)}" ${option.disabled ? "disabled" : ""}><span class="codex-pop-item-main"><span>${esc(option.label)}</span></span>${String(option.value) === String(selectedValue) ? icon("check", 13) : ""}</button>`).join("");
+  const nameAttr = name ? `name="${esc(name)}"` : "";
+  const popAttr = popId ? `data-pop-id="${esc(popId)}"` : "";
+  return `<div class="custom-select-wrap ${extraClass}"><select hidden ${nameAttr} ${dataAttribute} ${disabled ? "disabled" : ""}>${optionMarkup}</select><details class="codex-pop-menu ${up ? "is-up" : "is-down"} home-config-select" ${popAttr} ${disabled ? 'data-disabled="true"' : ""}><summary class="codex-inline-trigger" aria-label="${esc(ariaLabel)}: ${esc(selected?.label || "—")}" ${disabled ? 'aria-disabled="true" tabindex="-1"' : ""}><span>${esc(selected?.label || "—")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card home-config-select-card"><div class="codex-pop-scroll">${items}</div></div></details></div>`;
+}
+function syncCustomSelect(select) {
+  const wrap = select?.closest(".custom-select-wrap, .home-config-select-field");
+  const picker = wrap?.querySelector("details.home-config-select");
+  if (!select || !picker) return;
+  const options = [...select.options].map((opt) => ({ value: opt.value, label: opt.textContent || opt.value, disabled: opt.disabled }));
+  const selected = options.find((opt) => opt.value === select.value) || options[0];
+  const label = selected?.label || "—";
+  const trigger = picker.querySelector("summary");
+  if (trigger) {
+    trigger.querySelector("span")?.replaceChildren(document.createTextNode(label));
+    trigger.setAttribute("aria-disabled", String(Boolean(select.disabled || !options.length)));
+    trigger.tabIndex = select.disabled || !options.length ? -1 : 0;
+  }
+  picker.toggleAttribute("data-disabled", Boolean(select.disabled || !options.length));
+  const scroll = picker.querySelector(".codex-pop-scroll");
+  if (scroll) {
+    scroll.innerHTML = options.map((opt) => `<button type="button" class="codex-pop-item ${opt.value === select.value ? "is-selected" : ""}" data-action="pick-home-select" data-select-name="${esc(select.name || "")}" data-value="${esc(opt.value)}" ${opt.disabled ? "disabled" : ""}><span class="codex-pop-item-main"><span>${esc(opt.label)}</span></span>${opt.value === select.value ? icon("check", 13) : ""}</button>`).join("");
+  }
+}
 function homeSelectField(label, name, dataAttribute, options, selectedValue, disabled = false) {
-  const selected = options.find((option) => String(option.value) === String(selectedValue)) || options[0];
-  const optionMarkup = options.map((option) => `<option value="${esc(option.value)}" ${String(option.value) === String(selectedValue) ? "selected" : ""} ${option.disabled ? "disabled" : ""}>${esc(option.label)}</option>`).join("");
-  const items = options.map((option) => `<button type="button" class="codex-pop-item ${String(option.value) === String(selectedValue) ? "is-selected" : ""}" data-action="pick-home-select" data-select-name="${esc(name)}" data-value="${esc(option.value)}" ${option.disabled ? "disabled" : ""}><span class="codex-pop-item-main"><span>${esc(option.label)}</span></span>${String(option.value) === String(selectedValue) ? icon("check", 13) : ""}</button>`).join("");
-  return `<label class="home-config-select-field">${label}<select hidden name="${esc(name)}" ${dataAttribute} ${disabled ? "disabled" : ""}>${optionMarkup}</select><details class="codex-pop-menu is-down home-config-select" ${disabled ? 'data-disabled="true"' : ""}><summary class="codex-inline-trigger" aria-label="${label}: ${esc(selected?.label || "—")}" ${disabled ? 'aria-disabled="true" tabindex="-1"' : ""}><span>${esc(selected?.label || "—")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card home-config-select-card"><div class="codex-pop-scroll">${items}</div></div></details></label>`;
+  const safeOptions = options.length ? options : [{ value: "", label: "—" }];
+  const selected = safeOptions.find((option) => String(option.value) === String(selectedValue)) || safeOptions[0];
+  const optionMarkup = safeOptions.map((option) => `<option value="${esc(option.value)}" ${String(option.value) === String(selectedValue) ? "selected" : ""} ${option.disabled ? "disabled" : ""}>${esc(option.label)}</option>`).join("");
+  const items = safeOptions.map((option) => `<button type="button" class="codex-pop-item ${String(option.value) === String(selectedValue) ? "is-selected" : ""}" data-action="pick-home-select" data-select-name="${esc(name)}" data-value="${esc(option.value)}" ${option.disabled ? "disabled" : ""}><span class="codex-pop-item-main"><span>${esc(option.label)}</span></span>${String(option.value) === String(selectedValue) ? icon("check", 13) : ""}</button>`).join("");
+  const nameAttr = name ? `name="${esc(name)}"` : "";
+  return `<label class="home-config-select-field">${label}<select hidden ${nameAttr} ${dataAttribute} ${disabled ? "disabled" : ""}>${optionMarkup}</select><details class="codex-pop-menu is-down home-config-select" ${disabled ? 'data-disabled="true"' : ""}><summary class="codex-inline-trigger" aria-label="${label}: ${esc(selected?.label || "—")}" ${disabled ? 'aria-disabled="true" tabindex="-1"' : ""}><span>${esc(selected?.label || "—")}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card home-config-select-card"><div class="codex-pop-scroll">${items}</div></div></details></label>`;
 }
 function rolePickerField(roleId, field, label, heading, options, selectedValue, groupLabel = "") {
   const selected = options.find((option) => String(option.value ?? "") === selectedValue);
@@ -322,6 +352,11 @@ function syncRolePicker(form, roleId, field) {
 function syncRolePickers(form, roleId) {
   for (const field of ["provider", "model", "effort"]) syncRolePicker(form, roleId, field);
 }
+const roleStationBadgeMap = {
+  plan: "Bước 1/6 · AI Lên kế hoạch",
+  build: "Bước 3/6 · AI Viết code",
+  review: "Bước 4/6 · AI Kiểm tra code",
+};
 function roleEditor(roleId, overrides = {}) {
   const role = workflowRoles.find((item) => item.id === roleId);
   if (!role) return "";
@@ -331,7 +366,8 @@ function roleEditor(roleId, overrides = {}) {
   const providerOptions = selection.candidates.map(([id, item]) => ({ value: id, label: item.name || id }));
   const modelOptions = (connector?.models || []).map((item) => ({ value: item.id, label: item.name || item.id }));
   const effortOptions = (model?.efforts || []).map((item) => ({ value: item, label: formatEffortLabel(item) }));
-  return `<section class="agent-role-card" data-role-card="${roleId}"><header><div class="agent-role-card-title"><strong>${esc(role.label)}</strong></div></header>${rolePickerField(roleId, "provider", "Agent", "Agent & Model", providerOptions, selection.provider)}${rolePickerField(roleId, "model", "Model", "Agent & Model", modelOptions, selection.model, providerTitle(view.connectors, selection.provider))}${rolePickerField(roleId, "effort", "Mức suy nghĩ", "Mức suy nghĩ", effortOptions, selection.effort)}</section>`;
+  const stationBadge = roleStationBadgeMap[roleId] || "";
+  return `<section class="agent-role-card" data-role-card="${roleId}"><header><strong>${esc(role.label)}</strong>${stationBadge ? `<span class="role-station-badge is-${esc(roleId)}">${esc(stationBadge)}</span>` : ""}</header>${rolePickerField(roleId, "provider", "Agent", "Agent & Model", providerOptions, selection.provider)}${rolePickerField(roleId, "model", "Model", "Agent & Model", modelOptions, selection.model, providerTitle(view.connectors, selection.provider))}${rolePickerField(roleId, "effort", "Mức suy nghĩ", "Mức suy nghĩ", effortOptions, selection.effort)}</section>`;
 }
 function taskPresetRefValue(id, version) { return id && version ? `${id}@${version}` : ""; }
 function parseTaskPresetRef(value) {
@@ -341,16 +377,19 @@ function parseTaskPresetRef(value) {
   const version = Number(raw.slice(split + 1));
   return Number.isSafeInteger(version) && version > 0 ? { id: raw.slice(0, split), version } : null;
 }
-function taskPresetVersionOptions(selected = "") {
+function taskPresetVersionOptionList() {
   const presets = view.state?.settings?.taskPresets || [];
   const versions = presets.flatMap((preset) => (preset.versions || []).map((entry) => ({
     value: taskPresetRefValue(preset.id, entry.version),
     label: `${preset.name} · v${entry.version}`,
   }))).sort((a, b) => a.label.localeCompare(b.label, view.language === "en" ? "en" : "vi"));
-  return `<option value="">Không dùng mẫu</option>${versions.map((entry) => `<option value="${esc(entry.value)}" ${entry.value === selected ? "selected" : ""}>${esc(entry.label)}</option>`).join("")}`;
+  return [{ value: "", label: "Không dùng mẫu" }, ...versions];
+}
+function taskPresetVersionOptions(selected = "") {
+  return taskPresetVersionOptionList().map((entry) => `<option value="${esc(entry.value)}" ${entry.value === selected ? "selected" : ""}>${esc(entry.label)}</option>`).join("");
 }
 function taskPresetToolsMarkup() {
-  return `<section class="task-preset-tools" aria-label="Mẫu tác vụ"><header><strong>Mẫu tác vụ</strong><small>Lưu cấu hình luồng, quyền và agent/model theo từng phiên bản.</small></header><div class="task-preset-controls"><label>Mẫu đã lưu<select name="taskPresetVersion" data-task-preset-version>${taskPresetVersionOptions()}</select></label><label>Tên mẫu<input name="taskPresetName" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Ví dụ: Review pull request"></label><div class="task-preset-actions"><button type="button" class="button quiet small" data-action="apply-task-preset" disabled>Áp dụng</button><button type="button" class="button quiet small" data-action="save-task-preset">Lưu phiên bản</button><button type="button" class="button quiet small" data-action="delete-task-preset" disabled>Xóa mẫu</button></div></div><small class="task-preset-note">Không lưu yêu cầu, workspace hoặc trạng thái Git. Chọn mẫu rồi bấm Áp dụng để nạp cấu hình.</small><input type="hidden" name="appliedPresetId"><input type="hidden" name="appliedPresetVersion"></section>`;
+  return `<section class="task-preset-tools" aria-label="Mẫu tác vụ"><header><strong>Mẫu tác vụ</strong><small>Lưu cấu hình luồng, quyền và agent/model theo từng phiên bản.</small></header><div class="task-preset-controls">${homeSelectField("Mẫu đã lưu", "taskPresetVersion", "data-task-preset-version", taskPresetVersionOptionList(), "")}<label>Tên mẫu<input name="taskPresetName" maxlength="80" autocomplete="off" spellcheck="false" placeholder="Ví dụ: Review pull request"></label><div class="task-preset-actions"><button type="button" class="button quiet small" data-action="apply-task-preset" disabled>Áp dụng</button><button type="button" class="button quiet small" data-action="save-task-preset">Lưu phiên bản</button><button type="button" class="button quiet small" data-action="delete-task-preset" disabled>Xóa mẫu</button></div></div><small class="task-preset-note">Không lưu yêu cầu, workspace hoặc trạng thái Git. Chọn mẫu rồi bấm Áp dụng để nạp cấu hình.</small><input type="hidden" name="appliedPresetId"><input type="hidden" name="appliedPresetVersion"></section>`;
 }
 function taskPresetVersion(ref) {
   if (!ref) return null;
@@ -390,8 +429,10 @@ function applyTaskPreset(form) {
   const resolved = taskPresetVersion(ref);
   if (!resolved) throw new Error("Mẫu tác vụ không còn khả dụng. Hãy tải lại danh sách mẫu.");
   const { profile } = resolved.version;
-  form.querySelector('[name="workflow"]').value = profile.workflow;
-  form.querySelector('[name="permissionPreset"]').value = profile.permissionPreset;
+  const wfSelect = form.querySelector('[name="workflow"]');
+  const permSelect = form.querySelector('[name="permissionPreset"]');
+  if (wfSelect) { wfSelect.value = profile.workflow; syncCustomSelect(wfSelect); }
+  if (permSelect) { permSelect.value = profile.permissionPreset; syncCustomSelect(permSelect); }
   syncWorkflow();
   for (const role of workflowRoles) {
     const selection = profile.roles?.[role.id];
@@ -411,10 +452,13 @@ function applyTaskPreset(form) {
     const provider = form.querySelector('[name="chatProvider"]');
     if (provider) {
       provider.value = profile.chatProvider;
+      syncCustomSelect(provider);
       syncChatAgentFields(form);
-      form.querySelector('[name="chatModel"]').value = profile.chatModel;
+      const chatMod = form.querySelector('[name="chatModel"]');
+      const chatEff = form.querySelector('[name="chatEffort"]');
+      if (chatMod) { chatMod.value = profile.chatModel; syncCustomSelect(chatMod); }
       syncEffortForModel(form, '[name="chatModel"]', '[name="chatEffort"]', '[name="chatProvider"]');
-      form.querySelector('[name="chatEffort"]').value = profile.chatEffort;
+      if (chatEff) { chatEff.value = profile.chatEffort; syncCustomSelect(chatEff); }
     }
   }
   form.querySelector('[name="appliedPresetId"]').value = ref.id;
@@ -436,6 +480,7 @@ async function saveTaskPreset(form) {
   const select = form.querySelector("[data-task-preset-version]");
   select.innerHTML = taskPresetVersionOptions(newRef);
   select.value = newRef;
+  syncCustomSelect(select);
   form.querySelector('[name="taskPresetName"]').value = saved.preset.name;
   form.querySelector('[name="appliedPresetId"]').value = saved.preset.id;
   form.querySelector('[name="appliedPresetVersion"]').value = String(saved.preset.currentVersion);
@@ -452,6 +497,7 @@ async function deleteTaskPreset(form) {
   const select = form.querySelector("[data-task-preset-version]");
   select.innerHTML = taskPresetVersionOptions();
   select.value = "";
+  syncCustomSelect(select);
   form.querySelector('[name="taskPresetName"]').value = "";
   form.querySelector('[name="appliedPresetId"]').value = "";
   form.querySelector('[name="appliedPresetVersion"]').value = "";
@@ -463,7 +509,7 @@ function chatAgentEditor(overrides = {}) {
   const providerOptions = candidates.map(([id, item]) => ({ value: id, label: `${item.name || id}${item.kind === "api" ? " · API" : " · CLI"}` }));
   const modelOptions = models.map((item) => ({ value: item.id, label: item.name || item.id }));
   const effortOptions = (model?.efforts || []).map((item) => ({ value: item, label: formatEffortLabel(item) }));
-  return `<section class="agent-role-card chat-agent-card"><header><strong>Agent hội thoại</strong><small>${connector?.kind === "api" ? "API bên ngoài · không có quyền workspace" : connector ? "Agent cục bộ" : "Chưa có provider sẵn sàng"}</small></header>${homeSelectField("Agent", "chatProvider", "data-chat-agent-provider", providerOptions, provider, !providerOptions.length)}${homeSelectField("Model", "chatModel", "data-chat-agent-model", modelOptions, model?.id || "", !modelOptions.length)}${homeSelectField("Mức suy nghĩ", "chatEffort", "data-chat-agent-effort", effortOptions, effort, !effortOptions.length)}</section>`;
+  return `<section class="agent-role-card chat-agent-card"><header><strong>Agent hội thoại</strong><span class="role-station-badge">${connector?.kind === "api" ? "Nguồn API" : connector ? "CLI cục bộ" : "Chưa kết nối"}</span></header>${homeSelectField("Agent", "chatProvider", "data-chat-agent-provider", providerOptions, provider, !providerOptions.length)}${homeSelectField("Model", "chatModel", "data-chat-agent-model", modelOptions, model?.id || "", !modelOptions.length)}${homeSelectField("Mức suy nghĩ", "chatEffort", "data-chat-agent-effort", effortOptions, effort, !effortOptions.length)}</section>`;
 }
 function normalizedChatSelection(overrides = {}) {
   const candidates = Object.entries(view.connectors || {}).filter(([, connector]) => connectorSupports(connector, "chat"));
@@ -1305,7 +1351,14 @@ function importContentFiles(input) {
   } finally { input.value = ""; }
 }
 function showSkillCreateModal() {
-  const body = '<label>Tên skill<input name="name" maxlength="100" required autocomplete="off" spellcheck="false" placeholder="Ví dụ: review-api"></label><label>Mô tả ngắn<input name="description" maxlength="500" required placeholder="Khi nào và cách nào nên dùng skill này"></label><label>Dùng cho<select name="scope"><option value="universal">OpenSybau · mọi agent, gồm API</option><option value="codex">Codex CLI</option><option value="antigravity">Antigravity CLI</option><option value="claude">Claude Code CLI</option><option value="all-cli">Tất cả CLI · Codex, Antigravity, Claude</option></select></label>' + contentFileImportField("instructions") + '<label>Hướng dẫn<textarea name="instructions" maxlength="98000" rows="9" placeholder="Quy trình, quy tắc và kết quả mong muốn…"></textarea></label><p class="form-note">OpenSybau lưu skill dùng chung trong dữ liệu riêng của ứng dụng và đưa hướng dẫn vào prompt của agent đã chọn, kể cả API. Chọn một CLI để cài skill trực tiếp vào thư mục cá nhân của CLI đó. OpenSybau không ghi đè skill trùng tên.</p>';
+  const scopeOptions = [
+    { value: "universal", label: "OpenSybau · mọi agent, gồm API" },
+    { value: "codex", label: "Codex CLI" },
+    { value: "antigravity", label: "Antigravity CLI" },
+    { value: "claude", label: "Claude Code CLI" },
+    { value: "all-cli", label: "Tất cả CLI · Codex, Antigravity, Claude" },
+  ];
+  const body = '<label>Tên skill<input name="name" maxlength="100" required autocomplete="off" spellcheck="false" placeholder="Ví dụ: review-api"></label><label>Mô tả ngắn<input name="description" maxlength="500" required placeholder="Khi nào và cách nào nên dùng skill này"></label>' + homeSelectField("Dùng cho", "scope", "", scopeOptions, "universal") + contentFileImportField("instructions") + '<label>Hướng dẫn<textarea name="instructions" maxlength="98000" rows="9" placeholder="Quy trình, quy tắc và kết quả mong muốn…"></textarea></label><p class="form-note">OpenSybau lưu skill dùng chung trong dữ liệu riêng của ứng dụng và đưa hướng dẫn vào prompt của agent đã chọn, kể cả API. Chọn một CLI để cài skill trực tiếp vào thư mục cá nhân của CLI đó. OpenSybau không ghi đè skill trùng tên.</p>';
   showModal("Tạo skill", body, "Tạo skill", "skill-create");
 }
 function defaultSkillScope(providers = []) {
@@ -1443,7 +1496,13 @@ function missionControlStepperMarkup(task, { compact = false } = {}) {
 function openWaveDecomposeModal() {
   const workspaces = view.state?.workspaces || [];
   if (!workspaces.length) return showWorkspaceModal();
-  const options = workspaces.map((w) => `<option value="${esc(w.id)}" ${w.id === (view.homeWorkspaceId || workspaces[0]?.id) ? "selected" : ""}>${esc(w.name)} · ${esc(w.path)}</option>`).join("");
+  const wsOptions = workspaces.map((w) => ({ value: w.id, label: `${w.name} · ${w.path}` }));
+  const defaultWsId = view.homeWorkspaceId || workspaces[0]?.id || "";
+  const roundOptions = [
+    { value: "1", label: "1 vòng (Tiêu chuẩn)" },
+    { value: "2", label: "2 vòng (Tự sửa nếu kiểm tra phát hiện lỗi)" },
+    { value: "3", label: "3 vòng (Kỹ lưỡng)" },
+  ];
   const defaultCampaign = [
     "[Đợt 1] Phân tích yêu cầu & thiết kế giao diện / API nền tảng",
     "[Đợt 2] Viết code xử lý chính và kết nối dữ liệu",
@@ -1453,19 +1512,13 @@ function openWaveDecomposeModal() {
     <p class="form-note">Chia công việc lớn thành <strong>nhiều đợt kế tiếp nhau</strong>: các việc trong cùng một đợt sẽ chạy song song trên nhánh Git riêng, và đợt sau sẽ tự động đợi đợt trước làm xong mới bắt đầu.</p>
     <div class="modal-grid-2">
       <label>Tên nhóm công việc<input name="milestone" required maxlength="120" value="Nhóm việc nâng cấp tính năng" placeholder="VD: Nâng cấp đăng nhập & bảo mật"></label>
-      <label>Dự án (Workspace)<select name="workspaceId" required>${options}</select></label>
+      ${homeSelectField("Dự án (Workspace)", "workspaceId", "required", wsOptions, defaultWsId)}
     </div>
     <label>Danh sách công việc theo từng đợt (mỗi dòng 1 việc — cú pháp <code>[Đợt 1] Tên việc :: Chi tiết</code>)
       <textarea name="waveSpec" rows="6" required spellcheck="false">${esc(defaultCampaign)}</textarea>
     </label>
     <div class="modal-grid-2">
-      <label>Số vòng tự sửa tối đa
-        <select name="maxRounds">
-          <option value="1">1 vòng (Tiêu chuẩn)</option>
-          <option value="2" selected>2 vòng (Tự sửa nếu kiểm tra phát hiện lỗi)</option>
-          <option value="3">3 vòng (Kỹ lưỡng)</option>
-        </select>
-      </label>
+      ${homeSelectField("Số vòng tự sửa tối đa", "maxRounds", "", roundOptions, "2")}
       <label>Lệnh chạy thử tự động (tùy chọn)
         <input name="qaCommand" placeholder="VD: npm test" autocomplete="off" spellcheck="false">
       </label>
@@ -1667,6 +1720,30 @@ function memoryPage() {
   </section>`}`;
 }
 
+const SETTINGS_NAV_ITEMS = [
+  { id: "all", label: "Tất cả cài đặt", icon: "sliders-horizontal" },
+  { id: "theme", label: "Giao diện", icon: "sparkles" },
+  { id: "roles", label: "Chọn model AI", icon: "workflow" },
+  { id: "cli", label: "Công cụ CLI", icon: "square-terminal" },
+  { id: "api", label: "Kết nối API", icon: "plug-zap" },
+  { id: "devices", label: "Kết nối điện thoại", icon: "smartphone" },
+  { id: "concurrency", label: "Hiệu năng", icon: "layers" },
+];
+
+function settingsSidebarMarkup() {
+  const activeSection = view.settingsSection || "all";
+  return `<div class="wb-sidebar-scroll wb-settings-sidebar">
+    <section class="wb-sidebar-group wb-settings-group">
+      <div class="wb-section-head"><span>Cài đặt</span></div>
+      <div class="wb-settings-nav-list" role="navigation" aria-label="Danh mục cài đặt">
+        ${SETTINGS_NAV_ITEMS.map((item) => `<button type="button" class="wb-side-link wb-settings-side-link ${activeSection === item.id ? "is-active" : ""}" data-action="settings-nav" data-section="${esc(item.id)}" aria-current="${activeSection === item.id ? "true" : "false"}">
+          <span class="wb-side-link-main">${icon(item.icon, 16)}<span>${esc(item.label)}</span></span>
+        </button>`).join("")}
+      </div>
+    </section>
+  </div>`;
+}
+
 function settingsPage() {
   const defaults = view.state?.settings?.defaults || {};
   const maxConcurrent = view.state?.settings?.maxConcurrent || 2;
@@ -1726,15 +1803,6 @@ function settingsPage() {
 
   const activeSection = view.settingsSection || "all";
   const showSection = (id) => activeSection === "all" || activeSection === id;
-  const settingsNavItems = [
-    { id: "all", label: "Tất cả cài đặt", icon: "sliders-horizontal" },
-    { id: "theme", label: "Giao diện", icon: "sparkles" },
-    { id: "roles", label: "Chọn model AI", icon: "workflow" },
-    { id: "cli", label: "Công cụ CLI", icon: "square-terminal" },
-    { id: "api", label: "Kết nối API", icon: "plug-zap" },
-    { id: "devices", label: "Kết nối điện thoại", icon: "smartphone" },
-    { id: "concurrency", label: "Hiệu năng", icon: "layers" },
-  ];
 
   return `<div class="page-head">
     <div>
@@ -1746,43 +1814,48 @@ function settingsPage() {
       <button class="button primary" type="button" data-action="provider-add">${icon("plus", 15)} Thêm nguồn AI</button>
     </div>
   </div>
-  <div class="settings-workbench-layout">
-    <nav class="settings-nav-sidebar" aria-label="Danh mục cài đặt">
-      ${settingsNavItems.map((item) => `<button type="button" class="settings-nav-item ${activeSection === item.id ? "is-active" : ""}" data-action="settings-nav" data-section="${esc(item.id)}" aria-current="${activeSection === item.id ? "true" : "false"}">
-        <span class="settings-nav-item-main">${icon(item.icon, 15)}<span>${esc(item.label)}</span></span>
-      </button>`).join("")}
-    </nav>
-    <form class="settings-form" data-modal data-form="settings">
-      <section class="settings-card theme-gallery-card" id="settings-theme" ${showSection("theme") ? "" : "hidden"}>
-        <header>
-          <div>
-            <h2>Giao diện & Chủ đề màu</h2>
-            <p>Chuyển đổi tức thì giữa chủ đề Tối, Đa sắc và Sáng.</p>
-          </div>
-        </header>
-        <div class="theme-gallery-groups">${themeGroupsHtml}</div>
-      </section>
-      <section class="settings-card" id="settings-roles" ${showSection("roles") ? "" : "hidden"}><header><div><h2>Chọn model AI cho từng việc</h2><p>Chọn AI mặc định phụ trách từng khâu: Lên kế hoạch, Viết code và Kiểm tra code.</p></div></header>
-          ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI</button></div></div>` : ""}
-        <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
-        ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Hãy khởi động lại để lưu model mặc định.</div>`}
-        <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu model mặc định</button></footer>
-      </section>
-      <section class="settings-card cli-setup-card" id="cli-setup" ${showSection("cli") ? "" : "hidden"}><header><div><h2>Công cụ CLI trên máy</h2><p>Tự động nhận diện Codex, Antigravity và Claude Code đã cài trên máy tính.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div></section>
-      <section class="settings-card provider-setup-card" id="settings-api" ${showSection("api") ? "" : "hidden"}><header><div><h2>Kết nối API & Model cục bộ</h2><p>Dùng thêm khóa API (OpenAI, Gemini, Claude) hoặc model chạy qua Ollama, LM Studio.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa thêm nguồn API nào</strong><p>Bấm Thêm nguồn nếu bạn muốn dùng API key riêng hoặc kết nối Ollama / LM Studio.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm nguồn API</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div></section>
-      ${renderDeviceConnectSettingsSection({ hidden: !showSection("devices") })}
-      <section class="settings-card concurrency-card" id="settings-concurrency" ${showSection("concurrency") ? "" : "hidden"}><header><div><h2>Số công việc chạy cùng lúc</h2><p>Giới hạn số công việc AI được phép chạy song song trên máy.</p></div></header>
-        <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${maxConcurrent}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
-      </section>
-    </form>
-  </div>`;
+  <nav class="settings-nav-sidebar settings-mobile-nav" aria-label="Danh mục cài đặt">
+    ${SETTINGS_NAV_ITEMS.map((item) => `<button type="button" class="settings-nav-item ${activeSection === item.id ? "is-active" : ""}" data-action="settings-nav" data-section="${esc(item.id)}" aria-current="${activeSection === item.id ? "true" : "false"}">
+      <span class="settings-nav-item-main">${icon(item.icon, 15)}<span>${esc(item.label)}</span></span>
+    </button>`).join("")}
+  </nav>
+  <form class="settings-form" data-modal data-form="settings">
+    <section class="settings-card theme-gallery-card" id="settings-theme" ${showSection("theme") ? "" : "hidden"}>
+      <header>
+        <div>
+          <h2>Giao diện & Chủ đề màu</h2>
+          <p>Chuyển đổi tức thì giữa chủ đề Tối, Đa sắc và Sáng.</p>
+        </div>
+      </header>
+      <div class="theme-gallery-groups">${themeGroupsHtml}</div>
+    </section>
+    <section class="settings-card" id="settings-roles" ${showSection("roles") ? "" : "hidden"}><header><div><h2>Chọn model AI cho từng việc</h2><p>Chọn AI mặc định phụ trách từng khâu: Lên kế hoạch, Viết code và Kiểm tra code.</p></div></header>
+        ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI</button></div></div>` : ""}
+      <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
+      ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Hãy khởi động lại để lưu model mặc định.</div>`}
+      <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu model mặc định</button></footer>
+    </section>
+    <section class="settings-card cli-setup-card" id="cli-setup" ${showSection("cli") ? "" : "hidden"}><header><div><h2>Công cụ CLI trên máy</h2><p>Tự động nhận diện Codex, Antigravity và Claude Code đã cài trên máy tính.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div></section>
+    <section class="settings-card provider-setup-card" id="settings-api" ${showSection("api") ? "" : "hidden"}><header><div><h2>Kết nối API & Model cục bộ</h2><p>Dùng thêm khóa API (OpenAI, Gemini, Claude) hoặc model chạy qua Ollama, LM Studio.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa thêm nguồn API nào</strong><p>Bấm Thêm nguồn nếu bạn muốn dùng API key riêng hoặc kết nối Ollama / LM Studio.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm nguồn API</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div></section>
+    ${renderDeviceConnectSettingsSection({ hidden: !showSection("devices") })}
+    <section class="settings-card concurrency-card" id="settings-concurrency" ${showSection("concurrency") ? "" : "hidden"}><header><div><h2>Số công việc chạy cùng lúc</h2><p>Giới hạn số công việc AI được phép chạy song song trên máy.</p></div></header>
+      <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${maxConcurrent}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
+    </section>
+  </form>`;
 }
 
 function showApiProviderModal(provider = null) {
   const editing = Boolean(provider);
   const models = (provider?.models || []).map((model) => model.id).join("\n");
+  const protocolOptions = [
+    { value: "openai", label: "OpenAI Responses API" },
+    { value: "gemini", label: "Google Gemini API" },
+    { value: "anthropic", label: "Anthropic Messages API" },
+    { value: "openai-compatible", label: "OpenAI-compatible · Ollama, LM Studio…" },
+  ];
+  const currentProtocol = provider?.protocol || "openai-compatible";
   const sourceChoice = editing ? "" : `<section class="provider-cli-entry"><span class="provider-connect-icon">${icon("square-terminal", 16)}</span><div><strong>Dùng Codex, Antigravity hoặc Claude CLI?</strong><p>OpenSybau tự dò CLI đã cài và đăng nhập qua terminal, không cần nhập API key.</p></div><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI</button></section>`;
-  const body = `${sourceChoice}<div class="provider-presets" aria-label="Cấu hình nhanh"><div class="provider-presets-head"><span>Cấu hình nhanh</span><nav class="provider-key-links" aria-label="Tạo API key"><a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">OpenAI key</a><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">Gemini key</a><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Claude key</a></nav></div><div><button type="button" class="button quiet small" data-action="provider-preset" data-preset="openai">OpenAI / ChatGPT</button><button type="button" class="button quiet small" data-action="provider-preset" data-preset="gemini">Google Gemini</button><button type="button" class="button quiet small" data-action="provider-preset" data-preset="anthropic">Claude API</button><button type="button" class="button quiet small" data-action="provider-preset" data-preset="local">Model local / khác</button></div></div><div class="modal-grid-2"><label>Tên hiển thị<input name="name" required maxlength="80" autocomplete="off" spellcheck="false" value="${esc(provider?.name || "")}" placeholder="Ví dụ: Ollama · Qwen local"></label><label>Giao thức<select name="protocol"><option value="openai" ${provider?.protocol === "openai" ? "selected" : ""}>OpenAI Responses API</option><option value="gemini" ${provider?.protocol === "gemini" ? "selected" : ""}>Google Gemini API</option><option value="anthropic" ${provider?.protocol === "anthropic" ? "selected" : ""}>Anthropic Messages API</option><option value="openai-compatible" ${!provider || provider?.protocol === "openai-compatible" ? "selected" : ""}>OpenAI-compatible · Ollama, LM Studio…</option></select></label></div><label>API endpoint<input name="baseUrl" required maxlength="500" value="${esc(provider?.baseUrl || "")}" placeholder="http://localhost:11434/v1" autocomplete="url" spellcheck="false"><small>OpenAI-compatible: URL /v1 · Gemini: v1beta · HTTP chỉ dùng với localhost.</small></label><div class="provider-model-field"><label>Model ID<textarea name="models" required rows="3" spellcheck="false" placeholder="Chọn dịch vụ rồi bấm tải danh sách, hoặc nhập mỗi dòng một model ID">${esc(models)}</textarea></label><button class="button small" type="button" data-action="provider-discover-models">${icon("refresh-cw", 13)} Tải danh sách model</button></div>${editing ? `<input type="hidden" name="apiKeyRequired" value="${provider.apiKeyRequired ? "true" : "false"}">` : ""}<label>API key<input name="apiKey" type="password" maxlength="2048" autocomplete="new-password" spellcheck="false" placeholder="${editing && provider.apiKeyConfigured ? "Để trống để giữ key hiện tại" : "Nhập key của dịch vụ; model local có thể không cần"}"></label>${editing && provider.apiKeyConfigured ? `<label class="check-row"><input type="checkbox" name="clearApiKey" value="true"><span><strong>Xóa API key đã lưu</strong><small>Chỉ bật nếu muốn gỡ key khỏi cấu hình cục bộ.</small></span></label>` : ""}<p class="form-note">API key được lưu cục bộ trong thư mục dữ liệu riêng của OpenSybau; API OpenAI tính phí riêng với gói ChatGPT.</p>`;
+  const body = `${sourceChoice}<div class="provider-presets" aria-label="Cấu hình nhanh"><div class="provider-presets-head"><span>Cấu hình nhanh</span><nav class="provider-key-links" aria-label="Tạo API key"><a href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">OpenAI key</a><a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">Gemini key</a><a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Claude key</a></nav></div><div><button type="button" class="button quiet small" data-action="provider-preset" data-preset="openai">OpenAI / ChatGPT</button><button type="button" class="button quiet small" data-action="provider-preset" data-preset="gemini">Google Gemini</button><button type="button" class="button quiet small" data-action="provider-preset" data-preset="anthropic">Claude API</button><button type="button" class="button quiet small" data-action="provider-preset" data-preset="local">Model local / khác</button></div></div><div class="modal-grid-2"><label>Tên hiển thị<input name="name" required maxlength="80" autocomplete="off" spellcheck="false" value="${esc(provider?.name || "")}" placeholder="Ví dụ: Ollama · Qwen local"></label>${homeSelectField("Giao thức", "protocol", "", protocolOptions, currentProtocol)}</div><label>API endpoint<input name="baseUrl" required maxlength="500" value="${esc(provider?.baseUrl || "")}" placeholder="http://localhost:11434/v1" autocomplete="url" spellcheck="false"><small>OpenAI-compatible: URL /v1 · Gemini: v1beta · HTTP chỉ dùng với localhost.</small></label><div class="provider-model-field"><label>Model ID<textarea name="models" required rows="3" spellcheck="false" placeholder="Chọn dịch vụ rồi bấm tải danh sách, hoặc nhập mỗi dòng một model ID">${esc(models)}</textarea></label><button class="button small" type="button" data-action="provider-discover-models">${icon("refresh-cw", 13)} Tải danh sách model</button></div>${editing ? `<input type="hidden" name="apiKeyRequired" value="${provider.apiKeyRequired ? "true" : "false"}">` : ""}<label>API key<input name="apiKey" type="password" maxlength="2048" autocomplete="new-password" spellcheck="false" placeholder="${editing && provider.apiKeyConfigured ? "Để trống để giữ key hiện tại" : "Nhập key của dịch vụ; model local có thể không cần"}"></label>${editing && provider.apiKeyConfigured ? `<label class="check-row"><input type="checkbox" name="clearApiKey" value="true"><span><strong>Xóa API key đã lưu</strong><small>Chỉ bật nếu muốn gỡ key khỏi cấu hình cục bộ.</small></span></label>` : ""}<p class="form-note">API key được lưu cục bộ trong thư mục dữ liệu riêng của OpenSybau; API OpenAI tính phí riêng với gói ChatGPT.</p>`;
   showModal(editing ? "Sửa nguồn AI" : "Thêm nguồn AI", body, editing ? "Lưu nguồn" : "Thêm nguồn", "api-provider");
   if (provider) $(".modal").dataset.id = provider.id;
 }
@@ -1894,9 +1967,10 @@ function render({ background = false } = {}) {
   const pageMarkup = wrapStageWithOrcaTabs(rawPageMarkup);
   const isRightDockOpen = pageSupportsRightDock(view.page) && (view.page === "chat" ? Boolean(view.chatDrawerOpen) : Boolean(view.homeDockOpen ?? view.chatDrawerOpen));
   const rightDockMarkup = isRightDockOpen ? orcaRightDockMarkup() : "";
+  const pageSidebarMarkup = view.page === "settings" ? settingsSidebarMarkup() : "";
   const searchResults = view.searchQuery ? homeSearchResults(view.searchQuery) : "";
   view.searchResults = searchResults;
-  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, theme: view.theme, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: (selectedTask || selectedWorkspace) ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults, collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, activeRemoteHostName: getActiveRemoteHost()?.name || "", chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
+  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, theme: view.theme, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: (selectedTask || selectedWorkspace) ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults, collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, activeRemoteHostName: getActiveRemoteHost()?.name || "", chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, pageSidebarMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
   const overlay = $("#overlay");
   if (overlay && overlay.children.length > 0) {
@@ -2137,17 +2211,14 @@ function chatPage() {
         const models = cand?.models || [];
         const modelObj = models.find((m) => m.id === slot.model) || models[0];
         const slotEfforts = modelObj?.efforts?.length ? modelObj.efforts : ["low", "medium", "high"];
+        const provOptions = arenaCandidates.map((c) => ({ value: c.provider, label: c.name }));
+        const modOptions = models.length ? models.map((m) => ({ value: m.id, label: m.name || m.id })) : [{ value: "", label: "Mặc định" }];
+        const effOptions = slotEfforts.map((ef) => ({ value: ef, label: formatEffortLabel(ef) }));
         return `<div class="arena-slot-row">
           <span class="arena-slot-badge">#${idx + 1}</span>
-          <select class="arena-slot-select" data-arena-slot-provider="${idx}" aria-label="Agent nhánh ${idx + 1}">
-            ${arenaCandidates.map((c) => `<option value="${esc(c.provider)}" ${c.provider === slot.provider ? "selected" : ""}>${esc(c.name)}</option>`).join("")}
-          </select>
-          <select class="arena-slot-select is-model" data-arena-slot-model="${idx}" aria-label="Model nhánh ${idx + 1}">
-            ${models.length ? models.map((m) => `<option value="${esc(m.id)}" ${m.id === slot.model ? "selected" : ""}>${esc(m.name || m.id)}</option>`).join("") : `<option value="">Mặc định</option>`}
-          </select>
-          <select class="arena-slot-select is-effort" data-arena-slot-effort="${idx}" aria-label="Mức suy nghĩ nhánh ${idx + 1}">
-            ${slotEfforts.map((ef) => `<option value="${esc(ef)}" ${ef === slot.effort ? "selected" : ""}>${esc(formatEffortLabel(ef))}</option>`).join("")}
-          </select>
+          ${customSelectControl(`arenaProvider${idx}`, `data-arena-slot-provider="${idx}"`, provOptions, slot.provider, { extraClass: "arena-slot-picker", ariaLabel: `Agent nhánh ${idx + 1}`, popId: `arena-prov-${idx}` })}
+          ${customSelectControl(`arenaModel${idx}`, `data-arena-slot-model="${idx}"`, modOptions, slot.model || modOptions[0]?.value || "", { extraClass: "arena-slot-picker is-model", ariaLabel: `Model nhánh ${idx + 1}`, popId: `arena-mod-${idx}` })}
+          ${customSelectControl(`arenaEffort${idx}`, `data-arena-slot-effort="${idx}"`, effOptions, slot.effort, { extraClass: "arena-slot-picker is-effort", ariaLabel: `Mức suy nghĩ nhánh ${idx + 1}`, popId: `arena-eff-${idx}` })}
           <button type="button" class="arena-slot-icon" data-action="arena-clone-slot" data-index="${idx}" ${arenaSlots.length >= 8 ? "disabled" : ""} title="Nhân bản thêm 1 nhánh giống hệt nhánh này">${icon("copy", 13)}</button>
           <button type="button" class="arena-slot-icon is-danger" data-action="arena-remove-slot" data-index="${idx}" ${arenaSlots.length <= 2 ? "disabled" : ""} title="Xóa nhánh này">${icon("x", 13)}</button>
         </div>`;
@@ -2841,9 +2912,10 @@ function openTaskInstructionModal(task) {
   view.chatModel = model?.id || "";
   view.chatEffort = view.chatEffort || (task.config.workflow === "chat-only" ? task.config.chatEffort : defaultRole.effort) || model?.efforts?.find((effort) => effort === "medium") || model?.efforts?.[0] || "";
   const providers = Object.entries(view.connectors || {}).filter(([, connector]) => connectorSupports(connector, "chat"));
-  const options = models.map((item) => `<option value="${esc(item.id)}" ${item.id === model?.id ? "selected" : ""}>${esc(item.name)}</option>`).join("");
-  const effortOptions = (model?.efforts || efforts).map((effort) => `<option value="${esc(effort)}" ${effort === view.chatEffort ? "selected" : ""}>${esc(formatEffortLabel(effort))}</option>`).join("");
-  const body = `<div class="task-instruction-models"><label>Agent<select name="provider" data-chat-provider>${providers.map(([id, connector]) => `<option value="${esc(id)}" ${provider === id ? "selected" : ""}>${esc(connector.name || id)}${connector.kind === "api" ? " · API" : " · CLI"}</option>`).join("") || `<option value="">Chưa có agent khả dụng</option>`}</select></label><label>Model<select name="model" data-chat-model ${model ? "" : "disabled"}>${options || `<option value="">Chưa có model khả dụng</option>`}</select></label><label>Mức suy nghĩ<select name="effort" data-chat-effort>${effortOptions}</select></label></div>`;
+  const providerOptions = providers.length ? providers.map(([id, connector]) => ({ value: id, label: `${connector.name || id}${connector.kind === "api" ? " · API" : " · CLI"}` })) : [{ value: "", label: "Chưa có agent khả dụng" }];
+  const modelOptions = models.length ? models.map((item) => ({ value: item.id, label: item.name || item.id })) : [{ value: "", label: "Chưa có model khả dụng" }];
+  const effortOptions = (model?.efforts || efforts).map((effort) => ({ value: effort, label: formatEffortLabel(effort) }));
+  const body = `<div class="task-instruction-models">${homeSelectField("Agent", "provider", "data-chat-provider", providerOptions, provider, !providers.length)}${homeSelectField("Model", "model", "data-chat-model", modelOptions, model?.id || "", !model)}${homeSelectField("Mức suy nghĩ", "effort", "data-chat-effort", effortOptions, view.chatEffort, !effortOptions.length)}</div>`;
   showModal("Cấu hình lượt chat", body, "Áp dụng", "task-chat-config");
   $(".modal").dataset.id = task.id;
   $(".modal").classList.add("task-chat-config-modal");
@@ -2857,7 +2929,12 @@ function openTaskGoalModal(task) {
 }
 function openTaskPermissionsModal(task) {
   const current = task.permissionPreset || "workspace-write";
-  const body = `<label>Quyền truy cập<select name="permissionPreset"><option value="read-only" ${current === "read-only" ? "selected" : ""}>Chỉ đọc workspace</option><option value="workspace-write" ${current === "workspace-write" ? "selected" : ""}>Đọc và sửa workspace</option><option value="full-access" ${current === "full-access" ? "selected" : ""}>Toàn quyền trên máy</option></select><small>Toàn quyền tắt sandbox và bước duyệt của CLI cục bộ (Codex, Antigravity hoặc Claude Code), cho phép agent chạy lệnh và truy cập tệp ngoài workspace theo quyền tài khoản Windows của bạn. Chỉ chọn khi bạn tin cậy yêu cầu và nội dung trong workspace. Provider API vẫn không có quyền chạy lệnh trên máy.</small></label>`;
+  const permOptions = [
+    { value: "read-only", label: "Chỉ đọc workspace" },
+    { value: "workspace-write", label: "Đọc và sửa workspace" },
+    { value: "full-access", label: "Toàn quyền trên máy" },
+  ];
+  const body = `${homeSelectField("Quyền truy cập", "permissionPreset", "", permOptions, current)}<p class="form-note">Toàn quyền tắt sandbox và bước duyệt của CLI cục bộ (Codex, Antigravity hoặc Claude Code), cho phép agent chạy lệnh và truy cập tệp ngoài workspace theo quyền tài khoản Windows của bạn. Chỉ chọn khi bạn tin cậy yêu cầu và nội dung trong workspace. Provider API vẫn không có quyền chạy lệnh trên máy.</p>`;
   showModal("Quyền của task", body, "Lưu quyền", "task-permissions");
   $(".modal").dataset.id = task.id;
 }
@@ -2884,7 +2961,7 @@ function taskDetails() {
   const canRerun = !busy && !task.processRunning;
   const presetBadge = task.presetRef?.name ? `<span class="pill">${esc(translateText("Nguồn mẫu", view.language))}: ${esc(task.presetRef.name)} · v${Number(task.presetRef.version) || 1}</span>` : "";
   const replayControls = canRerun && task.config.workflow !== "chat-only"
-    ? `<div class="stage-rerun-controls"><label>Chạy lại từ<select data-rerun-stage>${replayStages.map(([id, label]) => `<option value="${esc(id)}" ${id === defaultReplayStage ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label><button class="button primary" data-action="rerun-stage" data-id="${esc(task.id)}">Chạy lại</button></div>`
+    ? `<div class="stage-rerun-controls">${homeSelectField("Chạy lại từ", "rerunStage", "data-rerun-stage", replayStages.map(([id, label]) => ({ value: id, label })), defaultReplayStage)}<button class="button primary" data-action="rerun-stage" data-id="${esc(task.id)}">Chạy lại</button></div>`
     : canRerun && task.config.workflow === "chat-only" && ["failed", "cancelled"].includes(task.status)
       ? `<button class="button primary" data-action="rerun-task" data-id="${esc(task.id)}">Chạy lại chat</button>`
       : "";
@@ -2926,11 +3003,34 @@ async function openTaskModal() {
   const { workspaces } = view.state;
   if (!providersForRole(view.connectors, "plan").length) { view.page = "settings"; view.selected = null; render(); showToast("Kết nối ít nhất một agent hoặc API rồi bạn có thể tạo task."); return; }
   if (!workspaces.length) return showWorkspaceModal();
-  const options = workspaces.map((w) => `<option value="${esc(w.id)}">${esc(w.name)} · ${esc(w.path)}</option>`).join("");
-  const depOptions = `<option value="">Không phụ thuộc (Đợt 1)</option>` + (view.state.tasks || []).filter((t) => !t.archived).slice(0, 25).map((t) => `<option value="${esc(t.id)}">${esc(t.code || "TASK")} · ${esc(t.title.slice(0, 56))}</option>`).join("");
+  const wsOptions = workspaces.map((w) => ({ value: w.id, label: `${w.name} · ${w.path}` }));
+  const depOptions = [
+    { value: "", label: "Không phụ thuộc (Đợt 1)" },
+    ...(view.state.tasks || []).filter((t) => !t.archived).slice(0, 25).map((t) => ({ value: t.id, label: `${t.code || "TASK"} · ${t.title.slice(0, 56)}` })),
+  ];
   const hasBuild = providersForRole(view.connectors, "build").length > 0;
   const canPlanOnly = providersForRole(view.connectors, "plan").length > 0;
-  const body = `${taskPresetToolsMarkup()}<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="3" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea></label><div class="modal-grid-2"><label>Dự án (Workspace)<select name="workspaceId" required>${options}</select></label><label>Luồng<select name="workflow"><option value="codex-antigravity" ${hasBuild ? "selected" : "disabled"}>Pipeline · Kế hoạch → Triển khai → Đánh giá</option><option value="plan-only" ${hasBuild ? "" : "selected"} ${canPlanOnly ? "" : "disabled"}>Chỉ lập kế hoạch</option><option value="chat-only">Chat · một agent</option></select></label></div><div class="modal-grid-2"><label>Quyền<select name="permissionPreset"><option value="workspace-write" selected>Đọc và sửa workspace</option><option value="read-only">Chỉ đọc workspace</option><option value="full-access">Toàn quyền trên máy</option></select></label><label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label></div><div class="modal-grid-2"><label>Phạm vi thay đổi & Vòng lặp tự sửa<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><select name="riskLevel"><option value="S">Phạm vi nhỏ</option><option value="M" selected>Phạm vi vừa</option><option value="L">Phạm vi lớn</option></select><select name="maxRounds"><option value="1">1 vòng</option><option value="2" selected>Tự sửa 2 vòng</option><option value="3">Tự sửa 3 vòng</option></select></div></label><label>Lệnh QA tự động & Phụ thuộc đợt<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><input name="qaCommand" placeholder="VD: npm test" autocomplete="off" spellcheck="false"><select name="dependsOnTaskId">${depOptions}</select></div></label></div><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 16)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="planGate"><span><strong>Dừng lại chờ duyệt kế hoạch (Bước 2 · Duyệt kế hoạch)</strong><small>Tạm dừng sau khi AI lên kế hoạch để bạn xem qua trước khi AI viết code.</small></span></label><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
+  const wfOptions = [
+    { value: "codex-antigravity", label: "Pipeline · Kế hoạch → Triển khai → Đánh giá", disabled: !hasBuild },
+    { value: "plan-only", label: "Chỉ lập kế hoạch", disabled: !canPlanOnly },
+    { value: "chat-only", label: "Chat · một agent" },
+  ];
+  const permOptions = [
+    { value: "workspace-write", label: "Đọc và sửa workspace" },
+    { value: "read-only", label: "Chỉ đọc workspace" },
+    { value: "full-access", label: "Toàn quyền trên máy" },
+  ];
+  const riskOptions = [
+    { value: "S", label: "Phạm vi nhỏ" },
+    { value: "M", label: "Phạm vi vừa" },
+    { value: "L", label: "Phạm vi lớn" },
+  ];
+  const roundOptions = [
+    { value: "1", label: "1 vòng" },
+    { value: "2", label: "Tự sửa 2 vòng" },
+    { value: "3", label: "Tự sửa 3 vòng" },
+  ];
+  const body = `${taskPresetToolsMarkup()}<label>Yêu cầu<textarea name="prompt" required minlength="6" maxlength="12000" rows="3" placeholder="Mô tả việc cần làm, phạm vi và điều kiện hoàn tất…"></textarea></label><div class="modal-grid-2">${homeSelectField("Dự án (Workspace)", "workspaceId", "required", wsOptions, view.homeWorkspaceId || workspaces[0]?.id)}${homeSelectField("Luồng", "workflow", "", wfOptions, hasBuild ? "codex-antigravity" : "plan-only")}</div><div class="modal-grid-2">${homeSelectField("Quyền", "permissionPreset", "", permOptions, "workspace-write")}<label>Mục tiêu dài hạn<input name="goal" maxlength="2000" placeholder="Không bắt buộc"></label></div><div class="modal-grid-2">${homeSelectField("Phạm vi thay đổi", "riskLevel", "", riskOptions, "M")}${homeSelectField("Vòng lặp tự sửa", "maxRounds", "", roundOptions, "2")}</div><div class="modal-grid-2"><label>Lệnh QA tự động<input name="qaCommand" placeholder="VD: npm test" autocomplete="off" spellcheck="false"></label>${homeSelectField("Phụ thuộc đợt", "dependsOnTaskId", "", depOptions, "")}</div><div class="agent-role-grid task-role-grid">${workflowRoles.map((role) => roleEditor(role.id)).join("")}</div><div class="chat-agent-role" hidden>${chatAgentEditor()}</div><section class="task-skill-auto"><span class="task-skill-auto-icon">${icon("notebook-tabs", 16)}</span><div><strong>Tự chọn skill phù hợp</strong><small>OpenSybau tìm skill liên quan rồi gửi cho agent ở từng vai trò.</small></div><span class="task-skill-total">${view.skills.length} skill</span></section><label class="check-row"><input type="checkbox" name="planGate"><span><strong>Dừng lại chờ duyệt kế hoạch (Bước 2 · Duyệt kế hoạch)</strong><small>Tạm dừng sau khi AI lên kế hoạch để bạn xem qua trước khi AI viết code.</small></span></label><label class="check-row"><input type="checkbox" name="isolated"><span><strong>Tách Git worktree riêng</strong><small>Cần repo có commit. Khi bật, kết quả ở worktree và không tự nhập vào thư mục hiện tại.</small></span></label><div class="form-note" id="isolation-note"></div>`;
   showModal("Task mới", body, "Tạo và chạy");
   syncWorkflow(); syncIsolation(); syncTaskPresetControls($(".modal"));
 }
@@ -2965,12 +3065,14 @@ function syncProviderModelControls(form, provider, modelSelector, effortSelector
   modelSelect.innerHTML = models.map((model) => `<option value="${esc(model.id)}" ${model.id === selectedModel?.id ? "selected" : ""}>${esc(model.name)}</option>`).join("") || `<option value="">Chưa có model</option>`;
   if (selectedModel) modelSelect.value = selectedModel.id;
   modelSelect.disabled = !models.length;
+  syncCustomSelect(modelSelect);
   const effortsForModel = selectedModel?.efforts || [];
   const preferredEffort = (isHomeChat && view.homeChatEffort ? view.homeChatEffort : "") || effortSelect.value;
   const selectedEffort = effortsForModel.includes(preferredEffort) ? preferredEffort : (effortsForModel.includes("medium") ? "medium" : effortsForModel[0] || "");
   effortSelect.innerHTML = effortsForModel.map((effort) => `<option value="${esc(effort)}" ${effort === selectedEffort ? "selected" : ""}>${esc(formatEffortLabel(effort))}</option>`).join("") || `<option value="">Không áp dụng</option>`;
   if (selectedEffort) effortSelect.value = selectedEffort;
   effortSelect.disabled = !effortsForModel.length;
+  syncCustomSelect(effortSelect);
 }
 function syncEffortForModel(form, modelSelector, effortSelector, providerSelector) {
   const modelId = form?.querySelector(modelSelector)?.value;
@@ -2984,6 +3086,7 @@ function syncEffortForModel(form, modelSelector, effortSelector, providerSelecto
   effortSelect.innerHTML = options.map((effort) => `<option value="${esc(effort)}" ${effort === selectedEffort ? "selected" : ""}>${esc(formatEffortLabel(effort))}</option>`).join("") || `<option value="">Không áp dụng</option>`;
   if (selectedEffort) effortSelect.value = selectedEffort;
   effortSelect.disabled = !options.length;
+  syncCustomSelect(effortSelect);
 }
 function syncRoleProvider(form, roleId) {
   const provider = form?.querySelector(`[data-role-provider="${roleId}"]`)?.value || "";
@@ -3025,8 +3128,11 @@ function showProjectSectionModal(workspace) {
   $(".modal").dataset.id = workspace.id;
 }
 function showMemoryModal() {
-  const options = '<option value="all">Dùng chung</option>' + view.state.workspaces.map((w) => '<option value="' + esc(w.id) + '">' + esc(w.name) + '</option>').join("");
-  const body = '<label>Tên ghi nhớ<input name="title" maxlength="120" required autocomplete="off" spellcheck="false" placeholder="Ví dụ: Cách chạy kiểm thử dự án"></label>' + contentFileImportField("content") + '<label>Nội dung<textarea name="content" maxlength="5000" rows="4" required placeholder="Một ghi chú đã kiểm chứng, hữu ích cho các task sau"></textarea></label><label>Phạm vi<select name="workspaceId">' + options + '</select></label><div class="form-note">Mỗi task chỉ nạp tối đa 3 ghi chú có từ khóa khớp yêu cầu.</div>';
+  const scopeOptions = [
+    { value: "all", label: "Dùng chung" },
+    ...(view.state.workspaces || []).map((w) => ({ value: w.id, label: w.name })),
+  ];
+  const body = '<label>Tên ghi nhớ<input name="title" maxlength="120" required autocomplete="off" spellcheck="false" placeholder="Ví dụ: Cách chạy kiểm thử dự án"></label>' + contentFileImportField("content") + '<label>Nội dung<textarea name="content" maxlength="5000" rows="4" required placeholder="Một ghi chú đã kiểm chứng, hữu ích cho các task sau"></textarea></label>' + homeSelectField("Phạm vi", "workspaceId", "", scopeOptions, "all") + '<div class="form-note">Mỗi task chỉ nạp tối đa 3 ghi chú có từ khóa khớp yêu cầu.</div>';
   showModal("Ghi nhớ mới", body, "Lưu ghi nhớ");
 }
 function renderDiffStudioModal() {
@@ -3366,7 +3472,7 @@ async function handleWorkbenchClick(event) {
     if (menu.closest(".codex-rail-bar, .home-composer-controls, .chat-composer-controls")) {
       menu.classList.add("is-up");
       menu.classList.remove("is-down");
-    } else if (!menu.matches(".agent-role-picker[data-role-field='model']") && !menu.querySelector(".codex-pop-card.is-effort-list")) {
+    } else if (!menu.matches(".agent-role-picker, .home-config-select") && !menu.querySelector(".codex-pop-card.is-effort-list")) {
       menu.classList.add("is-down");
       menu.classList.remove("is-up");
     }
@@ -3380,7 +3486,7 @@ async function handleWorkbenchClick(event) {
       else if (itemBottom > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = itemBottom - scroller.clientHeight;
     });
   }
-  const rolePickerSummary = event.target.closest?.(".agent-role-picker[data-role-field='model'] > summary");
+  const rolePickerSummary = event.target.closest?.(".agent-role-picker > summary, .home-config-select > summary");
   if (rolePickerSummary) {
     const menu = rolePickerSummary.parentElement;
     let triggerRect = rolePickerSummary.getBoundingClientRect();
@@ -3502,24 +3608,12 @@ async function handleWorkbenchClick(event) {
     return;
   }
   if (action === "pick-home-select") {
-    const select = button.closest("label")?.querySelector("select");
+    const select = button.closest("label, .custom-select-wrap")?.querySelector("select");
     const value = button.dataset.value || "";
     if (select && !select.disabled && [...select.options].some((option) => option.value === value && !option.disabled)) {
       select.value = value;
-      const picker = button.closest("details");
-      const label = button.querySelector(".codex-pop-item-main span")?.textContent || "";
-      const trigger = picker?.querySelector("summary");
-      if (trigger && label) {
-        trigger.querySelector("span")?.replaceChildren(document.createTextNode(label));
-        trigger.setAttribute("aria-label", `${button.closest("label")?.childNodes[0]?.textContent?.trim() || "Chọn"}: ${label}`);
-        picker.querySelectorAll(".codex-pop-item").forEach((item) => {
-          const isSelected = item === button;
-          item.classList.toggle("is-selected", isSelected);
-          item.querySelector("svg")?.remove();
-          if (isSelected) item.insertAdjacentHTML("beforeend", icon("check", 13));
-        });
-      }
-      picker?.removeAttribute("open");
+      syncCustomSelect(select);
+      button.closest("details")?.removeAttribute("open");
       select.dispatchEvent(new Event("change", { bubbles: true }));
     }
     return;
@@ -4148,8 +4242,14 @@ async function handleWorkbenchClick(event) {
       };
       const preset = presets[button.dataset.preset];
       if (form && preset) {
-        for (const [field, value] of Object.entries(preset)) form.querySelector(`[name="${field}"]`).value = value;
-        if (preset.name) form.querySelector('[name="name"]').focus();
+        for (const [field, value] of Object.entries(preset)) {
+          const el = form.querySelector(`[name="${field}"]`);
+          if (el) {
+            el.value = value;
+            if (el.tagName === "SELECT") syncCustomSelect(el);
+          }
+        }
+        if (preset.name) form.querySelector('[name="name"]')?.focus();
       }
       return;
     }
