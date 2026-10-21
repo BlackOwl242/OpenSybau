@@ -45,7 +45,7 @@ OpenSybau kết hợp **Codex CLI**, **Claude Code**, **Antigravity CLI** cùng 
     - ⚡ **Toàn quyền (`full-access`):** Tự động chạy lệnh, cài gói và thao tác tệp trên máy không giới hạn.
 
 ### 2. Đa cửa sổ Tab Xem tệp, Chia đôi màn hình & Sidebar Phải theo ngữ cảnh
-- **Trình xem tệp đa cửa sổ kiểu Orca & Chia đôi màn hình (Split View):** Nhấp trực tiếp vào bất kỳ tệp nào ở cây thư mục bên phải hoặc chip tệp thay đổi trong đoạn chat để mở tab mới, hoặc bật **Chia đôi màn hình** để vừa đọc cuộc trò chuyện vừa kiểm tra mã nguồn.
+- **Trình xem tệp đa cửa sổ & Chia đôi màn hình (Split View):** Nhấp trực tiếp vào bất kỳ tệp nào ở cây thư mục bên phải hoặc chip tệp thay đổi trong đoạn chat để mở tab mới, hoặc bật **Chia đôi màn hình** để vừa đọc cuộc trò chuyện vừa kiểm tra mã nguồn.
 - **Hỗ trợ xem trước đa định dạng trực tiếp:**
   - **HTML (`Xem trước` / `Mã nguồn`):** Khung chạy thử trực tiếp có thanh địa chỉ (`Quay lại`, `Tải lại`) hoặc chuyển sang xem mã nguồn có đánh số dòng.
   - **Markdown & Tài liệu Word `.docx`:** Chuyển đổi mượt mà giữa bản trình bày hoàn chỉnh và mã nguồn.

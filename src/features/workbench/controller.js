@@ -62,7 +62,7 @@ import {
 import {
   openOrcaConnectModal,
   refreshOrcaConnectModalIfOpen,
-} from "./orca-connect.js";
+} from "./device-connect.js";
 
 Object.assign(view, readBrowserRoute());
 const compactLayout = window.matchMedia("(max-width: 1020px)");
@@ -4003,7 +4003,7 @@ async function handleWorkbenchClick(event) {
       const uri = button.dataset.uri || $("[data-pairing-uri-input]")?.value || "";
       if (uri) {
         await navigator.clipboard?.writeText(uri);
-        showToast("Đã sao chép mã ghép nối ORCA Connect.");
+        showToast("Đã sao chép mã ghép nối thiết bị.");
       }
       return;
     }

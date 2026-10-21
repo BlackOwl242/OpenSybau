@@ -128,7 +128,7 @@ if (toolchain.hasJava && toolchain.hasSdk && toolchain.hasGradle) {
     console.log(`[android] APK built successfully: ${outApk} (${(info.size / 1024 / 1024).toFixed(2)} MB)`);
   }
 } else {
-  console.log("[android] Native Android project & ORCA Connect web bundle are 100% synced in ./android.");
+  console.log("[android] Native Android project & OpenSybau web bundle are 100% synced in ./android.");
   console.log(`[android] Toolchain status: JDK=${toolchain.hasJava ? "ready" : "missing"}, ANDROID_HOME=${toolchain.hasSdk ? "ready" : "missing"}, Gradle=${toolchain.hasGradle ? "ready" : "missing"}.`);
   console.log("[android] Open ./android in Android Studio or run `gradle assembleDebug` on a machine with Android SDK to output app-debug.apk.");
 }

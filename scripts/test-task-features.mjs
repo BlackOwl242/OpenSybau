@@ -344,8 +344,8 @@ try {
   assert.equal(qaExec.status, 200);
   assert.equal(qaExec.body.qaResult.status, "passed");
 
-  // Test ORCA In-Tab Workspace File Edit & Secret Protection
-  const tempEditRel = "src/domain/.orca-edit-test.md";
+  // Test In-Tab Workspace File Edit & Secret Protection
+  const tempEditRel = "src/domain/.in-tab-edit-test.md";
   const tempEditAbs = path.join(root, tempEditRel);
   await writeFile(tempEditAbs, "# Initial\n", "utf8");
   try {
@@ -365,13 +365,13 @@ try {
   });
   assert.equal(editSecretRes.status, 400);
 
-  // Test ORCA GitHub Issues/PRs CLI Status Endpoint
+  // Test GitHub Issues/PRs CLI Status Endpoint
   const ghStatusRes = await request("/api/workspaces/workspace-test/github", "GET");
   assert.equal(ghStatusRes.status, 200);
   assert.equal(Array.isArray(ghStatusRes.body.issues), true);
   assert.equal(Array.isArray(ghStatusRes.body.prs), true);
 
-  // Test ORCA Connect /api/ping and /api/connection-info + Android APK CORS
+  // Test Device Connect /api/ping and /api/connection-info + Android APK CORS
   const pingRes = await request("/api/ping", "GET");
   assert.equal(pingRes.status, 200);
   assert.equal(pingRes.body.ok, true);

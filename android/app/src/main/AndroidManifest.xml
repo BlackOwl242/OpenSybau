@@ -29,7 +29,7 @@
             </intent-filter>
 
             <!-- Deep-link pairing: opensybau://connect?host=http%3A%2F%2F192.168.1.x%3A4173&user=opensybau -->
-            <intent-filter android:label="OpenSybau ORCA Connect">
+            <intent-filter android:label="OpenSybau Device Connect">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />

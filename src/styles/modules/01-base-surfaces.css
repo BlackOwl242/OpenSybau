@@ -75,7 +75,7 @@ body .wb-page-content .button:disabled,
 body #overlay .button:disabled,
 body .desktop-setup-dialog .button:disabled { opacity: .48; transform: none; }
 
-/* Standalone inputs and dropdowns use the Orca obsidian field palette. */
+/* Standalone inputs and dropdowns use the obsidian field palette. */
 body .wb-page-content input:not([type="checkbox"]):not([data-chat-drawer-filter]):not([data-skill-filter]):not([data-file-filter]),
 body .wb-page-content select,
 body #overlay input:not([type="checkbox"]),
@@ -520,7 +520,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 }
 
 /* ==========================================================================
-   Orca-Inspired Upgrade: Fleet Sidebar, TopBar Tabs, StatusBar, Arena & Diff Studio
+   Workbench Upgrade: Fleet Sidebar, TopBar Tabs, StatusBar, Arena & Diff Studio
    ========================================================================== */
 
 /* 1. ContextSidebar Live Fleet Indicators */
@@ -1382,7 +1382,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   white-space: nowrap;
 }
 
-/* 9. Orca Diff Review Studio Modal */
+/* 9. Diff Review Studio Modal */
 .diff-studio-modal {
   width: min(1220px, 96vw) !important;
   height: min(86vh, 860px);

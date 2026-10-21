@@ -1078,7 +1078,7 @@ pre > code {
   font-feature-settings: "liga" 0, "calt" 0 !important;
 }
 
-/* 10. ORCA HTML Element Inspector & Agent Feedback Popover */
+/* 10. HTML Element Inspector & Agent Feedback Popover */
 .orca-viewer-address.is-url-bar {
   display: inline-flex !important;
   align-items: center !important;

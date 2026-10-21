@@ -44,7 +44,7 @@ export function renderOrcaConnectBodyMarkup() {
           ${info?.hostname ? `<span class="orca-conn-host-chip">${icon("terminal", 12)} <strong>${esc(info.hostname)}</strong> · ${esc(info.platform || "pc")}</span>` : ""}
           ${isConnectedRemote ? `<span class="orca-conn-host-chip">${icon("shield", 12)} Basic Auth</span>` : ""}
         </div>
-        <h3>${isConnectedRemote ? `Đang điều khiển máy chủ ${esc(activeHost.name || activeHost.url)}` : info?.hostname ? `Trạm điều phối ${esc(info.hostname)} (${esc(info.primaryUrl || "127.0.0.1")})` : "Cổng kết nối thiết bị từ xa ORCA Connect"}</h3>
+        <h3>${isConnectedRemote ? `Đang điều khiển máy chủ ${esc(activeHost.name || activeHost.url)}` : info?.hostname ? `Trạm điều phối ${esc(info.hostname)} (${esc(info.primaryUrl || "127.0.0.1")})` : "Cổng kết nối thiết bị từ xa OpenSybau"}</h3>
         <p>${readyClis.length ? `CLI sẵn sàng: ${esc(readyClis.join(" · "))} · ${info?.activeWorktreesCount || 0} Git worktree · ${info?.runningTasksCount || 0} tiến trình đang chạy` : "Kết nối trực tiếp từ Android APK hoặc mạng nội bộ (LAN / Tailscale) tới máy tính chạy OpenSybau."}</p>
       </div>
     </div>
@@ -204,7 +204,7 @@ export async function openOrcaConnectModal({ api, showModal } = {}) {
     } catch {}
   }
   const body = renderOrcaConnectBodyMarkup();
-  showModal("ORCA Connect · Trung tâm Kết nối Đa thiết bị & Android APK", body, "Đóng", "dismiss");
+  showModal("Trung tâm Kết nối Đa thiết bị & Android APK", body, "Đóng", "dismiss");
   const modal = $("#overlay .modal");
   modal?.classList.add("orca-connect-modal");
 }
@@ -212,6 +212,6 @@ export async function openOrcaConnectModal({ api, showModal } = {}) {
 export function refreshOrcaConnectModalIfOpen({ showModal } = {}) {
   if (!document.querySelector("#overlay .orca-connect-modal")) return;
   const body = renderOrcaConnectBodyMarkup();
-  showModal("ORCA Connect · Trung tâm Kết nối Đa thiết bị & Android APK", body, "Đóng", "dismiss");
+  showModal("Trung tâm Kết nối Đa thiết bị & Android APK", body, "Đóng", "dismiss");
   $("#overlay .modal")?.classList.add("orca-connect-modal");
 }

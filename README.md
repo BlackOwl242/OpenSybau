@@ -45,7 +45,7 @@ OpenSybau brings **Codex CLI**, **Claude Code**, **Antigravity CLI**, and **Anth
     - ⚡ **Full Execution Access (`Toàn quyền`):** Unrestricted command execution, package installation, and file operations on your machine.
 
 ### 2. Multi-Window File Tabs, Split Review & Page-Aware Right Sidebar
-- **Orca-Style Multi-Tab & Side-by-Side Split View:** Open any workspace file directly from the right file tree or from changed file pills inside a chat message. View Chat and File Preview side by side with a draggable splitter.
+- **Multi-Tab Stage Viewer & Side-by-Side Split View:** Open any workspace file directly from the right file tree or from changed file pills inside a chat message. View Chat and File Preview side by side with a draggable splitter.
 - **Rich Native Format Previews:**
   - **HTML (`Xem trước` / `Mã nguồn`):** Live sandboxed iframe with an address bar (`Back`, `Reload`, path badge) or numbered source code.
   - **Markdown & `.docx` Word Documents:** Formatted preview or raw source toggle.

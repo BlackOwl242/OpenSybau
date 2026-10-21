@@ -8,35 +8,35 @@ All notable changes to **OpenSybau** are documented in this file.
 ## [0.2.102] - 2026-10-21
 
 ### English
-- **ORCA Connect Multi-Device & Remote Workstation Hub (`src/server/network-pairing.mjs`, `src/features/workbench/orca-connect.js`, `src/shared/remote-host.js`, `src/shell/shell.jsx`, `server.mjs`)**:
-  - Add a dedicated **ORCA Connect** status pill in the top window chrome (`WindowChrome`) displaying live host telemetry (`LAN`, `Local`, or `Remote · ms`) and opening the **ORCA Connect Hub** modal.
+- **Multi-Device & Remote Workstation Hub (`src/server/network-pairing.mjs`, `src/features/workbench/device-connect.js`, `src/shared/remote-host.js`, `src/shell/shell.jsx`, `server.mjs`)**:
+  - Add a dedicated **Device Connect** status pill in the top window chrome (`WindowChrome`) displaying live host telemetry (`LAN`, `Local`, or `Remote · ms`) and opening the **Multi-Device & Android APK Hub** modal.
   - Implement a zero-dependency ISO/IEC 18004 QR Code SVG generator (`generateQrCodeSvg` with Reed-Solomon ECC), automatic LAN Wi-Fi/Ethernet and Tailscale (`100.x.y.z`) IPv4 interface discovery (`discoverLanAddresses`), `opensybau://connect` quick-pair URIs, and 1-click PowerShell/Bash Zero-Trust LAN launcher scripts (`GET /api/connection-info`, `GET /api/ping`).
   - Add client-side remote workstation profile management (`getSavedRemoteHosts`, `probeRemoteHost`, `resolveRemoteUrl`, `buildRemoteRequestHeaders`) that routes `/api/*`, `/api/state`, raw workspace previews, and live SSE `/__events` streams to any paired PC host with Basic Auth and latency probing.
 - **Android APK Application & Packaging Pipeline (`android/`, `capacitor.config.json`, `scripts/build-android-apk.mjs`)**:
   - Create the native Android application project (`com.opensybau.mobile`, `MainActivity.java`) powered by `WebViewAssetLoader`, `opensybau://connect` deep-link intent forwarding (`opensybau:pair` CustomEvent), `window.opensybauAndroid` JavaScript bridge, and LAN/Tailscale cleartext network security rules (`network_security_config.xml`).
   - Add `npm run android:sync` and `npm run android:apk` (`scripts/build-android-apk.mjs`) to build the production web bundle, synchronize assets and launcher icons into `android/app/src/main/assets/public/`, generate SHA-256 integrity manifests (`android/build-manifest.json`), and invoke Gradle APK assembly when the Android SDK toolchain is present.
-- **ORCA Parity Upgrades: In-Tab Code Editor & GitHub Issues/PRs CLI Integration (`src/server/github-cli.mjs`, `src/server/fs-security.mjs`, `src/features/workbench/stage-viewer.js`, `src/features/workbench/right-dock.js`)**:
+- **In-Tab Code Editor & GitHub Issues/PRs CLI Integration (`src/server/github-cli.mjs`, `src/server/fs-security.mjs`, `src/features/workbench/stage-viewer.js`, `src/features/workbench/right-dock.js`)**:
   - Add direct **In-Tab Code Editing** (`PUT /api/workspaces/:id/file`, `Ctrl+S` / `Cmd+S`) inside the Stage Viewer with path-traversal and `.env` secret protection.
   - Add **GitHub Issues & Pull Requests** integration via the `gh` CLI (`GET /api/workspaces/:id/github`, `POST /api/tasks/:id/github-pr`), enabling 1-click **"Fix Issue"** task creation from the Right Dock and 1-click Pull Request creation from isolated Git worktrees.
 - **Smart Project Workspace Hub & Workspace Sync (`src/features/workbench/controller.js`, `src/shell/components/ContextSidebar.jsx`, `src/styles/modules/07-themes-mission-control.css`, `src/shared/i18n.js`)**:
-  - Fix workspace selection synchronization across `TopBar`, `ContextSidebar`, `orca-right-dock`, and `projectDetailPage` so adding a new project (`POST /api/workspaces`) or switching projects immediately focuses and loads the newly selected workspace.
+  - Fix workspace selection synchronization across `TopBar`, `ContextSidebar`, the Right Dock, and `projectDetailPage` so adding a new project (`POST /api/workspaces`) or switching projects immediately focuses and loads the newly selected workspace.
   - Redesign the **Projects (`workspaces`)** view into an interactive **Smart Project Hub** featuring a top **Project Switcher Bar** (`project-hub-bar`), Git branch/cleanliness & file-count telemetry badges, a direct 2-column **Interactive Source File Explorer** (opening files directly into the In-Tab Code Editor/Viewer), and 1-click workflow launchers (`Chat`, `Plan`, `6-Step Pipeline`, `Multi-Agent Arena`).
 - **Modular Architecture Refactoring (`src/server/*`, `src/features/workbench/*`, `src/styles/modules/*`)**:
   - Refactor monolithic files (`server.mjs`, `src/features/workbench/controller.js`, `src/styles/preset-theme.css`) into 22 focused, reusable server, frontend, and CSS modules with 100% test and visual compatibility.
 
 ### Tiếng Việt
-- **Trung tâm Kết nối Đa thiết bị & Điều khiển Máy trạm từ xa ORCA Connect (`src/server/network-pairing.mjs`, `src/features/workbench/orca-connect.js`, `src/shared/remote-host.js`, `src/shell/shell.jsx`, `server.mjs`)**:
-  - Bổ sung nút sóng **ORCA Connect** trực tiếp trên thanh tiêu đề cửa sổ (`WindowChrome`) hiển thị trạng thái kết nối thời gian thực (`LAN`, `Local` hoặc `Remote · ms`) và mở bảng điều khiển **ORCA Connect**.
+- **Trung tâm Kết nối Đa thiết bị & Điều khiển Máy trạm từ xa (`src/server/network-pairing.mjs`, `src/features/workbench/device-connect.js`, `src/shared/remote-host.js`, `src/shell/shell.jsx`, `server.mjs`)**:
+  - Bổ sung nút **Kết nối thiết bị** trực tiếp trên thanh tiêu đề cửa sổ (`WindowChrome`) hiển thị trạng thái kết nối thời gian thực (`LAN`, `Local` hoặc `Remote · ms`) và mở bảng điều khiển **Trung tâm Kết nối Đa thiết bị & Android APK**.
   - Xây dựng bộ tạo mã **QR Code SVG** chuẩn ISO/IEC 18004 thuần JavaScript không phụ thuộc thư viện ngoài (`generateQrCodeSvg`), tự động dò tìm địa chỉ IPv4 mạng nội bộ Wi-Fi/Ethernet và VPN **Tailscale** (`100.x.y.z`), tạo chuỗi ghép nối nhanh `opensybau://connect` kèm lệnh PowerShell/Bash khởi chạy chế độ mạng LAN bảo mật Zero-Trust 1 chạm (`GET /api/connection-info`, `GET /api/ping`).
   - Hỗ trợ lưu danh sách máy trạm từ xa (`getSavedRemoteHosts`, `probeRemoteHost`, `resolveRemoteUrl`, `buildRemoteRequestHeaders`), đo độ trễ Ping (`ms`), xác thực Basic Auth và tự động định tuyến toàn bộ API `/api/*`, `/api/state`, tệp dự án và luồng sự kiện thời gian thực `/__events` về máy tính chủ.
 - **Ứng dụng Android APK & Quy trình Đóng gói (`android/`, `capacitor.config.json`, `scripts/build-android-apk.mjs`)**:
   - Khởi tạo dự án Android gốc (`com.opensybau.mobile`, `MainActivity.java`) tích hợp `WebViewAssetLoader`, bắt liên kết sâu `opensybau://connect` chuyển thẳng vào giao diện (`opensybau:pair`), cầu nối `window.opensybauAndroid` và cấu hình bảo mật mạng nội bộ LAN/Tailscale (`network_security_config.xml`).
   - Bổ sung lệnh `npm run android:sync` và `npm run android:apk` (`scripts/build-android-apk.mjs`) tự động đóng gói giao diện web, đồng bộ tài nguyên & bộ biểu tượng vào `android/app/src/main/assets/public/`, xuất bảng kiểm toàn vẹn SHA-256 (`android/build-manifest.json`) và biên dịch gói cài đặt `.apk`.
-- **Nâng cấp đối xứng tính năng với ORCA: Sửa Code trực tiếp trên Tab & Tích hợp GitHub Issues/PRs (`src/server/github-cli.mjs`, `src/server/fs-security.mjs`, `src/features/workbench/stage-viewer.js`, `src/features/workbench/right-dock.js`)**:
+- **Sửa Code trực tiếp trên Tab & Tích hợp GitHub Issues/PRs (`src/server/github-cli.mjs`, `src/server/fs-security.mjs`, `src/features/workbench/stage-viewer.js`, `src/features/workbench/right-dock.js`)**:
   - Bổ sung chế độ **Chỉnh sửa tệp trực tiếp (In-Tab Code Editor)** ngay trong Stage Viewer (`PUT /api/workspaces/:id/file`, phím tắt `Ctrl+S` / `Cmd+S`) kèm lớp bảo vệ chống ghi đè tệp nhạy cảm `.env`.
   - Tích hợp **GitHub Issues & Pull Requests** qua `gh` CLI (`GET /api/workspaces/:id/github`, `POST /api/tasks/:id/github-pr`), cho phép bấm **Giao AI sửa** trực tiếp từ Issue trên thanh bên phải và bấm **Tạo Pull Request** 1 chạm từ nhánh Git worktree cô lập.
 - **Không gian Dự án Thông minh & Đồng bộ Trạng thái Dự án (`src/features/workbench/controller.js`, `src/shell/components/ContextSidebar.jsx`, `src/styles/modules/07-themes-mission-control.css`, `src/shared/i18n.js`)**:
-  - Khắc phục triệt để lỗi lệch trạng thái giữa thanh Tab trên cùng (`TopBar`), thanh bên trái (`ContextSidebar`), thanh công cụ phải (`orca-right-dock`) và nội dung trang **Dự án (`workspaces`)**: khi thêm dự án mới hoặc bấm chọn dự án ở bất kỳ đâu, toàn bộ giao diện tự động chuyển sang đúng dự án đó ngay lập tức.
+  - Khắc phục triệt để lỗi lệch trạng thái giữa thanh Tab trên cùng (`TopBar`), thanh bên trái (`ContextSidebar`), thanh công cụ phải và nội dung trang **Dự án (`workspaces`)**: khi thêm dự án mới hoặc bấm chọn dự án ở bất kỳ đâu, toàn bộ giao diện tự động chuyển sang đúng dự án đó ngay lập tức.
   - Thiết kế lại trang **Dự án (`projectDetailPage`)** thành **Trung tâm Điều hành Dự án Thông minh (Smart Project Hub)** gồm: Thanh chuyển đổi nhanh giữa các dự án (`project-hub-bar`), huy hiệu trạng thái nhánh Git & tổng số tệp mã nguồn, **Trình duyệt cây thư mục & tệp trực tiếp** (bấm vào tệp mở ngay trong Tab Code Editor/Preview) và **4 nút Khởi tạo tác vụ thông minh 1 chạm** (`Trò chuyện`, `Lập kế hoạch`, `Giao việc 6 bước`, `Đa luồng Arena`).
 - **Tái cấu trúc Kiến trúc Đa mô-đun Hiện đại (`src/server/*`, `src/features/workbench/*`, `src/styles/modules/*`)**:
   - Phân tách các tệp mã nguồn lớn (`server.mjs`, `src/features/workbench/controller.js`, `src/styles/preset-theme.css`) thành 22 mô-đun backend, frontend và CSS độc lập, dễ bảo trì và mở rộng mà vẫn giữ nguyên 100% giao diện và logic hiện hành.
@@ -92,7 +92,7 @@ All notable changes to **OpenSybau** are documented in this file.
 ## [0.2.99] - 2026-10-20
 
 ### English
-- **Orca & Mission Control End-to-End Verification & Schema Alignment (`src/domain/task-flow.js`, `src/features/workbench/controller.js`)**:
+- **Mission Control End-to-End Verification & Schema Alignment (`src/domain/task-flow.js`, `src/features/workbench/controller.js`)**:
   - Align `pipelineStepperData` and `computeWaveDag` data contracts with Mission Control UI views (`wave.tasks`, `wave.index`, `wave.label`, `wave.doneCount`, `dag.needsLookTasks`, `currentRound`, `maxRounds`, normalized cycle telemetry, and `doc::` stage document tab IDs).
   - Add **SVG Bezier Dependency Connectors (`drawWaveDagEdges`)** across Wave columns on the Mission Control DAG Board (`[data-wave-dag-board]`) to visually link `dependsOn` tasks across waves.
   - Add **Plan Gate (`GO`)** toggle pill and **Max Rounds (`R1..R3`)** selector pill directly on the Home Composer rail when in `Code` or `Plan` mode.
@@ -100,7 +100,7 @@ All notable changes to **OpenSybau** are documented in this file.
   - Fix `patchHtml` (`morphdom`) so foreground composer submissions reliably clear active `<textarea>` inputs while background SSE updates preserve drafts, focus, selection ranges, and independent scroll positions per `.multi-chat-pane`.
 
 ### Tiếng Việt
-- **Hoàn thiện & Kiểm thử toàn diện hệ thống Orca / Mission Control (`src/domain/task-flow.js`, `src/features/workbench/controller.js`)**:
+- **Hoàn thiện & Kiểm thử toàn diện hệ thống Mission Control (`src/domain/task-flow.js`, `src/features/workbench/controller.js`)**:
   - Đồng bộ hóa cấu trúc dữ liệu `pipelineStepperData` và `computeWaveDag` với giao diện Mission Control (`wave.tasks`, `wave.index`, `wave.label`, `wave.doneCount`, `dag.needsLookTasks`, `currentRound`, `maxRounds`, chuẩn hóa lịch sử vòng lặp và mã tab `doc::` của Tài liệu Stage).
   - Bổ sung **đường nối phụ thuộc SVG Bezier (`drawWaveDagEdges`)** nối trực tiếp giữa các thẻ task có quan hệ `dependsOn` qua các cột `Wave 1..N` trên bảng Mission Control.
   - Bổ sung nút bật nhanh **Plan Gate (`GO`)** và chọn nhanh **Vòng sửa (`R1..R3`)** ngay trên thanh công cụ Home Composer khi ở chế độ `Code` hoặc `Kế hoạch`.
@@ -112,20 +112,20 @@ All notable changes to **OpenSybau** are documented in this file.
 ## [0.2.98] - 2026-10-20
 
 ### English
-- **Unified 6-Station Pipeline Stepper & Ferry Delivery Lifecycle (`src/domain/task-flow.js`, `src/features/workbench/controller.js`)**:
+- **Unified 6-Station Pipeline Stepper & Stage Delivery Lifecycle (`src/domain/task-flow.js`, `src/features/workbench/controller.js`)**:
   - Upgrade the conversation pipeline strip and task orchestration view with a 6-station horizontal stepper (`Start` → `Plan review` → `You (Plan Gate)` → `Code review` → `QA` → `Draft PR`), interactive **Stage Documents** (`spec.md`, `plan.md`, `implementation.md`, `review-verdict.md`, `qa-report.md`), and per-cycle telemetry (`Round 1..3`, `blocking`, `advisory`, `turns`, `duration`, `$cost`).
 - **Human Plan Gate (`You · GO`) & Multi-Round Autonomous Quality Loop (`server.mjs`)**:
   - Add optional **Human Plan Gate (`planGate`)** that pauses execution (`awaiting_approval`) after planning so you can inspect `plan.md`, leave feedback, and click **Approve & Deploy (GO)** or **Revise Plan**.
   - Add **Multi-Round Autonomous Fix Loop (`maxRounds: 1..3`)** that parses `[BLOCKING]` vs. `[ADVISORY]` review findings and QA test exit codes, automatically feeding failures back into subsequent `Build (fix rN) -> Review -> QA` rounds.
 - **Mission Control Wave DAG Board (`/api/tasks/decompose`, `workflowPage`)**:
   - Transform the Flows screen into a **Mission Control Wave DAG Board** with topological wave columns (`Wave 1..N`), `"Needs a look"` human-attention banner, live status counters (`for you`, `running`, `in review`, `ready`, `blocked`, `done`), `Risk S/M/L` and `⚡ Critical` filters, and multi-wave campaign decomposition with automatic `dependsOn` scheduling.
-- **Orca Worktree QA Runner, Live Localhost Browser & Quick Git Commit (`orcaRightDockMarkup`)**:
+- **Worktree QA Runner, Live Localhost Browser & Quick Git Commit**:
   - Add safe argument-array QA & terminal execution (`/api/tasks/:id/qa`, `npm test`, `npm run build`, `npm run lint`, `git status`, `git diff --stat`), one-click **Quick Git Commit** (`/api/tasks/:id/git-commit`), and **Live Localhost Dev Server Preview** (`:3000`, `:5173`, `:4173`, `:8080`) with DOM Element Inspector inside the unified Stage Viewer.
 - **Okapi BM25 Memory Ranking & Auto-Distillation (`server.mjs`)**:
   - Upgrade local memory retrieval (`relevantMemory`) to Okapi BM25 ($k_1 = 1.5, b = 0.75$) with workspace-scope boosting, and automatically distill completed pipeline lessons (`autoDistillTaskMemory`) without duplicate notes.
 
 ### Tiếng Việt
-- **Thanh tiến trình 6 trạm & Vòng đời tài liệu Stage (`Ferry Lifecycle` + `Orca Stage Viewer`)**:
+- **Thanh tiến trình 6 trạm & Vòng đời tài liệu Stage (`Stage Viewer`)**:
   - Nâng cấp thanh tiến trình trong khung Chat và màn hình Chi tiết luồng thành **6 trạm trực quan** (`Start` → `Plan review` → `You (Plan Gate)` → `Code review` → `QA` → `Draft PR`), tích hợp cây **Tài liệu Stage** (`spec.md`, `plan.md`, `implementation.md`, `review-verdict.md`, `qa-report.md`) mở trực tiếp trong Stage Viewer cùng thống kê từng vòng lặp (`Round 1..3`, `blocking`, `advisory`, `turns`, thời lượng, chi phí `$cost`).
 - **Cổng duyệt Kế hoạch (`Human Plan Gate · You · GO`) & Vòng lặp Tự sửa lỗi đa tầng (`Multi-Round Fix Loop`)**:
   - Cho phép bật **Plan Gate** để tạm dừng sau bước lập kế hoạch (`Chờ duyệt Plan`), giúp bạn đọc `plan.md`, ghi chú điều chỉnh và bấm **Duyệt & Triển khai (GO)** hoặc **Yêu cầu lập lại Plan**.
@@ -457,8 +457,8 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ## [0.2.74] - 2026-10-14
 
-### Added & Improved (Đa Cửa Sổ Tab Kiểu ORCA, Trình Xem Tệp Đa Định Dạng Tức Thì & Chế Độ Chia Đôi Màn Hình Split View)
-- **Thanh Đa Cửa Sổ Tab kiểu ORCA (`.orca-tabbar`) & Chế độ Chia đôi màn hình (`.orca-stage-split-layout`)**:
+### Added & Improved (Đa Cửa Sổ Tab, Trình Xem Tệp Đa Định Dạng Tức Thì & Chế Độ Chia Đôi Màn Hình Split View)
+- **Thanh Đa Cửa Sổ Tab & Chế độ Chia đôi màn hình**:
   - Khi bấm vào bất kỳ tệp nào trong Sidebar phải (`Files`, `Search`, `Source Control / Changes`) hoặc các thẻ tệp đính kèm trong cuộc trò chuyện, tệp sẽ được mở ngay thành **Tab cửa sổ riêng** trên thanh `TopBar` (`.orca-tabbar`) kèm vạch nhấn trắng trên đỉnh tab đang mở, biểu tượng định dạng, huy hiệu `Diff` và nút đóng `×`.
   - Hỗ trợ nút **Chia đôi màn hình (`columns-2` Split View)** trên thanh Tab để vừa trò chuyện với Agent ở cột trái vừa xem trực tiếp tệp / bản xem trước / Diff Review ở cột phải, kèm thanh kéo phân cách chỉnh độ rộng linh hoạt (`[data-stage-split-resizer]`).
 - **Trình xem tệp thông minh đa định dạng (`.orca-file-viewer`) & Diff Review từng tệp**:
@@ -496,9 +496,9 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ## [0.2.71] - 2026-10-14
 
-### Changed & Improved (Sidebar Phải Hợp Nhất 4 Tab kiểu ORCA/Codex, Kéo Giãn Chiều Rộng & Tối Giản Khung Chính Giữa)
-- **Hợp nhất thanh bên mở rộng thành 1 Sidebar Phải duy nhất toàn cục (`.orca-right-dock`)**:
-  - Đưa nút đóng/mở Sidebar phải (`◨` `sidebar-right`) lên **góc trên cùng bên phải của TopBar** (và góc trên bên phải của chính Sidebar phải khi đang mở), đồng bộ hoàn toàn với thiết kế ORCA / Codex.
+### Changed & Improved (Sidebar Phải Hợp Nhất 4 Tab, Kéo Giãn Chiều Rộng & Tối Giản Khung Chính Giữa)
+- **Hợp nhất thanh bên mở rộng thành 1 Sidebar Phải duy nhất toàn cục**:
+  - Đưa nút đóng/mở Sidebar phải (`◨` `sidebar-right`) lên **góc trên cùng bên phải của TopBar** (và góc trên bên phải của chính Sidebar phải khi đang mở), đồng bộ hoàn toàn với thiết kế hệ thống.
   - **Thanh 4 Icon Tab đa năng ở đỉnh Sidebar phải** (kèm vạch gạch chân trắng sắc nét dưới tab đang chọn):
     1. **Cây thư mục & Tệp (`files`)**: Cây thư mục phân cấp đóng/mở (`> 📄 .github`, `v 📄 src`, `📄 package.json`) tự động thích ứng theo ngữ cảnh trang (Tệp dự án trên Chat/Dự án, Ghi chú Markdown trên Tri thức, Nhóm kỹ năng trên Kỹ năng, Phạm vi bộ nhớ trên Bộ nhớ, Mục lục cấu hình trên Cài đặt).
     2. **Tìm kiếm nhanh (`search`)**: Lọc tức thì tệp dự án, ghi chú `#tag` hoặc kỹ năng.
@@ -513,10 +513,10 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ## [0.2.70] - 2026-10-14
 
-### Fixed & Improved (Sửa lỗi Dropdown bị cắt & Kiến trúc Tri thức 3 Ngăn kiểu Codex / ORCA)
+### Fixed & Improved (Sửa lỗi Dropdown bị cắt & Kiến trúc Tri thức 3 Ngăn)
 - **Khắc phục triệt để lỗi menu Dropdown (`⋯`) bung ngược lên trên và bị cắt khuất**:
   - Tách riêng hướng bung của menu ngữ cảnh (`.is-down`, `.vault-head-menu`, `.vault-action-menu`) để luôn mở **xuống dưới** (`top: calc(100% + 6px)`), tự động đảo chiều thông minh cho các dòng cuối danh sách và đặt `z-index: 260` để không bao giờ bị mép khung trên che khuất.
-- **Tái cấu trúc trang Tri thức theo bố cục 3 ngăn thông minh kiểu Codex / ORCA (`.knowledge-orca-shell`)**:
+- **Tái cấu trúc trang Tri thức theo bố cục 3 ngăn thông minh**:
   - **Sidebar Trái (`Cây ghi chú Vault` — bật/tắt linh hoạt ở cả 2 chế độ)**: Duyệt thư mục, tìm kiếm nhanh theo tên hoặc `#tag`, hiển thị huy hiệu số lượng liên kết trên từng tệp `.md` và giữ nguyên danh sách tệp ngay cả khi đang khám phá Đồ thị.
   - **Khung Chính Giữa (`Ghi chú` / `Đồ thị` tràn viền)**: Thanh công cụ hợp nhất `44px` với nút đóng/mở 2 sidebar trái/phải, bộ chuyển chế độ `Ghi chú` | `Đồ thị`, trình đọc/soạn thảo Markdown tập trung ở chế độ Ghi chú và bảng Đồ thị nơ-ron kèm HUD nổi ở chế độ Đồ thị.
   - **Sidebar Phải (`Liên kết & Ngữ cảnh` — hoạt động ở cả 2 chế độ)**: Hiển thị liên kết hai chiều (`→ Đi` / `← Đến`), các ghi chú liên quan theo `#tag` & thư mục, tự động trích xuất **Mục lục (Outline H1–H4)** kèm thống kê từ/dòng khi đọc ghi chú, hoặc hiển thị **Xem trước nội dung** trực tiếp khi đang duyệt Đồ thị.
@@ -644,4 +644,4 @@ All notable changes to **OpenSybau** are documented in this file.
   - Tích hợp hiệu ứng kính mờ (`backdrop-filter` + Windows Mica/Acrylic) cho thanh bên trái và bo góc nổi cho khung nội dung chính.
   - Thiết kế khung nhập liệu thông minh 2 tầng: Thanh ngữ cảnh phía trên (Chọn dự án, Môi trường `Máy tính này` / `Git Worktree`, Chế độ `Chat` / `Code` / `Kế hoạch` / `Đấu trường`) gắn liền với thẻ nhập liệu bo tròn phía dưới.
 - **Đấu trường Đa nhánh Song song (Multi-Slot Worktree Arena)**:
-  - Hỗ trợ chạy song song từ **2 đến 8 nhánh Git Worktree cô lập** cho cùng một yêu cầu, cho phép chạy **nhiều bản của cùng 1 model** (`2× Cùng model`, `3× Cùng model`) hoặc phối hợp **đa hãng** (Codex, Claude Code, Antigravity, API) tương tự Orca.
+  - Hỗ trợ chạy song song từ **2 đến 8 nhánh Git Worktree cô lập** cho cùng một yêu cầu, cho phép chạy **nhiều bản của cùng 1 model** (`2× Cùng model`, `3× Cùng model`) hoặc phối hợp **đa hãng** (Codex, Claude Code, Antigravity, API).

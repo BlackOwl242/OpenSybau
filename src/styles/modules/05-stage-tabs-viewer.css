@@ -1,5 +1,5 @@
 /* ==========================================================================
-   ORCA Multi-Window Tab Bar & Format-Aware File / Diff Review Workbench
+   Multi-Window Tab Bar & Format-Aware File / Diff Review Workbench
    ========================================================================== */
 
 :root {
@@ -207,7 +207,7 @@
   background: color-mix(in srgb, var(--wb-tint) 24%, transparent);
 }
 
-/* ORCA File Viewer & Sub-Toolbar */
+/* File Viewer & Sub-Toolbar */
 .orca-file-viewer {
   display: flex !important;
   flex-direction: column !important;
