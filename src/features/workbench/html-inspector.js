@@ -185,7 +185,7 @@ export function ensureIframeInspectorBridge(iframe, { formatEffortLabel } = {}) 
         borderRadius: "8px",
         background: "rgba(16, 185, 129, 0.04)",
         boxShadow: "0 0 0 1px rgba(255, 255, 255, 0.88), 0 4px 14px rgba(0, 0, 0, 0.16)",
-        transition: "top 40ms ease-out, left 40ms ease-out, width 40ms ease-out, height 40ms ease-out",
+        transition: "opacity 90ms ease-out, transform 90ms ease-out",
       });
       (doc.body || doc.documentElement).appendChild(box);
       return box;

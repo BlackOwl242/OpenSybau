@@ -1684,7 +1684,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   gap: 10px;
   margin: 4px 16px 4px 64px;
   padding: 6px 10px;
-  border-left: 3px solid var(--wb-accent);
+  border: 1px solid var(--wb-border-strong);
   border-radius: 6px;
   background: var(--wb-raised);
   color: var(--wb-ink);

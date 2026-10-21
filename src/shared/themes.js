@@ -28,8 +28,8 @@ export const THEME_GROUPS = [
   },
   {
     id: "color",
-    label: "Đa sắc Antigravity",
-    description: "Bảng màu không gian đa sắc lấy cảm hứng từ Antigravity & IDE hiện đại.",
+    label: "Đa sắc",
+    description: "Bảng màu không gian đa sắc lấy cảm hứng từ các IDE hiện đại.",
   },
   {
     id: "light",
@@ -65,7 +65,7 @@ export const THEMES = [
     id: "antigravity",
     group: "color",
     scheme: "dark",
-    label: "Antigravity Cosmic",
+    label: "Cosmic Indigo",
     badge: "Indigo · Cyan",
     description: "Xanh vũ trụ sâu phối điểm nhấn Indigo & Electric Cyan",
     swatches: ["#0a0d18", "#12172b", "#6366f1", "#38bdf8"],

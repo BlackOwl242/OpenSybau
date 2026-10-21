@@ -1,0 +1,1680 @@
+/* ==========================================================================
+   Mobile & Narrow Viewport Architecture (<= 740px / <= 520px)
+   Unified Top Chrome, Bottom Tab Bar, Full-Screen Modals & Orca Mobile Deck
+   ========================================================================== */
+
+@media (max-width: 740px) {
+  /* 1. Safe-area top & unified 48px mobile top header */
+  .wb-app-shell,
+  .wb-app-shell.has-context-sidebar,
+  .wb-app-shell.has-page-sidebar,
+  .wb-app-shell.has-both-sidebars {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: calc(48px + env(safe-area-inset-top, 0px)) minmax(0, 1fr) !important;
+  }
+
+  .wb-window-chrome {
+    height: calc(48px + env(safe-area-inset-top, 0px)) !important;
+    min-height: calc(48px + env(safe-area-inset-top, 0px)) !important;
+    padding: env(safe-area-inset-top, 0px) 10px 0 10px !important;
+    background: var(--wb-panel) !important;
+    border-bottom: 1px solid var(--wb-line) !important;
+    gap: 8px !important;
+  }
+  .wb-window-chrome.is-desktop {
+    padding-right: 140px !important;
+  }
+  .wb-window-chrome.is-web {
+    padding-right: 10px !important;
+  }
+  .wb-desktop-nav-btn,
+  .wb-update-btn:not(.is-ready),
+  .wb-update-btn.is-ready > span {
+    display: none !important;
+  }
+  .wb-window-chrome-left {
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    gap: 8px !important;
+  }
+  .wb-window-chrome-left > .wb-sidebar-toggle-btn,
+  .wb-window-chrome-right > .wb-chrome-icon,
+  .wb-window-chrome-right > .wb-chrome-pill,
+  .wb-window-chrome-right .wb-theme-trigger {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: 1px solid var(--wb-line) !important;
+    border-radius: 8px !important;
+    background: var(--wb-control) !important;
+    color: var(--wb-ink) !important;
+    font-size: 11.5px !important;
+    font-weight: 650 !important;
+    line-height: 1 !important;
+  }
+  .wb-window-chrome-left > .wb-sidebar-toggle-btn > svg,
+  .wb-window-chrome-right > .wb-chrome-icon > svg,
+  .wb-window-chrome-right > .wb-chrome-pill > svg,
+  .wb-window-chrome-right .wb-theme-trigger > svg {
+    width: 15px !important;
+    height: 15px !important;
+    flex-shrink: 0 !important;
+  }
+  .wb-theme-trigger > .wb-theme-trigger-label {
+    display: none !important;
+  }
+  .wb-theme-trigger > .wb-theme-dot {
+    display: inline-block !important;
+    width: 10px !important;
+    height: 10px !important;
+  }
+  .wb-window-chrome-left > .wb-sidebar-toggle-btn.is-active,
+  .wb-window-chrome-right > .wb-chrome-icon.is-active {
+    border-color: var(--wb-border-strong) !important;
+    background: var(--wb-raised) !important;
+    color: var(--wb-ink-strong) !important;
+  }
+  .wb-mobile-only-btn,
+  .kb-mobile-drawer-btn {
+    display: inline-flex !important;
+  }
+  .wb-mobile-chrome-title {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    gap: 1px !important;
+  }
+  .wb-mobile-chrome-title > strong {
+    font-size: 14px !important;
+    font-weight: 650 !important;
+    color: var(--wb-ink-strong) !important;
+    line-height: 1.2 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .wb-mobile-chrome-title > small {
+    font-size: 11px !important;
+    color: var(--wb-muted) !important;
+    line-height: 1.15 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .wb-window-chrome-right {
+    flex: 0 0 auto !important;
+    gap: 6px !important;
+  }
+
+  /* Eliminate redundant second topbar when no file/split stage tabs are open */
+  .wb-main:not(.has-stage-tabs) > .wb-workspace-split > .wb-stage-column > .wb-topbar,
+  .wb-home-dock-trigger {
+    display: none !important;
+  }
+  .wb-main.has-stage-tabs > .wb-workspace-split > .wb-stage-column > .wb-topbar {
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 10px !important;
+    background: var(--wb-surface) !important;
+  }
+
+  /* 2. Mobile drawers (ContextSidebar & Right Dock) respect top header & bottom nav */
+  .wb-app-shell .wb-context-sidebar,
+  .wb-app-shell .wb-context-sidebar.is-mobile-only {
+    top: calc(48px + env(safe-area-inset-top, 0px)) !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    height: auto !important;
+    width: min(320px, 86vw) !important;
+    z-index: 95 !important;
+  }
+  .wb-mobile-sidebar-backdrop {
+    top: calc(48px + env(safe-area-inset-top, 0px)) !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    z-index: 94 !important;
+  }
+  .wb-app-shell .orca-right-dock {
+    top: calc(48px + env(safe-area-inset-top, 0px)) !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    width: min(330px, 88vw) !important;
+    z-index: 95 !important;
+  }
+  .wb-dock-backdrop {
+    inset: calc(48px + env(safe-area-inset-top, 0px)) 0 calc(58px + env(safe-area-inset-bottom, 0px)) 0 !important;
+    z-index: 94 !important;
+  }
+
+  /* 3. Smart Mobile Bottom Navigation Bar */
+  .wb-app-shell .wb-main {
+    padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .wb-mobile-nav {
+    height: calc(58px + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px)) !important;
+    gap: 4px !important;
+    background: var(--wb-panel) !important;
+    border-top: 1px solid var(--wb-line) !important;
+    z-index: 90 !important;
+  }
+  .wb-mobile-nav > button {
+    width: 100% !important;
+    max-width: none !important;
+    height: 48px !important;
+    padding: 4px 2px !important;
+    gap: 3px !important;
+    border-radius: 10px !important;
+    font-size: 10.5px !important;
+    font-weight: 560 !important;
+    color: var(--wb-muted) !important;
+    background: transparent !important;
+  }
+  .wb-mobile-nav > button > span {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  .wb-mobile-nav > button.is-active {
+    color: var(--wb-ink-strong) !important;
+    background: var(--wb-raised) !important;
+    border: 1px solid var(--wb-line) !important;
+    font-weight: 650 !important;
+  }
+  .wb-mobile-more-backdrop {
+    z-index: 96 !important;
+  }
+  .wb-mobile-more-menu {
+    bottom: calc(66px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* 4. Uniform Button Heights & Proportional Action Grids on Mobile */
+  body .wb-page-content .button:not(.home-submit):not(.chat-send-button),
+  body .wb-page-content .button.small:not(.home-submit):not(.chat-send-button),
+  body #overlay .button,
+  body #overlay .button.small {
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 12px !important;
+    border-radius: 9px !important;
+    font-size: 12.5px !important;
+  }
+
+  .wb-page-content > .page-head {
+    min-height: 0 !important;
+    margin: 0 0 14px !important;
+    gap: 10px !important;
+  }
+  .wb-page-content .page-head h1 {
+    font-size: 20px !important;
+  }
+  .wb-page-content .page-head p {
+    font-size: 12.5px !important;
+    line-height: 1.45 !important;
+  }
+  .wb-page-content .page-head-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .wb-page-content .page-head-actions > .button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Compact Quick Stats & Flow Summary grids on mobile */
+  .wb-page-content .quick-stats {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    padding: 10px !important;
+    margin-bottom: 12px !important;
+  }
+  .wb-page-content .quick-stats > div {
+    padding: 8px 10px !important;
+    border: 1px solid var(--wb-line) !important;
+    border-radius: 9px !important;
+    background: var(--wb-field) !important;
+  }
+  .wb-page-content .quick-stats > .stats-note {
+    grid-column: 1 / -1 !important;
+    font-size: 11.5px !important;
+  }
+  .wb-page-content .flow-summary,
+  .wb-page-content .quick-stats:not(.is-four-cols) {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+    margin-bottom: 14px !important;
+  }
+  .wb-page-content .quick-stats.is-four-cols {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    margin-bottom: 12px !important;
+  }
+  .wb-page-content .quick-stats > div,
+  .wb-page-content .flow-summary > div {
+    padding: 9px 10px !important;
+    border-radius: 10px !important;
+  }
+  .wb-page-content .quick-stats > div > small,
+  .wb-page-content .flow-summary > div > small {
+    font-size: 11px !important;
+  }
+  .wb-page-content .quick-stats > div > strong,
+  .wb-page-content .flow-summary > div > strong {
+    font-size: 16px !important;
+  }
+
+  /* Proportionate Empty State Buttons */
+  .wb-page-content .empty-state > .button,
+  .wb-page-content .workflow-empty-actions > .button {
+    width: auto !important;
+    min-width: 156px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 16px !important;
+    border-radius: 10px !important;
+    font-size: 13px !important;
+    justify-content: center !important;
+  }
+  .wb-page-content .workflow-empty-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .wb-page-content .workflow-empty-actions > .button {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Single-row scrollable filter strips on Tasks & Memory */
+  .wb-page-content .list-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+    margin-bottom: 12px !important;
+  }
+  .wb-page-content .list-toolbar > .filters {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 6px !important;
+    scrollbar-width: none !important;
+    padding-bottom: 2px !important;
+  }
+  .wb-page-content .list-toolbar > .filters::-webkit-scrollbar {
+    display: none !important;
+  }
+  .wb-page-content .list-toolbar > .filters > .filter {
+    flex: 0 0 auto !important;
+    height: 32px !important;
+    padding: 0 12px !important;
+    border-radius: 999px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+  .wb-page-content .list-toolbar > span {
+    font-size: 11.5px !important;
+    color: var(--wb-muted) !important;
+  }
+
+  /* Sleek horizontal pill strip for Settings categories on mobile */
+  .wb-app-shell .wb-page-sidebar {
+    display: none !important;
+  }
+  .settings-nav-sidebar {
+    padding: 5px !important;
+    gap: 5px !important;
+    scrollbar-width: none !important;
+  }
+  .settings-nav-sidebar::-webkit-scrollbar {
+    display: none !important;
+  }
+  .settings-nav-item {
+    min-height: 34px !important;
+    padding: 0 11px !important;
+    border-radius: 8px !important;
+  }
+  .settings-nav-meta {
+    display: none !important;
+  }
+  .settings-mobile-nav {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    overflow-x: visible !important;
+    padding: 2px 0 4px !important;
+    gap: 6px !important;
+    margin-bottom: 14px !important;
+    background: transparent !important;
+    border: 0 !important;
+  }
+  .settings-mobile-nav > .settings-nav-item {
+    flex: 0 0 auto !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 11px !important;
+    border-radius: 999px !important;
+    border: 1px solid var(--wb-line) !important;
+    background: var(--wb-panel) !important;
+    color: var(--wb-ink) !important;
+    font-size: 12px !important;
+    font-weight: 540 !important;
+    white-space: nowrap !important;
+  }
+  .settings-mobile-nav > .settings-nav-item.is-active {
+    background: var(--wb-ink-strong) !important;
+    color: var(--wb-bg) !important;
+    border-color: var(--wb-ink-strong) !important;
+    font-weight: 630 !important;
+  }
+
+  /* Device Connect & Settings Card mobile alignment */
+  .wb-page-content .settings-card > header {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .device-card-head-right {
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+  .device-mode-switch {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    padding: 3px !important;
+  }
+  .device-mode-btn {
+    height: 32px !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  .device-password-box .device-input-action-row,
+  .device-qr-body .device-input-action-row,
+  .device-quick-pair-box .device-input-action-row {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  .device-password-box .device-input-action-row > input,
+  .device-qr-body .device-input-action-row > input,
+  .device-quick-pair-box .device-input-action-row > input {
+    grid-column: 1 / -1 !important;
+    min-height: 38px !important;
+  }
+  .device-password-box .device-input-action-row > .button,
+  .device-qr-body .device-input-action-row > .button,
+  .device-quick-pair-box .device-input-action-row > .button {
+    width: 100% !important;
+  }
+  .device-form-actions {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .device-form-actions > .button {
+    width: 100% !important;
+  }
+  .provider-connect-callout {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  .provider-connect-callout > div:last-child {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .provider-connect-callout > div:last-child > .button {
+    width: 100% !important;
+  }
+  .wb-page-content .cli-guide-row,
+  .wb-page-content .provider-setup-row {
+    grid-template-columns: 10px minmax(0, 1fr) !important;
+    align-items: start !important;
+    gap: 10px !important;
+  }
+  .wb-page-content .cli-guide-row > .provider-status-dot,
+  .wb-page-content .provider-setup-row > .provider-status-dot {
+    margin-top: 5px !important;
+  }
+  .wb-page-content .cli-guide-actions,
+  .wb-page-content .provider-row-actions {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .wb-page-content .cli-guide-actions > .button,
+  .wb-page-content .provider-row-actions > .button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  .wb-page-content .workspace-card-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  .wb-page-content .workspace-card-actions > .button {
+    flex: 1 1 120px !important;
+    width: auto !important;
+    justify-content: center !important;
+  }
+  .wb-page-content .workspace-card-actions > .icon-button {
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    flex: 0 0 38px !important;
+    border-radius: 9px !important;
+  }
+
+  /* 5. Full-screen Modals on Mobile & Narrow Viewports with Prominent Close Button & Balanced Actions */
+  html:not(.desktop-glass) :is(#overlay .modal-backdrop, .desktop-setup-backdrop, .composer-config-backdrop, .home-config-backdrop, .multi-chat-create-backdrop) {
+    inset: 0 !important;
+    padding: 0 !important;
+    place-items: stretch !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+  }
+  html:not(.desktop-glass) :is(#overlay .modal, .desktop-setup-dialog, .wb-page-content .composer-config-dialog, .wb-page-content .multi-chat-create-form) {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+  html.desktop-glass :is(#overlay .modal-backdrop, .desktop-setup-backdrop, .composer-config-backdrop, .home-config-backdrop, .multi-chat-create-backdrop) {
+    inset: 48px 0 0 0 !important;
+    padding: 0 !important;
+    place-items: stretch !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+  }
+  html.desktop-glass :is(#overlay .modal, .desktop-setup-dialog, .wb-page-content .composer-config-dialog, .wb-page-content .multi-chat-create-form) {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: calc(100dvh - 48px) !important;
+    max-height: calc(100dvh - 48px) !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border: 0 !important;
+    border-top: 1px solid var(--wb-line) !important;
+    box-shadow: none !important;
+  }
+
+  :is(#overlay .modal, .desktop-setup-dialog, .wb-page-content .composer-config-dialog, .wb-page-content .multi-chat-create-form) > .app-dialog-header {
+    padding: 14px 16px !important;
+    min-height: 56px !important;
+  }
+  :is(#overlay .modal, .desktop-setup-dialog, .wb-page-content .composer-config-dialog, .wb-page-content .multi-chat-create-form) > .app-dialog-header :is(.app-dialog-close, .icon-button, .wb-top-icon) {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    flex: 0 0 36px !important;
+    border-radius: 9px !important;
+  }
+  :is(#overlay .modal, .desktop-setup-dialog, .wb-page-content .composer-config-dialog, .wb-page-content .multi-chat-create-form) > .app-dialog-content {
+    padding: 16px !important;
+  }
+  :is(#overlay .modal, .desktop-setup-dialog, .wb-page-content .composer-config-dialog, .wb-page-content .multi-chat-create-form) > .app-dialog-footer {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)) !important;
+    gap: 8px !important;
+    padding: 12px 16px !important;
+    width: 100% !important;
+  }
+  :is(#overlay .modal, .desktop-setup-dialog, .wb-page-content .composer-config-dialog, .wb-page-content .multi-chat-create-form) > .app-dialog-footer > .button {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    margin: 0 !important;
+    justify-content: center !important;
+  }
+  .desktop-setup-actions {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .desktop-setup-actions > .button.primary {
+    grid-column: 1 / -1 !important;
+  }
+  .wb-page-content .composer-config-dialog:not(.multi-chat-create-form) > .app-dialog-footer {
+    grid-template-columns: 1fr !important;
+  }
+  .wb-page-content .composer-config-dialog:not(.multi-chat-create-form) > .app-dialog-footer > span {
+    font-size: 11.5px !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  #overlay .modal .task-preset-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  #overlay .modal .task-preset-actions > .button {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 8px !important;
+  }
+  #overlay .modal .provider-presets > div:last-child {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+  #overlay .modal .provider-presets > div:last-child > .button {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  #overlay .modal .provider-cli-entry,
+  #overlay .modal .cli-connect-intro {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+  #overlay .modal .provider-cli-entry > .button,
+  #overlay .modal .cli-connect-intro > .button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+  #overlay .modal .cli-connect-card > footer {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    align-items: center !important;
+  }
+  #overlay .modal .cli-connect-card > footer > .button,
+  #overlay .modal .cli-connect-card > footer > a {
+    width: 100% !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  #overlay .modal .provider-model-field > button {
+    width: 100% !important;
+    justify-self: stretch !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .desktop-setup-agent {
+    grid-template-columns: 36px minmax(0, 1fr) !important;
+  }
+  .desktop-setup-agent-actions {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+  }
+  .desktop-setup-agent-actions > .button,
+  .desktop-setup-agent-actions > a.button {
+    width: 100% !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    justify-content: center !important;
+  }
+}
+
+/* ==========================================================================
+   Orca Mobile Companion Architecture (<= 740px) — Modeled on onorca.dev
+   ========================================================================== */
+.mp-mobile-only {
+  display: none !important;
+}
+
+@keyframes mp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 740px) {
+  .mp-mobile-only {
+    display: flex !important;
+  }
+
+  /* When MobileOrcaOverlay is active (Terminal "shell" or "PLAN.md" subtab inside an active session), hide #content */
+  .wb-app-shell.has-mp-overlay #content.wb-page-content {
+    display: none !important;
+  }
+
+  /* On Home Chat stage, allow #content (AI Composer) and .mp-home-companion (Orca Mobile Deck) to scroll together */
+  .wb-app-shell > .wb-main.is-home-stage > .wb-workspace-split > .wb-stage-column {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .wb-app-shell > .wb-main.is-home-stage #content.wb-page-content.is-home {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    padding: 8px 12px 6px !important;
+  }
+  .wb-app-shell > .wb-main.is-home-stage #content.wb-page-content.is-home .command-home,
+  .wb-app-shell > .wb-main.is-home-stage #content.wb-page-content.is-home .command-stage {
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    padding: 2px 0 4px !important;
+    justify-content: flex-start !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  .wb-app-shell > .wb-main.is-home-stage #content.wb-page-content.is-home .home-welcome {
+    margin: 0 !important;
+    transform: none !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 9px !important;
+    padding: 2px 2px !important;
+    text-align: left !important;
+  }
+  .wb-app-shell > .wb-main.is-home-stage #content.wb-page-content.is-home .home-welcome .codex-hero-emblem {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 8px !important;
+    flex-shrink: 0 !important;
+  }
+  .wb-app-shell > .wb-main.is-home-stage #content.wb-page-content.is-home .home-welcome .codex-hero-emblem svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+  .wb-app-shell > .wb-main.is-home-stage #content.wb-page-content.is-home .home-welcome h1 {
+    font-size: 16.5px !important;
+    font-weight: 640 !important;
+    line-height: 1.25 !important;
+    margin: 0 !important;
+    text-align: left !important;
+  }
+  .wb-page-content .codex-composer-rail {
+    margin: 0 6px -14px !important;
+    padding: 6px 8px 20px !important;
+    border-radius: 14px 14px 0 0 !important;
+  }
+  .wb-page-content .codex-rail-bar {
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+  }
+  .wb-page-content .codex-rail-bar::-webkit-scrollbar {
+    display: none !important;
+  }
+  .wb-page-content .codex-rail-left,
+  .wb-page-content .codex-rail-right {
+    flex-wrap: nowrap !important;
+    gap: 2px !important;
+    flex-shrink: 0 !important;
+  }
+  .wb-page-content .codex-rail-pill {
+    height: 26px !important;
+    padding: 0 8px !important;
+    font-size: 11.5px !important;
+    gap: 4px !important;
+    white-space: nowrap !important;
+  }
+  .wb-page-content .codex-rail-pill.is-exec-env[disabled] {
+    display: none !important;
+  }
+  .wb-page-content .home-composer-controls .codex-inline-model-bar .codex-inline-trigger.is-model,
+  .wb-page-content .chat-composer-controls .codex-inline-model-bar .codex-inline-trigger.is-model {
+    max-width: 142px !important;
+  }
+  .wb-page-content .home-quick-prompts {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    overflow: visible !important;
+    margin-top: 8px !important;
+    padding: 2px 2px !important;
+    gap: 6px !important;
+  }
+  .wb-page-content .home-quick-prompt-chip {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 32px !important;
+    padding: 0 10px !important;
+    font-size: 11.5px !important;
+    justify-content: flex-start !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* Constrain all Composer & Header Popovers inside Mobile Viewport */
+  .home-composer .codex-pop-menu[open] > .codex-pop-card,
+  .chat-composer .codex-pop-menu[open] > .codex-pop-card,
+  .codex-composer-rail .codex-pop-menu[open] > .codex-pop-card,
+  .home-composer .composer-add[open] > .composer-add-menu,
+  .chat-composer .composer-add[open] > .composer-add-menu {
+    position: fixed !important;
+    left: 12px !important;
+    right: 12px !important;
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+    top: auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: min(62dvh, 420px) !important;
+    z-index: 210 !important;
+  }
+  .wb-window-chrome .wb-theme-menu[open] > .wb-theme-pop-card {
+    position: fixed !important;
+    top: calc(52px + env(safe-area-inset-top, 0px)) !important;
+    left: 12px !important;
+    right: 12px !important;
+    bottom: auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100dvh - 120px) !important;
+    overflow-y: auto !important;
+    z-index: 210 !important;
+  }
+
+  /* Skills, Knowledge & Stage Viewer Topbar Polish on Mobile */
+  body .wb-page-content .minimal-center-stage {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-rows: none !important;
+  }
+  body .wb-page-content .kb-stage-topbar {
+    height: auto !important;
+    min-height: 46px !important;
+    flex: 0 0 auto !important;
+    padding: 8px 12px !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 6px !important;
+  }
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar {
+    flex-wrap: nowrap !important;
+    padding: 7px 10px !important;
+    gap: 6px !important;
+  }
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar > .kb-topbar-left > .kb-active-doc-info {
+    display: none !important;
+  }
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar > .kb-topbar-left {
+    flex: 0 0 auto !important;
+  }
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar > .kb-topbar-right {
+    flex: 1 1 auto !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+    gap: 5px !important;
+  }
+  body .wb-page-content .kb-stage-topbar .button,
+  body .wb-page-content .kb-stage-topbar .button.small,
+  body .wb-page-content .orca-viewer-toolbar .button,
+  body .wb-page-content .orca-viewer-toolbar .button.small {
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 11px !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    flex: 0 0 auto !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+  }
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar .button,
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar .button.small {
+    flex: 0 0 auto !important;
+    padding: 0 11px !important;
+    font-size: 12px !important;
+    gap: 5px !important;
+  }
+  body .wb-page-content .kb-doc-scroll {
+    padding: 12px !important;
+  }
+  body .wb-page-content .skill-stage-hero {
+    padding: 14px !important;
+  }
+  body .wb-page-content .skill-doc-card > header.skill-doc-card-head {
+    padding: 10px 14px !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: nowrap !important;
+  }
+  body .wb-page-content .skill-doc-card-title {
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    min-width: 0 !important;
+  }
+  body .wb-page-content .skill-doc-card-title > small {
+    display: none !important;
+  }
+  body .wb-page-content .skill-doc-card .skill-doc-body {
+    padding: 14px !important;
+  }
+  body .wb-page-content .vault-editor-foot {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  body .wb-page-content .kb-editor-foot-actions {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+  }
+  body .wb-page-content .mc-filter-strip {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    scrollbar-width: none !important;
+  }
+  body .wb-page-content .mc-filter-strip::-webkit-scrollbar {
+    display: none !important;
+  }
+  body .wb-page-content .mc-filter-strip > .mc-filter-label {
+    display: none !important;
+  }
+  body .wb-page-content .mc-filter-strip > .filter {
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
+  }
+
+  /* Orca Mobile Home Companion Deck below the AI Composer */
+  .mp-home-companion {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px;
+    padding: 6px 12px 24px;
+    flex: 0 0 auto;
+  }
+  .mp-wl-card {
+    background: var(--wb-panel);
+    border: 1px solid var(--wb-line);
+    border-radius: 12px;
+    padding: 10px 0 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow: hidden;
+  }
+  .mp-wl-card > .mp-wl-toolbar {
+    padding: 0 12px 6px;
+    border-bottom: 1px solid var(--wb-line);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .mp-wl-card-title {
+    font-size: 12px;
+    font-weight: 640;
+    color: var(--wb-ink-strong);
+    white-space: nowrap;
+  }
+  .mp-wl-icon-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--wb-line);
+    background: var(--wb-surface-2);
+    color: var(--wb-ink);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .mp-wl-icon-btn.is-active {
+    background: var(--wb-ink-strong);
+    color: var(--wb-bg);
+    border-color: var(--wb-ink-strong);
+  }
+  .mp-wl-empty-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px 6px;
+  }
+  .mp-wl-empty-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .mp-wl-empty-text > strong {
+    font-size: 12.5px;
+    font-weight: 620;
+    color: var(--wb-ink-strong);
+  }
+  .mp-wl-empty-text > span {
+    font-size: 11.5px;
+    line-height: 1.4;
+    color: var(--wb-muted);
+  }
+  .mp-wl-empty-row > .button {
+    flex: 0 0 auto !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 11px !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+  .mp-wl-card > .mp-wl-search-row {
+    margin: 4px 12px 4px;
+  }
+
+  /* Unified Machine & Agent Runtime Card on Mobile Home */
+  .mp-runtime-card {
+    background: var(--wb-panel);
+    border: 1px solid var(--wb-line);
+    border-radius: 12px;
+    padding: 11px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .mp-runtime-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .mp-pair-btn {
+    flex: 0 0 auto !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 10px !important;
+    border-radius: 8px !important;
+    font-size: 11.5px !important;
+    gap: 5px !important;
+    white-space: nowrap !important;
+  }
+  .mp-saved-host-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--wb-line);
+    background: var(--wb-surface-2);
+    color: var(--wb-ink);
+    font-size: 12px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .mp-saved-host-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mp-saved-host-action {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--wb-ink-strong);
+  }
+  .mp-agent-pills-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--wb-line);
+  }
+  .mp-agent-status-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: 7px 9px;
+    border-radius: 9px;
+    border: 1px solid var(--wb-line);
+    background: var(--wb-surface-2);
+    color: var(--wb-ink);
+    cursor: pointer;
+    text-align: left;
+    min-width: 0;
+  }
+  .mp-agent-status-pill > strong {
+    font-size: 11.5px;
+    font-weight: 630;
+    color: var(--wb-ink-strong);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+  .mp-agent-status-pill > small {
+    font-size: 10.5px;
+    color: var(--wb-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* Core Orca Mobile Screen Container (for Terminal & PLAN.md subtabs) */
+  .mp-device-screen {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    background: var(--wb-bg) !important;
+    color: var(--wb-ink-strong) !important;
+    font-family: var(--wb-font-sans) !important;
+    overflow: hidden !important;
+  }
+
+  .mp-scroll-region {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 6px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mp-resume-card {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 11px 12px;
+    border-radius: 11px;
+    background: var(--wb-panel);
+    border: 1px solid var(--wb-line);
+    text-align: left;
+    color: var(--wb-ink-strong);
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+  .mp-resume-card:active,
+  .mp-wl-row:active {
+    background: var(--wb-hover);
+  }
+
+  .mp-host-icon,
+  .mp-resume-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: var(--wb-surface-2);
+    border: 1px solid var(--wb-line);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--wb-ink);
+    flex-shrink: 0;
+  }
+
+  .mp-host-main {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .mp-host-name,
+  .mp-resume-title {
+    font-size: 13.5px;
+    font-weight: 620;
+    color: var(--wb-ink-strong);
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mp-host-meta,
+  .mp-resume-sub {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--wb-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mp-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .mp-status-dot.is-green {
+    background: #22c55e;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.55);
+  }
+  .mp-status-dot.is-amber {
+    background: #eab308;
+    box-shadow: 0 0 6px rgba(234, 179, 8, 0.55);
+  }
+  .mp-status-dot.is-muted {
+    background: #64748b;
+  }
+
+  .mp-repo-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    display: inline-block;
+  }
+  .mp-repo-dot.is-blue {
+    background: #3b82f6;
+  }
+  .mp-repo-dot.is-green {
+    background: #10b981;
+  }
+  .mp-repo-dot.is-orange {
+    background: #f59e0b;
+  }
+  .mp-repo-dot.is-violet {
+    background: #a855f7;
+  }
+
+  .mp-chevron-right {
+    color: var(--wb-muted);
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  /* Worktree & Session List Rows */
+  .mp-wl-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mp-wl-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .mp-wl-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--wb-panel);
+    border: 1px solid var(--wb-line);
+    color: var(--wb-ink);
+    font-size: 11.5px;
+    font-weight: 560;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .mp-wl-chip.is-active {
+    background: var(--wb-surface-2);
+    border-color: var(--wb-border-strong);
+    color: var(--wb-ink-strong);
+    font-weight: 640;
+  }
+  .mp-wl-spacer {
+    flex: 1 1 auto;
+  }
+  .mp-wl-search-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    height: 34px;
+    border-radius: 8px;
+    background: var(--wb-panel);
+    border: 1px solid var(--wb-line);
+    color: var(--wb-muted);
+  }
+  .mp-wl-search-row > input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0 !important;
+    background: transparent !important;
+    color: var(--wb-ink-strong) !important;
+    font-size: 12.5px !important;
+    padding: 0 !important;
+    height: 100% !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  .mp-wl-section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px 5px;
+    font-size: 10.5px;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--wb-muted);
+  }
+  .mp-wl-section-count {
+    margin-left: auto;
+    font-weight: 500;
+    color: var(--wb-muted);
+    letter-spacing: 0;
+  }
+  .mp-wl-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .mp-wl-sep {
+    height: 1px;
+    background: var(--wb-line);
+    margin-left: 38px;
+  }
+  .mp-wl-row {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 16px;
+    border: 0;
+    background: transparent;
+    text-align: left;
+    color: var(--wb-ink-strong);
+    cursor: pointer;
+  }
+  .mp-wl-row.is-selected {
+    background: var(--wb-panel);
+  }
+  .mp-wl-indicator {
+    width: 12px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .mp-wl-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+  }
+  .mp-wl-dot.is-green {
+    background: #22c55e;
+  }
+  .mp-wl-dot.is-red {
+    background: #ef4444;
+  }
+  .mp-wl-dot.is-muted {
+    background: #64748b;
+  }
+  .mp-wl-spinner {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1.6px solid rgba(234, 179, 8, 0.28);
+    border-top-color: #eab308;
+    animation: mp-spin 1.1s linear infinite;
+  }
+  .mp-wl-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .mp-wl-name-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+  .mp-wl-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--wb-ink-strong);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mp-wl-pr {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10.5px;
+    font-family: var(--wb-font-mono);
+    color: #22c55e;
+    flex-shrink: 0;
+  }
+  .mp-wl-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--wb-muted);
+    min-width: 0;
+  }
+  .mp-wl-branch {
+    font-family: var(--wb-font-mono);
+    font-size: 10px;
+    color: var(--wb-muted);
+    background: var(--wb-surface-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 160px;
+  }
+  .mp-wl-preview {
+    font-family: var(--wb-font-mono);
+    font-size: 11px;
+    color: var(--wb-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .mp-wl-tcount {
+    font-size: 11px;
+    font-family: var(--wb-font-mono);
+    color: var(--wb-muted);
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--wb-surface-2);
+    align-self: center;
+    flex-shrink: 0;
+  }
+
+  /* Active Session Sub-tabbar, Terminal, Accessory Bar & Input Bar */
+  .mp-session-chrome {
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--wb-panel);
+    border-bottom: 1px solid var(--wb-line);
+    padding: 0;
+    flex-shrink: 0;
+  }
+  .mp-session-tabbar {
+    display: flex;
+    align-items: stretch;
+    height: 36px;
+    padding: 0 4px;
+    border-top: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mp-session-tabbar::-webkit-scrollbar {
+    display: none;
+  }
+  .mp-session-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 540;
+    color: var(--wb-muted);
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .mp-session-tab.is-active {
+    color: var(--wb-ink-strong);
+    font-weight: 640;
+    border-bottom-color: var(--wb-ink-strong);
+  }
+  .mp-session-tab-add {
+    margin-left: auto;
+    width: 34px;
+    border: 0;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--wb-muted);
+    padding: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  /* TokyoNight Live Terminal View (.mp-terminal) */
+  .mp-screen-terminal {
+    background: #1a1b26 !important;
+  }
+  .mp-terminal {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 12px 14px;
+    background: #1a1b26;
+    font-family: var(--wb-font-mono);
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: #c0caf5;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mp-term-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .mp-term-line {
+    display: block;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .mp-term-prompt {
+    color: #7aa2f7;
+    font-weight: 600;
+  }
+  .mp-term-cmd {
+    color: #c0caf5;
+    font-weight: 600;
+  }
+  .mp-term-dim {
+    color: #565f89;
+  }
+  .mp-term-comment {
+    color: #787c99;
+  }
+  .mp-term-mid {
+    color: #a9b1d6;
+  }
+  .mp-term-tool {
+    color: #bb9af7;
+    font-weight: 600;
+  }
+  .mp-term-ok {
+    color: #9ece6a;
+    font-weight: 600;
+  }
+  .mp-term-warn {
+    color: #e0af68;
+    font-weight: 600;
+  }
+  .mp-term-cursor {
+    display: inline-block;
+    width: 6px;
+    height: 12px;
+    background: #c0caf5;
+    vertical-align: -2px;
+    margin-left: 2px;
+  }
+
+  .mp-accessory-bar {
+    height: 38px;
+    background: var(--wb-bg);
+    border-top: 1px solid var(--wb-line);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+  .mp-accessory-content {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mp-accessory-content::-webkit-scrollbar {
+    display: none;
+  }
+  .mp-accessory-key {
+    height: 26px;
+    padding: 0 9px;
+    border-radius: 6px;
+    background: var(--wb-panel);
+    border: 1px solid var(--wb-line);
+    font-family: var(--wb-font-mono);
+    font-size: 11px;
+    font-weight: 560;
+    color: var(--wb-ink-strong);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .mp-accessory-key.is-icon {
+    width: 28px;
+    padding: 0;
+    color: var(--wb-muted);
+  }
+  .mp-accessory-key.is-accent {
+    background: rgba(34, 197, 94, 0.16);
+    border-color: rgba(34, 197, 94, 0.35);
+    color: #4ade80;
+  }
+  .mp-accessory-key.is-danger {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #f87171;
+  }
+
+  .mp-input-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--wb-bg);
+    border-top: 1px solid var(--wb-line);
+    flex-shrink: 0;
+    margin: 0;
+  }
+  .mp-text-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 36px !important;
+    min-height: 36px !important;
+    padding: 0 13px !important;
+    border-radius: 18px !important;
+    background: var(--wb-panel) !important;
+    border: 1px solid var(--wb-line) !important;
+    font-size: 13px !important;
+    color: var(--wb-ink-strong) !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  .mp-round-button {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+    border-radius: 999px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    border: 0 !important;
+    cursor: pointer;
+  }
+  .mp-round-button.is-send {
+    background: var(--wb-ink-strong) !important;
+    color: var(--wb-bg) !important;
+  }
+
+  /* PLAN.md Subtab View */
+  .mp-plan-scroll {
+    padding: 12px 14px;
+  }
+  .mp-plan-card {
+    background: var(--wb-panel);
+    border: 1px solid var(--wb-line);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .mp-plan-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13.5px;
+    color: var(--wb-ink-strong);
+  }
+  .mp-plan-gate-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: rgba(234, 179, 8, 0.12);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    font-size: 12px;
+    color: var(--wb-ink-strong);
+  }
+  .mp-plan-checklist {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--wb-line);
+  }
+  .mp-plan-check-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--wb-ink-strong);
+  }
+  .mp-plan-check-row > span.is-done {
+    text-decoration: line-through;
+    color: var(--wb-muted);
+  }
+  .mp-plan-pre {
+    margin: 0;
+    font-family: var(--wb-font-mono);
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: var(--wb-ink);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}

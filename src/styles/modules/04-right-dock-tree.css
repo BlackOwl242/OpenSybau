@@ -811,12 +811,12 @@ body.is-resizing-dock .orca-dock-resizer {
   border-radius: 1px;
   background: var(--wb-muted);
   transform-origin: left center;
-  transition: width 160ms ease, background-color 160ms ease, transform 160ms ease;
+  transition: background-color 160ms ease, transform 160ms ease;
 }
 
 .chat-outline-link:hover .chat-outline-dot,
 .chat-outline-link:focus-visible .chat-outline-dot {
-  width: 12px;
+  transform: scaleX(2);
   background: var(--wb-ink);
 }
 .chat-outline-link > .chat-outline-preview { display: none; }

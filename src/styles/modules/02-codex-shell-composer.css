@@ -24,10 +24,10 @@ body,
   grid-template-columns: 52px 256px minmax(0, 1fr) !important;
 }
 .wb-app-shell.has-page-sidebar {
-  grid-template-columns: 52px 240px minmax(0, 1fr) !important;
+  grid-template-columns: 52px 256px minmax(0, 1fr) !important;
 }
 .wb-app-shell.has-both-sidebars {
-  grid-template-columns: 52px 256px 240px minmax(0, 1fr) !important;
+  grid-template-columns: 52px 256px 256px minmax(0, 1fr) !important;
 }
 
 /* Codex Top Window Chrome Bar (38px draggable titlebar) */

@@ -105,6 +105,12 @@ export const view = {
   waveCriticalOnly: false,
   homePlanGate: false,
   homeMaxRounds: 2,
+  mobileScreen: "home",
+  mpSessionTab: "chat",
+  mpWlFilter: "all",
+  mpWlRepo: "all",
+  mpWlSearchOpen: false,
+  mpWlSearchQuery: "",
 };
 
 export const statuses = {

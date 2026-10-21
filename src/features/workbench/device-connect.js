@@ -43,7 +43,7 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
           spellcheck="false"
         >
         <button type="button" class="button quiet" data-action="generate-connection-password">
-          ${icon("sparkles", 13)} Tạo tự động
+          ${icon("refresh-cw", 13)} Tạo tự động
         </button>
         <button type="button" class="button primary" data-action="save-connection-password">
           ${icon("check", 13)} Lưu mật khẩu
@@ -143,7 +143,7 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
     </div>
   </div>`;
 
-  return `<section class="settings-card device-connect-card" id="settings-devices" ${hidden ? "hidden" : ""}>
+  return `<section class="settings-card device-connect-card" id="settings-devices" data-settings-section="devices" ${hidden ? "hidden" : ""}>
     <header>
       <div>
         <h2>Kết nối điện thoại</h2>

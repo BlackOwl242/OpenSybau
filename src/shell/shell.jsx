@@ -6,6 +6,7 @@ import { ContextSidebar } from "./components/ContextSidebar.jsx";
 import { MobileNav } from "./components/MobileNav.jsx";
 import { TopBar } from "./components/TopBar.jsx";
 import { DesktopSetupDialog } from "./components/DesktopSetupDialog.jsx";
+import { MobileOrcaHeader, MobileOrcaOverlay } from "./components/MobileOrcaShell.jsx";
 import { pageLayouts, pageTitles } from "./navigation.js";
 import { Icon } from "../shared/ui/Icon.jsx";
 import { formatNumber } from "../shared/i18n.js";
@@ -156,7 +157,6 @@ function WindowChrome({ snapshot, sidebarCollapsed, mobileSidebarOpen, onToggleS
               flexShrink: 0,
             }}
           />
-          <Icon name="sparkles" size={14} class="wb-theme-trigger-icon" />
           <span class="wb-theme-trigger-label">{activeTheme.label}</span>
         </summary>
         <div class="codex-pop-card wb-theme-pop-card">
@@ -243,8 +243,14 @@ export function AppShell({ snapshot, pageMarkup }) {
   const hasContextSidebar = pageLayouts[page]?.sidebar === "context" && !sidebarCollapsed;
   const hasPageSidebar = Boolean(snapshot.pageSidebarMarkup) && !sidebarCollapsed;
   const hasRightDock = Boolean(snapshot.chatDrawerOpen && snapshot.rightDockMarkup);
+  const mpSessionTab = snapshot.mpSessionTab || "chat";
+  const hasMobileOverlay = page === "chat"
+    && Boolean(snapshot.selected)
+    && (mpSessionTab === "terminal" || mpSessionTab === "plan")
+    && (snapshot.activeStageTabId || "chat") === "chat";
   const shellClasses = [
     "wb-app-shell",
+    hasMobileOverlay && "has-mp-overlay",
     hasContextSidebar && "has-context-sidebar",
     hasPageSidebar && "has-page-sidebar",
     hasContextSidebar && hasPageSidebar && "has-both-sidebars",
@@ -294,8 +300,10 @@ export function AppShell({ snapshot, pageMarkup }) {
     <main class={`wb-main ${home && !hasStageTabs ? "is-home-stage" : ""} ${hasStageTabs || chatSplit ? "has-stage-tabs" : ""} ${chatSplit ? "is-chat-split" : ""}`}>
       <div class={`wb-workspace-split ${hasRightDock ? "has-right-dock" : ""}`}>
         <div class="wb-stage-column">
-      <TopBar snapshot={snapshot} />
+          <MobileOrcaHeader snapshot={snapshot} />
+          <TopBar snapshot={snapshot} />
           <StableHtml id="content" class={`content wb-page-content ${home ? "is-home" : ""} ${(page === "chat" && snapshot.selected) || isViewingFileTab || chatSplit ? "is-task-detail" : ""} ${isViewingFileTab ? "is-orca-tab-stage" : ""} ${(page === "knowledge" && snapshot.state?.settings?.vaultPath) || page === "skills" ? "is-knowledge-detail" : ""}`} html={pageMarkup} background={snapshot.backgroundUpdate} scope={`${page}:${snapshot.chatSplitWorkspaceId || snapshot.selected || ""}`} />
+          <MobileOrcaOverlay snapshot={snapshot} />
         </div>
         {hasRightDock ? (
           <>

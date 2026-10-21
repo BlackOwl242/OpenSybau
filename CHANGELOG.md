@@ -5,6 +5,22 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.1] - 2026-10-21
+
+### English
+- **Clean Architecture Modular Refactoring Across Frontend, Backend & Stylesheets (`src/features/workbench/*`, `src/server/*`, `src/styles/modules/*`)**:
+  - Decompose the 6,072-line frontend controller monolith (`src/features/workbench/controller.js`) into a 435-line entry coordinator plus 16 single-responsibility modules: `runtime.js` (reactive state & HTTP/SSE lifecycle), `ui-controls.js` (shared badges & custom dropdowns), `composer.js` (home/session composer & multi-agent worktree arena), `stage-tabs.js` (right dock, file tree & split diff viewer), `modals.js` (dialog renderers), 6 page view modules (`src/features/workbench/pages/*`), and 5 action handler modules (`src/features/workbench/actions/*`).
+  - Refactor the 3,699-line backend monolith (`server.mjs`) into a 558-line server entry point (`startWorkbench` / `stopWorkbench`) and 7 focused backend modules: `src/server/cli-discovery.mjs`, `src/server/task-prompts.mjs`, `src/server/task-stage-runner.mjs`, `src/server/task-runner.mjs`, and domain route handlers (`src/server/routes/provider-skill-routes.mjs`, `src/server/routes/workspace-vault-routes.mjs`, `src/server/routes/task-routes.mjs`).
+  - Split the 4,538-line stylesheet (`src/styles/modules/07-themes-mission-control.css`) into 4 focused CSS modules (`07-theme-palettes.css`, `08-mission-control-waves.css`, `09-settings-and-modals.css`, `10-mobile-responsive.css`) and prune unused legacy mobile selectors while maintaining 100% visual and functional parity.
+
+### Tiếng Việt
+- **Tái Cấu trúc Mã nguồn (Clean Architecture) cho Frontend, Backend & Hệ thống Giao diện CSS (`src/features/workbench/*`, `src/server/*`, `src/styles/modules/*`)**:
+  - Tách tệp điều phối frontend khổng lồ 6.072 dòng (`src/features/workbench/controller.js`) thành bộ điều phối gọn nhẹ 435 dòng cùng 16 module đơn nhiệm: `runtime.js` (quản lý trạng thái, SSE & mạng), `ui-controls.js` (dropdown tùy chỉnh & huy hiệu), `composer.js` (khung nhập lệnh AI & chế độ đa luồng Worktree), `stage-tabs.js` (thanh bên phải, cây thư mục & xem Diff chia đôi), `modals.js` (hộp thoại hệ thống), 6 module giao diện trang (`src/features/workbench/pages/*`) và 5 module xử lý sự kiện (`src/features/workbench/actions/*`).
+  - Tách tệp máy chủ 3.699 dòng (`server.mjs`) thành điểm khởi chạy 558 dòng (`startWorkbench` / `stopWorkbench`) cùng 7 module backend chuyên biệt: `src/server/cli-discovery.mjs` (tự động dò CLI & model), `src/server/task-prompts.mjs`, `src/server/task-stage-runner.mjs`, `src/server/task-runner.mjs` (điều phối tiến trình 6 bước & Git Worktree) và bộ định tuyến API theo miền (`src/server/routes/provider-skill-routes.mjs`, `src/server/routes/workspace-vault-routes.mjs`, `src/server/routes/task-routes.mjs`).
+  - Chia tệp CSS 4.538 dòng (`src/styles/modules/07-themes-mission-control.css`) thành 4 module độc lập (`07-theme-palettes.css`, `08-mission-control-waves.css`, `09-settings-and-modals.css`, `10-mobile-responsive.css`) và dọn sạch các quy tắc CSS dư thừa mà vẫn bảo toàn 100% giao diện trên mọi kích thước màn hình.
+
+---
+
 ## [0.3.0] - 2026-10-21
 
 ### English

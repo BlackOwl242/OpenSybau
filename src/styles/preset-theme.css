@@ -1,8 +1,11 @@
-/* OpenSybau Modular Stylesheet Index ? Preserves exact cascade order */
+/* OpenSybau Modular Stylesheet Index — Preserves exact cascade order */
 @import "./modules/01-base-surfaces.css";
 @import "./modules/02-codex-shell-composer.css";
 @import "./modules/03-knowledge-vault.css";
 @import "./modules/04-right-dock-tree.css";
 @import "./modules/05-stage-tabs-viewer.css";
 @import "./modules/06-markdown-inspector-responsive.css";
-@import "./modules/07-themes-mission-control.css";
+@import "./modules/07-theme-palettes.css";
+@import "./modules/08-mission-control-waves.css";
+@import "./modules/09-settings-and-modals.css";
+@import "./modules/10-mobile-responsive.css";
