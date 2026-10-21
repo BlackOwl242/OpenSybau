@@ -28,6 +28,17 @@ for (const [vi, en] of [
   ["Mã nguồn & Cấu trúc thư mục", "Source Code & Directory Tree"],
   ["Khởi tạo nhanh cho dự án này", "Quick Start for This Project"],
   ["Mở không gian dự án", "Open project workspace"],
+  ["Cài đặt hệ thống", "System Settings"],
+  ["Danh mục", "Categories"],
+  ["Tất cả cài đặt", "All settings"],
+  ["Giao diện & Chủ đề màu", "Appearance & Color Themes"],
+  ["Chọn model AI cho từng việc", "Choose AI Models by Role"],
+  ["Công cụ CLI trên máy", "Local CLI Tools"],
+  ["Kết nối API & Model cục bộ", "API & Local Models"],
+  ["Số công việc chạy cùng lúc", "Concurrent Tasks"],
+  ["1. Tạo mật khẩu kết nối", "1. Create connection password"],
+  ["2. Quét mã QR hoặc sao chép mã sang điện thoại", "2. Scan QR code or copy pairing code to your phone"],
+  ["OpenSybau tự dò Codex CLI. Đăng nhập bằng tài khoản ChatGPT trong cửa sổ terminal; không cần OpenAI API key.", "OpenSybau auto-detects Codex CLI. Sign in with your ChatGPT account in the terminal window; no OpenAI API key required."],
 ]) {
   assert.equal(translateText(vi, "en"), en);
   assert.equal(translateText(en, "en"), en);
@@ -49,5 +60,6 @@ assert.equal(translateText("Chưa có dự án khác để thử", "en"), "Chưa
 assert.equal(translateText("Thao tác chat Lưu trữ tài liệu", "en"), "Chat actions Lưu trữ tài liệu");
 assert.equal(translateText("Đóng tab tài liệu.md", "en"), "Close tab tài liệu.md");
 assert.equal(translateText("Lưu trữ · Sẵn sàng", "en"), "Archive · Ready");
+assert.equal(translateText("4 model · sẵn sàng · đã lưu khóa API", "en"), "4 models · ready · API key saved");
 assert.equal(translateText("4 tin nhắn", "en"), "4 messages");
 console.log("UI localization regressions passed.");

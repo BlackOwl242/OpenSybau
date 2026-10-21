@@ -5,6 +5,24 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.107] - 2026-10-21
+
+### English
+- **Settings Sidebar & Content Alignment, Missing Icons & Complete Bilingual Localization (`src/shared/ui/icons.js`, `src/shell/shell.jsx`, `src/shell/components/StableHtml.jsx`, `src/shared/dom-patch.js`, `src/features/workbench/controller.js`, `src/styles/modules/07-themes-mission-control.css`, `src/shared/i18n.js`)**:
+  - Add 8 missing Lucide icons (`sliders-horizontal`, `sparkles`, `smartphone`, `layers`, `qr-code`, `clipboard`, `shield-check`, `check-check`) to `src/shared/ui/icons.js` and enforce a fixed `16px × 16px` icon slot on `.wb-settings-side-link` and `.settings-nav-item` so all 7 Settings sidebar tabs align along the exact same vertical axis.
+  - Render `.wb-page-sidebar` through `StableHtml` with a `44px` `.wb-settings-sidebar-header` matching the main topbar and context sidebar, and reset `margin: 0` across all `.settings-card` sections inside `.settings-form` so every tab aligns flush at the top and "All settings" spaces cards uniformly (`gap: 16px`).
+  - Unify `.cli-guide-row` and `.provider-setup-row` grid layouts (`10px minmax(0, 1fr) auto`), card headers, and `36px` input/button heights, and make `strong` / `small` block-level inside `.device-password-head` and `.device-qr-step-title` so step headings and descriptions never run together on one line.
+  - Localize `morphdom` target trees inside `patchHtml()` / `StableHtml`, re-localize custom dropdowns after `syncCustomSelect()`, `syncRolePicker()`, and `syncWorkflow()`, fix overly broad `dynamicTranslation` regexes (`/^Mở (.+)$/` and `/^(\d+) model( · .*)?$/i`), and complete Vietnamese ↔ English translations across Settings, CLI provider guides, Phone & Remote Connect, and Mission Control.
+
+### Tiếng Việt
+- **Đồng bộ Bố cục & Căn thẳng Hàng Thanh Bên Cài đặt với Nội dung Chính, Bổ sung Icon Thiếu & Sửa Triệt để Lỗi Lẫn lộn Anh/Việt (`src/shared/ui/icons.js`, `src/shell/shell.jsx`, `src/shell/components/StableHtml.jsx`, `src/shared/dom-patch.js`, `src/features/workbench/controller.js`, `src/styles/modules/07-themes-mission-control.css`, `src/shared/i18n.js`)**:
+  - Bổ sung 8 icon còn thiếu (`sliders-horizontal`, `sparkles`, `smartphone`, `layers`, `qr-code`, `clipboard`, `shield-check`, `check-check`) vào `src/shared/ui/icons.js` và cố định khung `16px × 16px` cho icon trên `.wb-settings-side-link` để cả 7 mục trên thanh bên Cài đặt (`Tất cả cài đặt`, `Giao diện`, `Chọn model AI`, `Công cụ CLI`, `Kết nối API`, `Kết nối điện thoại`, `Hiệu năng`) luôn thẳng hàng tuyệt đối.
+  - Render `.wb-page-sidebar` qua `StableHtml` kèm thanh tiêu đề `.wb-settings-sidebar-header` cao `44px` đồng bộ với thanh bên hệ thống, đồng thời chuẩn hóa `margin: 0` cho mọi `.settings-card` trong `.settings-form` để từng tab luôn căn phẳng hàng đầu trang và chế độ *Tất cả cài đặt* cách đều `16px`.
+  - Đồng bộ lưới hiển thị của `.cli-guide-row` và `.provider-setup-row` (`10px minmax(0, 1fr) auto`), chiều cao ô nhập/nút bấm (`36px`), và tách dòng `strong` / `small` trong mục *Kết nối điện thoại* để tiêu đề bước và mô tả phụ không bao giờ bị dính liền trên cùng một dòng.
+  - Dịch cây DOM đích ngay trong `patchHtml()` / `StableHtml` trước khi `morphdom` cập nhật, dịch lại sau `syncCustomSelect()`, `syncRolePicker()`, `syncWorkflow()`, sửa lỗi regex `dynamicTranslation` làm câu nửa Anh nửa Việt, và bổ sung đầy đủ từ điển Anh ↔ Việt cho toàn bộ trang Cài đặt, hướng dẫn CLI, Kết nối điện thoại và Tiến trình.
+
+---
+
 ## [0.2.106] - 2026-10-21
 
 ### English

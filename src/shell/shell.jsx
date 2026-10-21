@@ -289,7 +289,7 @@ export function AppShell({ snapshot, pageMarkup }) {
     <NavRail page={page} snapshot={snapshot} />
     <ContextSidebar snapshot={snapshot} mobileOpen={mobileSidebarOpen} mobileOnly={!hasContextSidebar} onNavigate={() => setMobileSidebarOpen(false)} />
     {mobileSidebarOpen ? <button class="wb-mobile-sidebar-backdrop" type="button" aria-label="Đóng danh sách workspace" onClick={() => setMobileSidebarOpen(false)} /> : null}
-    {hasPageSidebar && <aside class="wb-page-sidebar" dangerouslySetInnerHTML={{ __html: snapshot.pageSidebarMarkup }} />}
+    {hasPageSidebar && <StableHtml as="aside" class="wb-page-sidebar" aria-label="Danh mục cài đặt" html={snapshot.pageSidebarMarkup} background={snapshot.backgroundUpdate} scope={page} />}
     <main class={`wb-main ${home && !hasStageTabs ? "is-home-stage" : ""} ${hasStageTabs || chatSplit ? "has-stage-tabs" : ""} ${chatSplit ? "is-chat-split" : ""}`}>
       <div class={`wb-workspace-split ${hasRightDock ? "has-right-dock" : ""}`}>
         <div class="wb-stage-column">

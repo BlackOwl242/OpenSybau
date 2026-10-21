@@ -318,6 +318,7 @@ function syncCustomSelect(select) {
   if (scroll) {
     scroll.innerHTML = options.map((opt) => `<button type="button" class="codex-pop-item ${opt.value === select.value ? "is-selected" : ""}" data-action="pick-home-select" data-select-name="${esc(select.name || "")}" data-value="${esc(opt.value)}" ${opt.disabled ? "disabled" : ""}><span class="codex-pop-item-main"><span>${esc(opt.label)}</span></span>${opt.value === select.value ? icon("check", 13) : ""}</button>`).join("");
   }
+  localizeDom(picker, view.language);
 }
 function homeSelectField(label, name, dataAttribute, options, selectedValue, disabled = false) {
   const safeOptions = options.length ? options : [{ value: "", label: "—" }];
@@ -348,6 +349,7 @@ function syncRolePicker(form, roleId, field) {
   picker.toggleAttribute("data-disabled", select.disabled || !options.length);
   picker.querySelector("summary").setAttribute("aria-disabled", String(select.disabled || !options.length));
   picker.querySelector("summary").tabIndex = select.disabled || !options.length ? -1 : 0;
+  localizeDom(picker, view.language);
 }
 function syncRolePickers(form, roleId) {
   for (const field of ["provider", "model", "effort"]) syncRolePicker(form, roleId, field);
@@ -1732,9 +1734,12 @@ const SETTINGS_NAV_ITEMS = [
 
 function settingsSidebarMarkup() {
   const activeSection = view.settingsSection || "all";
-  return `<div class="wb-sidebar-scroll wb-settings-sidebar">
-    <section class="wb-sidebar-group wb-settings-group">
-      <div class="wb-section-head"><span>Cài đặt</span></div>
+  return `<header class="wb-sidebar-header wb-settings-sidebar-header">
+    <strong>Cài đặt hệ thống</strong>
+  </header>
+  <div class="wb-side-scroll wb-settings-sidebar">
+    <section class="wb-side-section wb-settings-group">
+      <div class="wb-side-heading"><span>Danh mục</span></div>
       <div class="wb-settings-nav-list" role="navigation" aria-label="Danh mục cài đặt">
         ${SETTINGS_NAV_ITEMS.map((item) => `<button type="button" class="wb-side-link wb-settings-side-link ${activeSection === item.id ? "is-active" : ""}" data-action="settings-nav" data-section="${esc(item.id)}" aria-current="${activeSection === item.id ? "true" : "false"}">
           <span class="wb-side-link-main">${icon(item.icon, 16)}<span>${esc(item.label)}</span></span>
@@ -2028,6 +2033,7 @@ function render({ background = false } = {}) {
     overlay.innerHTML = "";
   }
   syncWorkflow();
+  localizeDom(document.querySelector("#root"), view.language);
 }
 
 function drawWaveDagEdges() {

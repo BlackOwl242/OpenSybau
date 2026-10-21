@@ -1,6 +1,7 @@
 import { h } from "preact";
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { patchHtml } from "../../shared/dom-patch.js";
+import { localizeDom } from "../../shared/i18n.js";
 
 export function StableHtml({ as: Tag = "section", html, background = false, scope, ...attributes }) {
   const ref = useRef(null);
@@ -10,8 +11,12 @@ export function StableHtml({ as: Tag = "section", html, background = false, scop
     if (background && previousScope.current === scope && previousHtml.current === html) return;
     // Navigation may deliberately replace the document; background task events
     // patch in place so they cannot reset an unrelated form or preview.
-    if (previousScope.current !== scope) ref.current.innerHTML = html;
-    else patchHtml(ref.current, html, { background });
+    if (previousScope.current !== scope) {
+      ref.current.innerHTML = html;
+      localizeDom(ref.current);
+    } else {
+      patchHtml(ref.current, html, { background });
+    }
     previousScope.current = scope;
     previousHtml.current = html;
   });

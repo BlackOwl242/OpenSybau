@@ -1,4 +1,5 @@
 import morphdom from "morphdom";
+import { localizeDom } from "./i18n.js";
 
 const SCROLL_SELECTOR = ".chat-thread, .codex-pop-scroll, .multi-chat-picker-list, .orca-dock-body, .orca-code-scroll, .orca-doc-scroll, .orca-diff-scroll, .orca-table-scroll, .kb-doc-scroll, .kb-file-list, .kb-inspector-scroll, .chat-tool-stream-body, .orchestration-event-list, .wb-side-scroll, .diff-hunk-list, .diff-file-list";
 
@@ -24,6 +25,7 @@ function nodeKey(node) {
 export function patchHtml(element, html, { background = false } = {}) {
   const target = element.cloneNode(false);
   target.innerHTML = html;
+  localizeDom(target);
   const scrollMap = new Map();
   [...element.querySelectorAll(SCROLL_SELECTOR)].forEach((el, idx) => {
     const entry = {
