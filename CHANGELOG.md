@@ -5,6 +5,44 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.2.102] - 2026-10-21
+
+### English
+- **ORCA Connect Multi-Device & Remote Workstation Hub (`src/server/network-pairing.mjs`, `src/features/workbench/orca-connect.js`, `src/shared/remote-host.js`, `src/shell/shell.jsx`, `server.mjs`)**:
+  - Add a dedicated **ORCA Connect** status pill in the top window chrome (`WindowChrome`) displaying live host telemetry (`LAN`, `Local`, or `Remote · ms`) and opening the **ORCA Connect Hub** modal.
+  - Implement a zero-dependency ISO/IEC 18004 QR Code SVG generator (`generateQrCodeSvg` with Reed-Solomon ECC), automatic LAN Wi-Fi/Ethernet and Tailscale (`100.x.y.z`) IPv4 interface discovery (`discoverLanAddresses`), `opensybau://connect` quick-pair URIs, and 1-click PowerShell/Bash Zero-Trust LAN launcher scripts (`GET /api/connection-info`, `GET /api/ping`).
+  - Add client-side remote workstation profile management (`getSavedRemoteHosts`, `probeRemoteHost`, `resolveRemoteUrl`, `buildRemoteRequestHeaders`) that routes `/api/*`, `/api/state`, raw workspace previews, and live SSE `/__events` streams to any paired PC host with Basic Auth and latency probing.
+- **Android APK Application & Packaging Pipeline (`android/`, `capacitor.config.json`, `scripts/build-android-apk.mjs`)**:
+  - Create the native Android application project (`com.opensybau.mobile`, `MainActivity.java`) powered by `WebViewAssetLoader`, `opensybau://connect` deep-link intent forwarding (`opensybau:pair` CustomEvent), `window.opensybauAndroid` JavaScript bridge, and LAN/Tailscale cleartext network security rules (`network_security_config.xml`).
+  - Add `npm run android:sync` and `npm run android:apk` (`scripts/build-android-apk.mjs`) to build the production web bundle, synchronize assets and launcher icons into `android/app/src/main/assets/public/`, generate SHA-256 integrity manifests (`android/build-manifest.json`), and invoke Gradle APK assembly when the Android SDK toolchain is present.
+- **ORCA Parity Upgrades: In-Tab Code Editor & GitHub Issues/PRs CLI Integration (`src/server/github-cli.mjs`, `src/server/fs-security.mjs`, `src/features/workbench/stage-viewer.js`, `src/features/workbench/right-dock.js`)**:
+  - Add direct **In-Tab Code Editing** (`PUT /api/workspaces/:id/file`, `Ctrl+S` / `Cmd+S`) inside the Stage Viewer with path-traversal and `.env` secret protection.
+  - Add **GitHub Issues & Pull Requests** integration via the `gh` CLI (`GET /api/workspaces/:id/github`, `POST /api/tasks/:id/github-pr`), enabling 1-click **"Fix Issue"** task creation from the Right Dock and 1-click Pull Request creation from isolated Git worktrees.
+- **Smart Project Workspace Hub & Workspace Sync (`src/features/workbench/controller.js`, `src/shell/components/ContextSidebar.jsx`, `src/styles/modules/07-themes-mission-control.css`, `src/shared/i18n.js`)**:
+  - Fix workspace selection synchronization across `TopBar`, `ContextSidebar`, `orca-right-dock`, and `projectDetailPage` so adding a new project (`POST /api/workspaces`) or switching projects immediately focuses and loads the newly selected workspace.
+  - Redesign the **Projects (`workspaces`)** view into an interactive **Smart Project Hub** featuring a top **Project Switcher Bar** (`project-hub-bar`), Git branch/cleanliness & file-count telemetry badges, a direct 2-column **Interactive Source File Explorer** (opening files directly into the In-Tab Code Editor/Viewer), and 1-click workflow launchers (`Chat`, `Plan`, `6-Step Pipeline`, `Multi-Agent Arena`).
+- **Modular Architecture Refactoring (`src/server/*`, `src/features/workbench/*`, `src/styles/modules/*`)**:
+  - Refactor monolithic files (`server.mjs`, `src/features/workbench/controller.js`, `src/styles/preset-theme.css`) into 22 focused, reusable server, frontend, and CSS modules with 100% test and visual compatibility.
+
+### Tiếng Việt
+- **Trung tâm Kết nối Đa thiết bị & Điều khiển Máy trạm từ xa ORCA Connect (`src/server/network-pairing.mjs`, `src/features/workbench/orca-connect.js`, `src/shared/remote-host.js`, `src/shell/shell.jsx`, `server.mjs`)**:
+  - Bổ sung nút sóng **ORCA Connect** trực tiếp trên thanh tiêu đề cửa sổ (`WindowChrome`) hiển thị trạng thái kết nối thời gian thực (`LAN`, `Local` hoặc `Remote · ms`) và mở bảng điều khiển **ORCA Connect**.
+  - Xây dựng bộ tạo mã **QR Code SVG** chuẩn ISO/IEC 18004 thuần JavaScript không phụ thuộc thư viện ngoài (`generateQrCodeSvg`), tự động dò tìm địa chỉ IPv4 mạng nội bộ Wi-Fi/Ethernet và VPN **Tailscale** (`100.x.y.z`), tạo chuỗi ghép nối nhanh `opensybau://connect` kèm lệnh PowerShell/Bash khởi chạy chế độ mạng LAN bảo mật Zero-Trust 1 chạm (`GET /api/connection-info`, `GET /api/ping`).
+  - Hỗ trợ lưu danh sách máy trạm từ xa (`getSavedRemoteHosts`, `probeRemoteHost`, `resolveRemoteUrl`, `buildRemoteRequestHeaders`), đo độ trễ Ping (`ms`), xác thực Basic Auth và tự động định tuyến toàn bộ API `/api/*`, `/api/state`, tệp dự án và luồng sự kiện thời gian thực `/__events` về máy tính chủ.
+- **Ứng dụng Android APK & Quy trình Đóng gói (`android/`, `capacitor.config.json`, `scripts/build-android-apk.mjs`)**:
+  - Khởi tạo dự án Android gốc (`com.opensybau.mobile`, `MainActivity.java`) tích hợp `WebViewAssetLoader`, bắt liên kết sâu `opensybau://connect` chuyển thẳng vào giao diện (`opensybau:pair`), cầu nối `window.opensybauAndroid` và cấu hình bảo mật mạng nội bộ LAN/Tailscale (`network_security_config.xml`).
+  - Bổ sung lệnh `npm run android:sync` và `npm run android:apk` (`scripts/build-android-apk.mjs`) tự động đóng gói giao diện web, đồng bộ tài nguyên & bộ biểu tượng vào `android/app/src/main/assets/public/`, xuất bảng kiểm toàn vẹn SHA-256 (`android/build-manifest.json`) và biên dịch gói cài đặt `.apk`.
+- **Nâng cấp đối xứng tính năng với ORCA: Sửa Code trực tiếp trên Tab & Tích hợp GitHub Issues/PRs (`src/server/github-cli.mjs`, `src/server/fs-security.mjs`, `src/features/workbench/stage-viewer.js`, `src/features/workbench/right-dock.js`)**:
+  - Bổ sung chế độ **Chỉnh sửa tệp trực tiếp (In-Tab Code Editor)** ngay trong Stage Viewer (`PUT /api/workspaces/:id/file`, phím tắt `Ctrl+S` / `Cmd+S`) kèm lớp bảo vệ chống ghi đè tệp nhạy cảm `.env`.
+  - Tích hợp **GitHub Issues & Pull Requests** qua `gh` CLI (`GET /api/workspaces/:id/github`, `POST /api/tasks/:id/github-pr`), cho phép bấm **Giao AI sửa** trực tiếp từ Issue trên thanh bên phải và bấm **Tạo Pull Request** 1 chạm từ nhánh Git worktree cô lập.
+- **Không gian Dự án Thông minh & Đồng bộ Trạng thái Dự án (`src/features/workbench/controller.js`, `src/shell/components/ContextSidebar.jsx`, `src/styles/modules/07-themes-mission-control.css`, `src/shared/i18n.js`)**:
+  - Khắc phục triệt để lỗi lệch trạng thái giữa thanh Tab trên cùng (`TopBar`), thanh bên trái (`ContextSidebar`), thanh công cụ phải (`orca-right-dock`) và nội dung trang **Dự án (`workspaces`)**: khi thêm dự án mới hoặc bấm chọn dự án ở bất kỳ đâu, toàn bộ giao diện tự động chuyển sang đúng dự án đó ngay lập tức.
+  - Thiết kế lại trang **Dự án (`projectDetailPage`)** thành **Trung tâm Điều hành Dự án Thông minh (Smart Project Hub)** gồm: Thanh chuyển đổi nhanh giữa các dự án (`project-hub-bar`), huy hiệu trạng thái nhánh Git & tổng số tệp mã nguồn, **Trình duyệt cây thư mục & tệp trực tiếp** (bấm vào tệp mở ngay trong Tab Code Editor/Preview) và **4 nút Khởi tạo tác vụ thông minh 1 chạm** (`Trò chuyện`, `Lập kế hoạch`, `Giao việc 6 bước`, `Đa luồng Arena`).
+- **Tái cấu trúc Kiến trúc Đa mô-đun Hiện đại (`src/server/*`, `src/features/workbench/*`, `src/styles/modules/*`)**:
+  - Phân tách các tệp mã nguồn lớn (`server.mjs`, `src/features/workbench/controller.js`, `src/styles/preset-theme.css`) thành 22 mô-đun backend, frontend và CSS độc lập, dễ bảo trì và mở rộng mà vẫn giữ nguyên 100% giao diện và logic hiện hành.
+
+---
+
 ## [0.2.101] - 2026-10-21
 
 ### English

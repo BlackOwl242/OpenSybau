@@ -7,3 +7,8 @@ release/
 .DS_Store
 Thumbs.db
 .runtime/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/public/
+android/build-manifest.json

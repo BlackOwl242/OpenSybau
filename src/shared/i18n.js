@@ -846,6 +846,82 @@ const english = {
   "Lệnh QA tự động & Phụ thuộc đợt": "Auto QA Command & Batch Dependency",
   "Không phụ thuộc (Đợt 1)": "No dependency (Wave 1)",
   "Dừng lại chờ duyệt kế hoạch (Bước 2 · Duyệt kế hoạch)": "Pause for plan approval (Step 2 · Approve Plan)",
+  "Chỉnh sửa tệp": "Edit file",
+  "Sửa": "Edit",
+  "Lưu tệp": "Save file",
+  "Tạo Pull Request": "Create Pull Request",
+  "GitHub Issues": "GitHub Issues",
+  "GitHub Issues & PRs": "GitHub Issues & PRs",
+  "Hủy bỏ chỉnh sửa và quay lại xem mã nguồn": "Cancel editing and return to code view",
+  "Lưu thay đổi trực tiếp vào tệp trên đĩa (Ctrl+S)": "Save changes directly to disk (Ctrl+S)",
+  "CHẾ ĐỘ CHỈNH SỬA TRỰC TIẾP": "DIRECT EDIT MODE",
+  "Nhập nội dung tệp…": "Enter file content…",
+  "ORCA Connect · Kết nối Android APK & Mạng LAN": "ORCA Connect · Android APK & LAN Pairing",
+  "ORCA Connect · Trung tâm Kết nối Đa thiết bị & Android APK": "ORCA Connect · Multi-Device & Android APK Hub",
+  "Cổng kết nối thiết bị từ xa ORCA Connect": "ORCA Connect Remote Device Hub",
+  "Kết nối trực tiếp từ Android APK hoặc mạng nội bộ (LAN / Tailscale) tới máy tính chạy OpenSybau.": "Connect directly from the Android APK or local network (LAN / Tailscale) to your OpenSybau workstation.",
+  "Mã QR & Phát sóng PC": "QR Code & PC Broadcast",
+  "QUÉT MÃ QR TỪ ANDROID APK": "SCAN QR CODE FROM ANDROID APK",
+  "Khởi động máy chủ trên PC để tạo mã QR": "Start the PC server to generate a QR code",
+  "Ghép nối tức thì qua URI": "Instant URI Pairing",
+  "Sao chép": "Copy",
+  "Không tìm thấy card mạng LAN ngoài loopback.": "No external LAN network interface detected.",
+  "CHẾ ĐỘ MẠNG & BẢO MẬT (ZERO-TRUST LAN)": "NETWORK & SECURITY MODE (ZERO-TRUST LAN)",
+  "ĐANG MỞ MẠNG LAN": "LAN MODE ACTIVE",
+  "CHỈ CỤC BỘ (MẶC ĐỊNH)": "LOCAL LOOPBACK ONLY (DEFAULT)",
+  "Windows PowerShell (Tự tạo mật khẩu 24 ký tự & Allowlist IP LAN)": "Windows PowerShell (Auto-generated 24-char password & LAN IP allowlist)",
+  "Sao chép lệnh PowerShell": "Copy PowerShell command",
+  "Mật khẩu truy cập được tạo tự động (Dùng để nhập trên Android APK)": "Auto-generated access password (Enter in Android APK)",
+  "Sao chép mật khẩu": "Copy password",
+  "GHÉP NỐI NHANH 1 CHẠM (QUICK PAIR / QR URI)": "ONE-TAP QUICK PAIR / QR URI",
+  "Ngắt kết nối từ xa": "Disconnect remote host",
+  "Dán từ Clipboard": "Paste from clipboard",
+  "Dán": "Paste",
+  "Nạp mã": "Apply URI",
+  "Đang kết nối": "Connected",
+  "Ngắt": "Disconnect",
+  "Nạp vào biểu mẫu": "Load into form",
+  "Xóa máy chủ đã lưu": "Remove saved host",
+  "CẤU HÌNH MÁY CHỦ & XÁC THỰC BASIC AUTH": "SERVER CONFIGURATION & BASIC AUTH",
+  "LỖI KẾT NỐI": "CONNECTION FAILED",
+  "Tên gợi nhớ máy trạm": "Workstation display name",
+  "Ví dụ: PC Workstation tại nhà": "Example: Home PC Workstation",
+  "Địa chỉ Máy chủ (LAN IP / Tailscale / HTTPS)": "Server URL (LAN IP / Tailscale / HTTPS)",
+  "Tên đăng nhập (WORKBENCH_ACCESS_USERNAME)": "Username (WORKBENCH_ACCESS_USERNAME)",
+  "Mật khẩu truy cập (WORKBENCH_ACCESS_PASSWORD)": "Access password (WORKBENCH_ACCESS_PASSWORD)",
+  "Nhập mật khẩu >= 16 ký tự của máy chủ…": "Enter server password (16+ characters)…",
+  "Kiểm tra Ping & Xác thực": "Test Ping & Auth",
+  "Lưu & Kết nối Máy chủ": "Save & Connect Host",
+  "MẠNG LAN / TAILSCALE ĐANG BẬT": "LAN / TAILSCALE ACTIVE",
+  "CỤC BỘ (LOOPBACK 127.0.0.1)": "LOCAL (LOOPBACK 127.0.0.1)",
+  "ANDROID APK · CHỜ KẾT NỐI": "ANDROID APK · READY TO PAIR",
+  "CHƯA KẾT NỐI MÁY CHỦ": "SERVER NOT CONNECTED",
+  "Mở không gian dự án": "Open project workspace",
+  "Chuyển đổi dự án": "Switch project",
+  "Xem danh sách toàn bộ dự án": "View all projects",
+  "Working tree sạch": "Clean working tree",
+  "Thư mục cục bộ": "Local folder",
+  "tệp mã nguồn": "source files",
+  "phiên làm việc": "sessions",
+  "Giao việc 6 bước": "6-Step Pipeline",
+  "Mã nguồn & Cấu trúc thư mục": "Source Code & Directory Tree",
+  "Bấm vào thư mục để mở, bấm vào tệp để đọc hoặc sửa trực tiếp trên thanh Tab": "Click a folder to open, or click a file to view and edit directly in Tabs",
+  "Lên một cấp": "Up one level",
+  "Làm mới danh sách tệp": "Refresh file list",
+  "Lọc nhanh tệp hoặc thư mục trong dự án…": "Quick filter files or folders in project…",
+  "Lọc nhanh tệp trong dự án": "Quick filter files in project",
+  "Khởi tạo nhanh cho dự án này": "Quick Start for This Project",
+  "Chọn chế độ điều phối phù hợp với công việc": "Pick the orchestration mode that fits your task",
+  "Trò chuyện & Hỏi đáp mã nguồn": "Codebase Chat & Q&A",
+  "Hỏi đáp trực tiếp, giải thích kiến trúc hoặc sửa nhanh với @mention tệp": "Ask questions, explain architecture, or make quick edits with @file mentions",
+  "Lập kế hoạch kiến trúc (Plan)": "Architectural Plan",
+  "Phân tích yêu cầu, khảo sát mã nguồn và xuất bản thiết kế kỹ thuật": "Analyze requirements, inspect the codebase, and publish a technical specification",
+  "Giao việc 6 bước (Plan · Code · Review · QA)": "6-Step Pipeline (Plan · Code · Review · QA)",
+  "Phối hợp 3 vai trò AI tự động viết code, kiểm tra chéo và chạy test": "Coordinate 3 AI roles to plan, implement, cross-review, and run QA tests",
+  "Đa luồng Arena (Git Worktree song song)": "Multi-Agent Arena (Parallel Git Worktrees)",
+  "Chạy nhiều Agent cùng lúc trên các nhánh cô lập và chọn bản tốt nhất": "Run multiple agents simultaneously on isolated branches and pick the best result",
+  "Chọn một dự án để mở không gian làm việc, duyệt mã nguồn hoặc khởi tạo phiên AI mới.": "Select a project to open its workspace, browse source files, or start a new AI session.",
+  "Đang chọn": "Active",
 };
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));
@@ -922,6 +998,16 @@ function dynamicTranslation(value, language) {
     match = value.match(/^TÀI LIỆU GIAI ĐOẠN \((\d+)\)$/); if (match) return `STAGE DOCUMENTS (${match[1]})`;
     match = value.match(/^Chi tiết các bước thực hiện \((\d+) bước\) & Tài liệu \((\d+)\)$/); if (match) return `Step history (${match[1]} steps) & Documents (${match[2]})`;
     match = value.match(/^Sẵn sàng gộp \((\d+) tệp\)$/); if (match) return `Ready to merge (${match[1]} files)`;
+    match = value.match(/^Kết nối Máy chủ \((\d+)\)$/); if (match) return `Connect Host (${match[1]})`;
+    match = value.match(/^ĐỊA CHỈ MẠNG LAN \/ TAILSCALE PHÁT HIỆN ĐƯỢC \((\d+)\)$/); if (match) return `DETECTED LAN / TAILSCALE ADDRESSES (${match[1]})`;
+    match = value.match(/^TRẠM MÁY CHỦ ĐÃ LƯU \((\d+)\)$/); if (match) return `SAVED WORKSTATIONS (${match[1]})`;
+    match = value.match(/^Tất cả dự án \((\d+)\)$/); if (match) return `All projects (${match[1]})`;
+    match = value.match(/^Phiên làm việc trong dự án \((\d+)\)$/); if (match) return `Project sessions (${match[1]})`;
+    match = value.match(/^Lịch sử chat và tác vụ gắn với (.+)$/); if (match) return `Chat and task history for ${match[1]}`;
+    match = value.match(/^\+(\d+) thư mục nguồn phụ$/); if (match) return `+${match[1]} extra source folders`;
+    match = value.match(/^(\d+) phiên làm việc$/); if (match) return `${match[1]} sessions`;
+    match = value.match(/^PING THÀNH CÔNG · (\d+)ms$/); if (match) return `PING OK · ${match[1]}ms`;
+    match = value.match(/^ĐÃ KẾT NỐI TỪ XA( · \d+ms)?$/); if (match) return `REMOTE CONNECTED${match[1] || ""}`;
     match = value.match(/^MÃ LỖI (\d+)$/); if (match) return `EXIT ${match[1]}`;
     match = value.match(/^(\d+)p$/); if (match) return `${match[1]}m`;
     match = value.match(/^(\d+)g$/); if (match) return `${match[1]}h`;

@@ -344,6 +344,59 @@ try {
   assert.equal(qaExec.status, 200);
   assert.equal(qaExec.body.qaResult.status, "passed");
 
+  // Test ORCA In-Tab Workspace File Edit & Secret Protection
+  const tempEditRel = "src/domain/.orca-edit-test.md";
+  const tempEditAbs = path.join(root, tempEditRel);
+  await writeFile(tempEditAbs, "# Initial\n", "utf8");
+  try {
+    const editFileRes = await request("/api/workspaces/workspace-test/file", "PUT", {
+      path: tempEditRel,
+      content: "# Agent Workbench\n\nUpdated via in-tab editor.\n",
+    });
+    assert.equal(editFileRes.status, 200, JSON.stringify(editFileRes.body));
+    assert.equal(editFileRes.body.content.includes("Updated via in-tab editor."), true);
+  } finally {
+    await rm(tempEditAbs, { force: true });
+  }
+
+  const editSecretRes = await request("/api/workspaces/workspace-test/file", "PUT", {
+    path: ".env",
+    content: "SECRET=123",
+  });
+  assert.equal(editSecretRes.status, 400);
+
+  // Test ORCA GitHub Issues/PRs CLI Status Endpoint
+  const ghStatusRes = await request("/api/workspaces/workspace-test/github", "GET");
+  assert.equal(ghStatusRes.status, 200);
+  assert.equal(Array.isArray(ghStatusRes.body.issues), true);
+  assert.equal(Array.isArray(ghStatusRes.body.prs), true);
+
+  // Test ORCA Connect /api/ping and /api/connection-info + Android APK CORS
+  const pingRes = await request("/api/ping", "GET");
+  assert.equal(pingRes.status, 200);
+  assert.equal(pingRes.body.ok, true);
+  assert.equal(pingRes.body.app, "OpenSybau");
+
+  const connInfoRes = await request("/api/connection-info", "GET");
+  assert.equal(connInfoRes.status, 200);
+  assert.equal(connInfoRes.body.ok, true);
+  assert.equal(typeof connInfoRes.body.pairingUri, "string");
+  assert.equal(connInfoRes.body.pairingUri.startsWith("opensybau://connect?"), true);
+  assert.equal(typeof connInfoRes.body.qrSvg, "string");
+  assert.equal(connInfoRes.body.qrSvg.startsWith("<svg"), true);
+  assert.equal(typeof connInfoRes.body.launchers?.powershell, "string");
+
+  const apkCorsRes = await fetch(`${serverUrl}/api/ping`, {
+    method: "GET",
+    headers: {
+      Authorization: "Basic " + Buffer.from("test:test-password").toString("base64"),
+      Origin: "capacitor://localhost",
+      "X-OpenSybau-Client": "android-apk",
+    },
+  });
+  assert.equal(apkCorsRes.status, 200);
+  assert.equal(apkCorsRes.headers.get("access-control-allow-origin"), "capacitor://localhost");
+
   // Test Wave DAG Decompose
   const waveRes = await request("/api/tasks/decompose", "POST", {
     workspaceId: "workspace-test",

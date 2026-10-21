@@ -46,6 +46,7 @@ function TaskLink({ task, selected, archived = false, taskMenuId = "", menuKey =
 
 function ProjectMenu({ workspace }) {
   return <div class="wb-project-menu" role="menu" aria-label={`Thao tác với ${workspace.name}`}>
+    <button role="menuitem" data-action="open-workspace" data-id={workspace.id}><Icon name="folder-code" size={14} />Mở không gian dự án</button>
     <button role="menuitem" data-action="open-chat-split" data-workspace-id={workspace.id}><Icon name="columns-2" size={14} />Mở nhiều chat song song</button>
     <div class="wb-project-menu-divider" />
     <button role="menuitem" data-action="toggle-project-pin" data-id={workspace.id}><Icon name="pin" size={14} />{workspace.pinned ? "Bỏ ghim" : "Ghim"}</button>
@@ -85,8 +86,9 @@ function FanoutFleetGroup({ fanoutId, tasks, selected, collapsedFanouts = [], ta
   </div>;
 }
 
-function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, collapsedFanouts = [], projectMenuId, taskMenuId }) {
+function WorkspaceGroup({ workspace, tasks, selected, activeWorkspaceId, collapsedWorkspaces, collapsedFanouts = [], projectMenuId, taskMenuId }) {
   const expanded = !collapsedWorkspaces.includes(workspace.id);
+  const isActiveWorkspace = activeWorkspaceId === workspace.id;
   const activeTasks = tasks.filter((task) => !task.archived);
   const sortedTasks = [...activeTasks].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
   const menuOpen = projectMenuId === workspace.id;
@@ -106,7 +108,7 @@ function WorkspaceGroup({ workspace, tasks, selected, collapsedWorkspaces, colla
     groupedEntries.push({ type: "single", task });
   }
 
-  return <section class={`wb-project-group ${menuOpen ? "has-menu-open" : ""}`} key={workspace.id}>
+  return <section class={`wb-project-group ${menuOpen ? "has-menu-open" : ""} ${isActiveWorkspace ? "is-active-workspace" : ""}`} key={workspace.id}>
     <div class="wb-project-row">
       <button class="wb-project-toggle" data-action="toggle-workspace" data-id={workspace.id} title={workspace.path} aria-expanded={expanded}>
         <span class={`wb-project-chevron ${expanded ? "is-expanded" : ""}`}><Icon name="chevron-right" size={13} /></span>
@@ -176,6 +178,7 @@ function SideContent({ snapshot }) {
         workspace={workspace}
         tasks={tasksByWorkspace.get(workspace.id) || []}
         selected={snapshot.selected}
+        activeWorkspaceId={snapshot.page === "workspaces" && snapshot.selected ? snapshot.selected : (snapshot.homeWorkspaceId || sortedWorkspaces[0]?.id || "")}
         collapsedWorkspaces={collapsedWorkspaces}
         collapsedFanouts={snapshot.collapsedFanouts || []}
         projectMenuId={snapshot.projectMenuId}

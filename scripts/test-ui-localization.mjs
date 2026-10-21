@@ -25,6 +25,9 @@ for (const [vi, en] of [
   ["Thấp", "Low"],
   ["Hiển thị:", "Show:"],
   ["Cần chú ý", "Needs attention"],
+  ["Mã nguồn & Cấu trúc thư mục", "Source Code & Directory Tree"],
+  ["Khởi tạo nhanh cho dự án này", "Quick Start for This Project"],
+  ["Mở không gian dự án", "Open project workspace"],
 ]) {
   assert.equal(translateText(vi, "en"), en);
   assert.equal(translateText(en, "en"), en);

@@ -1,0 +1,24 @@
+{
+  "appId": "com.opensybau.mobile",
+  "appName": "OpenSybau",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true,
+    "allowNavigation": [
+      "127.0.0.1",
+      "localhost",
+      "192.168.*.*",
+      "10.*.*.*",
+      "172.16.*.*",
+      "100.*.*.*"
+    ]
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true,
+    "backgroundColor": "#0c0c0f"
+  }
+}

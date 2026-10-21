@@ -14,7 +14,7 @@ export default defineConfig({
     port: 4173,
     strictPort: true,
     watch: {
-      ignored: ["**/.runtime/**", "**/release/**", "**/dist/**", ...(process.env.WORKBENCH_DATA_DIR ? [`${process.env.WORKBENCH_DATA_DIR.replaceAll("\\", "/")}/**`] : [])],
+      ignored: ["**/.runtime/**", "**/release/**", "**/dist/**", "**/android/**", ...(process.env.WORKBENCH_DATA_DIR ? [`${process.env.WORKBENCH_DATA_DIR.replaceAll("\\", "/")}/**`] : [])],
     },
   },
 });

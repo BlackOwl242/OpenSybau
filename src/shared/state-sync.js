@@ -1,10 +1,19 @@
+import { buildRemoteRequestHeaders, resolveRemoteUrl } from "./remote-host.js";
+
 export function createStateLoader(fetchState = globalThis.fetch) {
   let etag = "";
   let snapshot;
+  let lastTargetUrl = "";
   return async function loadState() {
-    const response = await fetchState("/api/state", {
+    const targetUrl = resolveRemoteUrl("/api/state");
+    if (targetUrl !== lastTargetUrl) {
+      etag = "";
+      snapshot = undefined;
+      lastTargetUrl = targetUrl;
+    }
+    const response = await fetchState(targetUrl, {
       cache: "no-store",
-      headers: etag ? { "If-None-Match": etag } : {},
+      headers: buildRemoteRequestHeaders(etag ? { "If-None-Match": etag } : {}),
       signal: AbortSignal.timeout(15_000),
     });
     if (response.status === 304 && snapshot) return { state: snapshot, changed: false };

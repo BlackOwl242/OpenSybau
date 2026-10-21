@@ -8,6 +8,61 @@ import { updateWorkbenchShell } from "../../shell/mount.jsx";
 import { readBrowserRoute, syncBrowserRoute } from "../../shell/router.js";
 import { compactChatTitle } from "../../shared/chat-labels.js";
 import { createStateLoader } from "../../shared/state-sync.js";
+import {
+  extractMarkdownOutline,
+  filePreviewMarkup,
+  formatCompactBytes,
+  renderCsvTableMarkup,
+  renderKnowledgeMarkdown,
+  renderMarkdown,
+} from "./markdown.js";
+import { mountKnowledgeGraphCanvas as mountVaultKnowledgeGraphCanvas } from "./knowledge-graph.js";
+import {
+  positionHtmlCommentMenu,
+  renderHtmlElementCommentPopoverMarkup,
+  resolveHtmlCommentAgentSelection,
+  syncHtmlInspectUi,
+} from "./html-inspector.js";
+import {
+  buildDockFileTree,
+  canRichPreviewExtension,
+  defaultFileTabMode,
+  dockFileIconName,
+  renderDockTreeLevel,
+  renderStageFileViewer,
+  wrapStageWithOrcaTabs,
+} from "./stage-viewer.js";
+import {
+  openArenaCompareModal as openFanoutCompareModal,
+  renderDiffStudioModal as renderDiffModalContent,
+  showDiffModal as openDiffStudioModal,
+} from "./diff-studio.js";
+import {
+  openGithubCreatePrModal,
+  openGithubIssuesModal,
+  trackTaskStatusNotifications,
+} from "./notifications.js";
+import {
+  getRightDockTabsForPage,
+  pageSupportsRightDock,
+  renderOrcaRightDockMarkup,
+} from "./right-dock.js";
+import {
+  buildRemoteRequestHeaders,
+  getActiveRemoteHost,
+  getSavedRemoteHosts,
+  isAndroidApkRuntime,
+  parsePairingInput,
+  probeRemoteHost,
+  removeRemoteHostProfile,
+  resolveRemoteUrl,
+  saveRemoteHostProfile,
+  setActiveRemoteHost,
+} from "../../shared/remote-host.js";
+import {
+  openOrcaConnectModal,
+  refreshOrcaConnectModalIfOpen,
+} from "./orca-connect.js";
 
 Object.assign(view, readBrowserRoute());
 const compactLayout = window.matchMedia("(max-width: 1020px)");
@@ -64,7 +119,13 @@ async function hydrateRouteData() {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, { ...options, headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers } });
+  const response = await fetch(resolveRemoteUrl(path), {
+    ...options,
+    headers: buildRemoteRequestHeaders({
+      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...options.headers,
+    }),
+  });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
   return data;
@@ -79,6 +140,7 @@ async function refreshSnapshot(includeConfiguration, background) {
   if (!changed && !configuration && background && view.skillsLoaded) return;
   const skills = view.skillsLoaded ? { skills: view.skills } : await api("/api/skills").catch(() => ({ skills: [] }));
   view.state = state;
+  trackTaskStatusNotifications(state.tasks, { showToast });
   if (configuration) {
     view.connectors = configuration[0];
     view.providers = configuration[1].providers || [];
@@ -118,7 +180,14 @@ function refresh({ configuration = false, background = false } = {}) {
       }
     } catch (error) {
       refreshAgain = false;
-      showToast(error.message);
+      if (!view.state && (isAndroidApkRuntime() || getActiveRemoteHost())) {
+        view.state = { version: 1, settings: { maxConcurrent: 2, defaults: {}, vaultPath: "", taskPresets: [] }, workspaces: [], tasks: [] };
+        view.streamConnected = false;
+        render();
+        void openOrcaConnectModal({ api, showModal });
+      } else {
+        showToast(error.message);
+      }
     }
   })().finally(() => {
     refreshInFlight = null;
@@ -460,23 +529,38 @@ function taskPage() {
   <div class="reality-note"><span class="live-dot"></span>Task chạy bằng provider bạn chọn; lịch sử và bản ghi được lưu cục bộ.</div>`;
 }
 function workspacePage() {
-  const workspaces = view.state.workspaces;
+  const workspaces = view.state.workspaces || [];
   if (!workspaces.length) {
     return `<div class="page-head"><div><div class="eyebrow">THƯ MỤC DỰ ÁN</div><h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div>
     <section class="workspace-list"><div class="empty-state"><strong>Chưa có dự án</strong><p>Thêm đường dẫn repository hoặc thư mục làm việc trên máy.</p><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div></section>`;
   }
-  const activeWs = workspaces.find((item) => item.id === view.selected) || workspaces[0];
-  if (activeWs && view.selected !== activeWs.id && !view.workspaceOverviewMode) {
-    view.selected = activeWs.id;
-    if (!view.workspaceEntries?.length && !view.workspaceLoadingId) {
-      view.workspaceLoadingId = activeWs.id;
-      void loadWorkspaceDir(activeWs.id, view.workspaceDir || "").finally(() => { view.workspaceLoadingId = ""; });
+  const activeWs = workspaces.find((item) => item.id === view.selected)
+    || workspaces.find((item) => item.id === view.homeWorkspaceId)
+    || workspaces[0];
+  if (activeWs && !view.workspaceOverviewMode) {
+    if (view.selected !== activeWs.id) {
+      view.selected = activeWs.id;
+      view.workspaceDir = "";
+      view.workspaceEntries = [];
     }
+    view.homeWorkspaceId = activeWs.id;
+    const targetKey = `${activeWs.id}:${view.workspaceDir || ""}`;
+    if (view.workspaceLoadedKey !== targetKey && view.workspaceLoadingId !== targetKey) {
+      view.workspaceLoadingId = targetKey;
+      void loadWorkspaceDir(activeWs.id, view.workspaceDir || "").finally(() => {
+        if (view.workspaceLoadingId === targetKey) view.workspaceLoadingId = "";
+      });
+    }
+    return projectDetailPage(activeWs);
   }
-  if (activeWs && !view.workspaceOverviewMode) return projectDetailPage(activeWs);
   const status = (w) => w.runtime ? `${w.runtime.isGit ? `Git · ${w.runtime.branch || "nhánh detached"}` : "Thư mục thường"}${w.runtime.head ? " · Có commit" : w.runtime.isGit ? " · Chưa có commit" : ""}${w.runtime.dirty ? " · Có thay đổi chưa commit" : ""}` : "Sẽ kiểm tra khi chạy task";
-  return `<div class="page-head"><div><div class="eyebrow">THƯ MỤC DỰ ÁN</div><h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div>
-  <section class="workspace-list">${workspaces.map((w) => `<article class="workspace-card"><div class="workspace-card-icon">${icon("folder-code", 17)}</div><div class="workspace-card-main"><strong>${esc(w.name)}</strong><code>${esc(w.path)}</code><small>${esc(status(w))}</small></div><button class="button quiet small" data-action="open-workspace" data-id="${esc(w.id)}">Mở dự án ${icon("chevron-right", 14)}</button><button class="icon-button" data-action="remove-workspace" data-id="${esc(w.id)}" title="Gỡ workspace" aria-label="Gỡ workspace">${icon("x", 16)}</button></article>`).join("")}</section>
+  const countTasks = (wId) => (view.state.tasks || []).filter((t) => t.workspaceId === wId && !t.archived).length;
+  return `<div class="page-head"><div><div class="eyebrow">THƯ MỤC DỰ ÁN</div><h1>Tất cả dự án (${workspaces.length})</h1><p>Chọn một dự án để mở không gian làm việc, duyệt mã nguồn hoặc khởi tạo phiên AI mới.</p></div><div class="page-head-actions">${activeWs ? `<button type="button" class="button quiet" data-action="open-workspace" data-id="${esc(activeWs.id)}">${icon("folder-open", 14)} Mở ${esc(activeWs.name)}</button>` : ""}<button type="button" class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div></div>
+  <section class="workspace-list">${workspaces.map((w) => {
+    const isCurrent = w.id === (view.selected || view.homeWorkspaceId);
+    const taskTotal = countTasks(w.id);
+    return `<article class="workspace-card ${isCurrent ? "is-active-workspace" : ""}"><div class="workspace-card-icon">${icon("folder-code", 17)}</div><div class="workspace-card-main"><strong>${esc(w.name)} ${isCurrent ? `<span class="kb-tag-chip is-accent">Đang chọn</span>` : ""}</strong><code>${esc(w.path)}</code><small>${esc(status(w))} · ${taskTotal} phiên làm việc</small></div><button class="button primary small" data-action="open-workspace" data-id="${esc(w.id)}">Mở dự án ${icon("chevron-right", 14)}</button><button class="button quiet small" data-action="new-chat" data-workspace-id="${esc(w.id)}">${icon("square-pen", 13)} Chat mới</button><button class="icon-button" data-action="edit-project" data-id="${esc(w.id)}" title="Cấu hình dự án" aria-label="Cấu hình dự án">${icon("settings-2", 15)}</button><button class="icon-button" data-action="remove-workspace" data-id="${esc(w.id)}" title="Gỡ workspace" aria-label="Gỡ workspace">${icon("x", 16)}</button></article>`;
+  }).join("")}</section>
   <aside class="info-panel"><strong>Task chạy ở đâu?</strong><p>Chế độ thường sửa trực tiếp thư mục này và chỉ cho một task chạy trong cùng workspace tại một thời điểm. Chế độ Git worktree tạo nhánh riêng; cần repository đã có commit. Task trên các workspace khác nhau có thể chạy song song.</p></aside>`;
 }
 function breadcrumbButtons(path, action) {
@@ -524,151 +608,25 @@ function localFileRows(entries, action, filter = "") {
     return `<li data-file-entry><button class="file-row ${entry.type === "directory" ? "directory" : "file"}" data-action="${action}" data-path="${esc(entry.path)}" ${entry.type === "file" ? `aria-label="Mở ${esc(entry.name)}"` : "aria-expanded=false"}><span>${entry.type === "directory" ? icon("folder-code", 15) : icon("file", 15)}</span><strong title="${esc(entry.name)}">${esc(entry.name)}</strong>${entry.type === "file" ? `<small>${formatNumber(entry.size || 0)} B</small>` : icon("chevron-right", 14)}</button></li>`;
   }).join("");
 }
-function splitMarkdownTableRow(line) {
-  const trimmed = String(line || "").trim().replace(/^\|/, "").replace(/\|$/, "");
-  return trimmed.split(/(?<!\\)\|/).map((cell) => cell.replace(/\\\|/g, "|").trim());
-}
-function isMarkdownTableDelimiter(line) {
-  if (!line || !line.includes("-")) return false;
-  const trimmed = String(line).trim();
-  if (!trimmed.includes("|")) return false;
-  const cells = splitMarkdownTableRow(trimmed);
-  return cells.length >= 1 && cells.every((c) => /^:?-{2,}:?$/.test(c));
-}
-const markdownCache = new Map();
-let markdownCacheSize = 0;
-function renderMarkdown(source) {
-  const key = String(source || "");
-  if (markdownCache.has(key)) {
-    const cached = markdownCache.get(key);
-    markdownCache.delete(key);
-    markdownCache.set(key, cached);
-    return cached;
-  }
-  const html = buildMarkdown(key);
-  const size = key.length + html.length;
-  if (size <= 256_000) {
-    while (markdownCache.size && (markdownCache.size >= 128 || markdownCacheSize + size > 2_000_000)) {
-      const oldest = markdownCache.keys().next().value;
-      markdownCacheSize -= oldest.length + markdownCache.get(oldest).length;
-      markdownCache.delete(oldest);
-    }
-    markdownCache.set(key, html);
-    markdownCacheSize += size;
-  }
-  return html;
-}
-function buildMarkdown(source) {
-  const lines = String(source || "").split(/\r?\n/);
-  const html = [];
-  let paragraph = [], listType = "", codeLines = [], inCode = false, codeIndent = 0;
-  const inline = (text) => esc(text).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>").replace(/\[([^\]]+)\]\(((?:https?:\/\/|obsidian:\/\/|#)[^ ")<>']+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
-  const flushParagraph = () => { if (paragraph.length) { html.push(`<p>${paragraph.map(inline).join("<br>")}</p>`); paragraph = []; } };
-  const closeList = () => { if (listType) { html.push(`</${listType}>`); listType = ""; } };
-  let headingIdx = 0;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const fenceMatch = line.match(/^(\s*)```/);
-    if (fenceMatch) {
-      flushParagraph(); closeList();
-      if (inCode) {
-        html.push(`<pre><code>${esc(codeLines.join("\n"))}</code></pre>`);
-        codeLines = []; inCode = false; codeIndent = 0;
-      } else {
-        inCode = true;
-        codeIndent = fenceMatch[1].length;
-      }
-      continue;
-    }
-    if (inCode) {
-      codeLines.push(codeIndent > 0 ? line.replace(new RegExp(`^ {0,${codeIndent}}`), "") : line);
-      continue;
-    }
-    if (!line.trim()) { flushParagraph(); continue; }
-    if (/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { flushParagraph(); closeList(); html.push("<hr>"); continue; }
-    if (line.includes("|") && i + 1 < lines.length && isMarkdownTableDelimiter(lines[i + 1])) {
-      flushParagraph(); closeList();
-      const headers = splitMarkdownTableRow(line);
-      const aligns = splitMarkdownTableRow(lines[i + 1]).map((c) => {
-        const align = (c.startsWith(":") && c.endsWith(":")) ? "center" : c.endsWith(":") ? "right" : "left";
-        return ["left", "center", "right"].includes(align) ? align : "left";
-      });
-      i += 2;
-      const bodyRows = [];
-      while (i < lines.length && lines[i].trim() && lines[i].includes("|") && !/^\s*```/.test(lines[i]) && !/^(#{1,6})\s+/.test(lines[i])) {
-        bodyRows.push(splitMarkdownTableRow(lines[i]));
-        i++;
-      }
-      i--;
-      const theadHtml = `<thead><tr>${headers.map((h, colIdx) => `<th${["left", "center", "right"].includes(aligns[colIdx]) && aligns[colIdx] !== "left" ? ` style="text-align:${aligns[colIdx]}"` : ""}>${inline(h)}</th>`).join("")}</tr></thead>`;
-      const tbodyHtml = bodyRows.length
-        ? `<tbody>${bodyRows.map((row) => `<tr>${headers.map((_, colIdx) => `<td${["left", "center", "right"].includes(aligns[colIdx]) && aligns[colIdx] !== "left" ? ` style="text-align:${aligns[colIdx]}"` : ""}>${inline(row[colIdx] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody>`
-        : "";
-      html.push(`<div class="md-table-wrap"><table class="md-table">${theadHtml}${tbodyHtml}</table></div>`);
-      continue;
-    }
-    const heading = line.match(/^(#{1,6})\s+(.+)$/);
-    const bullet = line.match(/^\s*[-*+]\s+(.+)$/);
-    const ordered = line.match(/^\s*(\d+)[.)]\s+(.+)$/);
-    if (heading) { flushParagraph(); closeList(); const level = Math.min(heading[1].length, 4); html.push(`<h${level} data-kb-heading="${headingIdx++}">${inline(heading[2])}</h${level}>`); continue; }
-    if (bullet || ordered) {
-      flushParagraph();
-      const nextType = bullet ? "ul" : "ol";
-      if (listType !== nextType) { closeList(); listType = nextType; html.push(`<${listType}>`); }
-      if (ordered) {
-        html.push(`<li value="${Number(ordered[1])}">${inline(ordered[2])}</li>`);
-      } else {
-        html.push(`<li>${inline(bullet[1])}</li>`);
-      }
-      continue;
-    }
-    const quote = line.match(/^>\s?(.*)$/); if (quote) { flushParagraph(); closeList(); html.push(`<blockquote>${inline(quote[1])}</blockquote>`); continue; }
-    closeList(); paragraph.push(line);
-  }
-  flushParagraph(); closeList();
-  if (inCode) html.push(`<pre><code>${esc(codeLines.join("\n"))}</code></pre>`);
-  return html.join("") || `<p class="file-empty">Tệp Markdown đang trống.</p>`;
-}
-function extractMarkdownOutline(source) {
-  const lines = String(source || "").split(/\r?\n/);
-  const outline = [];
-  let inCode = false;
-  let idx = 0;
-  for (const line of lines) {
-    if (/^\s*```/.test(line)) { inCode = !inCode; continue; }
-    if (inCode) continue;
-    const m = line.match(/^(#{1,4})\s+(.+)$/);
-    if (m) {
-      outline.push({ index: idx++, level: m[1].length, text: m[2].replace(/[*_`~[\]]/g, "").trim() });
-    }
-  }
-  return outline;
-}
-function renderKnowledgeMarkdown(source) {
-  const baseHtml = renderMarkdown(source);
-  return baseHtml.replace(/\[\[([^\]|#<>\r\n]+)(?:#[^\]|<>\r\n]*)?(?:\|([^\]<>\r\n]+))?\]\]/g, (_, target, alias) => {
-    const label = (alias || target).trim();
-    const cleanTarget = target.trim();
-    return `<button type="button" class="vault-wikilink" data-action="vault-open-wikilink" data-target="${esc(cleanTarget)}" title="Mở liên kết tri thức: ${esc(cleanTarget)}">${icon("file", 12)}<span>${esc(label)}</span></button>`;
-  });
-}
-function filePreviewMarkup(file, title = "Chọn một tệp để xem") {
-  if (!file) return `<div class="file-preview-empty">${icon("file", 18)}<p>${title}</p></div>`;
-  const markdown = [".md", ".mdx", ".markdown"].includes(file.extension);
-  const body = markdown
-    ? `<article class="markdown-preview">${renderMarkdown(file.content)}</article>`
-    : `<pre class="code-preview"><code>${esc(file.content)}</code></pre>`;
-  return `<header class="file-preview-head"><div><strong>${esc(file.name)}</strong><small>${markdown ? "Markdown" : file.extension || "Tệp văn bản"} · ${formatNumber(file.size)} B · ${fmtDate(file.modifiedAt)}</small></div></header>${body}`;
-}
 async function loadWorkspaceDir(workspaceId, path = "") {
   const workspace = view.state.workspaces.find((item) => item.id === workspaceId);
   if (!workspace) return;
-  view.page = "workspaces"; view.selected = workspaceId; view.workspaceDir = path; view.filePreview = null; view.workspaceEntries = [];
+  view.page = "workspaces";
+  view.workspaceOverviewMode = false;
+  view.selected = workspaceId;
+  view.homeWorkspaceId = workspaceId;
+  view.activeStageTabId = "chat";
+  view.workspaceDir = path;
+  view.filePreview = null;
+  view.workspaceEntries = [];
   render();
   const data = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/files?path=${encodeURIComponent(path)}`);
   if (view.selected !== workspaceId || view.workspaceDir !== path) return;
   if (view.workspaceDir !== data.path) replaceBrowserRoute = true;
-  view.workspaceDir = data.path; view.workspaceEntries = data.entries || []; render();
+  view.workspaceDir = data.path;
+  view.workspaceEntries = data.entries || [];
+  view.workspaceLoadedKey = `${workspaceId}:${data.path || ""}`;
+  render();
 }
 async function loadWorkspacePreview(workspaceId, path) {
   const file = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/file?path=${encodeURIComponent(path)}`);
@@ -724,403 +682,8 @@ function showNewVaultNoteModal() {
   const body = `<label>Đường dẫn tệp ghi chú (.md)<input name="notePath" required maxlength="240" value="${esc(`${prefix}${today}.md`)}" placeholder="Ví dụ: kien-truc/he-thong.md"></label><label>Nội dung Markdown<textarea name="content" rows="6" spellcheck="false" placeholder="# Tiêu đề ghi chú\n\nNội dung ghi chú… Liên kết tới [[Ghi chú khác]] hoặc gắn #tag."># </textarea><small>Sử dụng cú pháp <code>[[Tên ghi chú]]</code> hoặc <code>#tag</code> để tạo liên kết trên đồ thị tri thức.</small></label>`;
   showModal("Ghi chú tri thức mới", body, "Tạo ghi chú", "vault-note-create");
 }
-let neuralGraphCleanup = null;
-let mountedGraphCanvas = null;
-let mountedGraphData = null;
 function mountKnowledgeGraphCanvas() {
-  const currentCanvas = view.page === "knowledge" && view.vaultViewMode === "graph" ? document.getElementById("vault-neural-canvas") : null;
-  if (currentCanvas && currentCanvas === mountedGraphCanvas && view.vaultGraph === mountedGraphData) return;
-  if (neuralGraphCleanup) { neuralGraphCleanup(); neuralGraphCleanup = null; }
-  mountedGraphCanvas = null;
-  mountedGraphData = null;
-  if (view.page !== "knowledge" || view.vaultViewMode !== "graph") return;
-  const canvas = document.getElementById("vault-neural-canvas");
-  if (!canvas) return;
-  const graph = view.vaultGraph || { nodes: [], edges: [] };
-  if (!graph.nodes?.length) return;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  mountedGraphCanvas = canvas;
-  mountedGraphData = view.vaultGraph;
-
-  view.vaultGraphPositions ||= new Map();
-  const simNodes = graph.nodes.map((n, i) => {
-    const saved = view.vaultGraphPositions.get(n.id);
-    const angle = (i / Math.max(1, graph.nodes.length)) * Math.PI * 2;
-    const radius = 65 + (i % 3) * 35;
-    return {
-      ...n,
-      x: saved ? saved.x : Math.cos(angle) * radius,
-      y: saved ? saved.y : Math.sin(angle) * radius,
-      vx: 0,
-      vy: 0,
-      radius: Math.min(9.5, 4.5 + Math.sqrt(n.degree || 0) * 1.6),
-    };
-  });
-  const nodeById = new Map(simNodes.map((n) => [n.id, n]));
-  const simEdges = (graph.edges || []).map((e) => ({
-    ...e,
-    sourceNode: nodeById.get(e.source),
-    targetNode: nodeById.get(e.target),
-  })).filter((e) => e.sourceNode && e.targetNode);
-
-  let camX = 0;
-  let camY = 0;
-  let camZoom = 1;
-  let hoveredNode = null;
-  let draggedNode = null;
-  let isPanning = false;
-  let panStartX = 0;
-  let panStartY = 0;
-  let pointerMoved = false;
-  let pulsePhase = 0;
-  let rafId = 0;
-  let cooling = 1.0;
-
-  const resize = () => {
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  };
-  resize();
-  const ro = new ResizeObserver(resize);
-  ro.observe(canvas);
-
-  const screenToWorld = (sx, sy) => {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (sx - rect.width / 2 - camX) / camZoom,
-      y: (sy - rect.height / 2 - camY) / camZoom,
-    };
-  };
-
-  const findNodeAt = (sx, sy) => {
-    const { x, y } = screenToWorld(sx, sy);
-    for (let i = simNodes.length - 1; i >= 0; i -= 1) {
-      const n = simNodes[i];
-      const hitRadius = (n.radius + 6) / Math.max(0.5, camZoom);
-      const dx = x - n.x;
-      const dy = y - n.y;
-      if (dx * dx + dy * dy <= hitRadius * hitRadius) return n;
-    }
-    return null;
-  };
-
-  const stepPhysics = () => {
-    if (cooling < 0.01 && !draggedNode) return;
-    const count = simNodes.length;
-    for (let i = 0; i < count; i += 1) {
-      const a = simNodes[i];
-      a.vx -= a.x * 0.01 * cooling;
-      a.vy -= a.y * 0.01 * cooling;
-      for (let j = i + 1; j < count; j += 1) {
-        const b = simNodes[j];
-        let dx = b.x - a.x;
-        let dy = b.y - a.y;
-        let distSq = dx * dx + dy * dy;
-        if (distSq < 1) { dx = (Math.random() - 0.5) * 2; dy = (Math.random() - 0.5) * 2; distSq = dx * dx + dy * dy; }
-        const dist = Math.sqrt(distSq);
-        const repulse = (1300 / (distSq + 100)) * cooling;
-        const fx = (dx / dist) * repulse;
-        const fy = (dy / dist) * repulse;
-        a.vx -= fx; a.vy -= fy;
-        b.vx += fx; b.vy += fy;
-      }
-    }
-    for (const edge of simEdges) {
-      const a = edge.sourceNode;
-      const b = edge.targetNode;
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const ideal = edge.kind === "link" ? 88 : edge.kind === "tag" ? 110 : 130;
-      const strength = edge.kind === "link" ? 0.05 : edge.kind === "tag" ? 0.03 : 0.016;
-      const force = (dist - ideal) * strength * cooling;
-      const fx = (dx / dist) * force;
-      const fy = (dy / dist) * force;
-      a.vx += fx; a.vy += fy;
-      b.vx -= fx; b.vy -= fy;
-    }
-    for (const n of simNodes) {
-      if (n === draggedNode) { n.vx = 0; n.vy = 0; continue; }
-      n.vx *= 0.82;
-      n.vy *= 0.82;
-      n.x += Math.max(-10, Math.min(10, n.vx));
-      n.y += Math.max(-10, Math.min(10, n.vy));
-      view.vaultGraphPositions.set(n.id, { x: n.x, y: n.y });
-    }
-    if (!draggedNode) cooling *= 0.985;
-  };
-
-  const draw = () => {
-    stepPhysics();
-    pulsePhase = (pulsePhase + 0.006) % 1;
-    const rect = canvas.getBoundingClientRect();
-    const w = rect.width;
-    const h = rect.height;
-    ctx.clearRect(0, 0, w, h);
-
-    const selectedId = view.vaultPreview?.path || "";
-    const activeId = hoveredNode?.id || selectedId;
-    const neighborIds = new Set();
-    if (activeId) {
-      neighborIds.add(activeId);
-      for (const e of simEdges) {
-        if (e.source === activeId) neighborIds.add(e.target);
-        if (e.target === activeId) neighborIds.add(e.source);
-      }
-    }
-
-    const lightScheme = document.documentElement?.dataset?.colorScheme === "light";
-    ctx.save();
-    ctx.translate(w / 2 + camX, h / 2 + camY);
-    ctx.scale(camZoom, camZoom);
-
-    for (let idx = 0; idx < simEdges.length; idx += 1) {
-      const e = simEdges[idx];
-      const a = e.sourceNode;
-      const b = e.targetNode;
-      const isHighlighted = activeId && (e.source === activeId || e.target === activeId);
-      const isDimmed = activeId && !isHighlighted;
-
-      ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
-      if (isHighlighted) {
-        ctx.strokeStyle = lightScheme ? "rgba(15, 23, 42, 0.52)" : "rgba(255, 255, 255, 0.58)";
-        ctx.lineWidth = 1.35;
-      } else {
-        ctx.strokeStyle = isDimmed
-          ? (lightScheme ? "rgba(15, 23, 42, 0.05)" : "rgba(255, 255, 255, 0.04)")
-          : (lightScheme ? "rgba(15, 23, 42, 0.16)" : "rgba(255, 255, 255, 0.14)");
-        ctx.lineWidth = 1;
-      }
-      ctx.stroke();
-
-      if (isHighlighted || (!activeId && e.kind === "link")) {
-        const t = (pulsePhase + (idx * 0.23)) % 1;
-        const px = a.x + (b.x - a.x) * t;
-        const py = a.y + (b.y - a.y) * t;
-        ctx.beginPath();
-        ctx.arc(px, py, isHighlighted ? 1.75 : 1.3, 0, Math.PI * 2);
-        ctx.fillStyle = isHighlighted
-          ? (lightScheme ? "#0f172a" : "#ffffff")
-          : (lightScheme ? "rgba(15, 23, 42, 0.42)" : "rgba(255, 255, 255, 0.42)");
-        ctx.fill();
-      }
-    }
-
-    for (const n of simNodes) {
-      const isSelected = n.id === selectedId;
-      const isHovered = n === hoveredNode;
-      const isNeighbor = neighborIds.has(n.id);
-      const isDimmed = activeId && !isNeighbor;
-
-      if (isSelected || isHovered) {
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, n.radius + 4, 0, Math.PI * 2);
-        ctx.strokeStyle = lightScheme ? "rgba(15, 23, 42, 0.24)" : "rgba(255, 255, 255, 0.22)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
-      if (isSelected || isHovered) {
-        ctx.fillStyle = lightScheme ? "#0f172a" : "#ffffff";
-        ctx.strokeStyle = lightScheme ? "#ffffff" : "#09090b";
-        ctx.lineWidth = 1.5;
-      } else if (isDimmed) {
-        ctx.fillStyle = lightScheme ? "rgba(148, 163, 184, 0.28)" : "rgba(113, 113, 122, 0.24)";
-        ctx.strokeStyle = lightScheme ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.06)";
-        ctx.lineWidth = 1;
-      } else {
-        ctx.fillStyle = lightScheme
-          ? (n.degree > 1 ? "#334155" : "#64748b")
-          : (n.degree > 1 ? "#d4d4d8" : "#71717a");
-        ctx.strokeStyle = lightScheme ? "rgba(255, 255, 255, 0.9)" : "rgba(18, 19, 23, 0.9)";
-        ctx.lineWidth = 1.25;
-      }
-      ctx.fill();
-      ctx.stroke();
-
-      if (!isDimmed || camZoom > 1.25) {
-        ctx.font = `${isSelected || isHovered ? "600" : "500"} 11px "Nunito Sans Variable", "Segoe UI", sans-serif`;
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        ctx.fillStyle = isSelected || isHovered
-          ? (lightScheme ? "#0f172a" : "#ffffff")
-          : isDimmed
-            ? (lightScheme ? "rgba(15, 23, 42, 0.24)" : "rgba(255, 255, 255, 0.2)")
-            : (lightScheme ? "rgba(15, 23, 42, 0.82)" : "rgba(228, 228, 231, 0.78)");
-        ctx.fillText(n.stem || n.name, n.x, n.y + n.radius + 5);
-      }
-    }
-
-    ctx.restore();
-    rafId = requestAnimationFrame(draw);
-  };
-
-  const onPointerDown = (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-    pointerMoved = false;
-    const hit = findNodeAt(sx, sy);
-    if (hit) {
-      draggedNode = hit;
-      cooling = Math.max(cooling, 0.35);
-    } else {
-      isPanning = true;
-      panStartX = e.clientX - camX;
-      panStartY = e.clientY - camY;
-    }
-  };
-
-  const onPointerMove = (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-    if (draggedNode) {
-      pointerMoved = true;
-      const world = screenToWorld(sx, sy);
-      draggedNode.x = world.x;
-      draggedNode.y = world.y;
-      view.vaultGraphPositions.set(draggedNode.id, { x: world.x, y: world.y });
-      cooling = Math.max(cooling, 0.25);
-      canvas.style.cursor = "grabbing";
-      return;
-    }
-    if (isPanning) {
-      pointerMoved = true;
-      camX = e.clientX - panStartX;
-      camY = e.clientY - panStartY;
-      canvas.style.cursor = "grabbing";
-      return;
-    }
-    hoveredNode = findNodeAt(sx, sy);
-    canvas.style.cursor = hoveredNode ? "pointer" : "grab";
-  };
-
-  const onPointerUp = (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
-    if (draggedNode && !pointerMoved) {
-      const targetPath = draggedNode.path;
-      draggedNode = null;
-      void loadVaultPreview(targetPath);
-      return;
-    }
-    draggedNode = null;
-    isPanning = false;
-    hoveredNode = findNodeAt(sx, sy);
-    canvas.style.cursor = hoveredNode ? "pointer" : "grab";
-  };
-
-  const onDblClick = (e) => {
-    const rect = canvas.getBoundingClientRect();
-    const hit = findNodeAt(e.clientX - rect.left, e.clientY - rect.top);
-    if (hit) {
-      view.vaultViewMode = "files";
-      void loadVaultPreview(hit.path);
-    }
-  };
-
-  const onWheel = (e) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.12 : 0.9;
-    camZoom = Math.max(0.35, Math.min(2.8, camZoom * factor));
-  };
-
-  const onReset = () => {
-    camX = 0; camY = 0; camZoom = 1; cooling = 0.8;
-  };
-
-  canvas.addEventListener("pointerdown", onPointerDown);
-  window.addEventListener("pointermove", onPointerMove);
-  window.addEventListener("pointerup", onPointerUp);
-  canvas.addEventListener("dblclick", onDblClick);
-  canvas.addEventListener("wheel", onWheel, { passive: false });
-  canvas.dataset.resetReady = "1";
-  canvas._resetCamera = onReset;
-
-  rafId = requestAnimationFrame(draw);
-  neuralGraphCleanup = () => {
-    cancelAnimationFrame(rafId);
-    ro.disconnect();
-    canvas.removeEventListener("pointerdown", onPointerDown);
-    window.removeEventListener("pointermove", onPointerMove);
-    window.removeEventListener("pointerup", onPointerUp);
-    canvas.removeEventListener("dblclick", onDblClick);
-    canvas.removeEventListener("wheel", onWheel);
-  };
-}
-let cachedDockTreePaths = null;
-let cachedDockTreeKey = "";
-let cachedDockTreeRoot = null;
-
-function sortDockTreeNode(node) {
-  node.foldersList = [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-  node.files.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
-  for (const child of node.foldersList) sortDockTreeNode(child);
-}
-
-function buildDockFileTree(paths = []) {
-  const key = `${paths.length}:${paths[0] || ""}:${paths[paths.length - 1] || ""}`;
-  if (paths === cachedDockTreePaths && key === cachedDockTreeKey && cachedDockTreeRoot) {
-    return cachedDockTreeRoot;
-  }
-  const root = { folders: new Map(), foldersList: [], files: [] };
-  for (const rawPath of paths) {
-    const norm = String(rawPath || "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
-    if (!norm) continue;
-    const parts = norm.split("/");
-    let curr = root;
-    let accum = "";
-    for (let i = 0; i < parts.length - 1; i++) {
-      const seg = parts[i];
-      accum = accum ? `${accum}/${seg}` : seg;
-      if (!curr.folders.has(seg)) {
-        curr.folders.set(seg, { name: seg, path: accum, folders: new Map(), foldersList: [], files: [] });
-      }
-      curr = curr.folders.get(seg);
-    }
-    const fileName = parts[parts.length - 1];
-    curr.files.push({ name: fileName, path: norm });
-  }
-  sortDockTreeNode(root);
-  cachedDockTreePaths = paths;
-  cachedDockTreeKey = key;
-  cachedDockTreeRoot = root;
-  return root;
-}
-
-function dockFileIconName(fileName = "") {
-  const lower = String(fileName || "").toLowerCase();
-  const ext = lower.includes(".") ? `.${lower.split(".").at(-1)}` : "";
-  if (ext === ".html" || ext === ".htm") return "globe";
-  if (ext === ".pdf" || ext === ".md" || ext === ".mdx" || ext === ".markdown") return "book-open-text";
-  if ([".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp"].includes(ext)) return "image";
-  if ([".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".py", ".go", ".rs", ".java", ".c", ".cpp", ".cs", ".css", ".scss", ".json", ".sql", ".sh", ".ps1"].includes(ext)) return "code-2";
-  return "file-text";
-}
-
-function defaultFileTabMode(ext = "", preferredMode = "") {
-  if (["preview", "code"].includes(preferredMode)) return preferredMode;
-  const lower = String(ext || "").toLowerCase();
-  if ([".html", ".htm", ".pdf", ".md", ".mdx", ".markdown", ".docx", ".doc", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav", ".csv", ".tsv", ".json"].includes(lower)) {
-    return "preview";
-  }
-  return "code";
-}
-
-function canRichPreviewExtension(ext = "", kind = "text") {
-  if (kind && kind !== "text") return true;
-  const lower = String(ext || "").toLowerCase();
-  return [".html", ".htm", ".pdf", ".md", ".mdx", ".markdown", ".docx", ".doc", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp", ".mp4", ".webm", ".mp3", ".wav", ".csv", ".tsv", ".json"].includes(lower);
+  return mountVaultKnowledgeGraphCanvas({ loadVaultPreview });
 }
 
 async function openStageFileTab({ workspaceId = "", taskId = "", path = "", preferredMode = "" } = {}) {
@@ -1206,6 +769,9 @@ async function reloadStageFileTab(tabId) {
     const fileRes = await api(`/api/workspaces/${encodeURIComponent(tab.workspaceId)}/file?${q}`);
     tab.fileData = fileRes;
     tab.ext = fileRes.extension || tab.ext;
+    if (tab.mode === "edit" && tab.editDraft === undefined) {
+      tab.editDraft = fileRes.content ?? "";
+    }
     tab.loadedAt = Date.now();
     tab.loading = false;
   } catch (error) {
@@ -1306,1026 +872,56 @@ function openLiveUrlTab(rawUrl, taskId = "") {
   render();
 }
 
-function renderCsvTableMarkup(content = "", delimiter = ",") {
-  const rows = String(content || "")
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0)
-    .slice(0, 200)
-    .map((line) => line.split(delimiter).map((cell) => cell.trim().replace(/^"|"$/g, "")));
-  if (!rows.length) return `<div class="orca-viewer-empty"><p>Tệp dữ liệu trống.</p></div>`;
-  const header = rows[0] || [];
-  const bodyRows = rows.slice(1);
-  return `<div class="orca-table-scroll">
-    <table class="orca-data-table">
-      <thead>
-        <tr>
-          <th class="is-row-num">#</th>
-          ${header.map((col) => `<th>${esc(col)}</th>`).join("")}
-        </tr>
-      </thead>
-      <tbody>
-        ${bodyRows.map((cols, idx) => `<tr>
-          <td class="is-row-num">${idx + 1}</td>
-          ${header.map((_, cIdx) => `<td>${esc(cols[cIdx] ?? "")}</td>`).join("")}
-        </tr>`).join("")}
-      </tbody>
-    </table>
-  </div>`;
-}
-
-function formatCompactBytes(bytes) {
-  const n = Number(bytes);
-  if (!Number.isFinite(n) || n < 0) return "";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1).replace(/\.0$/, "")} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1).replace(/\.0$/, "")} MB`;
-}
-
-function resolveHtmlCommentAgentSelection() {
-  const activeTask = view.page === "chat" && view.selected ? (view.state?.tasks || []).find((t) => t.id === view.selected) : null;
-  const wf = activeTask?.config?.workflow || "chat-only";
-  const fallbackProvider = view.stageHtmlCommentProvider
-    || view.chatProvider
-    || (activeTask ? (wf === "chat-only" ? activeTask.config?.chatProvider : roleConfig(activeTask.config, "build")?.provider || roleConfig(activeTask.config, "plan")?.provider) : "")
-    || view.homeChatProvider
-    || view.state?.settings?.defaults?.chatProvider
-    || "codex";
-
-  const availableEntries = Object.entries(view.connectors || {}).filter(([, conn]) => conn?.available && conn?.capabilities?.chat);
-  const chosenEntry = availableEntries.find(([id]) => id === fallbackProvider) || availableEntries[0] || ["codex", view.connectors?.codex || {}];
-  const provider = chosenEntry[0];
-  const conn = chosenEntry[1] || {};
-  const models = conn.models?.length ? conn.models : [{ id: "", name: conn.name || providerTitle(view.connectors, provider), efforts: ["low", "medium", "high"] }];
-  const fallbackModelId = view.stageHtmlCommentModel || view.chatModel || activeTask?.config?.chatModel || view.homeChatModel || models[0]?.id || "";
-  const modelObj = models.find((m) => m.id === fallbackModelId) || models[0] || { id: "", name: provider, efforts: ["low", "medium", "high"] };
-  const model = modelObj.id || "";
-  const effortsList = modelObj.efforts?.length ? modelObj.efforts : ["low", "medium", "high"];
-  const fallbackEffort = view.stageHtmlCommentEffort || view.chatEffort || activeTask?.config?.chatEffort || view.homeChatEffort || "medium";
-  const effort = effortsList.includes(fallbackEffort) ? fallbackEffort : (effortsList.includes("medium") ? "medium" : effortsList[0] || "medium");
-
-  let activeAgentLabel = modelObj.name || modelObj.id || providerTitle(view.connectors, provider);
-  const agentItemsMarkup = [];
-  for (const [provId, c] of availableEntries) {
-    const provName = providerTitle(view.connectors, provId);
-    const provModels = c.models?.length ? c.models : [{ id: "", name: c.name || provName }];
-    agentItemsMarkup.push(`<div class="codex-pop-group-label">${esc(provName)}</div>`);
-    for (const m of provModels) {
-      const val = `${provId}::${m.id || ""}`;
-      const isSelected = provId === provider && (m.id || "") === model;
-      const title = m.name || m.id || provName;
-      if (isSelected) activeAgentLabel = title;
-      agentItemsMarkup.push(`<button type="button" class="codex-pop-item ${isSelected ? "is-selected" : ""}" data-action="pick-html-comment-agent" data-agent="${esc(val)}">
-        <span class="codex-pop-item-main"><span>${esc(title)}</span></span>
-        ${isSelected ? icon("check", 13) : ""}
-      </button>`);
-    }
-  }
-
-  const effortItemsMarkup = effortsList.map((ef) => {
-    const isSelected = ef === effort;
-    return `<button type="button" class="codex-pop-item ${isSelected ? "is-selected" : ""}" data-action="pick-html-comment-effort" data-effort="${esc(ef)}">
-      <span class="codex-pop-item-main"><span>${esc(formatEffortLabel(ef))}</span></span>
-      ${isSelected ? icon("check", 13) : ""}
-    </button>`;
-  }).join("");
-
-  return {
-    provider,
-    model,
-    effort,
-    activeAgentLabel,
-    activeEffortLabel: formatEffortLabel(effort),
-    agentItemsMarkup: agentItemsMarkup.join(""),
-    effortItemsMarkup,
-  };
-}
-
-function renderHtmlElementCommentPopoverMarkup() {
-  const el = view.stageHtmlSelectedElement;
-  if (!el) return "";
-  const {
-    activeAgentLabel,
-    activeEffortLabel,
-    agentItemsMarkup,
-    effortItemsMarkup,
-  } = resolveHtmlCommentAgentSelection();
-  const r = el.rect || {};
-  const vw = r.viewportWidth || 800;
-  const vh = r.viewportHeight || 600;
-  const popWidth = 376;
-  const popHeight = 196;
-  let left = Math.max(12, Math.min((r.left || 24), Math.max(12, vw - popWidth - 16)));
-  let top = (r.bottom || 80) + 10;
-  if (top + popHeight > vh - 12 && (r.top || 0) > popHeight + 16) {
-    top = Math.max(12, (r.top || 80) - popHeight - 10);
-  } else {
-    top = Math.max(12, Math.min(top, Math.max(12, vh - popHeight - 12)));
-  }
-
-  const selectorDisplay = el.selector || `<${el.tagName || "element"}>`;
-
-  return `<div class="orca-element-comment-popover" style="top:${Math.round(top)}px;left:${Math.round(left)}px;">
-    <header class="orca-el-pop-head">
-      <div class="orca-el-pop-title">
-        <span class="orca-el-tag">&lt;${esc(el.tagName || "div")}&gt;</span>
-        <strong title="${esc(el.label || selectorDisplay)}">${esc(el.label || selectorDisplay)}</strong>
-      </div>
-      <button type="button" class="icon-button orca-el-pop-close" data-action="cancel-html-element-comment" title="Đóng khung nhận xét">${icon("x", 13)}</button>
-    </header>
-    <textarea class="orca-el-comment-input" data-html-element-comment-input rows="2" placeholder="Nhập nhận xét hoặc yêu cầu chỉnh sửa phần tử này cho Agent…">${esc(view.stageHtmlCommentDraft || "")}</textarea>
-    <footer class="orca-el-pop-foot">
-      <div class="codex-inline-model-bar orca-el-model-bar">
-        <details class="codex-pop-menu is-up" data-pop-id="html-comment-model">
-          <summary class="codex-inline-trigger is-model" title="Chọn Agent & Model xử lý">
-            <span>${esc(activeAgentLabel)}</span>
-            ${icon("chevron-down", 12)}
-          </summary>
-          <div class="codex-pop-card is-model-list">
-            <div class="codex-pop-head">Agent & Model</div>
-            <div class="codex-pop-scroll">${agentItemsMarkup}</div>
-          </div>
-        </details>
-        <details class="codex-pop-menu is-up is-right" data-pop-id="html-comment-effort">
-          <summary class="codex-inline-trigger is-effort" title="Mức suy luận">
-            <span>${esc(activeEffortLabel)}</span>
-            ${icon("chevron-down", 12)}
-          </summary>
-          <div class="codex-pop-card is-effort-list">
-            <div class="codex-pop-head">Mức suy luận</div>
-            <div class="codex-pop-scroll">${effortItemsMarkup}</div>
-          </div>
-        </details>
-      </div>
-      <div class="orca-el-pop-actions">
-        <button type="button" class="button quiet small" data-action="cancel-html-element-comment">Hủy</button>
-        <button type="button" class="button primary small" data-action="send-html-element-comment">${icon("arrow-up-right", 12)}<span>Gửi</span></button>
-      </div>
-    </footer>
-  </div>`;
-}
-
-function positionHtmlCommentMenu(menu) {
-  if (!menu) return;
-  const rect = menu.getBoundingClientRect();
-  const itemCount = menu.querySelectorAll(".codex-pop-item").length;
-  const headingHeight = menu.querySelector(".codex-pop-head") ? 38 : 8;
-  const rowHeight = menu.matches("[data-pop-id='html-comment-effort']") ? 34 : 36;
-  const maxMenuHeight = Math.min(window.innerHeight * 0.48, 280);
-  const preferredHeight = Math.min(maxMenuHeight, headingHeight + itemCount * rowHeight + 14);
-  const spaceAbove = Math.max(0, rect.top - 10);
-  const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - 10);
-  const opensDown = spaceBelow >= preferredHeight || spaceBelow >= spaceAbove;
-  const availableHeight = (opensDown ? spaceBelow : spaceAbove) - 8;
-  menu.classList.toggle("is-down", opensDown);
-  menu.classList.toggle("is-up", !opensDown);
-  menu.style.setProperty("--orca-menu-max-height", `${Math.max(96, Math.min(maxMenuHeight, availableHeight))}px`);
-}
-
-function ensureIframeInspectorBridge(iframe) {
-  if (!iframe) return;
-  try {
-    const win = iframe.contentWindow;
-    const doc = iframe.contentDocument || win?.document;
-    if (!win || !doc) return;
-    if (typeof win.__orcaSetInspectMode === "function") return;
-    let active = false;
-    let hoveredEl = null;
-    let lockedEl = null;
-    let box = null;
-
-    function ensureBox() {
-      if (box && (doc.body || doc.documentElement)?.contains(box)) return box;
-      box = doc.createElement("div");
-      box.id = "__orca_inspect_box__";
-      box.setAttribute("data-orca-ignore", "1");
-      Object.assign(box.style, {
-        position: "fixed",
-        pointerEvents: "none",
-        zIndex: "2147483646",
-        display: "none",
-        boxSizing: "border-box",
-        border: "1.5px solid rgba(24, 24, 27, 0.85)",
-        borderRadius: "8px",
-        background: "rgba(16, 185, 129, 0.04)",
-        boxShadow: "0 0 0 1px rgba(255, 255, 255, 0.88), 0 4px 14px rgba(0, 0, 0, 0.16)",
-        transition: "top 40ms ease-out, left 40ms ease-out, width 40ms ease-out, height 40ms ease-out",
-      });
-      (doc.body || doc.documentElement).appendChild(box);
-      return box;
-    }
-
-    function updateBoxFor(el) {
-      const overlay = ensureBox();
-      if (!el || !active) {
-        overlay.style.display = "none";
-        return;
-      }
-      const r = el.getBoundingClientRect();
-      if (!r || (r.width === 0 && r.height === 0)) {
-        overlay.style.display = "none";
-        return;
-      }
-      const pad = 4;
-      overlay.style.display = "block";
-      overlay.style.top = Math.max(0, r.top - pad) + "px";
-      overlay.style.left = Math.max(0, r.left - pad) + "px";
-      overlay.style.width = (r.width + pad * 2) + "px";
-      overlay.style.height = (r.height + pad * 2) + "px";
-    }
-
-    function cssSelectorFor(el) {
-      if (!el || el.nodeType !== 1) return "";
-      if (el.id) return el.tagName.toLowerCase() + "#" + el.id;
-      const parts = [];
-      let cur = el;
-      while (cur && cur.nodeType === 1 && cur !== doc.body && cur !== doc.documentElement && parts.length < 4) {
-        let part = cur.tagName.toLowerCase();
-        if (cur.id) {
-          parts.unshift(part + "#" + cur.id);
-          break;
-        }
-        const cls = typeof cur.className === "string"
-          ? cur.className.trim().split(/\s+/).filter((c) => c && !c.startsWith("__orca")).slice(0, 2)
-          : [];
-        if (cls.length) part += "." + cls.join(".");
-        parts.unshift(part);
-        cur = cur.parentElement;
-      }
-      return parts.join(" > ");
-    }
-
-    function describeElement(el) {
-      if (!el || el.nodeType !== 1) return null;
-      const tag = el.tagName.toLowerCase();
-      const selector = cssSelectorFor(el);
-      const val = typeof el.value === "string" ? el.value.trim() : "";
-      const placeholder = el.getAttribute?.("placeholder") || "";
-      const aria = el.getAttribute?.("aria-label") || "";
-      const text = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim().slice(0, 120);
-      const labelText = [aria, text, val, placeholder].filter(Boolean)[0] || selector || ("<" + tag + ">");
-      const clone = el.cloneNode(true);
-      const outerHTML = (clone.outerHTML || "").replace(/\s+/g, " ").trim().slice(0, 320);
-      const r = el.getBoundingClientRect();
-      return {
-        tagName: tag,
-        selector,
-        label: labelText.slice(0, 90),
-        text: text.slice(0, 120),
-        value: val.slice(0, 80),
-        outerHTML,
-        rect: {
-          top: Math.round(r.top),
-          left: Math.round(r.left),
-          width: Math.round(r.width),
-          height: Math.round(r.height),
-          bottom: Math.round(r.bottom),
-          right: Math.round(r.right),
-          viewportWidth: win.innerWidth,
-          viewportHeight: win.innerHeight,
-        },
-      };
-    }
-
-    function resolveInspectTarget(rawTarget) {
-      if (!rawTarget || rawTarget.nodeType !== 1) return null;
-      if (rawTarget.id === "__orca_inspect_box__" || rawTarget === doc.documentElement || rawTarget === doc.body) return null;
-      if (["INPUT", "SELECT", "TEXTAREA"].includes(rawTarget.tagName)) {
-        const parent = rawTarget.parentElement;
-        if (parent && parent !== doc.body && parent.children.length <= 3) {
-          const pr = parent.getBoundingClientRect();
-          if (pr.height > 0 && pr.height <= 120 && pr.width <= 520) return parent;
-        }
-      }
-      return rawTarget;
-    }
-
-    win.__orcaSetInspectMode = (nextActive, clearLocked = true) => {
-      active = Boolean(nextActive);
-      if (clearLocked || !active) lockedEl = null;
-      hoveredEl = null;
-      if (doc.documentElement) doc.documentElement.style.cursor = active ? "crosshair" : "";
-      updateBoxFor(lockedEl || hoveredEl);
-    };
-
-    win.addEventListener("mousemove", (e) => {
-      if (!active || lockedEl) return;
-      const target = resolveInspectTarget(e.target);
-      if (target !== hoveredEl) {
-        hoveredEl = target;
-        updateBoxFor(hoveredEl);
-      }
-    }, true);
-
-    win.addEventListener("scroll", () => {
-      if (active && (lockedEl || hoveredEl)) updateBoxFor(lockedEl || hoveredEl);
-    }, true);
-
-    win.addEventListener("resize", () => {
-      if (active && (lockedEl || hoveredEl)) updateBoxFor(lockedEl || hoveredEl);
-    }, true);
-
-    win.addEventListener("click", (e) => {
-      if (!active) return;
-      const target = resolveInspectTarget(e.target) || (e.target?.nodeType === 1 ? e.target : null);
-      if (!target || target === doc.body || target === doc.documentElement) return;
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      lockedEl = target;
-      updateBoxFor(lockedEl);
-      const info = describeElement(lockedEl);
-      if (info) {
-        view.stageHtmlInspectActive = true;
-        view.stageHtmlSelectedElement = info;
-        syncHtmlInspectUi({ focusInput: true });
-      }
-    }, true);
-
-    win.addEventListener("keydown", (e) => {
-      if (active && e.key === "Escape") {
-        if (view.stageHtmlSelectedElement) {
-          view.stageHtmlSelectedElement = null;
-          view.stageHtmlCommentDraft = "";
-          syncHtmlInspectUi();
-        } else if (view.stageHtmlInspectActive) {
-          view.stageHtmlInspectActive = false;
-          syncHtmlInspectUi();
-        }
-      }
-    }, true);
-  } catch {}
-}
-
-function syncHtmlInspectUi({ focusInput = false } = {}) {
-  const active = Boolean(view.stageHtmlInspectActive);
-  const selected = view.stageHtmlSelectedElement;
-  document.querySelectorAll("[data-action='toggle-html-inspect']").forEach((btn) => {
-    btn.classList.toggle("is-active", active);
-  });
-  const banner = document.querySelector("[data-html-inspect-banner]");
-  if (banner) {
-    banner.hidden = !active;
-  }
-  const layer = document.querySelector("[data-html-comment-layer]");
-  if (layer) {
-    if (active && selected) {
-      layer.hidden = false;
-      layer.innerHTML = renderHtmlElementCommentPopoverMarkup();
-      localizeDom(layer, view.language);
-      if (focusInput) {
-        const input = layer.querySelector("[data-html-element-comment-input]");
-        input?.focus();
-      }
-    } else {
-      layer.hidden = true;
-      layer.innerHTML = "";
-    }
-  }
-  const iframe = document.querySelector(".orca-live-frame:not(.is-pdf)");
-  if (iframe) {
-    ensureIframeInspectorBridge(iframe);
-    try {
-      if (typeof iframe.contentWindow?.__orcaSetInspectMode === "function") {
-        iframe.contentWindow.__orcaSetInspectMode(active, !selected);
-      }
-    } catch {}
-    iframe.contentWindow?.postMessage({
-      type: "orca-inspect:set-mode",
-      active,
-      clearSelection: !selected,
-    }, "*");
-  }
-}
-
-function renderStageFileViewer(tab) {
-  if (!tab) return "";
-  const isLiveUrl = tab.kind === "live-url" && Boolean(tab.liveUrl);
-  const file = tab.fileData;
-  const ext = (file?.extension || tab.ext || "").toLowerCase();
-  const kind = isLiveUrl ? "live-url" : (file?.kind || "text");
-  const hasRichPreview = isLiveUrl || canRichPreviewExtension(ext, kind);
-  const hasCodeView = !isLiveUrl && kind === "text";
-  let mode = tab.mode === "code" || tab.mode === "preview" ? tab.mode : defaultFileTabMode(ext);
-  if (mode === "preview" && !hasRichPreview) mode = "code";
-  if (mode === "code" && !hasCodeView) mode = "preview";
-
-  const isWebBrowser = isLiveUrl || ((ext === ".html" || ext === ".htm") && mode === "preview");
-  const rawUrl = isLiveUrl
-    ? `${tab.liveUrl}${tab.liveUrl.includes("?") ? "&" : "?"}_t=${tab.loadedAt || 0}`
-    : `/api/workspaces/${encodeURIComponent(tab.workspaceId)}/raw/${tab.path.split("/").map(encodeURIComponent).join("/")}?${tab.taskId ? `taskId=${encodeURIComponent(tab.taskId)}&` : ""}t=${tab.loadedAt || 0}`;
-  const sizeBadge = file?.size !== undefined ? formatCompactBytes(file.size) : "";
-  const totalLines = hasCodeView && file?.content ? String(file.content).split(/\r?\n/).length : 0;
-
-  let bodyHtml = "";
-  if (tab.loading && !file) {
-    bodyHtml = `<div class="orca-viewer-empty">
-      <span>${icon("refresh-cw", 18)}</span>
-      <strong>Đang tải ${esc(tab.name)}…</strong>
-      <small>${esc(tab.path)}</small>
-    </div>`;
-  } else if (tab.error) {
-    bodyHtml = `<div class="orca-viewer-empty is-error">
-      <strong>Không thể đọc tệp ${esc(tab.name)}</strong>
-      <p>${esc(tab.error)}</p>
-      <div class="orca-viewer-empty-actions">
-        <button type="button" class="button quiet small" data-action="reload-stage-tab" data-tab-id="${esc(tab.id)}">${icon("refresh-cw", 13)}<span>Thử lại</span></button>
-      </div>
-    </div>`;
-  } else if (mode === "preview") {
-    if (isLiveUrl || ext === ".html" || ext === ".htm") {
-      const hasPopover = Boolean(view.stageHtmlInspectActive && view.stageHtmlSelectedElement);
-      bodyHtml = `<div class="orca-live-frame-wrap">
-        <iframe class="orca-live-frame" src="${esc(rawUrl)}" title="Xem trực tiếp ${esc(tab.name)}" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
-        <div class="orca-element-comment-layer" data-html-comment-layer ${hasPopover ? "" : "hidden"}>
-          ${hasPopover ? renderHtmlElementCommentPopoverMarkup() : ""}
-        </div>
-      </div>`;
-    } else if (ext === ".pdf" || kind === "pdf") {
-      bodyHtml = `<div class="orca-live-frame-wrap is-pdf">
-        <iframe class="orca-live-frame is-pdf" src="${esc(rawUrl)}#toolbar=1&navpanes=1&view=FitH" title="Tài liệu PDF ${esc(tab.name)}"></iframe>
-      </div>`;
-    } else if (kind === "image" || [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".bmp"].includes(ext)) {
-      bodyHtml = `<div class="orca-media-stage is-image">
-        <div class="orca-image-canvas">
-          <img class="orca-image-preview" src="${esc(rawUrl)}" alt="${esc(tab.name)}" />
-        </div>
-      </div>`;
-    } else if (kind === "media" || [".mp4", ".webm", ".mp3", ".wav"].includes(ext)) {
-      const isAudio = ext === ".mp3" || ext === ".wav";
-      bodyHtml = `<div class="orca-media-stage">
-        ${isAudio
-          ? `<audio controls src="${esc(rawUrl)}" class="orca-audio-player"></audio>`
-          : `<video controls src="${esc(rawUrl)}" class="orca-video-player"></video>`}
-        <div class="orca-media-caption">
-          <strong>${esc(tab.name)}</strong>
-          <small>${esc(tab.path)}${sizeBadge ? ` · ${esc(sizeBadge)}` : ""}</small>
-        </div>
-      </div>`;
-    } else if ([".md", ".mdx", ".markdown", ".docx", ".doc"].includes(ext)) {
-      bodyHtml = `<div class="orca-doc-scroll">
-        <article class="markdown-preview orca-markdown-doc">${renderMarkdown(file?.content || "")}</article>
-      </div>`;
-    } else if (ext === ".csv" || ext === ".tsv") {
-      bodyHtml = renderCsvTableMarkup(file?.content || "", ext === ".tsv" ? "\t" : ",");
-    } else if (ext === ".json") {
-      let formattedJson = file?.content || "";
-      try {
-        formattedJson = JSON.stringify(JSON.parse(formattedJson), null, 2);
-      } catch {}
-      const lines = formattedJson.split(/\r?\n/);
-      bodyHtml = `<div class="orca-code-scroll">
-        <div class="orca-code-lines">
-          ${lines.map((line, idx) => `<div class="orca-code-row"><span class="orca-code-ln">${idx + 1}</span><code class="orca-code-text">${esc(line)}</code></div>`).join("")}
-        </div>
-      </div>`;
-    }
-  } else {
-    const lines = String(file?.content || "").split(/\r?\n/);
-    const commentTarget = view.stageLineCommentTarget;
-    bodyHtml = `<div class="orca-code-scroll">
-      <div class="orca-code-lines">
-        ${lines.map((line, idx) => {
-          const lineNum = idx + 1;
-          const lineKey = `code:${tab.id}:${lineNum}`;
-          const isCommenting = commentTarget?.key === lineKey;
-          return `<div class="orca-code-row ${isCommenting ? "is-commenting" : ""}" data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}" data-code="${esc(line)}">
-            <span class="orca-code-ln">${lineNum}</span>
-            <code class="orca-code-text">${esc(line)}</code>
-            <span class="diff-comment-trigger">+ Nhận xét</span>
-          </div>
-          ${isCommenting ? `<div class="diff-comment-editor">
-            <input type="text" data-stage-line-comment-input placeholder="Nhập yêu cầu cho Agent tại dòng ${lineNum} của ${esc(tab.name)}…" autocomplete="off">
-            <button type="button" class="button primary small" data-action="send-stage-line-comment">${icon("arrow-up-right", 12)}<span>Gửi</span></button>
-            <button type="button" class="button quiet small" data-action="cancel-stage-line-comment">Hủy</button>
-          </div>` : ""}`;
-        }).join("")}
-      </div>
-    </div>`;
-  }
-
-  const metaParts = [];
-  if (totalLines > 0) metaParts.push(`${totalLines} dòng`);
-  if (sizeBadge) metaParts.push(esc(sizeBadge));
-
-  const leftToolbarMarkup = isWebBrowser
-    ? `<div class="orca-viewer-nav is-web-browser">
-        <button type="button" class="icon-button orca-viewer-icon" data-action="activate-stage-tab" data-tab-id="chat" title="Quay về cửa sổ Chat">${icon("arrow-left", 13)}</button>
-        <button type="button" class="icon-button orca-viewer-icon" data-action="reload-stage-tab" data-tab-id="${esc(tab.id)}" title="Tải lại trang web">${icon("refresh-cw", 12)}</button>
-        <div class="orca-viewer-address is-url-bar" title="${esc(tab.path)}">
-          ${icon("globe", 12)}
-          <span class="orca-address-host">localhost</span>
-          <span class="orca-address-path">/${esc(tab.path)}</span>
-        </div>
-      </div>`
-    : `<div class="orca-viewer-file-meta" title="${esc(tab.path)}">
-        <span class="orca-meta-path">${esc(tab.path)}</span>
-        ${metaParts.length ? `<small class="orca-meta-sub">${metaParts.join(" · ")}</small>` : ""}
-      </div>`;
-
-  const showModeSwitch = hasRichPreview && hasCodeView;
-  const previewModeLabel = view.language === "en" ? "Preview" : "Xem trước";
-  const codeModeLabel = view.language === "en" ? "Source code" : "Mã nguồn";
-
-  return `<section class="orca-file-viewer" aria-label="Trình xem tệp ${esc(tab.name)}">
-    <header class="orca-viewer-toolbar">
-      ${leftToolbarMarkup}
-      <div class="orca-viewer-actions">
-        ${isWebBrowser ? `
-          <button type="button" class="icon-button orca-viewer-icon orca-inspect-comment-btn ${view.stageHtmlInspectActive ? "is-active" : ""}" data-action="toggle-html-inspect" title="Nhấp vào phần tử để gửi nhận xét cho Agent">${icon("message-square-plus", 13)}</button>
-        ` : ""}
-        ${showModeSwitch ? `<div class="orca-mode-switch" role="tablist" aria-label="Chế độ xem tệp">
-          <button type="button" role="tab" aria-selected="${mode === "preview"}" class="orca-mode-btn ${mode === "preview" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="preview" aria-label="${previewModeLabel}" title="${previewModeLabel}">${icon("eye", 15)}</button>
-          <button type="button" role="tab" aria-selected="${mode === "code"}" class="orca-mode-btn ${mode === "code" ? "is-active" : ""}" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="code" aria-label="${codeModeLabel}" title="${codeModeLabel}">${icon("code-2", 15)}</button>
-        </div>` : ""}
-      </div>
-    </header>
-    ${isWebBrowser ? `<div class="orca-inspect-banner" data-html-inspect-banner ${view.stageHtmlInspectActive ? "" : "hidden"}>
-      <span class="orca-inspect-banner-text" data-html-inspect-banner-text>Nhấp vào một phần tử trên trang để thêm nhận xét cho Agent.</span>
-      <div class="orca-inspect-banner-right">
-        <button type="button" class="orca-inspect-banner-close" data-action="close-html-inspect" title="Thoát chế độ chọn phần tử (Esc)">Esc</button>
-      </div>
-    </div>` : ""}
-    <div class="orca-viewer-body">
-      ${bodyHtml}
-    </div>
-  </section>`;
-}
-
-function wrapStageWithOrcaTabs(primaryMarkup) {
-  const tabs = view.stageTabs || [];
-  if (!tabs.length || !["chat", "workspaces"].includes(view.page)) return primaryMarkup;
-  const activeTab = tabs.find((t) => t.id === view.activeStageTabId) || (view.stageSplit ? tabs[tabs.length - 1] : null);
-  if (view.stageSplit && activeTab) {
-    return `<div class="orca-stage-split-layout">
-      <div class="orca-stage-pane is-primary">${primaryMarkup}</div>
-      <div class="orca-stage-split-resizer" data-stage-split-resizer title="Kéo để thay đổi tỷ lệ giữa Chat và Trình xem tệp"></div>
-      <div class="orca-stage-pane is-viewer">${renderStageFileViewer(activeTab)}</div>
-    </div>`;
-  }
-  if (view.activeStageTabId !== "chat" && activeTab) {
-    return renderStageFileViewer(activeTab);
-  }
-  return primaryMarkup;
-}
-
-function renderDockTreeLevel(node, depth, { collapsedSet, activePath, fileAction, workspaceId = "", taskId = "", showMention = false, showVaultMenu = false }) {
-  const folders = node.foldersList || [...node.folders.values()];
-  const files = node.files;
-  let html = "";
-  const padLeft = 10 + depth * 14;
-  for (const folder of folders) {
-    const isCollapsed = collapsedSet.has(folder.path);
-    html += `<li class="orca-tree-item is-folder">
-      <button type="button" class="orca-tree-row" style="padding-left:${padLeft}px" data-action="toggle-dock-folder" data-folder="${esc(folder.path)}" title="${esc(folder.path)}">
-        <span class="orca-tree-caret ${isCollapsed ? "" : "is-open"}">${icon("chevron-right", 12)}</span>
-        <span class="orca-tree-icon">${icon("folder", 14)}</span>
-        <span class="orca-tree-label">${esc(folder.name)}</span>
-      </button>
-    </li>`;
-    if (!isCollapsed) {
-      html += renderDockTreeLevel(folder, depth + 1, { collapsedSet, activePath, fileAction, workspaceId, taskId, showMention, showVaultMenu });
-    }
-  }
-  for (const file of files) {
-    const isSelected = activePath && activePath === file.path;
-    const fIcon = showVaultMenu ? "file-text" : dockFileIconName(file.name);
-    html += `<li class="orca-tree-item is-file ${isSelected ? "is-selected" : ""}">
-      <button type="button" class="orca-tree-row ${isSelected ? "is-selected" : ""}" style="padding-left:${padLeft + 16}px" data-action="${esc(fileAction)}" ${workspaceId ? `data-workspace-id="${esc(workspaceId)}"` : ""} ${taskId ? `data-id="${esc(taskId)}"` : ""} data-path="${esc(file.path)}" title="${esc(file.path)}">
-        <span class="orca-tree-icon">${icon(fIcon, 14)}</span>
-        <span class="orca-tree-label">${esc(file.name)}</span>
-      </button>
-      ${showMention ? `<button type="button" class="orca-tree-quick" data-action="mention-drawer-file" data-path="${esc(file.path)}" title="Chèn @${esc(file.path)} vào khung chat">@</button>` : ""}
-      ${showVaultMenu ? vaultNoteOptionsMenu(file.path, { showRead: view.vaultViewMode === "graph", showGraph: view.vaultViewMode !== "graph", direction: "down" }) : ""}
-    </li>`;
-  }
-  return html;
-}
-
-function pageSupportsRightDock(page = view.page) {
-  if (page === "chat" || page === "workspaces" || page === "skills") return true;
-  if (page === "knowledge") return Boolean(view.state?.settings?.vaultPath);
-  return false;
-}
-
-function getRightDockTabsForPage(page = view.page, selectedTask = null) {
-  if (page === "knowledge") {
-    const tabs = [
-      { id: "files", icon: "files", title: "Cây ghi chú Vault" },
-      { id: "search", icon: "search", title: "Tìm ghi chú & #tag" },
-      { id: "git", icon: "waypoints", title: "Liên kết hai chiều & Thẻ #tag" },
-    ];
-    if (view.vaultPreview?.content) {
-      tabs.push({ id: "tasks", icon: "list-checks", title: "Mục lục ghi chú (Outline)" });
-    }
-    return tabs;
-  }
-  if (page === "skills") {
-    return [
-      { id: "files", icon: "files", title: "Danh mục Kỹ năng" },
-      { id: "search", icon: "search", title: "Tìm kiếm kỹ năng" },
-    ];
-  }
-  if (page === "workspaces") {
-    return [
-      { id: "files", icon: "files", title: "Cây thư mục dự án" },
-      { id: "search", icon: "search", title: "Tìm kiếm tệp trong dự án" },
-    ];
-  }
-  // page === "chat"
-  if (selectedTask) {
-    return [
-      { id: "files", icon: "files", title: "Cây thư mục & Tệp" },
-      { id: "search", icon: "search", title: "Tìm kiếm tệp" },
-      { id: "git", icon: "git-branch", title: "Thay đổi, Commit & Worktree" },
-      { id: "docs", icon: "book-open-text", title: "Tài liệu giai đoạn (Kế hoạch / Triển khai / Đánh giá / QA)" },
-      { id: "terminal", icon: "square-terminal", title: "Kiểm thử QA, Terminal & Xem trực tiếp" },
-      { id: "tasks", icon: "list-checks", title: "Mục tiêu & Công cụ phiên" },
-    ];
-  }
-  return [
-    { id: "files", icon: "files", title: "Cây thư mục dự án" },
-    { id: "search", icon: "search", title: "Tìm kiếm tệp" },
-    { id: "terminal", icon: "square-terminal", title: "Xem trực tiếp ứng dụng cục bộ" },
-  ];
-}
-
 function orcaRightDockMarkup() {
-  const page = view.page || "chat";
-  if (!pageSupportsRightDock(page)) return "";
-  const selectedTask = (page === "chat" && view.selected) ? (view.state?.tasks || []).find((t) => t.id === view.selected) : null;
-  const availableTabs = getRightDockTabsForPage(page, selectedTask);
-  const tab = availableTabs.some((t) => t.id === view.chatDrawerTab) ? view.chatDrawerTab : (availableTabs[0]?.id || "files");
-  const filter = (view.chatDrawerFilter || "").trim().toLowerCase();
-  const activeWsId = (page === "workspaces" && view.selected)
-    ? view.selected
-    : selectedTask?.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
-  const activeWs = (view.state?.workspaces || []).find((w) => w.id === activeWsId) || null;
-
-  if (!Array.isArray(view.collapsedDockFolders)) {
-    view.collapsedDockFolders = null;
-  }
-
-  let subTitle = "Workspace";
-  let subTooltip = "";
-  let refreshAction = "refresh-dock-context";
-  let moreMenuHtml = "";
-
-  if (page === "knowledge") {
-    const vaultPath = view.state?.settings?.vaultPath || "";
-    subTitle = vaultPath ? (vaultPath.split(/[\\/]/).filter(Boolean).at(-1) || "Obsidian Vault") : "Obsidian Vault";
-    subTooltip = vaultPath;
-    refreshAction = "refresh-vault-files";
-    moreMenuHtml = `<details class="codex-pop-menu is-right is-down">
-      <summary class="icon-button orca-sub-btn" title="Tùy chọn Vault">${icon("ellipsis", 14)}</summary>
-      <div class="codex-pop-card">
-        <button type="button" class="codex-pop-item" data-action="vault-new-note"><span class="codex-pop-item-main">${icon("plus", 13)}<span>Ghi chú Markdown mới</span></span></button>
-        <button type="button" class="codex-pop-item" data-action="open-obsidian" data-path="${esc(view.vaultPreview?.path || "")}"><span class="codex-pop-item-main">${icon("arrow-up-right", 13)}<span>Mở trong Obsidian</span></span></button>
-        <button type="button" class="codex-pop-item" data-action="connect-vault"><span class="codex-pop-item-main">${icon("folder-open", 13)}<span>Đổi thư mục Vault…</span></span></button>
-        <div class="codex-pop-sep"></div>
-        <button type="button" class="codex-pop-item is-danger" data-action="disconnect-vault"><span class="codex-pop-item-main">${icon("x", 13)}<span>Ngắt kết nối Vault</span></span></button>
-      </div>
-    </details>`;
-  } else if (page === "skills") {
-    subTitle = `Kỹ năng (${(view.skills || []).length})`;
-    subTooltip = "Thư viện Kỹ năng Agent";
-    refreshAction = "scan-skills";
-    moreMenuHtml = `<button type="button" class="icon-button orca-sub-btn" data-action="new-skill" title="Tạo skill mới">${icon("plus", 14)}</button>`;
-  } else if (activeWs) {
-    subTitle = activeWs.name;
-    subTooltip = activeWs.path;
-    refreshAction = "refresh-dock-context";
-    const taskArtifactsCount = (selectedTask?.artifacts || []).length;
-    moreMenuHtml = `<details class="codex-pop-menu is-right is-down">
-      <summary class="icon-button orca-sub-btn" title="Tùy chọn dự án & phiên">${icon("ellipsis", 14)}</summary>
-      <div class="codex-pop-card">
-        ${selectedTask ? `
-          <div class="codex-pop-head">Phiên trò chuyện</div>
-          <button type="button" class="codex-pop-item" data-action="show-diff" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("file-text", 13)}<span>Diff & Review (${taskArtifactsCount})</span></span></button>
-          <button type="button" class="codex-pop-item" data-action="open-task-flow" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("workflow", 13)}<span>Luồng điều phối</span></span></button>
-          <button type="button" class="codex-pop-item" data-action="task-permissions" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("shield", 13)}<span>Quyền truy cập</span></span></button>
-          <button type="button" class="codex-pop-item" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("target", 13)}<span>Mục tiêu & Checklist</span></span></button>
-          <button type="button" class="codex-pop-item" data-action="task-instruction" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("settings-2", 13)}<span>Cấu hình Agent / Model</span></span></button>
-          <button type="button" class="codex-pop-item" data-action="${selectedTask.archived ? "restore-task" : "archive-task"}" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("archive", 13)}<span>${selectedTask.archived ? "Khôi phục chat" : "Lưu trữ chat"}</span></span></button>
-          <div class="codex-pop-sep"></div>
-        ` : ""}
-        <div class="codex-pop-head">Dự án</div>
-        <button type="button" class="codex-pop-item" data-action="open-project-folder" data-id="${esc(activeWs.id)}"><span class="codex-pop-item-main">${icon("folder-open", 13)}<span>Mở trong Explorer</span></span></button>
-        <button type="button" class="codex-pop-item" data-action="edit-project" data-id="${esc(activeWs.id)}"><span class="codex-pop-item-main">${icon("settings-2", 13)}<span>Sửa cấu hình dự án</span></span></button>
-        <button type="button" class="codex-pop-item" data-action="add-workspace"><span class="codex-pop-item-main">${icon("folder-plus", 13)}<span>Thêm dự án mới…</span></span></button>
-      </div>
-    </details>`;
-  }
-
-  let bodyHtml = "";
-
-  if (tab === "files") {
-    if (page === "knowledge") {
-      const vaultPath = view.state?.settings?.vaultPath || "";
-      if (!vaultPath) {
-        bodyHtml = `<div class="orca-dock-empty"><p>Chưa kết nối Obsidian Vault.</p><button type="button" class="button primary small" data-action="connect-vault">${icon("plus", 12)}<span>Kết nối Vault</span></button></div>`;
-      } else {
-        if (!view.vaultGraph && !view.vaultGraphLoading) {
-          void loadVaultGraph();
-        }
-        const graphNodes = view.vaultGraph?.nodes || [];
-        const paths = graphNodes.length
-          ? graphNodes.map((n) => n.path)
-          : (view.vaultEntries || []).filter((e) => e.type !== "directory").map((e) => e.path);
-        const tree = buildDockFileTree(paths);
-        if (view.collapsedDockFolders === null) {
-          view.collapsedDockFolders = [];
-        }
-        const collapsedSet = new Set(view.collapsedDockFolders);
-        const activePath = view.vaultPreview?.path || "";
-        const rows = renderDockTreeLevel(tree, 0, {
-          collapsedSet,
-          activePath,
-          fileAction: "vault-select-graph-node",
-          showVaultMenu: true,
-        });
-        bodyHtml = `<ul class="orca-tree-list">${rows || `<li class="orca-dock-empty">Chưa có ghi chú Markdown.</li>`}</ul>`;
-      }
-    } else if (page === "skills") {
-      const allSkills = view.skills || [];
-      const groups = [
-        ["personal", "Cá nhân", allSkills.filter((s) => s.editable)],
-        ["codex", "Codex CLI", allSkills.filter((s) => !s.editable && (s.providers?.includes("codex") || (s.sources || []).join(" ").toLowerCase().includes("codex")))],
-        ["antigravity", "Antigravity", allSkills.filter((s) => !s.editable && (s.providers?.includes("antigravity") || (s.sources || []).join(" ").toLowerCase().includes("antigravity")))],
-        ["claude", "Claude Code", allSkills.filter((s) => !s.editable && (s.providers?.includes("claude") || (s.sources || []).join(" ").toLowerCase().includes("claude")))],
-      ];
-      const collapsedSet = new Set(view.collapsedDockFolders || []);
-      bodyHtml = `<ul class="orca-tree-list">${groups.map(([key, label, items]) => {
-        const folderKey = `skill:${key}`;
-        const isCollapsed = collapsedSet.has(folderKey);
-        return `<li class="orca-tree-item is-folder">
-          <button type="button" class="orca-tree-row" style="padding-left:10px" data-action="toggle-dock-folder" data-folder="${esc(folderKey)}">
-            <span class="orca-tree-caret ${isCollapsed ? "" : "is-open"}">${icon("chevron-right", 12)}</span>
-            <span class="orca-tree-icon">${icon("folder", 14)}</span>
-            <span class="orca-tree-label">${esc(label)}</span>
-            <small class="orca-tree-badge">${items.length}</small>
-          </button>
-        </li>${isCollapsed ? "" : items.map((s) => `<li class="orca-tree-item is-file ${s.id === view.selectedSkillId ? "is-selected" : ""}">
-          <button type="button" class="orca-tree-row ${s.id === view.selectedSkillId ? "is-selected" : ""}" style="padding-left:38px" data-action="select-skill" data-id="${esc(s.id)}" title="${esc(s.description || s.name)}">
-            <span class="orca-tree-icon">${icon("file-text", 14)}</span>
-            <span class="orca-tree-label">${esc(s.name)}</span>
-          </button>
-        </li>`).join("")}`;
-      }).join("")}</ul>`;
-    } else if (activeWs) {
-      const allFiles = view.workspaceFileIndex?.[activeWs.id] || [];
-      if (!view.workspaceFileIndex?.[activeWs.id]) {
-        void ensureWorkspaceFileIndex(activeWs.id).then(() => render());
-      }
-      const tree = buildDockFileTree(allFiles);
-      if (view.collapsedDockFolders === null && allFiles.length > 0) {
-        const topFolders = (tree.foldersList || [...tree.folders.values()]).map((f) => f.path);
-        view.collapsedDockFolders = topFolders.filter((p) => p !== "src");
-      }
-      const collapsedSet = new Set(view.collapsedDockFolders || []);
-      const activeStageTab = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId);
-      const activePath = activeStageTab?.path || (page === "workspaces" ? (view.filePreview?.path || "") : (view.chatDrawerPreview?.path || ""));
-      const fileAction = page === "workspaces" ? "dock-open-workspace-file" : "preview-drawer-file";
-      const rows = renderDockTreeLevel(tree, 0, {
-        collapsedSet,
-        activePath,
-        fileAction,
-        workspaceId: activeWs.id,
-        taskId: selectedTask?.id || "",
-        showMention: page === "chat",
-      });
-      bodyHtml = `<ul class="orca-tree-list">${rows || `<li class="orca-dock-empty">Đang tải cây tệp dự án…</li>`}</ul>`;
-    } else {
-      bodyHtml = `<div class="orca-dock-empty"><p>Chưa có dự án nào được chọn.</p><button type="button" class="button primary small" data-action="add-workspace">${icon("plus", 12)}<span>Thêm dự án</span></button></div>`;
-    }
-  } else if (tab === "search") {
-    let resultsHtml = "";
-    const searchPlaceholder = page === "knowledge"
-      ? "Tìm ghi chú hoặc #tag…"
-      : page === "skills"
-        ? "Tìm tên hoặc mô tả kỹ năng…"
-        : "Tìm nhanh tên tệp trong dự án…";
-    if (page === "knowledge") {
-      const nodes = view.vaultGraph?.nodes || [];
-      const matches = nodes.filter((n) => !filter || `${n.path} ${n.title || ""} ${(n.tags || []).join(" ")}`.toLowerCase().includes(filter)).slice(0, 80);
-      resultsHtml = matches.length
-        ? matches.map((n) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="vault-select-graph-node" data-path="${esc(n.path)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(n.title || n.name)}</span></button></li>`).join("")
-        : `<li class="orca-dock-empty">Không có ghi chú khớp từ khóa.</li>`;
-    } else if (page === "skills") {
-      const matches = (view.skills || []).filter((s) => !filter || `${s.name} ${s.description}`.toLowerCase().includes(filter)).slice(0, 80);
-      resultsHtml = matches.length
-        ? matches.map((s) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="select-skill" data-id="${esc(s.id)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(s.name)}</span></button></li>`).join("")
-        : `<li class="orca-dock-empty">Không có kỹ năng phù hợp.</li>`;
-    } else {
-      const allFiles = (activeWs && view.workspaceFileIndex?.[activeWs.id]) || [];
-      const matches = allFiles.filter((f) => !filter || f.toLowerCase().includes(filter)).slice(0, 100);
-      const fileAction = page === "workspaces" ? "dock-open-workspace-file" : "preview-drawer-file";
-      resultsHtml = matches.length
-        ? matches.map((f) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="${fileAction}" data-workspace-id="${esc(activeWs?.id || "")}" data-id="${esc(selectedTask?.id || "")}" data-path="${esc(f)}"><span class="orca-tree-icon">${icon(dockFileIconName(f), 14)}</span><span class="orca-tree-label">${esc(f)}</span></button>${page === "chat" ? `<button type="button" class="orca-tree-quick" data-action="mention-drawer-file" data-path="${esc(f)}" title="Chèn @${esc(f)}">@</button>` : ""}</li>`).join("")
-        : `<li class="orca-dock-empty">Không tìm thấy tệp phù hợp.</li>`;
-    }
-    bodyHtml = `<div class="orca-dock-search-wrap">
-      <label class="orca-dock-search">
-        ${icon("search", 13)}
-        <input type="search" data-chat-drawer-filter value="${esc(view.chatDrawerFilter || "")}" placeholder="${esc(searchPlaceholder)}" autocomplete="off">
-      </label>
-    </div>
-    <ul class="orca-tree-list">${resultsHtml}</ul>`;
-  } else if (tab === "git") {
-    if (page === "knowledge") {
-      const graph = view.vaultGraph || { nodes: [], edges: [] };
-      const activeFile = view.vaultPreview;
-      const selectedNode = (graph.nodes || []).find((n) => n.path === activeFile?.path) || null;
-      const connectedEdges = selectedNode ? (graph.edges || []).filter((e) => e.source === selectedNode.id || e.target === selectedNode.id) : [];
-      const connectedNodes = selectedNode
-        ? connectedEdges.map((e) => {
-            const isOut = e.source === selectedNode.id;
-            const otherId = isOut ? e.target : e.source;
-            const node = (graph.nodes || []).find((n) => n.id === otherId);
-            return node ? { node, kind: e.kind, direction: isOut ? "out" : "in" } : null;
-          }).filter(Boolean)
-        : [];
-      const allTags = [...new Set((graph.nodes || []).flatMap((n) => n.tags || []))].slice(0, 20);
-      bodyHtml = `<div class="orca-dock-pad">
-        <div class="orca-section-label">LIÊN KẾT HAI CHIỀU (${connectedNodes.length})</div>
-        ${connectedNodes.length
-          ? `<ul class="orca-tree-list">${connectedNodes.map(({ node, direction }) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-action="vault-select-graph-node" data-path="${esc(node.path)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(node.title || node.name)}</span><small class="orca-tree-badge">${direction === "out" ? "→" : "←"}</small></button></li>`).join("")}</ul>`
-          : `<p class="orca-muted-note">Chưa có liên kết <code>[[WikiLink]]</code> cho ghi chú này.</p>`}
-        ${allTags.length ? `<div class="orca-section-label" style="margin-top:14px">THẺ CHỦ ĐỀ (#TAGS)</div>
-        <div class="neural-tag-list">${allTags.map((t) => `<button type="button" class="kb-tag-chip" data-action="vault-filter-tag" data-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div>` : ""}
-      </div>`;
-    } else {
-      const artifacts = selectedTask?.artifacts || [];
-      const taskBusy = selectedTask && ["running", "queued"].includes(selectedTask.status);
-      const canManageWt = Boolean(selectedTask?.isolated && !taskBusy && !selectedTask.worktreeCleaned && !selectedTask.worktreeAppliedAt);
-      const canMergeWt = Boolean(canManageWt && artifacts.length > 0);
-      const isolatedTasks = (view.state?.tasks || []).filter((t) => t.workspaceId === activeWs?.id && t.isolated && !t.worktreeCleaned && !t.archived);
-      const fanoutSiblings = selectedTask?.fanoutId ? (view.state?.tasks || []).filter((t) => t.fanoutId === selectedTask.fanoutId && !t.archived) : [];
-      bodyHtml = `<div class="orca-dock-pad">
-        ${selectedTask ? `<div class="orca-dock-actions-grid">
-          ${selectedTask.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${esc(selectedTask.id)}">${icon("file-text", 13)}<span>Diff & Review (${artifacts.length})</span></button>` : ""}
-          <button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(selectedTask.id)}">${icon("workflow", 13)}<span>Luồng</span></button>
-          ${canMergeWt ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(selectedTask.id)}">${icon("check", 13)}<span>Gộp vào dự án</span></button>` : ""}
-          ${canManageWt ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${esc(selectedTask.id)}">${icon("delete", 13)}<span>Hủy worktree</span></button>` : ""}
-        </div>` : ""}
-        ${selectedTask && !taskBusy && artifacts.length > 0 ? `<div class="orca-git-commit-box">
-          <div class="orca-section-label">COMMIT NHANH GIT (${selectedTask.isolated && !selectedTask.worktreeCleaned ? "WORKTREE" : "DỰ ÁN"})</div>
-          <div class="orca-inline-input-row">
-            <input type="text" data-git-commit-msg placeholder="feat: lưu thay đổi của task…" value="${esc(selectedTask.code ? `${selectedTask.code}: ${selectedTask.title.slice(0, 48)}` : `feat: ${selectedTask.title.slice(0, 52)}`)}" autocomplete="off">
-            <button type="button" class="button primary small" data-action="task-git-commit" data-id="${esc(selectedTask.id)}">${icon("check", 12)}<span>Commit</span></button>
-          </div>
-          ${selectedTask.lastCommitAt ? `<small class="orca-muted-note">Đã commit lúc ${fmtDate(selectedTask.lastCommitAt)}: <code>${esc(selectedTask.lastCommitMessage || "")}</code></small>` : ""}
-        </div>` : ""}
-        ${fanoutSiblings.length > 1 ? `<div class="orca-section-head" style="margin-top:8px">
-          <span class="orca-section-label">ĐA LUỒNG (${fanoutSiblings.length})</span>
-          <button type="button" class="button quiet small" data-action="compare-fanout" data-fanout-id="${esc(selectedTask.fanoutId)}">So sánh</button>
-        </div>
-        <ul class="orca-tree-list">${fanoutSiblings.map((t) => {
-          const compName = t.fanoutCompetitor?.name || t.fanoutLabel || t.title;
-          return `<li class="orca-tree-item is-file ${t.id === selectedTask.id ? "is-selected" : ""}"><button type="button" class="orca-tree-row ${t.id === selectedTask.id ? "is-selected" : ""}" style="padding-left:10px" data-task="${esc(t.id)}"><span class="wb-task-dot is-${esc(t.status || "done")}"></span><span class="orca-tree-label">${esc(compName)}</span><small class="orca-tree-badge">${(t.artifacts || []).length}</small></button></li>`;
-        }).join("")}</ul>` : ""}
-        <div class="orca-section-label" style="margin-top:8px">TỆP THAY ĐỔI (${artifacts.length})</div>
-        ${artifacts.length
-          ? `<ul class="orca-tree-list">${artifacts.map((filePath) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-action="open-diff-file" data-id="${esc(selectedTask.id)}" data-path="${esc(filePath)}" title="${esc(filePath)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(filePath)}</span><small class="orca-diff-dot">M</small></button></li>`).join("")}</ul>`
-          : `<p class="orca-muted-note">${selectedTask ? "Chưa có tệp thay đổi nào trong phiên này." : "Chọn một cuộc trò chuyện để xem danh sách tệp thay đổi."}</p>`}
-        ${isolatedTasks.length ? `<div class="orca-section-label" style="margin-top:14px">WORKTREE CÔ LẬP (${isolatedTasks.length})</div>
-        <ul class="orca-tree-list">${isolatedTasks.slice(0, 10).map((t) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-task="${esc(t.id)}"><span class="orca-tree-icon">${icon("git-branch", 14)}</span><span class="orca-tree-label">${esc(t.title)}</span><small class="orca-tree-badge">${(t.artifacts || []).length}</small></button></li>`).join("")}</ul>` : ""}
-      </div>`;
-    }
-  } else if (tab === "docs" && selectedTask) {
-    const stepper = pipelineStepperData(selectedTask);
-    const docs = stepper.stageDocuments || [];
-    const activeStageTab = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId);
-    bodyHtml = `<div class="orca-dock-pad">
-      <div class="orca-section-head">
-        <span class="orca-section-label">TÀI LIỆU GIAI ĐOẠN (${docs.length})</span>
-        <small class="orca-tree-badge">${esc(selectedTask.code || "TASK")} · Vòng ${stepper.currentRound}/${stepper.maxRounds}</small>
-      </div>
-      <p class="orca-muted-note">Nhấn vào bất kỳ tài liệu giai đoạn nào để mở ở khung bên trái (hỗ trợ xem Markdown, mã nguồn và gắn nhận xét theo dòng).</p>
-      <ul class="orca-tree-list" style="margin-top:8px">
-        ${docs.map((doc) => {
-          const tabId = `doc::${selectedTask.id}::${doc.id}`;
-          const isSelected = activeStageTab?.id === tabId;
-          return `<li class="orca-tree-item is-file ${isSelected ? "is-selected" : ""}">
-            <button type="button" class="orca-tree-row ${isSelected ? "is-selected" : ""}" style="padding-left:10px" data-action="open-stage-doc" data-id="${esc(selectedTask.id)}" data-doc-id="${esc(doc.id)}">
-              <span class="orca-tree-icon">${icon(doc.ready ? "file-text" : "circle-dot", 14)}</span>
-              <span class="orca-tree-label"><strong>${esc(doc.group)}</strong> · ${esc(doc.title)}</span>
-              <small class="orca-tree-badge ${doc.ready ? "is-ready" : ""}">${doc.ready ? "Sẵn sàng" : "Chờ"}</small>
-            </button>
-          </li>`;
-        }).join("")}
-      </ul>
-      ${stepper.findings.blocking > 0 || stepper.findings.advisory > 0 ? `<div class="orca-section-label" style="margin-top:14px">KẾT QUẢ ĐÁNH GIÁ</div>
-      <div class="mc-findings-summary">
-        <span class="mc-badge is-blocking">${stepper.findings.blocking} lỗi chặn</span>
-        <span class="mc-badge is-advisory">${stepper.findings.advisory} góp ý</span>
-        ${stepper.costUsd > 0 ? `<span class="mc-badge is-cost">$${stepper.costUsd.toFixed(2)}</span>` : ""}
-      </div>` : ""}
-    </div>`;
-  } else if (tab === "terminal") {
-    const qaRes = selectedTask?.qaResult || null;
-    const termHistory = selectedTask?.terminalHistory || [];
-    const defaultCmd = selectedTask?.qaCommand || "npm test";
-    const presetCommands = ["npm test", "npm run build", "npm run lint", "npm run check", "git status", "git diff --stat"];
-    bodyHtml = `<div class="orca-dock-pad">
-      <div class="orca-section-label">XEM TRỰC TIẾP MÁY CHỦ CỤC BỘ (LOCALHOST)</div>
-      <p class="orca-muted-note">Mở ứng dụng web đang chạy cục bộ (localhost) ngay trong khung xem kèm công cụ chọn phần tử giao diện.</p>
-      <div class="orca-inline-input-row" style="margin-top:6px">
-        <input type="url" data-live-url-input placeholder="http://localhost:3000" value="${esc(view.lastLiveUrl || "http://localhost:3000")}" autocomplete="off" spellcheck="false">
-        <button type="button" class="button primary small" data-action="open-live-url" data-id="${esc(selectedTask?.id || "")}">${icon("globe", 12)}<span>Mở</span></button>
-      </div>
-      <div class="orca-quick-pills" style="margin-top:6px">
-        ${[3000, 5173, 4173, 8080].map((port) => `<button type="button" class="kb-tag-chip" data-action="open-live-url" data-url="http://localhost:${port}" data-id="${esc(selectedTask?.id || "")}">:${port}</button>`).join("")}
-      </div>
-      ${selectedTask ? `
-        <div class="orca-section-head" style="margin-top:16px">
-          <span class="orca-section-label">CHẠY KIỂM THỬ QA & LỆNH TERMINAL (${selectedTask.isolated && !selectedTask.worktreeCleaned ? "WORKTREE" : "DỰ ÁN"})</span>
-          ${qaRes ? `<span class="mc-badge is-${qaRes.status === "passed" ? "passed" : "blocking"}">${qaRes.status === "passed" ? "ĐẠT" : `MÃ LỖI ${qaRes.code ?? 1}`}</span>` : ""}
-        </div>
-        <div class="orca-inline-input-row" style="margin-top:6px">
-          <input type="text" data-task-qa-cmd value="${esc(defaultCmd)}" placeholder="npm test, pytest, cargo test…" autocomplete="off" spellcheck="false">
-          <button type="button" class="button primary small" data-action="run-task-qa" data-id="${esc(selectedTask.id)}">${icon("square-terminal", 12)}<span>Chạy</span></button>
-        </div>
-        <div class="orca-quick-pills" style="margin-top:6px">
-          ${presetCommands.map((cmd) => `<button type="button" class="kb-tag-chip" data-action="run-task-qa" data-id="${esc(selectedTask.id)}" data-command="${esc(cmd)}">${esc(cmd)}</button>`).join("")}
-        </div>
-        ${qaRes ? `<div class="orca-terminal-box" style="margin-top:10px">
-          <header><code>$ ${esc(qaRes.command)}</code><small>${qaRes.durationSec}s · ${qaRes.status === "passed" ? "Thành công" : "Thất bại"}</small></header>
-          <pre>${esc(String(qaRes.output || "(Không có đầu ra)").slice(-3500))}</pre>
-          <footer style="margin-top:6px;display:flex;justify-content:flex-end">
-            <button type="button" class="button quiet small" data-action="open-stage-doc" data-id="${esc(selectedTask.id)}" data-doc-id="qa">${icon("book-open-text", 12)}<span>Mở báo cáo QA</span></button>
-          </footer>
-        </div>` : ""}
-        ${termHistory.length > 1 ? `<div class="orca-section-label" style="margin-top:12px">LỊCH SỬ LỆNH (${termHistory.length})</div>
-        <ul class="orca-tree-list">${termHistory.slice(0, 6).map((h) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:8px" data-action="run-task-qa" data-id="${esc(selectedTask.id)}" data-command="${esc(h.command)}"><span class="orca-tree-icon">${icon(h.status === "passed" ? "check" : "x", 13)}</span><span class="orca-tree-label"><code>${esc(h.command)}</code></span><small class="orca-tree-badge">${h.durationSec}s</small></button></li>`).join("")}</ul>` : ""}
-      ` : `<p class="orca-muted-note" style="margin-top:14px">Chọn một task để chạy kiểm thử QA hoặc lệnh Git trực tiếp trong worktree.</p>`}
-    </div>`;
-  } else if (tab === "tasks") {
-    if (page === "knowledge" && view.vaultPreview?.content) {
-      const outline = extractMarkdownOutline(view.vaultPreview.content);
-      bodyHtml = `<div class="orca-dock-pad">
-        <div class="orca-section-label">MỤC LỤC GHI CHÚ (${outline.length})</div>
-        ${outline.length
-          ? `<ul class="orca-tree-list">${outline.map((item) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:${8 + (item.level - 1) * 10}px" data-action="vault-scroll-heading" data-heading-index="${item.index}"><span class="orca-tree-label">${esc(item.text)}</span></button></li>`).join("")}</ul>`
-          : `<p class="orca-muted-note">Thêm tiêu đề <code># H1</code>, <code>## H2</code> để tạo mục lục tự động.</p>`}
-      </div>`;
-    } else if (selectedTask) {
-      const checklist = selectedTask.goalChecklist || [];
-      const totalUsage = Object.values(selectedTask.usage || {}).reduce((sum, item) => sum + tokenCount(item), 0);
-      const taskBusy = ["running", "queued"].includes(selectedTask.status);
-      const artifactsCount = (selectedTask.artifacts || []).length;
-      const permLabel = selectedTask.permissionPreset === "read-only" ? "Chỉ đọc" : selectedTask.permissionPreset === "full-access" ? "Toàn quyền máy" : "Sửa workspace";
-      bodyHtml = `<div class="orca-dock-pad">
-        <div class="orca-section-label">THÔNG TIN & CÔNG CỤ PHIÊN</div>
-        <p class="orca-muted-note">${esc(statuses[selectedTask.status] || selectedTask.status)} · ${fmtDate(selectedTask.createdAt)}${totalUsage ? ` · ${formatNumber(totalUsage)} tok` : ""} · ${esc(permLabel)}</p>
-        <div class="orca-dock-actions-grid">
-          ${selectedTask.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${esc(selectedTask.id)}">${icon("file-text", 13)}<span>Diff & Review (${artifactsCount})</span></button>` : ""}
-          <button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(selectedTask.id)}">${icon("workflow", 13)}<span>Luồng</span></button>
-          <button type="button" class="button quiet small" data-action="task-permissions" data-id="${esc(selectedTask.id)}">${icon("shield", 13)}<span>Quyền</span></button>
-          <button type="button" class="button quiet small" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}">${icon("target", 13)}<span>Mục tiêu</span></button>
-          <button type="button" class="button quiet small" data-action="open-folder" data-id="${esc(selectedTask.id)}">${icon("folder-open", 13)}<span>Mở thư mục</span></button>
-          ${taskBusy ? `<button type="button" class="button danger small" data-action="stop-task" data-id="${esc(selectedTask.id)}">${icon("square", 12)}<span>Dừng</span></button>` : ""}
-        </div>
-        <div class="orca-section-head" style="margin-top:12px">
-          <span class="orca-section-label">MỤC TIÊU & CHECKLIST (${checklist.length})</span>
-          <button type="button" class="icon-button" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}" title="Sửa mục tiêu">${icon("square-pen", 13)}</button>
-        </div>
-        ${selectedTask.goal ? `<p class="orca-goal-text">${esc(selectedTask.goal)}</p>` : ""}
-        ${checklist.length
-          ? `<ul class="orca-checklist">${checklist.map((item) => `<li><label><input type="checkbox" data-action="toggle-goal-item" data-id="${esc(selectedTask.id)}" data-goal-id="${esc(item.id)}" ${item.done ? "checked" : ""}><span class="${item.done ? "is-done" : ""}">${esc(item.text)}</span></label></li>`).join("")}</ul>`
-          : `<p class="orca-muted-note">Chưa có checklist nghiệm thu.</p><button type="button" class="button quiet small" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}">${icon("plus", 12)}<span>Thêm checklist</span></button>`}
-      </div>`;
-    }
-  }
-
-  return `<div class="orca-dock-resizer" data-right-dock-resizer title="Kéo để thay đổi độ rộng thanh bên phải"></div>
-  <header class="orca-dock-topbar">
-    <div class="orca-dock-tabs" role="tablist" aria-label="Công cụ thanh bên phải">
-      ${availableTabs.map((item) => `<button type="button" class="orca-dock-tab ${tab === item.id ? "is-active" : ""}" data-action="right-dock-tab" data-tab="${esc(item.id)}" title="${esc(item.title)}">${icon(item.icon, 16)}</button>`).join("")}
-    </div>
-    <button type="button" class="icon-button orca-dock-toggle" data-action="toggle-chat-drawer" title="Đóng thanh bên phải">${icon("sidebar-right", 16)}</button>
-  </header>
-  <div class="orca-dock-subheader">
-    <strong class="orca-dock-title" title="${esc(subTooltip || subTitle)}">${esc(subTitle)}</strong>
-    <div class="orca-dock-subactions">
-      <button type="button" class="icon-button orca-sub-btn" data-action="${refreshAction}" title="Làm mới">${icon("refresh-cw", 14)}</button>
-      ${moreMenuHtml}
-    </div>
-  </div>
-  <div class="orca-dock-body">
-    ${bodyHtml}
-  </div>`;
+  return renderOrcaRightDockMarkup({
+    loadVaultGraph,
+    ensureWorkspaceFileIndex,
+    vaultNoteOptionsMenu,
+    render,
+  });
 }
 
 function projectDetailPage(workspace) {
   const activeFile = view.filePreview || null;
-  const wsTasks = (view.state.tasks || []).filter((t) => t.workspaceId === workspace.id && !t.archived);
-  const gitBranch = workspace.runtime?.isGit ? (workspace.runtime.branch || "HEAD") : "Chưa khởi tạo Git";
-  if (!view.workspaceFileIndex?.[workspace.id]) {
+  const workspaces = view.state.workspaces || [];
+  const allTasks = view.state.tasks || [];
+  const wsTasks = allTasks
+    .filter((t) => t.workspaceId === workspace.id && !t.archived)
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+  const runningCount = wsTasks.filter((t) => ["running", "queued"].includes(t.status)).length;
+  const isGit = Boolean(workspace.runtime?.isGit);
+  const gitBranch = isGit ? (workspace.runtime.branch || "HEAD") : "Chưa khởi tạo Git";
+  const gitStateLabel = isGit
+    ? (workspace.runtime?.dirty ? "Có thay đổi chưa commit" : "Working tree sạch")
+    : "Thư mục cục bộ";
+  const indexedFiles = view.workspaceFileIndex?.[workspace.id];
+  if (!indexedFiles) {
     void ensureWorkspaceFileIndex(workspace.id).then(() => render());
   }
+  const indexedCount = Array.isArray(indexedFiles) ? indexedFiles.length : (view.workspaceEntries || []).length;
+  const extraFolders = (workspace.sourceFolders || []).filter((p) => p.toLowerCase() !== workspace.path.toLowerCase());
+
+  const switcherHtml = `<nav class="project-hub-bar" aria-label="Chuyển đổi dự án">
+    <div class="project-hub-switcher" role="tablist">
+      ${workspaces.map((w) => {
+        const isActive = w.id === workspace.id;
+        const count = allTasks.filter((t) => t.workspaceId === w.id && !t.archived).length;
+        return `<button type="button" role="tab" aria-selected="${isActive}" class="project-hub-pill ${isActive ? "is-active" : ""}" data-action="open-workspace" data-id="${esc(w.id)}" title="${esc(w.path)}">
+          ${icon("folder-code", 14)}
+          <span class="project-hub-pill-name" data-localize-skip="true">${esc(w.name)}</span>
+          <small class="project-hub-pill-count">${count}</small>
+        </button>`;
+      }).join("")}
+    </div>
+    <div class="project-hub-bar-actions">
+      <button type="button" class="button quiet small" data-action="toggle-workspace-overview" title="Xem danh sách toàn bộ dự án">${icon("list", 13)}<span>Tất cả dự án (${workspaces.length})</span></button>
+      <button type="button" class="button primary small" data-action="add-workspace">${icon("plus", 13)}<span>Thêm dự án</span></button>
+    </div>
+  </nav>`;
 
   const centerBodyHtml = activeFile ? `<div class="kb-doc-scroll">
-    <div class="kb-doc-container">
+    <div class="kb-doc-container project-hub-container">
+      ${switcherHtml}
       <div class="kb-doc-context-bar">
         <span class="kb-tag-chip">${esc(activeFile.path)}</span>
         <span class="kb-tag-chip">${formatNumber(activeFile.size)} B · ${fmtDate(activeFile.modifiedAt)}</span>
@@ -2336,31 +932,121 @@ function projectDetailPage(workspace) {
         : `<pre class="code-preview"><code>${esc(activeFile.content)}</code></pre>`}
     </div>
   </div>` : `<div class="kb-doc-scroll">
-    <div class="kb-doc-container">
-      <section class="minimal-stage-hero">
+    <div class="kb-doc-container project-hub-container">
+      ${switcherHtml}
+      <section class="minimal-stage-hero project-hub-hero">
         <div class="minimal-stage-title">
-          <span class="minimal-stage-icon">${icon("folder-code", 20)}</span>
+          <span class="minimal-stage-icon">${icon("folder-code", 22)}</span>
           <div>
-            <h1>${esc(workspace.name)}</h1>
-            <p>${esc(workspace.path)}</p>
+            <div class="project-hub-title-row">
+              <h1 data-localize-skip="true">${esc(workspace.name)}</h1>
+              <span class="project-hub-badge ${isGit ? "is-git" : ""}">${icon("git-branch", 12)} <span data-localize-skip="true">${esc(gitBranch)}</span> · ${esc(gitStateLabel)}</span>
+            </div>
+            <p class="project-hub-path" data-localize-skip="true">${esc(workspace.path)}</p>
+            <div class="project-hub-badges">
+              <span class="project-hub-stat">${icon("files", 12)} <strong>${formatNumber(indexedCount)}</strong> tệp mã nguồn</span>
+              <span class="project-hub-stat">${icon("message-circle", 12)} <strong>${wsTasks.length}</strong> phiên làm việc${runningCount ? ` (${runningCount} đang chạy)` : ""}</span>
+              ${extraFolders.length ? `<span class="project-hub-stat">${icon("folder-plus", 12)} +${extraFolders.length} thư mục nguồn phụ</span>` : ""}
+            </div>
           </div>
         </div>
         <div class="minimal-stage-actions">
           <button type="button" class="button primary small" data-action="new-chat" data-workspace-id="${esc(workspace.id)}">${icon("square-pen", 13)}<span>Chat mới</span></button>
+          <button type="button" class="button quiet small" data-action="project-quick-mode" data-workspace-id="${esc(workspace.id)}" data-mode="code">${icon("workflow", 13)}<span>Giao việc 6 bước</span></button>
           <button type="button" class="button quiet small" data-action="open-project-folder" data-id="${esc(workspace.id)}">${icon("folder-open", 13)}<span>Mở Explorer</span></button>
+          <button type="button" class="button quiet small" data-action="open-github-issues" data-workspace-id="${esc(workspace.id)}">${icon("git-branch", 13)}<span>GitHub</span></button>
           <button type="button" class="button quiet small" data-action="edit-project" data-id="${esc(workspace.id)}">${icon("settings-2", 13)}<span>Cấu hình</span></button>
         </div>
       </section>
-      ${wsTasks.length ? `<section class="minimal-section">
-        <header class="minimal-section-head"><strong>Phiên làm việc trong dự án (${wsTasks.length})</strong></header>
-        <div class="minimal-list">
-          ${wsTasks.slice(0, 12).map((t) => `<button type="button" class="minimal-list-row" data-task="${esc(t.id)}">
-            <span class="wb-task-dot is-${t.status || "done"}"></span>
-            <strong>${esc(t.title)}</strong>
-            <small>${esc(statuses[t.status] || t.status)} · ${fmtDate(t.updatedAt)}</small>
-          </button>`).join("")}
+
+      <div class="project-hub-grid">
+        <section class="project-hub-card project-explorer-card file-browser" aria-label="Trình duyệt tệp dự án">
+          <header class="project-hub-card-head">
+            <div>
+              <strong>Mã nguồn & Cấu trúc thư mục</strong>
+              <small>Bấm vào thư mục để mở, bấm vào tệp để đọc hoặc sửa trực tiếp trên thanh Tab</small>
+            </div>
+            <div class="project-hub-card-tools">
+              ${view.workspaceDir ? `<button type="button" class="button quiet small" data-action="workspace-up">${icon("arrow-left", 12)}<span>Lên một cấp</span></button>` : ""}
+              <button type="button" class="icon-button" data-action="refresh-project-files" title="Làm mới danh sách tệp" aria-label="Làm mới danh sách tệp">${icon("refresh-cw", 14)}</button>
+            </div>
+          </header>
+          <nav class="path-breadcrumbs project-hub-breadcrumbs" aria-label="Đường dẫn thư mục">
+            ${breadcrumbButtons(view.workspaceDir, "workspace-dir")}
+          </nav>
+          <label class="file-search-box project-hub-file-search">
+            ${icon("search", 14)}
+            <input data-file-filter="workspace" placeholder="Lọc nhanh tệp hoặc thư mục trong dự án…" autocomplete="off" spellcheck="false" aria-label="Lọc nhanh tệp trong dự án">
+          </label>
+          <ul class="file-list project-hub-file-list">
+            ${localFileRows(view.workspaceEntries, "workspace-file-action")}
+          </ul>
+        </section>
+
+        <div class="project-hub-side">
+          <section class="project-hub-card" aria-label="Khởi tạo nhanh trong dự án">
+            <header class="project-hub-card-head">
+              <div>
+                <strong>Khởi tạo nhanh cho dự án này</strong>
+                <small>Chọn chế độ điều phối phù hợp với công việc</small>
+              </div>
+            </header>
+            <div class="project-quickstart-list">
+              <button type="button" class="project-quickstart-btn" data-action="project-quick-mode" data-workspace-id="${esc(workspace.id)}" data-mode="chat">
+                <span class="project-quickstart-icon">${icon("message-circle", 16)}</span>
+                <span class="project-quickstart-copy">
+                  <strong>Trò chuyện & Hỏi đáp mã nguồn</strong>
+                  <small>Hỏi đáp trực tiếp, giải thích kiến trúc hoặc sửa nhanh với @mention tệp</small>
+                </span>
+                ${icon("chevron-right", 14)}
+              </button>
+              <button type="button" class="project-quickstart-btn" data-action="project-quick-mode" data-workspace-id="${esc(workspace.id)}" data-mode="plan">
+                <span class="project-quickstart-icon">${icon("book-open-text", 16)}</span>
+                <span class="project-quickstart-copy">
+                  <strong>Lập kế hoạch kiến trúc (Plan)</strong>
+                  <small>Phân tích yêu cầu, khảo sát mã nguồn và xuất bản thiết kế kỹ thuật</small>
+                </span>
+                ${icon("chevron-right", 14)}
+              </button>
+              <button type="button" class="project-quickstart-btn" data-action="project-quick-mode" data-workspace-id="${esc(workspace.id)}" data-mode="code">
+                <span class="project-quickstart-icon">${icon("workflow", 16)}</span>
+                <span class="project-quickstart-copy">
+                  <strong>Giao việc 6 bước (Plan · Code · Review · QA)</strong>
+                  <small>Phối hợp 3 vai trò AI tự động viết code, kiểm tra chéo và chạy test</small>
+                </span>
+                ${icon("chevron-right", 14)}
+              </button>
+              <button type="button" class="project-quickstart-btn" data-action="project-quick-mode" data-workspace-id="${esc(workspace.id)}" data-mode="arena">
+                <span class="project-quickstart-icon">${icon("git-branch", 16)}</span>
+                <span class="project-quickstart-copy">
+                  <strong>Đa luồng Arena (Git Worktree song song)</strong>
+                  <small>Chạy nhiều Agent cùng lúc trên các nhánh cô lập và chọn bản tốt nhất</small>
+                </span>
+                ${icon("chevron-right", 14)}
+              </button>
+            </div>
+          </section>
+
+          <section class="project-hub-card" aria-label="Phiên làm việc trong dự án">
+            <header class="project-hub-card-head">
+              <div>
+                <strong>Phiên làm việc trong dự án (${wsTasks.length})</strong>
+                <small>Lịch sử chat và tác vụ gắn với ${esc(workspace.name)}</small>
+              </div>
+              <button type="button" class="button quiet small" data-action="new-chat" data-workspace-id="${esc(workspace.id)}">${icon("plus", 12)}<span>Mới</span></button>
+            </header>
+            ${wsTasks.length ? `<div class="minimal-list project-hub-task-list">
+              ${wsTasks.slice(0, 12).map((t) => `<button type="button" class="minimal-list-row" data-task="${esc(t.id)}">
+                <span class="wb-task-dot is-${t.status || "done"}"></span>
+                <strong data-localize-skip="true">${esc(t.title)}</strong>
+                <small>${esc(statuses[t.status] || t.status)} · ${fmtDate(t.updatedAt)}</small>
+              </button>`).join("")}
+            </div>` : `<div class="project-hub-empty-sessions">
+              <p>Dự án <strong>${esc(workspace.name)}</strong> chưa có phiên làm việc nào. Chọn một chế độ khởi tạo ở trên hoặc bấm vào tệp bên trái để đọc/sửa mã nguồn ngay.</p>
+            </div>`}
+          </section>
         </div>
-      </section>` : `<section class="empty-state"><strong>Chọn tệp ở thanh bên phải để đọc mã nguồn</strong><p>Cây thư mục dự án, tìm kiếm tệp và quản lý nhánh Git Worktree nằm gọn trong thanh công cụ bên phải.</p></section>`}
+      </div>
     </div>
   </div>`;
 
@@ -3261,6 +1947,20 @@ function apiProviderId(name) {
 }
 function render({ background = false } = {}) {
   if (!view.state) return;
+  if (view.page === "workspaces" && !view.workspaceOverviewMode && view.state.workspaces?.length) {
+    const activeWs = view.state.workspaces.find((w) => w.id === view.selected)
+      || view.state.workspaces.find((w) => w.id === view.homeWorkspaceId)
+      || view.state.workspaces[0];
+    if (activeWs) {
+      if (view.selected !== activeWs.id) {
+        view.selected = activeWs.id;
+        view.workspaceDir = "";
+        view.workspaceEntries = [];
+        replaceBrowserRoute = true;
+      }
+      view.homeWorkspaceId = activeWs.id;
+    }
+  }
   syncLocation();
   const pages = { chat: chatPage, tasks: taskPage, flows: workflowPage, workspaces: workspacePage, knowledge: knowledgePage, skills: skillPage, memory: memoryPage, settings: settingsPage };
   const content = $("#content");
@@ -3279,6 +1979,7 @@ function render({ background = false } = {}) {
   view.forceChatScroll = false;
 
   const selectedTask = view.selected && view.state.tasks.some((task) => task.id === view.selected);
+  const selectedWorkspace = view.page === "workspaces" && view.selected && view.state.workspaces.some((w) => w.id === view.selected);
   const openPops = new Map();
   content?.querySelectorAll(".codex-pop-menu[open][data-pop-id]")?.forEach((el) => {
     openPops.set(el.dataset.popId, el.querySelector(".codex-pop-scroll")?.scrollTop || 0);
@@ -3320,7 +2021,7 @@ function render({ background = false } = {}) {
   const rightDockMarkup = isRightDockOpen ? orcaRightDockMarkup() : "";
   const searchResults = view.searchQuery ? homeSearchResults(view.searchQuery) : "";
   view.searchResults = searchResults;
-  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, theme: view.theme, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: selectedTask ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults, collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
+  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, theme: view.theme, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: (selectedTask || selectedWorkspace) ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults, collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, activeRemoteHostName: getActiveRemoteHost()?.name || "", chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
   const overlay = $("#overlay");
   if (overlay && overlay.children.length > 0) {
@@ -4442,165 +3143,13 @@ function showMemoryModal() {
   showModal("Ghi nhớ mới", body, "Lưu ghi nhớ");
 }
 function renderDiffStudioModal() {
-  const data = view.diffStudioData;
-  if (!data) return;
-  const prevHunkScroll = document.querySelector("#overlay .diff-hunk-list")?.scrollTop || 0;
-  const prevFileScroll = document.querySelector("#overlay .diff-file-list")?.scrollTop || 0;
-  const taskId = view.diffStudioTaskId || view.selected || "";
-  const files = data.files || [];
-  const annotations = view.diffAnnotations?.[taskId] || [];
-  const annotationMap = new Map();
-  const fileCommentCounts = new Map();
-  for (const ann of annotations) {
-    const p = ann.path || "";
-    fileCommentCounts.set(p, (fileCommentCounts.get(p) || 0) + 1);
-    const sideKey = `${p}::${ann.side || "any"}::${ann.line}`;
-    const list = annotationMap.get(sideKey);
-    if (list) list.push(ann);
-    else annotationMap.set(sideKey, [ann]);
-  }
-  const totalAdd = files.reduce((sum, f) => sum + (f.additions || 0), 0);
-  const totalDel = files.reduce((sum, f) => sum + (f.deletions || 0), 0);
-  const selectedFile = files.find((f) => f.path === view.diffSelectedFile) || files[0] || null;
-  if (selectedFile && view.diffSelectedFile !== selectedFile.path) view.diffSelectedFile = selectedFile.path;
-  const wt = data.worktree;
-  const canApplyWt = Boolean(wt && !wt.cleaned && !wt.appliedAt && files.length > 0 && taskId);
-  const canDiscardWt = Boolean(wt && !wt.cleaned && !wt.appliedAt && taskId);
-
-  const toolbarHtml = `<div class="diff-studio-toolbar">
-    <div class="diff-location">
-      <small>${wt ? `WORKTREE · ${esc(wt.branch || "isolated")}` : "THƯ MỤC"}</small>
-      <code>${esc(data.path || "")}</code>
-      ${files.length ? `<span class="diff-totals"><em class="is-add">+${totalAdd}</em><em class="is-del">-${totalDel}</em> · ${files.length} tệp</span>` : ""}
-    </div>
-    <div class="diff-studio-actions">
-      ${wt?.appliedAt ? `<span class="chat-worktree-chip is-merged">${icon("check", 12)} Đã gộp vào nhánh chính</span>` : ""}
-      ${canApplyWt ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(taskId)}">${icon("check", 13)}<span>Gộp Worktree vào dự án</span></button>` : ""}
-      ${canDiscardWt ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${esc(taskId)}">${icon("delete", 13)}<span>Hủy Worktree</span></button>` : ""}
-    </div>
-  </div>`;
-
-  let contentHtml = "";
-  if (!files.length) {
-    const rawDiff = String(data.diff || "Không có thay đổi được Git theo dõi.");
-    const formattedLines = rawDiff.split(/\r?\n/).map((line) => {
-      const cls = line.startsWith("+++") || line.startsWith("---") || line.startsWith("diff ") || line.startsWith("index ") ? "diff-line diff-line-meta" : line.startsWith("@@") ? "diff-line diff-line-hunk" : line.startsWith("+") ? "diff-line diff-line-add" : line.startsWith("-") ? "diff-line diff-line-del" : "diff-line";
-      return `<span class="${cls}">${esc(line) || " "}</span>`;
-    }).join("\n");
-    contentHtml = data.diff ? `<pre class="diff-content">${formattedLines}</pre>` : `<p class="diff-empty-state">Không có thay đổi được Git theo dõi.</p>`;
-  } else {
-    const sidebarHtml = files.map((file) => {
-      const fileComments = fileCommentCounts.get(file.path) || 0;
-      const statusChar = file.status === "added" ? "A" : file.status === "deleted" ? "D" : file.status === "renamed" ? "R" : "M";
-      return `<button type="button" class="diff-file-item ${file.path === selectedFile?.path ? "is-active" : ""}" data-action="select-diff-file" data-path="${esc(file.path)}" title="${esc(file.path)}">
-        <span class="diff-file-status is-${esc(file.status || "modified")}">${statusChar}</span>
-        <span class="diff-file-name">${esc(file.path)}</span>
-        ${fileComments ? `<span class="diff-file-comment-count">${fileComments}</span>` : ""}
-        <span class="diff-file-stats"><em class="is-add">+${file.additions}</em><em class="is-del">-${file.deletions}</em></span>
-      </button>`;
-    }).join("");
-
-    const hunksHtml = (selectedFile?.hunks || []).map((hunk) => {
-      const linesHtml = (hunk.lines || []).map((line, idx) => {
-        const lineNo = line.newLine ?? line.oldLine ?? (idx + 1);
-        const side = line.type === "del" ? "old" : "new";
-        const lineKey = `${selectedFile.path}:${lineNo}:${line.type}`;
-        const lineAnns = annotationMap.get(`${selectedFile.path}::${side}::${lineNo}`) || annotationMap.get(`${selectedFile.path}::any::${lineNo}`) || [];
-        const isEditing = view.diffAnnotationTarget && view.diffAnnotationTarget.key === lineKey;
-        const cls = line.type === "add" ? "diff-row-add" : line.type === "del" ? "diff-row-del" : "diff-row-ctx";
-        const prefix = line.type === "add" ? "+" : line.type === "del" ? "-" : " ";
-        return `<div class="diff-row-group">
-          <div class="diff-row ${cls} diff-line-annotatable" data-action="open-diff-comment" data-key="${esc(lineKey)}" data-path="${esc(selectedFile.path)}" data-side="${side}" data-line="${esc(lineNo)}" data-code="${esc(line.text)}" title="Nhấn để thêm nhận xét review tại dòng ${lineNo}">
-            <span class="diff-ln">${line.oldLine ?? ""}</span>
-            <span class="diff-ln">${line.newLine ?? ""}</span>
-            <span class="diff-sign">${prefix}<i class="diff-add-comment-icon">+</i></span>
-            <code class="diff-code">${esc(line.text) || " "}</code>
-          </div>
-          ${lineAnns.map((ann) => `<div class="diff-inline-annotation">
-            <div class="diff-annotation-head"><strong>Nhận xét dòng ${esc(ann.line)}</strong><button type="button" class="icon-button" data-action="remove-diff-comment" data-comment-id="${esc(ann.id)}" title="Xóa nhận xét">${icon("x", 13)}</button></div>
-            <p>${esc(ann.comment)}</p>
-          </div>`).join("")}
-          ${isEditing ? `<div class="diff-inline-editor">
-            <textarea data-diff-comment-input rows="2" placeholder="Nhập yêu cầu chỉnh sửa hoặc nhận xét cho dòng ${lineNo}…"></textarea>
-            <div class="diff-inline-editor-actions">
-              <button type="button" class="button quiet small" data-action="cancel-diff-comment">Hủy</button>
-              <button type="button" class="button primary small" data-action="save-diff-comment">Lưu nhận xét</button>
-            </div>
-          </div>` : ""}
-        </div>`;
-      }).join("");
-      return `<div class="diff-hunk-block"><div class="diff-hunk-header">${esc(hunk.header)}</div>${linesHtml}</div>`;
-    }).join("");
-
-    contentHtml = `<div class="diff-studio-layout">
-      <aside class="diff-file-list" aria-label="Danh sách tệp thay đổi">${sidebarHtml}</aside>
-      <section class="diff-viewer-pane">
-        <header class="diff-viewer-head">
-          <strong>${esc(selectedFile?.path || "")}</strong>
-          <small>Nhấn vào dòng bất kỳ để gắn nhận xét cho Agent sửa</small>
-        </header>
-        <div class="diff-hunk-list">${hunksHtml || `<p class="diff-empty-file">Tệp nhị phân hoặc không có dòng thay đổi văn bản.</p>`}</div>
-      </section>
-    </div>`;
-  }
-
-  const body = `${toolbarHtml}${contentHtml}`;
-  showModal("Diff Review Studio", body, "Đóng", "dismiss");
-  const modal = $("#overlay .modal");
-  modal?.classList.add("diff-studio-modal");
-  modal?.classList.toggle("is-empty", !files.length && !data.diff);
-  if (annotations.length && taskId) {
-    const footer = $("#overlay .modal-actions");
-    footer?.insertAdjacentHTML("afterbegin", `<button type="button" class="button primary" data-action="submit-diff-review" data-id="${esc(taskId)}">${icon("arrow-up-right", 14)} Gửi ${annotations.length} nhận xét cho Agent sửa</button>`);
-  }
-  const nextHunkList = document.querySelector("#overlay .diff-hunk-list");
-  if (nextHunkList && prevHunkScroll) nextHunkList.scrollTop = prevHunkScroll;
-  const nextFileList = document.querySelector("#overlay .diff-file-list");
-  if (nextFileList && prevFileScroll) nextFileList.scrollTop = prevFileScroll;
-  $("[data-diff-comment-input]")?.focus();
+  return renderDiffModalContent({ showModal });
 }
 function showDiffModal(data, taskId = view.selected, preferredFile = "") {
-  view.diffStudioData = data;
-  view.diffStudioTaskId = taskId || view.selected || "";
-  const files = data?.files || [];
-  view.diffSelectedFile = preferredFile && files.some((f) => f.path === preferredFile) ? preferredFile : (files[0]?.path || "");
-  view.diffAnnotationTarget = null;
-  renderDiffStudioModal();
+  return openDiffStudioModal(data, taskId, preferredFile, { showModal });
 }
 async function openArenaCompareModal(fanoutId) {
-  const siblings = (view.state?.tasks || []).filter((item) => item.fanoutId === fanoutId && !item.archived);
-  if (!siblings.length) return;
-  showModal("Đa luồng Agent · Đang tải Diff…", `<p class="form-note">Đang thu thập kết quả và diff từ ${siblings.length} Git worktree…</p>`, "Đóng", "dismiss");
-  const diffs = await Promise.all(siblings.map((t) => api(`/api/tasks/${encodeURIComponent(t.id)}/diff`).catch(() => ({ files: [], diff: "" }))));
-  const cardsHtml = siblings.map((item, idx) => {
-    const diffData = diffs[idx] || { files: [] };
-    const files = diffData.files || [];
-    const adds = files.reduce((s, f) => s + (f.additions || 0), 0);
-    const dels = files.reduce((s, f) => s + (f.deletions || 0), 0);
-    const modelName = item.fanoutCompetitor?.model || item.config?.roles?.build?.model || item.config?.chatModel || "";
-    const rawName = item.fanoutCompetitor?.name || providerTitle(view.connectors, item.config?.roles?.build?.provider || item.config?.chatProvider || "codex");
-    const compName = modelName && rawName.endsWith(` (${modelName})`) ? rawName.slice(0, -modelName.length - 3) : rawName;
-    const tok = Object.values(item.usage || {}).reduce((s, u) => s + tokenCount(u), 0);
-    const summaryText = String(item.implementation || item.review || item.plan || item.chatMessages?.filter((m) => m.role === "assistant").at(-1)?.content || "").slice(0, 800);
-    const emptySummary = item.status === "failed" ? "Lượt chạy thất bại. Mở chat để xem nguyên nhân." : ["running", "queued"].includes(item.status) ? "Agent đang xử lý, kết quả sẽ xuất hiện khi hoàn tất." : "Chưa có nội dung trả lời.";
-    const canPick = Boolean(item.isolated && !["running", "queued"].includes(item.status) && !item.worktreeCleaned && !item.worktreeAppliedAt && files.length > 0);
-    return `<article class="arena-compare-card ${item.worktreeAppliedAt ? "is-winner" : ""}">
-      <header>
-        <div class="arena-compare-identity"><h3>${esc(compName)}</h3>${modelName && modelName !== compName ? `<p>${esc(modelName)}</p>` : ""}</div>
-        <span class="arena-compare-status is-${esc(item.status)}"><i class="wb-task-dot is-${esc(item.status)}"></i>${esc(statuses[item.status] || item.status)}</span>
-      </header>
-      <dl class="arena-compare-stats"><div><dt>Tệp thay đổi</dt><dd>${formatNumber(files.length)}</dd></div><div><dt>Thêm / xoá</dt><dd><span class="is-add">+${formatNumber(adds)}</span> / <span class="is-del">−${formatNumber(dels)}</span></dd></div><div><dt>Token</dt><dd>${formatNumber(tok)}</dd></div></dl>
-      <div class="arena-compare-excerpt ${summaryText ? "" : "is-empty"}">${summaryText ? renderMarkdown(summaryText) : `<p>${esc(emptySummary)}</p>`}</div>
-      ${files.length ? `<ul class="arena-compare-files">${files.slice(0, 8).map((f) => `<li><code>${esc(f.path)}</code><span>+${f.additions} / −${f.deletions}</span></li>`).join("")}</ul>` : ""}
-      <footer>
-        <button type="button" class="button quiet small" data-action="show-diff" data-id="${esc(item.id)}">${icon("file", 13)} Xem Diff</button>
-        <button type="button" class="button quiet small" data-task="${esc(item.id)}">Mở Chat</button>
-        ${item.worktreeAppliedAt ? `<span class="arena-compare-merged">${icon("check", 12)} Đã gộp vào dự án</span>` : canPick ? `<button type="button" class="button primary small" data-action="pick-arena-winner" data-id="${esc(item.id)}">${icon("check", 13)} Chọn & Gộp vào dự án</button>` : ""}
-      </footer>
-    </article>`;
-  }).join("");
-  showModal("So sánh các nhánh song song", `<div class="arena-compare-grid">${cardsHtml}</div>`, "Đóng", "dismiss");
-  $("#overlay .modal")?.classList.add("arena-compare-modal");
+  return openFanoutCompareModal(fanoutId, { api, showModal });
 }
 function closeOverlay() { $("#overlay").innerHTML = ""; }
 function showToast(message) {
@@ -4661,7 +3210,19 @@ async function handleSubmit(event) {
       object.attachments = await readComposerAttachments(form);
     }
     if (form.dataset.form === "workspace") {
-      await api("/api/workspaces", { method: "POST", body: JSON.stringify({ path: object.path }) });
+      const created = await api("/api/workspaces", { method: "POST", body: JSON.stringify({ path: object.path }) });
+      if (created?.workspace?.id) {
+        view.homeWorkspaceId = created.workspace.id;
+        view.workspaceOverviewMode = false;
+        if (view.page === "workspaces") {
+          view.selected = created.workspace.id;
+          view.activeStageTabId = "chat";
+          view.workspaceDir = "";
+          view.filePreview = null;
+          view.workspaceEntries = [];
+          view.workspaceLoadedKey = "";
+        }
+      }
       showToast("Đã kiểm tra và thêm workspace thật.");
     } else if (form.dataset.form === "workspace-edit") {
       const sourceFolders = data.getAll("sourceFolder").map((path) => String(path).trim()).filter(Boolean);
@@ -4876,6 +3437,21 @@ async function handleSubmit(event) {
       render();
       showToast("Đã tạo ghi chú tri thức mới.");
       return;
+    } else if (form.dataset.form === "github-create-pr") {
+      const taskId = form.dataset.id || view.selected || "";
+      const res = await api(`/api/tasks/${encodeURIComponent(taskId)}/github-pr`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: object.title,
+          body: object.body,
+          base: object.base || "",
+          draft: data.has("draft"),
+        }),
+      });
+      $("#overlay").innerHTML = "";
+      await refresh();
+      showToast(res.url ? `Đã tạo Pull Request: ${res.url}` : "Đã tạo Pull Request trên GitHub.");
+      return;
     } else if (form.dataset.form === "dismiss") {
       // Informational modal; its primary action only closes the dialog.
     } else {
@@ -4884,6 +3460,9 @@ async function handleSubmit(event) {
     $("#overlay").innerHTML = "";
     if (form.dataset.splitChatCreate === "true") render();
     else await refresh({ configuration: form.dataset.form === "api-provider" });
+    if (form.dataset.form === "workspace" && view.page === "workspaces" && view.selected) {
+      await loadWorkspaceDir(view.selected, "");
+    }
     if (view.page === "knowledge" && view.state.settings.vaultPath) await loadVaultDir("");
     if (view.page === "skills" && !view.skillsLoaded) {
       const result = await api("/api/skills"); view.skills = result.skills || []; view.skillsLoaded = true; render();
@@ -4959,9 +3538,26 @@ async function handleWorkbenchClick(event) {
   if (event.target.matches?.(".task-chat-config-backdrop")) { view.chatConfigOpen = false; render(); return; }
   const page = event.target.closest("[data-page]");
   if (page) {
-    event.preventDefault(); closeOverlay(); view.projectMenuId = ""; view.page = page.dataset.page; if (view.page !== "chat" && view.page !== "workspaces") view.selected = null; view.filePreview = null; render();
+    event.preventDefault();
+    closeOverlay();
+    view.projectMenuId = "";
+    view.page = page.dataset.page;
+    if (view.page === "workspaces") {
+      view.activeStageTabId = "chat";
+      const wsExists = view.selected && view.state?.workspaces?.some((w) => w.id === view.selected);
+      if (!wsExists) {
+        view.selected = view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || null;
+        view.workspaceDir = "";
+        view.workspaceEntries = [];
+      }
+    } else if (view.page !== "chat") {
+      view.selected = null;
+    }
+    view.filePreview = null;
+    render();
     if (view.page === "settings") void refresh({ configuration: true });
     try {
+      if (view.page === "workspaces" && view.selected) await loadWorkspaceDir(view.selected, view.workspaceDir || "");
       if (view.page === "knowledge" && view.state.settings.vaultPath) await loadVaultDir("");
       if (view.page === "skills") { const result = await api("/api/skills"); view.skills = result.skills || []; view.skillsLoaded = true; render(); }
     } catch (error) { showToast(error.message); }
@@ -5043,6 +3639,10 @@ async function handleWorkbenchClick(event) {
   }
   if (action === "pick-home-workspace") {
     view.homeWorkspaceId = id;
+    if (view.page === "workspaces" && id) {
+      await loadWorkspaceDir(id, "");
+      return;
+    }
     render();
     return;
   }
@@ -5302,10 +3902,47 @@ async function handleWorkbenchClick(event) {
     if (action === "toggle-workspace") {
       view.projectMenuId = "";
       const collapsed = new Set(view.collapsedWorkspaces);
+      if (view.page === "workspaces" && id && view.selected !== id) {
+        collapsed.delete(id);
+        view.collapsedWorkspaces = [...collapsed];
+        try { localStorage.setItem("workbench.collapsed-workspaces", JSON.stringify(view.collapsedWorkspaces)); } catch {}
+        await loadWorkspaceDir(id, "");
+        return;
+      }
+      if (id) view.homeWorkspaceId = id;
       collapsed.has(id) ? collapsed.delete(id) : collapsed.add(id);
       view.collapsedWorkspaces = [...collapsed];
       try { localStorage.setItem("workbench.collapsed-workspaces", JSON.stringify(view.collapsedWorkspaces)); } catch {}
       render();
+    }
+    if (action === "toggle-workspace-overview") {
+      view.workspaceOverviewMode = !view.workspaceOverviewMode;
+      view.activeStageTabId = "chat";
+      render();
+      return;
+    }
+    if (action === "project-quick-mode") {
+      const wsId = button.dataset.workspaceId || view.selected || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+      const mode = button.dataset.mode || "chat";
+      view.chatSplitWorkspaceId = "";
+      view.chatSplitCreateOpen = false;
+      view.chatSplitReturnWorkspaceId = "";
+      view.page = "chat";
+      view.selected = null;
+      view.activeStageTabId = "chat";
+      view.stageSplit = false;
+      view.chatDraft = "";
+      if (wsId) view.homeWorkspaceId = wsId;
+      view.homeMode = mode;
+      if (mode === "chat") view.homeWorkflow = "chat-only";
+      else if (mode === "plan") view.homeWorkflow = "plan-only";
+      else view.homeWorkflow = "codex-antigravity";
+      clearSidebarSearch();
+      view.homeConfigOpen = false;
+      closeOverlay();
+      render();
+      $("[data-home-prompt]")?.focus({ preventScroll: true });
+      return;
     }
     if (action === "toggle-project-menu") { view.projectMenuId = view.projectMenuId === id ? "" : id; render(); return; }
     if (action === "toggle-task-menu") { const key = button.dataset.key || id; view.taskMenuId = view.taskMenuId === key ? "" : key; render(); return; }
@@ -5350,6 +3987,159 @@ async function handleWorkbenchClick(event) {
     if (action === "new-memory") showMemoryModal();
     if (action === "new-skill") showSkillCreateModal();
     if (action === "provider-add") showApiProviderModal();
+    if (action === "open-orca-connect") {
+      try {
+        view.connectionInfo = await api("/api/connection-info");
+      } catch {}
+      await openOrcaConnectModal({ api, showModal });
+      return;
+    }
+    if (action === "orca-connect-tab") {
+      view.orcaConnectTab = button.dataset.tab || "host";
+      refreshOrcaConnectModalIfOpen({ showModal });
+      return;
+    }
+    if (action === "copy-pairing-uri") {
+      const uri = button.dataset.uri || $("[data-pairing-uri-input]")?.value || "";
+      if (uri) {
+        await navigator.clipboard?.writeText(uri);
+        showToast("Đã sao chép mã ghép nối ORCA Connect.");
+      }
+      return;
+    }
+    if (action === "copy-lan-url") {
+      const url = button.dataset.url || "";
+      if (url) {
+        await navigator.clipboard?.writeText(url);
+        showToast(`Đã sao chép địa chỉ LAN: ${url}`);
+      }
+      return;
+    }
+    if (action === "copy-lan-command") {
+      const cmd = button.dataset.cmd || "";
+      if (cmd) {
+        await navigator.clipboard?.writeText(cmd);
+        showToast("Đã sao chép vào Clipboard.");
+      }
+      return;
+    }
+    if (action === "paste-quick-pair") {
+      const text = await navigator.clipboard?.readText().catch(() => "");
+      const input = $("[data-orca-quick-pair-input]");
+      if (input && text) {
+        input.value = text.trim();
+        view.orcaConnectDraft = { ...(view.orcaConnectDraft || {}), quickPair: input.value };
+      }
+      return;
+    }
+    if (action === "apply-quick-pair") {
+      const raw = $("[data-orca-quick-pair-input]")?.value || view.orcaConnectDraft?.quickPair || "";
+      const parsed = parsePairingInput(raw);
+      view.orcaConnectDraft = {
+        name: parsed.name || "",
+        url: parsed.url || "",
+        username: parsed.username || "opensybau",
+        password: parsed.password || view.orcaConnectDraft?.password || "",
+        quickPair: raw,
+      };
+      view.orcaConnectProbeResult = await probeRemoteHost(view.orcaConnectDraft);
+      refreshOrcaConnectModalIfOpen({ showModal });
+      showToast(`Đã nạp cấu hình máy chủ ${parsed.url}.`);
+      return;
+    }
+    if (action === "test-orca-host-connection") {
+      const draft = {
+        name: $("[data-orca-host-name]")?.value || "",
+        url: $("[data-orca-host-url]")?.value || "",
+        username: $("[data-orca-host-user]")?.value || "opensybau",
+        password: $("[data-orca-host-pass]")?.value || "",
+        quickPair: $("[data-orca-quick-pair-input]")?.value || "",
+      };
+      view.orcaConnectDraft = draft;
+      view.orcaConnectProbeResult = await probeRemoteHost(draft);
+      refreshOrcaConnectModalIfOpen({ showModal });
+      showToast(view.orcaConnectProbeResult.ok ? `Ping thành công (${view.orcaConnectProbeResult.latencyMs}ms)!` : view.orcaConnectProbeResult.error);
+      return;
+    }
+    if (action === "save-connect-orca-host") {
+      const draft = {
+        name: $("[data-orca-host-name]")?.value || "",
+        url: $("[data-orca-host-url]")?.value || "",
+        username: $("[data-orca-host-user]")?.value || "opensybau",
+        password: $("[data-orca-host-pass]")?.value || "",
+      };
+      const probe = await probeRemoteHost(draft);
+      view.orcaConnectProbeResult = probe;
+      if (!probe.ok) {
+        view.orcaConnectDraft = draft;
+        refreshOrcaConnectModalIfOpen({ showModal });
+        showToast(probe.error);
+        return;
+      }
+      const saved = setActiveRemoteHost({
+        ...draft,
+        name: draft.name || probe.info?.hostname || draft.url,
+        hostname: probe.info?.hostname || "",
+        platform: probe.info?.platform || "",
+        latencyMs: probe.latencyMs,
+      });
+      view.connectionInfo = probe.info || view.connectionInfo;
+      view.streamConnected = true;
+      closeOverlay();
+      connectEventStream();
+      await refresh({ configuration: true });
+      showToast(`Đã kết nối tới máy chủ ${saved.name} (${probe.latencyMs}ms)!`);
+      return;
+    }
+    if (action === "connect-saved-host") {
+      const target = getSavedRemoteHosts().find((item) => item.id === id);
+      if (!target) return;
+      const probe = await probeRemoteHost(target);
+      if (!probe.ok) {
+        view.orcaConnectDraft = { ...target };
+        view.orcaConnectProbeResult = probe;
+        refreshOrcaConnectModalIfOpen({ showModal });
+        showToast(probe.error);
+        return;
+      }
+      const saved = setActiveRemoteHost({
+        ...target,
+        hostname: probe.info?.hostname || target.hostname || "",
+        platform: probe.info?.platform || target.platform || "",
+        latencyMs: probe.latencyMs,
+      });
+      view.connectionInfo = probe.info || view.connectionInfo;
+      view.streamConnected = true;
+      closeOverlay();
+      connectEventStream();
+      await refresh({ configuration: true });
+      showToast(`Đã chuyển sang máy chủ ${saved.name} (${probe.latencyMs}ms)!`);
+      return;
+    }
+    if (action === "disconnect-remote-host") {
+      setActiveRemoteHost(null);
+      view.orcaConnectProbeResult = null;
+      connectEventStream();
+      refreshOrcaConnectModalIfOpen({ showModal });
+      await refresh({ configuration: true }).catch(() => {});
+      showToast("Đã ngắt kết nối máy chủ từ xa.");
+      return;
+    }
+    if (action === "edit-saved-host") {
+      const target = getSavedRemoteHosts().find((item) => item.id === id);
+      if (target) {
+        view.orcaConnectDraft = { ...target, quickPair: "" };
+        view.orcaConnectProbeResult = null;
+        refreshOrcaConnectModalIfOpen({ showModal });
+      }
+      return;
+    }
+    if (action === "remove-saved-host") {
+      removeRemoteHostProfile(id);
+      refreshOrcaConnectModalIfOpen({ showModal });
+      showToast("Đã xóa máy chủ khỏi danh sách lưu.");
+      return;
+    }
     if (action === "provider-connect-cli") { showCliProviderModal(); return; }
     if (action === "provider-cli-refresh") {
       await scanCliProviders(button, { openModal: Boolean(button.closest("#overlay")) });
@@ -5500,10 +4290,72 @@ async function handleWorkbenchClick(event) {
       const tabId = button.dataset.tabId || view.activeStageTabId;
       const tab = (view.stageTabs || []).find((item) => item.id === tabId);
       if (tab && button.dataset.mode) {
+        if (button.dataset.mode === "edit" && typeof tab.editDraft !== "string") {
+          tab.editDraft = tab.fileData?.content ?? "";
+        }
         tab.mode = button.dataset.mode;
         view.stageLineCommentTarget = null;
         render();
       }
+      return;
+    }
+    if (action === "cancel-stage-file-edit") {
+      const tabId = button.dataset.tabId || view.activeStageTabId;
+      const tab = (view.stageTabs || []).find((item) => item.id === tabId);
+      if (tab) {
+        delete tab.editDraft;
+        tab.mode = defaultFileTabMode(tab.ext);
+        render();
+      }
+      return;
+    }
+    if (action === "save-stage-file") {
+      const tabId = button.dataset.tabId || view.activeStageTabId;
+      const tab = (view.stageTabs || []).find((item) => item.id === tabId);
+      if (!tab || !tab.workspaceId || !tab.path) return;
+      const editorEl = document.querySelector(`[data-stage-file-editor="${CSS.escape(tab.id)}"]`) || document.querySelector("[data-stage-file-editor]");
+      const content = editorEl ? editorEl.value : (tab.editDraft ?? tab.fileData?.content ?? "");
+      const saved = await api(`/api/workspaces/${encodeURIComponent(tab.workspaceId)}/file`, {
+        method: "PUT",
+        body: JSON.stringify({
+          path: tab.path,
+          taskId: tab.taskId || "",
+          content,
+        }),
+      });
+      tab.fileData = saved;
+      delete tab.editDraft;
+      tab.mode = defaultFileTabMode(tab.ext);
+      tab.loadedAt = Date.now();
+      render();
+      showToast(`Đã lưu tệp ${tab.path}.`);
+      return;
+    }
+    if (action === "open-github-issues") {
+      const selectedTask = view.selected ? (view.state?.tasks || []).find((t) => t.id === view.selected) : null;
+      const wsId = button.dataset.workspaceId || (view.page === "workspaces" && view.selected ? view.selected : "") || selectedTask?.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+      if (wsId) await openGithubIssuesModal(wsId, { api, showModal });
+      return;
+    }
+    if (action === "open-github-create-pr") {
+      const task = view.state.tasks.find((item) => item.id === (id || view.selected));
+      if (task) openGithubCreatePrModal(task, { showModal });
+      return;
+    }
+    if (action === "import-github-issue") {
+      const wsId = button.dataset.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+      const num = button.dataset.issueNumber || "";
+      const title = button.dataset.issueTitle || "";
+      const bodyText = button.dataset.issueBody || "";
+      const issueUrl = button.dataset.issueUrl || "";
+      closeOverlay();
+      view.page = "chat";
+      view.selected = null;
+      if (wsId) view.homeWorkspaceId = wsId;
+      view.chatDraft = `Giải quyết GitHub Issue #${num}: ${title}\n${issueUrl ? `URL: ${issueUrl}\n` : ""}${bodyText ? `\nMô tả chi tiết:\n${bodyText}` : ""}`.trim();
+      render();
+      $("[data-home-prompt]")?.focus();
+      showToast(`Đã nạp GitHub Issue #${num} vào khung tạo tác vụ.`);
       return;
     }
     if (action === "reload-stage-tab") {
@@ -6064,13 +4916,18 @@ async function handleWorkbenchClick(event) {
     if (action === "back-flows") { view.selected = null; view.page = "flows"; render(); }
     if (action === "back-chat") { view.selected = id; view.page = "chat"; render(); }
     if (action === "open-workspace") await loadWorkspaceDir(id, "");
-    if (action === "back-projects") { view.selected = null; view.page = "workspaces"; render(); }
+    if (action === "back-projects") { view.workspaceOverviewMode = true; view.activeStageTabId = "chat"; view.page = "workspaces"; render(); }
     if (action === "workspace-dir") await loadWorkspaceDir(view.selected, button.dataset.path || "");
     if (action === "workspace-up") { const parent = view.workspaceDir.split("/").filter(Boolean).slice(0, -1).join("/"); await loadWorkspaceDir(view.selected, parent); }
     if (action === "workspace-file-action") {
       const entry = view.workspaceEntries.find((item) => item.path === button.dataset.path);
       if (entry?.type === "directory") await loadWorkspaceDir(view.selected, entry.path);
-      else if (entry) await loadWorkspacePreview(view.selected, entry.path);
+      else if (entry) {
+        await Promise.all([
+          loadWorkspacePreview(view.selected, entry.path),
+          openStageFileTab({ workspaceId: view.selected, taskId: "", path: entry.path }),
+        ]);
+      }
     }
     if (action === "refresh-project-files") await loadWorkspaceDir(view.selected, view.workspaceDir);
     if (action === "vault-dir") await loadVaultDir(button.dataset.path || "");
@@ -6222,7 +5079,21 @@ async function handleWorkbenchClick(event) {
         showToast(result.readonlySourcesRemain ? "Đã xóa bản cá nhân; bản plugin chỉ đọc vẫn còn." : "Đã xóa skill cá nhân.");
       }
     }
-    if (action === "remove-workspace") { if (confirm("Gỡ dự án khỏi OpenSybau? Thư mục và tệp trên máy sẽ không bị xóa.")) { await api(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE" }); view.projectMenuId = ""; if (view.page === "workspaces" && view.selected === id) { view.selected = null; view.workspaceDir = ""; view.workspaceEntries = []; view.filePreview = null; } await refresh(); } }
+    if (action === "remove-workspace") {
+      if (confirm("Gỡ dự án khỏi OpenSybau? Thư mục và tệp trên máy sẽ không bị xóa.")) {
+        await api(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE" });
+        view.projectMenuId = "";
+        if (view.homeWorkspaceId === id) view.homeWorkspaceId = "";
+        if (view.page === "workspaces" && view.selected === id) {
+          view.selected = null;
+          view.workspaceDir = "";
+          view.workspaceEntries = [];
+          view.workspaceLoadedKey = "";
+          view.filePreview = null;
+        }
+        await refresh();
+      }
+    }
     if (action === "delete-memory") { if (confirm("Xóa ghi nhớ này?")) { await api(`/api/memory/${encodeURIComponent(id)}`, { method: "DELETE" }); await refresh(); } }
   } catch (error) { showToast(error.message); }
 }
@@ -6357,6 +5228,13 @@ document.addEventListener("input", (event) => {
   const skillEditor = event.target.closest("[data-skill-inline-editor]");
   if (skillEditor) {
     view.skillDraft = skillEditor.value;
+    return;
+  }
+  const stageFileEditor = event.target.closest("[data-stage-file-editor]");
+  if (stageFileEditor) {
+    const tabId = stageFileEditor.dataset.stageFileEditor || view.activeStageTabId;
+    const tab = (view.stageTabs || []).find((item) => item.id === tabId);
+    if (tab) tab.editDraft = stageFileEditor.value;
     return;
   }
   const input = event.target.closest("[data-skill-filter]");
@@ -6550,6 +5428,11 @@ document.addEventListener("keydown", (event) => {
     document.querySelector("[data-action='vault-save-note']")?.click();
     return;
   }
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && document.querySelector("[data-stage-file-editor]")) {
+    event.preventDefault();
+    document.querySelector("[data-action='save-stage-file']")?.click();
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault(); view.page = "chat"; view.selected = null; view.chatDraft = ""; render(); $(`[data-home-prompt]`)?.focus({ preventScroll: true }); return;
   }
@@ -6630,18 +5513,63 @@ window.addEventListener("popstate", () => {
     hydrateRouteData().catch((error) => showToast(error.message));
   }
 });
-const events = new EventSource("/__events");
-events.addEventListener("update", () => scheduleRefresh(220));
-events.addEventListener("open", () => {
-  const changed = !view.streamConnected;
-  view.streamConnected = true;
-  if (changed && ["tasks", "chat"].includes(view.page)) render({ background: true });
-  if (view.state) scheduleRefresh(0);
-});
-events.addEventListener("error", () => {
-  if (!view.streamConnected) return;
-  view.streamConnected = false;
-  if (["tasks", "chat"].includes(view.page)) render({ background: true });
+let events = null;
+let remotePollTimer = null;
+
+function connectEventStream() {
+  try { events?.close?.(); } catch {}
+  events = null;
+  if (remotePollTimer) {
+    clearInterval(remotePollTimer);
+    remotePollTimer = null;
+  }
+  const activeHost = getActiveRemoteHost();
+  if (activeHost?.url && activeHost.password) {
+    // Authenticated cross-origin Android APK connection uses fast ETag conditional polling
+    view.streamConnected = true;
+    remotePollTimer = setInterval(() => {
+      if (!document.hidden) scheduleRefresh(0);
+    }, 2500);
+    return;
+  }
+  try {
+    events = new EventSource(resolveRemoteUrl("/__events"));
+    events.addEventListener("update", () => scheduleRefresh(220));
+    events.addEventListener("open", () => {
+      const changed = !view.streamConnected;
+      view.streamConnected = true;
+      if (changed && ["tasks", "chat"].includes(view.page)) render({ background: true });
+      if (view.state) scheduleRefresh(0);
+    });
+    events.addEventListener("error", () => {
+      if (!view.streamConnected) return;
+      view.streamConnected = false;
+      if (["tasks", "chat"].includes(view.page)) render({ background: true });
+    });
+  } catch {
+    view.streamConnected = false;
+  }
+}
+
+connectEventStream();
+window.addEventListener("opensybau:pair", async (event) => {
+  const uri = String(event?.detail?.uri || event?.detail || "").trim();
+  if (!uri) return;
+  try {
+    const parsed = parsePairingInput(uri);
+    view.orcaConnectTab = "client";
+    view.orcaConnectDraft = {
+      name: parsed.name || "",
+      url: parsed.url || "",
+      username: parsed.username || "opensybau",
+      password: parsed.password || "",
+      quickPair: uri,
+    };
+    view.orcaConnectProbeResult = await probeRemoteHost(view.orcaConnectDraft);
+    await openOrcaConnectModal({ api, showModal });
+  } catch (error) {
+    showToast(error.message);
+  }
 });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) scheduleRefresh(80); });
 

@@ -1,0 +1,1146 @@
+/* ==========================================================================
+   Unified Orca / Codex Right Sidebar Dock & Minimalist Center Stage (v0.2.71)
+   - Global Right Dock with 4-icon Topbar (Files, Search, Git, Checklist)
+     + Top-Right Sidebar Toggle Icon (`sidebar-right` ◨)
+   - Resizable Right Sidebar ONLY (--right-dock-width, 220px..620px)
+   - Collapsible Hierarchical Folder/File Tree matching reference screenshot
+   ========================================================================== */
+
+body.is-resizing-dock,
+body.is-resizing-dock * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.wb-main,
+.wb-main-surface {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wb-workspace-split {
+  flex: 1 1 auto !important;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+  overflow: hidden;
+}
+
+.wb-workspace-split.has-right-dock,
+.wb-app-shell.has-right-dock .wb-workspace-split {
+  grid-template-columns: minmax(0, 1fr) var(--right-dock-width, 288px) !important;
+  grid-template-rows: minmax(0, 1fr) !important;
+}
+
+.wb-stage-column {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden;
+}
+
+.wb-stage-column > #content {
+  flex: 1 1 auto !important;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Split conversations share the existing tab strip and reach the stage edges. */
+.wb-main.is-chat-split {
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+.wb-main.is-chat-split .wb-stage-column > #content {
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+}
+.wb-main.is-chat-split .multi-chat-page {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--wb-main) !important;
+}
+.wb-main.is-chat-split .multi-chat-toolbar,
+.wb-main.is-chat-split .multi-chat-pane { background: var(--wb-main) !important; }
+.wb-main.is-chat-split .multi-chat-grid { background: var(--wb-line) !important; }
+.wb-main.is-chat-split .multi-chat-picker { top: 6px; }
+.wb-main.is-chat-split .orca-tabbar { background: var(--wb-main) !important; }
+.wb-main.is-chat-split .multi-chat-grid.is-four {
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.wb-main.is-chat-split .multi-chat-pane > header small {
+  color: var(--wb-muted);
+}
+.wb-fanout-title { white-space: nowrap; }
+
+.wb-home-dock-trigger {
+  position: absolute;
+  top: 7px;
+  right: 12px;
+  z-index: 25;
+}
+
+.wb-dock-toggle-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--wb-tint) 62%, transparent);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.wb-dock-toggle-btn:hover,
+.wb-dock-toggle-btn.is-active {
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  color: var(--wb-ink-strong);
+}
+
+/* Global Right Sidebar Dock (.orca-right-dock) */
+.orca-right-dock {
+  position: relative;
+  width: var(--right-dock-width, 288px);
+  min-width: 220px;
+  max-width: 620px;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  background: var(--wb-sidebar);
+  overflow: hidden;
+}
+
+.orca-dock-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 20;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.orca-dock-resizer:hover,
+body.is-resizing-dock .orca-dock-resizer {
+  background: color-mix(in srgb, var(--wb-tint) 24%, transparent);
+}
+
+/* Top 4-Icon Bar + Right Sidebar Toggle Button (44px height aligned with .wb-topbar) */
+.orca-dock-topbar {
+  flex: 0 0 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 0 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  background: var(--wb-sidebar);
+}
+
+.orca-dock-tabs {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  gap: 2px;
+}
+
+.orca-dock-tab {
+  position: relative;
+  width: 34px;
+  height: 44px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--wb-tint) 46%, transparent);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.orca-dock-tab:hover {
+  color: color-mix(in srgb, var(--wb-tint) 85%, transparent);
+}
+
+.orca-dock-tab.is-active {
+  color: var(--wb-ink-strong);
+}
+
+.orca-dock-tab.is-active::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--wb-ink-strong);
+}
+
+.orca-dock-toggle {
+  width: 28px !important;
+  height: 28px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: color-mix(in srgb, var(--wb-tint) 60%, transparent) !important;
+}
+
+.orca-dock-toggle:hover {
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
+  color: var(--wb-ink-strong) !important;
+}
+
+/* Subheader (`acme-web   🔄 •••`) */
+.orca-dock-subheader {
+  flex: 0 0 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px 0 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 5%, transparent);
+}
+
+.orca-dock-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--wb-ink-strong);
+}
+
+.orca-dock-subactions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.orca-sub-btn {
+  width: 24px !important;
+  height: 24px !important;
+  border: 0 !important;
+  border-radius: 5px !important;
+  background: transparent !important;
+  color: color-mix(in srgb, var(--wb-tint) 55%, transparent) !important;
+}
+
+.orca-sub-btn:hover {
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
+  color: var(--wb-ink-strong) !important;
+}
+
+/* Right Dock Scrollable Body & Collapsible Tree */
+.orca-dock-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0 10px;
+}
+
+.orca-tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.orca-tree-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.orca-tree-row {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 27px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 10px;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--wb-tint) 84%, transparent);
+  font-size: 12.5px;
+  font-weight: 460;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.orca-tree-item:hover .orca-tree-row {
+  background: color-mix(in srgb, var(--wb-tint) 5%, transparent);
+  color: var(--wb-ink-strong);
+}
+
+.orca-tree-row.is-selected {
+  background: color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  color: var(--wb-ink-strong);
+  font-weight: 560;
+}
+
+.orca-tree-caret {
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+  display: inline-grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--wb-tint) 45%, transparent);
+  transition: transform 120ms ease;
+}
+
+.orca-tree-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.orca-tree-icon {
+  flex: 0 0 14px;
+  display: inline-grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--wb-tint) 55%, transparent);
+}
+
+.orca-tree-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orca-tree-badge {
+  flex: 0 0 auto;
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px !important;
+  color: color-mix(in srgb, var(--wb-tint) 42%, transparent) !important;
+}
+
+.orca-diff-dot {
+  flex: 0 0 auto;
+  font-family: var(--wb-font-sans);
+  font-size: 10px !important;
+  font-weight: 700;
+  color: var(--wb-amber) !important;
+}
+
+.orca-tree-quick {
+  position: absolute;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  color: var(--wb-ink);
+  font-family: var(--wb-font-sans);
+  font-size: 11px;
+  display: none;
+  place-items: center;
+  cursor: pointer;
+}
+
+.orca-tree-item:hover .orca-tree-quick {
+  display: inline-grid;
+}
+
+.orca-tree-item .vault-note-menu {
+  position: absolute;
+  right: 6px;
+}
+
+.orca-dock-search-wrap {
+  padding: 6px 10px 8px;
+}
+
+.orca-dock-search {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
+  color: color-mix(in srgb, var(--wb-tint) 50%, transparent);
+}
+
+.orca-dock-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--wb-ink-strong) !important;
+  font-size: 12px !important;
+  outline: none !important;
+  padding: 0 !important;
+}
+
+.orca-dock-pad {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.orca-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.orca-section-label {
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--wb-tint) 45%, transparent);
+  text-transform: uppercase;
+}
+
+.orca-merge-btn {
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.orca-muted-note {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--wb-tint) 44%, transparent);
+}
+
+.orca-dock-empty {
+  padding: 18px 14px;
+  text-align: center;
+  color: color-mix(in srgb, var(--wb-tint) 45%, transparent);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.orca-dock-preview {
+  margin: 8px 8px 0;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 9%, transparent);
+  border-radius: 8px;
+  background: var(--wb-panel-header);
+  display: flex;
+  flex-direction: column;
+  max-height: 240px;
+  overflow: hidden;
+}
+
+.orca-dock-preview > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent);
+  font-size: 11px;
+}
+
+.orca-dock-preview > header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.orca-dock-preview > header > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.orca-dock-preview pre {
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  font-family: var(--wb-font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--wb-ink);
+}
+
+/* Minimalist Single-Stage Center Content (.minimal-center-stage) */
+.minimal-center-stage {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.minimal-stage-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--wb-tint) 2.5%, transparent);
+  margin-bottom: 16px;
+}
+
+.minimal-stage-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.minimal-stage-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  display: inline-grid;
+  place-items: center;
+  color: var(--wb-ink-strong);
+}
+
+.minimal-stage-title h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--wb-ink-strong);
+}
+
+.minimal-stage-title p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--wb-tint) 50%, transparent);
+}
+
+.minimal-stage-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.minimal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.minimal-section-head strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--wb-tint) 60%, transparent);
+}
+
+.minimal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.minimal-list-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--wb-tint) 2%, transparent);
+  color: var(--wb-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.minimal-list-row:hover {
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  border-color: color-mix(in srgb, var(--wb-tint) 14%, transparent);
+}
+
+.minimal-list-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 540;
+}
+
+.minimal-list-row small {
+  color: color-mix(in srgb, var(--wb-tint) 44%, transparent) !important;
+  font-size: 11px !important;
+}
+
+/* Left ContextSidebar Fanout Multi-Thread Tree (.wb-fanout-group) */
+.wb-fanout-group {
+  margin: 2px 0;
+}
+
+.wb-fanout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 0 3px 0 4px;
+  height: 32px;
+  border-radius: 6px;
+}
+
+.wb-fanout-head:hover {
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+}
+
+.wb-fanout-actions { height: 32px; display: flex; align-items: center; padding: 0 3px; }
+.wb-fanout-actions .wb-task-action {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none;
+}
+.wb-fanout-actions .wb-task-action:hover { color: var(--wb-ink-strong); }
+.wb-fanout-actions .wb-task-action:focus-visible { outline: 1px solid var(--wb-muted); outline-offset: -2px; }
+
+.wb-fanout-toggle {
+  flex: 1;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--wb-tint) 72%, transparent);
+  font-size: 12px;
+  font-weight: 560;
+  cursor: pointer;
+  text-align: left;
+}
+
+.wb-fanout-caret {
+  display: inline-grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--wb-tint) 45%, transparent);
+  transition: transform 120ms ease;
+}
+
+.wb-fanout-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.wb-fanout-compare {
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
+  color: color-mix(in srgb, var(--wb-tint) 70%, transparent);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.wb-fanout-compare:hover {
+  background: color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  color: var(--wb-ink-strong);
+}
+
+.wb-fanout-children {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 4px 20px;
+  border: 0;
+}
+
+/* Rounded branches follow the centers of the parent disclosure icons. */
+.wb-project-children {
+  --chat-tree-line: color-mix(in srgb, var(--wb-tint) 22%, transparent);
+  gap: 4px;
+  margin-left: 0;
+  padding: 4px 0 4px 20px;
+  border: 0;
+}
+.wb-project-children > *, .wb-fanout-children > * { position: relative; }
+.wb-project-children > .wb-fanout-group { margin: 0; }
+.wb-project-children > *::before,
+.wb-fanout-children > *::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: -7px;
+  width: 12px;
+  height: 20px;
+  border-left: 1.5px solid var(--chat-tree-line);
+  border-bottom: 1.5px solid var(--chat-tree-line);
+  border-bottom-left-radius: 8px;
+  pointer-events: none;
+}
+.wb-project-children > *:not(:last-child)::after,
+.wb-fanout-children > *:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: -4px;
+  left: -7px;
+  border-left: 1.5px solid var(--chat-tree-line);
+  pointer-events: none;
+}
+.wb-fanout-children > *::before { left: -10px; width: 14px; }
+.wb-fanout-children > *:not(:last-child)::after { left: -10px; }
+.wb-fanout-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ==========================================================================
+   Unified Clean Chat Conversation Stage (.task-conversation-page.is-unified-chat)
+   Matches the minimalist normal chat view (.command-home) with all auxiliary
+   task buttons moved into the resizable Right Sidebar (.orca-right-dock)
+   ========================================================================== */
+.wb-page-content.is-task-detail {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.wb-page-content .task-conversation-page.is-unified-chat,
+.wb-page-content .task-conversation-page.is-unified-chat .conversation-chat-pane {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+
+.wb-page-content .task-conversation-page.is-unified-chat .conversation-chat-pane {
+  position: relative !important;
+  container-name: chat-pane;
+  container-type: inline-size;
+}
+
+.chat-outline-nav {
+  position: absolute;
+  z-index: 6;
+  top: 16px;
+  left: 12px;
+  width: 26px;
+  height: calc(100% - 150px);
+  overflow: visible;
+  transform: none;
+}
+
+.wb-mobile-outline-toggle { display: none !important; }
+
+.chat-outline-track {
+  position: relative;
+  height: 100%;
+  overflow: visible;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 0;
+  background: none;
+}
+
+.chat-outline-track::-webkit-scrollbar { display: none; }
+.chat-outline-track.is-scrollable {
+  overflow-x: visible;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--wb-subtle) transparent;
+}
+.chat-outline-track.is-scrollable::-webkit-scrollbar { display: block; width: 4px; }
+.chat-outline-track.is-scrollable::-webkit-scrollbar-thumb { border-radius: 4px; background: var(--wb-subtle); }
+
+.chat-outline-link {
+  position: absolute;
+  display: grid;
+  width: 26px;
+  height: 8px;
+  align-items: center;
+  justify-items: start;
+  padding: 0 0 0 4px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--wb-muted);
+  cursor: pointer;
+}
+
+.chat-outline-dot {
+  width: 6px;
+  height: 2px;
+  border: 0;
+  border-radius: 1px;
+  background: var(--wb-muted);
+  transform-origin: left center;
+  transition: width 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.chat-outline-link:hover .chat-outline-dot,
+.chat-outline-link:focus-visible .chat-outline-dot {
+  width: 12px;
+  background: var(--wb-ink);
+}
+.chat-outline-link > .chat-outline-preview { display: none; }
+
+.chat-outline-preview {
+  position: absolute;
+  top: 0;
+  left: 38px;
+  display: grid;
+  width: min(320px, calc(100cqw - 52px));
+  gap: 5px;
+  padding: 11px 12px;
+  border: 1px solid var(--wb-raised);
+  border-radius: 12px;
+  background: var(--wb-raised);
+  box-shadow: 0 6px 20px #0003;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-4px);
+  transition: opacity 110ms ease, transform 110ms ease;
+}
+
+.chat-outline-nav.is-previewing .chat-outline-tooltip {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.chat-outline-preview strong {
+  overflow: hidden;
+  color: var(--wb-ink-strong);
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-outline-preview > span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--wb-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.wb-page-content .task-conversation-page.is-unified-chat .chat-message[data-chat-answer-index] {
+  scroll-margin-top: 18px;
+}
+
+.wb-page-content .task-conversation-page.is-unified-chat .chat-thread {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  padding: 20px 24px 12px !important;
+  margin: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  display: block !important;
+}
+
+@container chat-pane (max-width: 860px) {
+  .chat-outline-nav {
+    left: 12px;
+  }
+}
+
+@media (max-width: 740px), (hover: none) {
+  .chat-outline-nav {
+    top: 10px !important;
+    right: 12px;
+    left: auto;
+    width: auto;
+    max-height: none;
+    height: auto !important;
+    transform: none;
+  }
+
+  .wb-mobile-outline-toggle { display: inline-grid !important; }
+
+  .chat-outline-track { display: none; }
+  .chat-outline-nav.is-open .chat-outline-track {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: grid;
+    width: min(320px, calc(100vw - 28px));
+    max-height: min(54dvh, 420px);
+    height: auto !important;
+    gap: 3px;
+    padding: 6px;
+    overflow: auto;
+    border: 1px solid var(--wb-subtle);
+    border-radius: 13px;
+    background: var(--wb-panel);
+    background-image: none;
+    box-shadow: 0 14px 36px #0008;
+    backdrop-filter: blur(16px);
+  }
+
+  .chat-outline-link {
+    position: static;
+    width: 100%;
+    min-height: 52px;
+    height: auto;
+    grid-template-columns: 18px minmax(0, 1fr);
+    justify-items: start;
+    gap: 7px;
+    padding: 8px;
+    border-radius: 8px;
+    text-align: left;
+  }
+
+  .chat-outline-link:hover,
+  .chat-outline-link:focus-visible { background: var(--wb-raised); }
+  .chat-outline-link > .chat-outline-preview {
+    position: static;
+    display: grid;
+    width: auto;
+    gap: 3px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+  .chat-outline-tooltip { display: none; }
+  .chat-outline-link .chat-outline-dot { width: 6px; }
+  .chat-outline-preview strong { font-size: 13px; }
+  .chat-outline-preview > span { font-size: 13px; -webkit-line-clamp: 2; }
+}
+
+.wb-page-content .task-conversation-page.is-unified-chat .chat-thread-stream {
+  width: min(740px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.wb-page-content .task-conversation-page.is-unified-chat .chat-message.from-user {
+  align-self: flex-end !important;
+  max-width: min(82%, 580px) !important;
+  padding: 10px 15px !important;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 9%, transparent) !important;
+  border-radius: 16px !important;
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
+  color: var(--wb-ink-strong) !important;
+}
+
+.wb-page-content .task-conversation-page.is-unified-chat .chat-message.from-agent {
+  align-self: stretch !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  padding: 2px 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.wb-page-content .task-conversation-page.is-unified-chat .chat-composer {
+  width: min(740px, calc(100% - 36px)) !important;
+  margin: 4px auto 12px !important;
+}
+
+.wb-page-content .multi-chat-pane > .task-conversation-page.is-unified-chat {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+.wb-page-content .multi-chat-pane .task-conversation-page.is-unified-chat .conversation-chat-pane {
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+.wb-page-content .multi-chat-pane .task-conversation-page.is-unified-chat .chat-composer {
+  width: calc(100% - 24px) !important;
+  max-width: none !important;
+  margin: 4px 12px 8px !important;
+}
+.wb-page-content .multi-chat-pane .task-conversation-page .chat-composer:focus-within {
+  border-color: inherit !important;
+  box-shadow: none !important;
+}
+.wb-page-content .multi-chat-pane .chat-input:focus,
+.wb-page-content .multi-chat-pane .chat-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+.wb-page-content .multi-chat-pane .chat-thread,
+.wb-page-content .multi-chat-pane .chat-thread-stream,
+.wb-page-content .multi-chat-pane .chat-message,
+.wb-page-content .multi-chat-pane .chat-message-content {
+  min-width: 0;
+  max-width: 100%;
+}
+.wb-page-content .multi-chat-pane .chat-message-content :is(p, li, code, pre, blockquote) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.wb-page-content .multi-chat-pane .chat-message-content pre { max-width: 100%; overflow-x: auto; }
+
+.wb-chat-breadcrumb strong {
+  color: var(--wb-ink-strong);
+  font-weight: 560;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Task Quick Actions Grid inside the Right Sidebar (.orca-right-dock) */
+.orca-dock-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.orca-dock-actions-grid .button {
+  width: 100%;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding: 0 8px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  font-size: 11.5px !important;
+  border-radius: 6px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Clean Single-Line Left Sidebar Task & Project Rows (v0.2.73) */
+.wb-project-toggle {
+  min-height: 32px !important;
+  gap: 7px !important;
+  padding: 4px 6px 4px 8px !important;
+}
+
+.wb-project-toggle > strong {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 12.5px !important;
+  font-weight: 560 !important;
+  color: var(--wb-ink) !important;
+}
+
+.wb-task-link {
+  min-height: 32px !important;
+  padding: 4px 8px !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+.wb-task-item .wb-task-link { width: auto !important; }
+.wb-task-item .wb-task-actions {
+  height: 32px;
+  min-width: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 0 !important;
+  padding: 0 2px !important;
+}
+.wb-task-item .wb-task-action {
+  width: 24px !important;
+  height: 24px !important;
+  border: 0 !important;
+  border-radius: 5px !important;
+  color: color-mix(in srgb, var(--wb-tint) 58%, transparent) !important;
+  background: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+.wb-task-item:hover .wb-task-action,
+.wb-task-item:focus-within .wb-task-action { color: color-mix(in srgb, var(--wb-tint) 78%, transparent) !important; }
+.wb-task-item .wb-task-action:hover,
+.wb-task-item .wb-task-action:focus-visible {
+  color: var(--wb-ink-strong) !important;
+  background: transparent !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+.wb-task-item:hover,
+.wb-task-item:focus-within,
+.wb-project-row:hover,
+.wb-project-row:focus-within,
+.wb-fanout-head:hover,
+.wb-recent-list .wb-task-item:hover,
+.wb-recent-list .wb-task-item:focus-within { background: color-mix(in srgb, var(--wb-tint) 6%, transparent) !important; }
+.wb-task-item.is-selected:hover,
+.wb-task-item.is-selected:focus-within { background: color-mix(in srgb, var(--wb-tint) 10%, transparent) !important; }
+
+.wb-task-title-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+.wb-task-title-row > strong {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 12.5px !important;
+  font-weight: 470 !important;
+  line-height: 1.35 !important;
+}
+
+.wb-task-time {
+  flex: 0 0 auto !important;
+  color: color-mix(in srgb, var(--wb-tint) 38%, transparent) !important;
+  font-size: 11px !important;
+  font-weight: 450 !important;
+}
+

@@ -1,0 +1,1055 @@
+/* ==========================================================================
+   ORCA Multi-Window Tab Bar & Format-Aware File / Diff Review Workbench
+   ========================================================================== */
+
+:root {
+  --stage-split-ratio: 48%;
+}
+
+.wb-topbar.orca-tabbar {
+  display: flex !important;
+  align-items: stretch !important;
+  justify-content: space-between !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  padding: 0 8px 0 0 !important;
+  background: var(--wb-code-bg) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6.5%, transparent) !important;
+  gap: 8px !important;
+  user-select: none;
+}
+
+.orca-tabbar-scroll {
+  display: flex !important;
+  align-items: stretch !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none;
+}
+
+.orca-tabbar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.orca-tab {
+  position: relative;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  height: 100% !important;
+  max-width: 220px !important;
+  min-width: 96px !important;
+  padding: 0 12px !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-right: 1px solid color-mix(in srgb, var(--wb-tint) 5.5%, transparent) !important;
+  border-top: 2px solid transparent !important;
+  color: var(--wb-muted) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+  flex: 0 0 auto;
+}
+
+.orca-tab:hover {
+  background: color-mix(in srgb, var(--wb-tint) 3%, transparent) !important;
+  color: var(--wb-ink) !important;
+}
+
+.orca-tab.is-active {
+  background: var(--wb-panel-header) !important;
+  color: var(--wb-ink-strong) !important;
+  border-top-color: var(--wb-ink-strong) !important;
+  font-weight: 560 !important;
+}
+
+.orca-tab.is-split-pinned {
+  background: color-mix(in srgb, var(--wb-tint) 4%, transparent) !important;
+  color: var(--wb-ink) !important;
+  border-top-color: color-mix(in srgb, var(--wb-tint) 45%, transparent) !important;
+}
+
+.orca-tab-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.orca-tab-badge {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  color: var(--wb-ink);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.orca-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin-left: 2px;
+  margin-right: -4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: color-mix(in srgb, var(--wb-tint) 42%, transparent);
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.orca-tab:hover .orca-tab-close,
+.orca-tab.is-active .orca-tab-close {
+  opacity: 1;
+}
+
+.orca-tab-close:hover {
+  background: color-mix(in srgb, var(--wb-tint) 12%, transparent);
+  color: var(--wb-ink-strong);
+}
+
+.orca-tabbar-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wb-subtle);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.orca-tabbar-add:hover {
+  color: var(--wb-ink-strong);
+  background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
+}
+
+.orca-tabbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex: 0 0 auto !important;
+}
+
+.wb-top-icon.is-active {
+  background: color-mix(in srgb, var(--wb-tint) 12%, transparent) !important;
+  color: var(--wb-ink-strong) !important;
+}
+
+/* Stage Split-Pane & Full Tab Stage */
+#content.is-orca-tab-stage {
+  padding: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.orca-stage-split-layout {
+  display: grid !important;
+  grid-template-columns: minmax(280px, var(--stage-split-ratio, 48%)) 5px minmax(320px, 1fr) !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.orca-stage-pane {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.orca-stage-pane.is-primary {
+  overflow-y: auto !important;
+  background: var(--wb-panel-header) !important;
+}
+
+.orca-stage-pane.is-primary > .task-conversation-page {
+  height: 100% !important;
+}
+
+.orca-stage-pane.is-primary > .command-home {
+  min-height: 100% !important;
+  padding: 20px 16px !important;
+}
+
+.orca-stage-split-resizer {
+  width: 5px;
+  height: 100%;
+  background: color-mix(in srgb, var(--wb-tint) 5.5%, transparent);
+  cursor: col-resize;
+  transition: background 120ms ease;
+  z-index: 15;
+}
+
+.orca-stage-split-resizer:hover {
+  background: color-mix(in srgb, var(--wb-tint) 24%, transparent);
+}
+
+/* ORCA File Viewer & Sub-Toolbar */
+.orca-file-viewer {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  background: var(--wb-code-bg) !important;
+  overflow: hidden !important;
+}
+
+.orca-viewer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  padding: 4px 10px;
+  background: var(--wb-panel-header);
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6.5%, transparent);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.orca-viewer-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.orca-viewer-icon {
+  width: 26px !important;
+  height: 26px !important;
+  border-radius: 6px !important;
+  color: var(--wb-muted) !important;
+}
+
+.orca-viewer-icon:hover {
+  background: color-mix(in srgb, var(--wb-tint) 7%, transparent) !important;
+  color: var(--wb-ink-strong) !important;
+}
+
+.orca-viewer-address {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--wb-tint) 3.5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent);
+}
+
+.orca-format-pill {
+  flex: 0 0 auto;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--wb-tint) 9%, transparent);
+  color: var(--wb-ink-strong);
+  font-size: 9.5px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+.orca-address-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--wb-font-sans);
+  font-size: 12px;
+  color: var(--wb-ink);
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.orca-address-size {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: var(--wb-subtle);
+}
+
+.orca-viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.orca-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 6.5%, transparent);
+}
+
+.orca-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 23px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--wb-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.orca-mode-btn:hover {
+  color: var(--wb-ink);
+}
+
+.orca-mode-btn.is-active {
+  background: var(--wb-primary-bg); color: var(--wb-primary-fg);
+  font-weight: 600;
+}
+
+.orca-viewer-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 3.5%, transparent);
+  color: var(--wb-ink);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.orca-viewer-action-btn:hover {
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  color: var(--wb-ink-strong);
+}
+
+.orca-viewer-action-btn.is-active {
+  background: var(--wb-primary-bg); color: var(--wb-primary-fg); border-color: var(--wb-primary-bg);
+  font-weight: 600;
+}
+
+/* Viewer Body Modes */
+.orca-viewer-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.orca-live-frame-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+}
+
+.orca-live-frame-wrap.is-pdf {
+  background: var(--wb-surface);
+}
+
+.orca-live-frame {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+
+.orca-live-frame.is-pdf {
+  background: var(--wb-surface);
+}
+
+.orca-live-floating-bar {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: var(--wb-surface-soft);
+  backdrop-filter: blur(10px);
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 12%, transparent);
+  color: var(--wb-ink);
+  font-size: 11.5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.orca-live-floating-bar > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.orca-float-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 14%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  color: var(--wb-ink-strong);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.orca-float-btn:hover {
+  background: color-mix(in srgb, var(--wb-tint) 14%, transparent);
+}
+
+/* Media & Image Stage */
+.orca-media-stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  overflow: auto;
+  background: radial-gradient(circle at center, color-mix(in srgb, var(--wb-tint) 3%, transparent) 0%, transparent 70%);
+}
+
+.orca-image-canvas {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  max-height: 100%;
+  padding: 0;
+  border-radius: 0;
+  background-color: var(--wb-panel-header);
+  background-image: linear-gradient(45deg, color-mix(in srgb, var(--wb-tint) 3%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--wb-tint) 3%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--wb-tint) 3%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--wb-tint) 3%, transparent) 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  border: 0;
+}
+
+.orca-media-stage.is-image { padding: 0; gap: 0; align-items: stretch; overflow: hidden; background: none; }
+
+.orca-image-preview {
+  position: absolute;
+  inset: 16px;
+  width: calc(100% - 32px);
+  height: calc(100% - 32px);
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.orca-video-player {
+  max-width: min(920px, 100%);
+  max-height: 72vh;
+  border-radius: 8px;
+  background: var(--wb-code-bg);
+}
+
+.orca-audio-player {
+  width: min(460px, 100%);
+}
+
+.orca-media-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--wb-muted);
+  font-size: 12px;
+}
+
+/* Markdown & CSV Table & Code Viewer */
+.orca-doc-scroll,
+.orca-code-scroll,
+.orca-diff-scroll,
+.orca-table-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+}
+
+.orca-markdown-doc {
+  max-width: 840px;
+  margin: 0 auto;
+  padding: 28px 32px 48px;
+}
+
+.orca-diff-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--wb-tint) 2.5%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  font-size: 12px;
+  color: var(--wb-muted);
+}
+
+.orca-diff-banner em.is-add {
+  color: var(--wb-green);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.orca-diff-banner em.is-del {
+  color: var(--wb-red);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.orca-code-lines {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0 28px;
+  font-family: var(--wb-font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.orca-code-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: baseline;
+  padding: 0 12px 0 0;
+  cursor: pointer;
+}
+
+.orca-code-row:hover {
+  background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
+}
+
+.orca-code-ln {
+  user-select: none;
+  text-align: right;
+  padding-right: 14px;
+  color: color-mix(in srgb, var(--wb-tint) 26%, transparent);
+  font-size: 11.5px;
+}
+
+.orca-code-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--wb-ink);
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+.orca-code-row .diff-comment-trigger {
+  opacity: 0;
+  font-family: var(--wb-font-sans);
+  font-size: 11px;
+  color: var(--wb-muted);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  transition: opacity 120ms ease;
+}
+
+.orca-code-row:hover .diff-comment-trigger {
+  opacity: 1;
+}
+
+.orca-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.orca-data-table th,
+.orca-data-table td {
+  padding: 7px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--wb-tint) 4%, transparent);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.orca-data-table th {
+  position: sticky;
+  top: 0;
+  background: var(--wb-panel-header);
+  color: var(--wb-ink-strong);
+  font-weight: 600;
+  z-index: 2;
+}
+
+.orca-data-table .is-row-num {
+  width: 44px;
+  text-align: right;
+  color: var(--wb-subtle);
+  font-family: var(--wb-font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.orca-viewer-empty {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px;
+  text-align: center;
+  color: var(--wb-muted);
+}
+
+.orca-viewer-empty strong {
+  color: var(--wb-ink-strong);
+  font-size: 14px;
+}
+
+.orca-viewer-empty-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* ==========================================================================
+   System-Wide UI Font Synchronization (v0.2.75)
+   Ensure all UI labels, timestamps, status bars, badges, and metadata use
+   the primary system sans-serif font (--wb-font-sans) with tabular numerals.
+   ========================================================================== */
+.wb-statusbar,
+.wb-statusbar *,
+.wb-task-time,
+.wb-context-sidebar,
+.wb-context-sidebar *:not(code):not(pre),
+.orca-right-dock,
+.orca-right-dock *:not(code):not(pre),
+.orca-tabbar,
+.orca-tabbar *,
+.orca-viewer-toolbar,
+.orca-viewer-toolbar *,
+.detail-id,
+.event-row time,
+.activity-item time,
+.workflow-node-mark,
+.conversation-task-id,
+.orchestration-node-details time,
+.orchestration-event time {
+  font-family: var(--wb-font-sans) !important;
+}
+
+.wb-statusbar,
+.wb-task-time,
+.orca-tree-badge,
+.kb-degree-pill,
+.kb-section-badge {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   v0.2.76 — Strict Horizontal Grid Line Alignment, Simplified File Viewer,
+   & Split-Pane Anti-Clipping Polish
+   ========================================================================== */
+
+/* 1. Row 1 Alignment: Lock all primary top bars to exact 40px height & shared border */
+.wb-topbar,
+.wb-topbar.orca-tabbar,
+.orca-dock-topbar,
+.kb-pane-head {
+  height: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  flex: 0 0 40px !important;
+  box-sizing: border-box !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent) !important;
+}
+
+.orca-dock-tab {
+  height: 39px !important;
+}
+
+.orca-tab {
+  height: 39px !important;
+  max-width: 210px !important;
+  min-width: 88px !important;
+  padding: 0 11px !important;
+}
+
+/* 2. Row 2 Alignment: Lock File Viewer Toolbar, Stage Topbar & Right Dock Subheader to exact 34px single-line height */
+.orca-viewer-toolbar,
+.orca-dock-subheader,
+.kb-stage-topbar {
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  flex: 0 0 34px !important;
+  padding: 0 12px !important;
+  flex-wrap: nowrap !important;
+  box-sizing: border-box !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
+  background: var(--wb-panel-header) !important;
+}
+
+.orca-viewer-nav {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.orca-viewer-address.is-url-bar {
+  height: 24px !important;
+  padding: 0 8px !important;
+  border-radius: 5px !important;
+  background: color-mix(in srgb, var(--wb-tint) 4%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent) !important;
+}
+
+.orca-viewer-file-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding-left: 2px;
+}
+
+.orca-meta-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 520;
+  color: var(--wb-ink);
+}
+
+.orca-meta-sub {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--wb-subtle);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.orca-meta-add {
+  color: var(--wb-green);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.orca-meta-del {
+  color: var(--wb-red);
+  font-style: normal;
+  font-weight: 600;
+}
+
+.orca-viewer-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex: 0 0 auto !important;
+}
+
+.orca-mode-switch {
+  padding: 2px !important;
+  border-radius: 6px !important;
+}
+
+.orca-mode-btn {
+  height: 22px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+}
+
+.orca-viewer-action-btn {
+  height: 24px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+  white-space: nowrap !important;
+}
+
+/* 3. Clean Full-Width Inline Line Comment Editor & Diff Rows */
+.diff-line-row {
+  display: grid !important;
+  grid-template-columns: 52px minmax(0, 1fr) auto !important;
+  align-items: baseline !important;
+  padding: 1px 12px 1px 0 !important;
+  font-family: var(--wb-font-mono) !important;
+  font-size: 12.5px !important;
+  line-height: 1.55 !important;
+  cursor: pointer;
+}
+
+.diff-line-row:hover {
+  background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
+}
+
+.diff-line-row.is-add {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.diff-line-row.is-del {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.diff-line-row.is-hunk {
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--wb-accent);
+}
+
+.diff-line-num {
+  user-select: none;
+  text-align: right;
+  padding-right: 14px;
+  color: color-mix(in srgb, var(--wb-tint) 28%, transparent);
+  font-size: 11.5px;
+}
+
+.diff-line-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--wb-ink);
+}
+
+.diff-line-row .diff-comment-trigger {
+  opacity: 0;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 11px;
+  color: var(--wb-muted);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+}
+
+.diff-line-row:hover .diff-comment-trigger {
+  opacity: 1;
+}
+
+.diff-comment-editor {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 6px 16px 8px 52px !important;
+  padding: 8px 10px !important;
+  border-radius: 8px !important;
+  background: var(--wb-panel) !important;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 12%, transparent) !important;
+  font-family: var(--wb-font-sans) !important;
+}
+
+.orca-live-floating-bar,
+.orca-diff-banner {
+  display: none !important;
+}
+
+.diff-comment-editor input {
+  flex: 1 1 auto !important;
+  min-width: 180px !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+  border-radius: 6px !important;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
+  background: var(--wb-code-bg) !important;
+  color: var(--wb-ink-strong) !important;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 12px !important;
+  outline: none !important;
+}
+
+.diff-comment-editor input:focus {
+  border-color: color-mix(in srgb, var(--wb-tint) 28%, transparent) !important;
+}
+
+/* 4. Split View Anti-Clipping & Compact Composer Controls */
+.codex-rail-pill {
+  max-width: 200px !important;
+  white-space: nowrap !important;
+}
+
+.codex-rail-pill > span {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 155px !important;
+}
+
+.orca-stage-pane.is-primary {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.orca-stage-pane.is-primary .command-home {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding: 20px 14px !important;
+  box-sizing: border-box !important;
+}
+
+.orca-stage-pane.is-primary .codex-home-stage,
+.orca-stage-pane.is-primary .codex-composer-shell {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.orca-stage-pane.is-primary .codex-context-rail {
+  gap: 8px !important;
+  padding: 6px 2px 0 !important;
+  flex-wrap: wrap !important;
+}
+
+.orca-stage-pane.is-primary .codex-rail-pill {
+  max-width: 150px !important;
+}
+
+.orca-stage-pane.is-primary .codex-rail-pill > span {
+  max-width: 112px !important;
+}
+
+.orca-stage-pane.is-primary .codex-pop-card {
+  min-width: 190px !important;
+  max-width: min(260px, calc(100vw - 320px)) !important;
+}
+
+/* ============================================================================
+   v0.2.78 — GLOBAL TYPOGRAPHY UNIFICATION & PAGE-SCOPED MEMORY PILLS
+   ============================================================================ */
+
+/* Force Nunito Sans Variable across all inputs, textareas, selects, modals, and UI elements */
+input,
+textarea,
+select,
+button,
+option,
+input::placeholder,
+textarea::placeholder,
+.modal,
+.modal input,
+.modal textarea,
+.modal select,
+.modal textarea[name="content"],
+.modal label,
+.modal small,
+.modal p,
+.modal h3,
+.vault-editor-textarea,
+.chat-input,
+.orca-dock-search input,
+.orca-address-input,
+.diff-comment-editor input,
+.empty-symbol,
+.brand-symbol,
+.repo-mark,
+.workflow-node-mark {
+  font-family: var(--wb-font-sans) !important;
+}
+
+/* Fix Memory Modal textarea height (don't inherit 340px skill editor height) */
+.modal[data-form="memory"] textarea[name="content"] {
+  min-height: 110px !important;
+  font-family: var(--wb-font-sans) !important;
+  font-size: 13px !important;
+  line-height: 1.55 !important;
+}
+
+/* Ensure inline <code> outside code blocks uses the clean system UI font */
+:not(pre) > code {
+  font-family: var(--wb-font-sans) !important;
+}
+
+/* Inline workspace scope filter pills on Memory page */
+.memory-scope-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+}
+
+.memory-scope-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 3%, transparent);
+  color: var(--wb-muted);
+  font-family: var(--wb-font-sans) !important;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.memory-scope-pill:hover {
+  background: color-mix(in srgb, var(--wb-tint) 7%, transparent);
+  color: var(--wb-ink-strong);
+}
+
+.memory-scope-pill.is-active {
+  background: color-mix(in srgb, var(--wb-tint) 12%, transparent);
+  border-color: color-mix(in srgb, var(--wb-tint) 22%, transparent);
+  color: var(--wb-ink-strong);
+}
+

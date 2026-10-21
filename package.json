@@ -9,7 +9,7 @@
   },
   "private": true,
   "license": "MIT",
-  "version": "0.2.101",
+  "version": "0.2.102",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -24,7 +24,9 @@
     "desktop:dev": "npm run build && electron .",
     "desktop:dist": "npm run build && electron-builder --win nsis --publish never",
     "desktop:dist:linux": "npm run build && electron-builder --linux deb rpm --x64 --publish never --config.directories.output=release/linux",
-    "desktop:release": "npm run build && electron-builder --win nsis --publish always"
+    "desktop:release": "npm run build && electron-builder --win nsis --publish always",
+    "android:sync": "node scripts/build-android-apk.mjs --sync-only",
+    "android:apk": "node scripts/build-android-apk.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.9",
