@@ -44,7 +44,7 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowContentAccess(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.2.102 Capacitor");
+        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.2.103 Capacitor");
 
         WebView.setWebContentsDebuggingEnabled(true);
         webView.addJavascriptInterface(new OpenSybauNativeBridge(), "opensybauAndroid");
@@ -154,7 +154,7 @@ public class MainActivity extends AppCompatActivity {
     public class OpenSybauNativeBridge {
         @JavascriptInterface
         public String getAppVersion() {
-            return "0.2.102";
+            return "0.2.103";
         }
 
         @JavascriptInterface

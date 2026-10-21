@@ -9,7 +9,7 @@
   },
   "private": true,
   "license": "MIT",
-  "version": "0.2.102",
+  "version": "0.2.103",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
