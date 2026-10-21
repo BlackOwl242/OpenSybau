@@ -5,6 +5,24 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.0] - 2026-10-21
+
+### English
+- **Narrow Viewport Topbar Polish, Full-Screen Mobile Modals with Close Button & Balanced Dialog Buttons System-Wide (`src/shell/shell.jsx`, `src/shell/components/DesktopSetupDialog.jsx`, `src/features/workbench/controller.js`, `src/styles/modules/07-themes-mission-control.css`)**:
+  - Preserve `padding-right: 140px` on `.wb-window-chrome.is-desktop` at narrow viewports (`<= 740px`) so Electron's native Windows `titleBarOverlay` controls (`—`, `□`, `×`) never overlap the topbar buttons (`VI`, right sidebar, Theme), and hide non-urgent update checks on narrow screens.
+  - Render `<Icon name="sparkles" size={14} class="wb-theme-trigger-icon" />` inside `.wb-theme-trigger` on narrow viewports (`<= 740px`) instead of a dark swatch dot that blended into the dark button background (`[   ]`), and use `inline-flex` alignment across all `34px × 34px` topbar buttons.
+  - Elevate all modal backdrops (`#overlay`, `.desktop-setup-backdrop`, `.composer-config-backdrop`, `.multi-chat-create-backdrop`) to `z-index: 220` above `.wb-window-chrome` (`100`) and `.wb-mobile-nav` (`90`), and enforce a strict `flex-column` dialog structure (`header` pinned top, `content` scrollable middle, `footer` pinned bottom) so headers and action buttons are never clipped off-screen.
+  - Make all modals full-screen on mobile and narrow viewports (`100vw × 100dvh` with safe-area insets on mobile/web, and `100vw × calc(100dvh - 48px)` below the native titlebar on narrow Desktop Electron), equipped with a prominent framed `32px`/`36px` close (`×`) button (`.app-dialog-close`) and balanced, equal-width button grids across modal headers, bodies, and footers.
+
+### Tiếng Việt
+- **Sửa Triệt để Lỗi Icon & Nút bấm ở Giao diện Hẹp, Chuẩn hóa Modal Toàn Màn hình trên Điện thoại kèm Nút Đóng (`×`) & Cân đối Nút bấm Toàn Hệ thống (`src/shell/shell.jsx`, `src/shell/components/DesktopSetupDialog.jsx`, `src/features/workbench/controller.js`, `src/styles/modules/07-themes-mission-control.css`)**:
+  - Giữ khoảng đệm `padding-right: 140px` cho `.wb-window-chrome.is-desktop` khi thu hẹp cửa sổ (`<= 740px`) để cụm nút cửa sổ Windows (`—`, `□`, `×`) không bao giờ đè lên các nút công cụ (`VI`, thanh bên phải, Đổi chủ đề), đồng thời ẩn nút kiểm tra cập nhật khi chưa có bản tải sẵn ở màn hình hẹp.
+  - Hiển thị biểu tượng `<Icon name="sparkles" />` sắc nét cho nút đổi chủ đề (`.wb-theme-trigger`) ở màn hình hẹp thay vì chấm màu tối trùng màu nền làm nút trông như ô trống (`[   ]`), và chuẩn hóa `inline-flex` cho toàn bộ nút `34px × 34px` trên thanh tiêu đề.
+  - Nâng `z-index: 220` cho toàn bộ lớp phủ hộp thoại (`#overlay`, `.desktop-setup-backdrop`, `.composer-config-backdrop`, `.multi-chat-create-backdrop`) cao hơn thanh tiêu đề (`100`) và thanh điều hướng dưới (`90`), đồng thời cố định bố cục `flex-column` (tiêu đề ghim trên, nội dung cuộn ở giữa, thanh nút hành động ghim dưới) để không bao giờ bị che khuất phần đầu hay mất nút dưới đáy.
+  - Chuyển toàn bộ modal sang hiển thị toàn màn hình trên điện thoại và khung nhìn hẹp (`100vw × 100dvh` trên điện thoại/web, và `100vw × calc(100dvh - 48px)` ngay dưới thanh tiêu đề trên Desktop thu hẹp), bổ sung nút đóng (`×`) đóng khung rõ ràng (`32px`/`36px`) ở góc phải trên cùng và dàn đều kích thước các nút bấm trong thân cũng như chân modal trên toàn hệ thống.
+
+---
+
 ## [0.2.107] - 2026-10-21
 
 ### English

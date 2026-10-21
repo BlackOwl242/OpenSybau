@@ -156,6 +156,7 @@ function WindowChrome({ snapshot, sidebarCollapsed, mobileSidebarOpen, onToggleS
               flexShrink: 0,
             }}
           />
+          <Icon name="sparkles" size={14} class="wb-theme-trigger-icon" />
           <span class="wb-theme-trigger-label">{activeTheme.label}</span>
         </summary>
         <div class="codex-pop-card wb-theme-pop-card">
@@ -217,7 +218,7 @@ function WindowChrome({ snapshot, sidebarCollapsed, mobileSidebarOpen, onToggleS
       ) : null}
       {desktop?.supportsAutoUpdate ? (
         <button
-          class={`wb-chrome-pill ${updateDownloaded ? "is-ready" : ""}`}
+          class={`wb-chrome-pill wb-update-btn ${updateDownloaded ? "is-ready" : ""}`}
           type="button"
           data-action={updateDownloaded ? "app-update-restart" : "app-update-check"}
           disabled={updateBusy}
