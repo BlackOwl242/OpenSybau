@@ -154,10 +154,18 @@ jobs:
             const next = lines.findIndex((line, index) => index > start && line.startsWith("## ["));
             fs.writeFileSync("release-notes.md", `${lines.slice(start, next < 0 ? undefined : next).join("\n")}\n`);
           '
-          gh release create "$GITHUB_REF_NAME" release/* \
-            --title "OpenSybau $GITHUB_REF_NAME" \
-            --notes-file release-notes.md \
-            --verify-tag \
-            --latest
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "OpenSybau $GITHUB_REF_NAME" \
+              --notes-file release-notes.md \
+              --latest
+          else
+            gh release create "$GITHUB_REF_NAME" release/* \
+              --title "OpenSybau $GITHUB_REF_NAME" \
+              --notes-file release-notes.md \
+              --verify-tag \
+              --latest
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
