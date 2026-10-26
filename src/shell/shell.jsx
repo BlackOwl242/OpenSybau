@@ -13,9 +13,66 @@ import { formatNumber } from "../shared/i18n.js";
 import { THEMES, THEME_GROUPS, getThemeDefinition } from "../shared/themes.js";
 import { compactChatTitle } from "../shared/chat-labels.js";
 
+function quotaTone(usedPercent) {
+  const used = Number(usedPercent || 0);
+  if (used >= 90) return "critical";
+  if (used >= 80) return "warning";
+  return "normal";
+}
+
+function formatQuotaWindowLabel(label, english) {
+  const raw = String(label || "").toLowerCase();
+  if (raw === "5h") return "5h";
+  if (raw === "7d" || raw === "weekly") return english ? "7d" : "7 ngày";
+  return label;
+}
+
+function formatQuotaReset(isoTime, english = false) {
+  if (!isoTime) return "";
+  const diffMs = Date.parse(isoTime) - Date.now();
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return english ? "now" : "sắp đặt lại";
+  const totalMins = Math.max(1, Math.round(diffMs / 60_000));
+  if (totalMins >= 1440) {
+    const days = Math.floor(totalMins / 1440);
+    const hours = Math.floor((totalMins % 1440) / 60);
+    return english
+      ? `${days}d${hours ? ` ${hours}h` : ""}`
+      : `${days}n${hours ? ` ${hours}g` : ""}`;
+  }
+  if (totalMins >= 60) {
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    return english
+      ? `${hours}h${mins ? ` ${mins}m` : ""}`
+      : `${hours}g${mins ? ` ${mins}p` : ""}`;
+  }
+  return english ? `${totalMins}m` : `${totalMins}p`;
+}
+
+function QuotaWindowRow({ win, english }) {
+  const used = Number(win.usedPercent || 0);
+  const remaining = Number(win.remainingPercent ?? Math.max(0, 100 - used));
+  const tone = quotaTone(used);
+  const resetLabel = formatQuotaReset(win.resetsAt, english);
+  return <div class="wb-quota-window-row">
+    <div class="wb-quota-window-meta">
+      <span class="wb-quota-window-label">
+        <b>{formatQuotaWindowLabel(win.label, english)}</b>
+        {resetLabel ? <> · <small>{resetLabel}</small></> : null}
+      </span>
+      <strong class={`wb-quota-pct is-${tone}`}>{remaining}%</strong>
+    </div>
+    <div class="wb-quota-bar" role="progressbar" aria-valuenow={remaining} aria-valuemin={0} aria-valuemax={100}>
+      <i class={`wb-quota-fill is-${tone}`} style={{ width: `${Math.max(3, remaining)}%` }} />
+    </div>
+  </div>;
+}
+
 function StatusBar({ snapshot }) {
   const state = snapshot.state;
   const telemetry = state?.telemetry || {};
+  const quotas = snapshot.quotas?.providers || {};
+  const quotasLoading = Boolean(snapshot.quotasLoading);
   const task = snapshot.selected ? state?.tasks?.find((item) => item.id === snapshot.selected) : null;
   const workspace = task
     ? state?.workspaces?.find((item) => item.id === task.workspaceId)
@@ -26,12 +83,20 @@ function StatusBar({ snapshot }) {
   const tokens5h = Number(telemetry.tokens5h || 0);
   const tokens7d = Number(telemetry.tokens7d || 0);
   const usageProviders = [
-    ["codex", "Codex CLI"],
-    ["claude", "Claude Code"],
-    ["antigravity", "Antigravity"],
+    ["codex", "Codex CLI", "Codex"],
+    ["antigravity", "Antigravity", "AGY"],
+    ["claude", "Claude Code", "Claude"],
   ];
   const connected = snapshot.streamConnected !== false;
   const english = snapshot.language === "en";
+
+  const liveBadges = usageProviders.map(([id, , shortName]) => {
+    const q = quotas[id];
+    const win5h = q?.windows?.find((w) => w.label === "5h") || q?.windows?.[0];
+    if (!win5h || q?.status !== "ok") return null;
+    const tone = quotaTone(win5h.usedPercent);
+    return { id, shortName, remaining: win5h.remainingPercent, used: win5h.usedPercent, tone };
+  }).filter(Boolean);
 
   return <footer class="wb-statusbar" aria-label="Trạng thái hệ thống và hạn mức">
     <div class="wb-status-left">
@@ -54,18 +119,74 @@ function StatusBar({ snapshot }) {
         <span>{worktreeCount} worktree</span>
       </span> : null}
       <details class="wb-status-usage">
-      <summary class="wb-status-item wb-status-quota" title="Lượng token được OpenSybau ghi nhận theo CLI; không phải hạn mức hoặc số dư tài khoản">
+      <summary class="wb-status-item wb-status-quota" title="Xem hạn mức tài khoản Codex, Antigravity, Claude và lượng token sử dụng">
+        {liveBadges.map((badge) => (
+          <span class="wb-status-quota-pill" key={badge.id}>
+            <i class={`wb-quota-dot is-${badge.tone}`} />
+            <span>{badge.shortName} <strong>{badge.remaining}%</strong></span>
+            <span class="wb-status-sep">·</span>
+          </span>
+        ))}
         <span>5h: <strong>{formatNumber(tokens5h)}</strong> tok</span>
         <span class="wb-status-sep">·</span>
         <span>7d: <strong>{formatNumber(tokens7d)}</strong> tok</span>
       </summary>
       <div class="wb-usage-popover">
-        <strong>{english ? "Usage by agent" : "Mức sử dụng theo agent"}</strong>
-        <p>{english ? "Tokens recorded from runs in OpenSybau; account quotas are managed by each CLI/provider." : "Token ghi nhận từ các lượt chạy trong OpenSybau; hạn mức tài khoản do CLI/provider quản lý."}</p>
-        {usageProviders.map(([id, name]) => {
-          const usage = telemetry.byProvider?.[id] || {};
-          return <div class="wb-usage-provider" key={id}><strong>{name}</strong><span>{english ? "5h" : "5 giờ"} <b>{formatNumber(usage.tokens5h || 0)}</b></span><span>{english ? "7d" : "7 ngày"} <b>{formatNumber(usage.tokens7d || 0)}</b></span><span>{english ? "Output" : "Đầu ra"} <b>{formatNumber(usage.outputTokens || 0)}</b></span></div>;
-        })}
+        <div class="wb-usage-popover-head">
+          <strong>{english ? "Agent Quotas" : "Hạn mức Agent"}</strong>
+          <button
+            type="button"
+            class="wb-quota-refresh-btn"
+            data-action="refresh-quotas"
+            disabled={quotasLoading}
+            title={english ? "Refresh quotas" : "Làm mới hạn mức"}
+          >
+            <Icon name="refresh-cw" size={12} />
+            <span>{quotasLoading ? (english ? "Checking…" : "Đang tải…") : (english ? "Refresh" : "Làm mới")}</span>
+          </button>
+        </div>
+        <div class="wb-quota-card-list">
+          {usageProviders.map(([id, name]) => {
+            const q = quotas[id] || {};
+            const hasGroups = Array.isArray(q.groups) && q.groups.length > 0;
+            const hasWindows = Array.isArray(q.windows) && q.windows.length > 0;
+            const isReady = hasGroups || hasWindows;
+            return <section class={`wb-quota-card ${isReady ? "" : "is-compact"}`} key={id} data-quota-provider={id}>
+              <header class="wb-quota-card-head">
+                <div class="wb-quota-card-title">
+                  <span class={`wb-quota-dot ${isReady ? "is-normal" : "is-muted"}`} />
+                  <strong>{name}</strong>
+                  {q.planType ? <span class="wb-quota-plan-badge" data-localize-skip="true">{q.planType}</span> : null}
+                </div>
+                <span class="wb-quota-account" data-localize-skip="true">
+                  {q.email || (!isReady ? (quotasLoading ? (english ? "Checking…" : "Đang kiểm tra…") : (english ? "Not connected" : "Chưa kết nối")) : "")}
+                </span>
+              </header>
+              {hasGroups ? (
+                <div class="wb-quota-groups">
+                  {q.groups.map((group) => (
+                    <div class="wb-quota-group" key={group.name}>
+                      <div class="wb-quota-group-title" data-localize-skip="true">{group.name}</div>
+                      <div class="wb-quota-grid">
+                        {group.windows.map((win) => <QuotaWindowRow key={win.id} win={win} english={english} />)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : hasWindows ? (
+                <div class="wb-quota-grid">
+                  {q.windows.map((win) => <QuotaWindowRow key={win.id} win={win} english={english} />)}
+                </div>
+              ) : null}
+            </section>;
+          })}
+        </div>
+        {(tokens5h > 0 || tokens7d > 0) ? (
+          <footer class="wb-quota-popover-foot">
+            <span>OpenSybau Tokens</span>
+            <span>5h: <b>{formatNumber(tokens5h)}</b> · 7d: <b>{formatNumber(tokens7d)}</b></span>
+          </footer>
+        ) : null}
       </div>
       </details>
     </div>

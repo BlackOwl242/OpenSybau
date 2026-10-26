@@ -157,6 +157,7 @@ function render({ background = false } = {}) {
     const composerTaskId = activeEl.closest(".chat-composer")?.dataset.id || activeEl.closest(".multi-chat-pane")?.dataset.taskId || "";
     let selector = "";
     if (activeEl.hasAttribute("data-chat-drawer-filter")) selector = "[data-chat-drawer-filter]";
+    else if (activeEl.hasAttribute("data-diff-branch-search")) selector = "[data-diff-branch-search]";
     else if (activeEl.hasAttribute("data-vault-editor")) selector = "[data-vault-editor]";
     else if (activeEl.hasAttribute("data-skill-inline-editor")) selector = "[data-skill-inline-editor]";
     else if (activeEl.hasAttribute("data-stage-line-comment-input")) selector = "[data-stage-line-comment-input]";
@@ -183,7 +184,7 @@ function render({ background = false } = {}) {
   const searchResults = view.searchQuery ? homeSearchResults(view.searchQuery) : "";
   view.searchResults = searchResults;
   const pageSidebarMarkup = view.page === "settings" ? settingsSidebarMarkup() : "";
-  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, theme: view.theme, state: view.state, connectors: view.connectors, desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: (selectedTask || selectedWorkspace) ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults, collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, activeRemoteHostName: getActiveRemoteHost()?.name || "", chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, pageSidebarMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
+  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, theme: view.theme, state: view.state, connectors: view.connectors, quotas: view.quotas, quotasLoading: Boolean(view.quotasLoading), desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: (selectedTask || selectedWorkspace) ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults, collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, activeRemoteHostName: getActiveRemoteHost()?.name || "", chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, pageSidebarMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
   localizeDom(document.querySelector("#root"), view.language);
   const overlay = $("#overlay");
   if (overlay && overlay.children.length > 0) {
@@ -332,6 +333,16 @@ document.addEventListener("input", (event) => {
     const nextFilter = $("[data-chat-drawer-filter]");
     nextFilter?.focus();
     if (typeof pos === "number") nextFilter?.setSelectionRange(pos, pos);
+    return;
+  }
+  const diffBranchSearch = event.target.closest("[data-diff-branch-search]");
+  if (diffBranchSearch) {
+    view.diffBranchFilter = diffBranchSearch.value;
+    const pos = diffBranchSearch.selectionStart;
+    render();
+    const nextInput = $("[data-diff-branch-search]");
+    nextInput?.focus();
+    if (typeof pos === "number") nextInput?.setSelectionRange(pos, pos);
     return;
   }
   const settingsSearch = event.target.closest("[data-settings-search]");

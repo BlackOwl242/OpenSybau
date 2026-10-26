@@ -437,15 +437,20 @@
   .provider-connect-callout > div:last-child > .button {
     width: 100% !important;
   }
-  .wb-page-content .cli-guide-row,
   .wb-page-content .provider-setup-row {
     grid-template-columns: 10px minmax(0, 1fr) !important;
     align-items: start !important;
     gap: 10px !important;
   }
-  .wb-page-content .cli-guide-row > .provider-status-dot,
   .wb-page-content .provider-setup-row > .provider-status-dot {
     margin-top: 5px !important;
+  }
+  .wb-page-content .cli-guide-row {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding: 11px 12px !important;
   }
   .wb-page-content .cli-guide-actions,
   .wb-page-content .provider-row-actions {
@@ -1040,7 +1045,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 2px;
+    gap: 3px;
     padding: 7px 9px;
     border-radius: 9px;
     border: 1px solid var(--wb-line);
@@ -1050,6 +1055,14 @@
     text-align: left;
     min-width: 0;
   }
+  .mp-agent-pill-top {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    min-width: 0;
+  }
+  .mp-agent-pill-top > strong,
   .mp-agent-status-pill > strong {
     font-size: 11.5px;
     font-weight: 630;
@@ -1063,12 +1076,33 @@
     max-width: 100%;
   }
   .mp-agent-status-pill > small {
-    font-size: 10.5px;
+    font-size: 10px;
+    font-family: var(--wb-font-mono, monospace);
     color: var(--wb-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+  }
+  .mp-agent-quota-bar {
+    width: 100%;
+    height: 3px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--wb-tint) 10%, transparent);
+    overflow: hidden;
+    margin-top: 2px;
+  }
+  .mp-agent-quota-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--wb-accent);
+  }
+  .mp-agent-quota-fill.is-warn {
+    background: var(--wb-amber);
+  }
+  .mp-agent-quota-fill.is-danger {
+    background: var(--wb-red);
   }
 
   /* Core Orca Mobile Screen Container (for Terminal & PLAN.md subtabs) */
@@ -1164,15 +1198,15 @@
     flex-shrink: 0;
   }
   .mp-status-dot.is-green {
-    background: #22c55e;
-    box-shadow: 0 0 6px rgba(34, 197, 94, 0.55);
+    background: var(--wb-accent);
+    box-shadow: none;
   }
   .mp-status-dot.is-amber {
-    background: #eab308;
-    box-shadow: 0 0 6px rgba(234, 179, 8, 0.55);
+    background: var(--wb-amber);
+    box-shadow: none;
   }
   .mp-status-dot.is-muted {
-    background: #64748b;
+    background: var(--wb-subtle);
   }
 
   .mp-repo-dot {

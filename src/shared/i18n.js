@@ -1384,6 +1384,60 @@ const english = {
   "Mở cây thư mục dự án": "Open project file tree",
   "Quay lại danh sách phiên & khung tạo mới": "Back to session list & new chat",
   "chờ duyệt kế hoạch…": "awaiting plan approval…",
+  "Lọc tệp…": "Filter files...",
+  "Tất cả thay đổi": "All changes",
+  "Tệp đã sửa": "Changed files",
+  "Tất cả tệp": "All files",
+  "Xem thay đổi": "Show changes",
+  "Xem mã nguồn": "View source",
+  "Xem bản dựng": "View preview",
+  "Chưa stage": "Unstaged",
+  "Thay đổi chưa stage": "Unstaged changes",
+  "Thay đổi chưa commit": "Uncommitted changes",
+  "Tìm nhánh": "Search branches",
+  "Các nhánh": "Branches",
+  "Nhánh": "Branch",
+  "Chỉ mục (Index)": "Index",
+  "Mở": "Open",
+  "Chỉnh sửa trực tiếp": "Edit directly",
+  "Sao chép đường dẫn": "Copy path",
+  "Sao chép nội dung tệp": "Copy file content",
+  "Không tìm thấy nhánh": "No branches found",
+  "Không có tệp thay đổi khớp bộ lọc.": "No changed files match filter.",
+  "Cây thư mục & Thay đổi": "Files & Changes",
+  "Commit, PR & Worktree": "Commit, PR & Worktree",
+  "Công cụ CLI & Hạn mức": "CLI Tools & Quotas",
+  "Tự động nhận diện Codex, Antigravity, Claude Code và kiểm tra hạn mức tài khoản trên máy.": "Automatically detect Codex, Antigravity, and Claude Code and inspect live account quotas on this computer.",
+  "Cập nhật hạn mức": "Update quotas",
+  "Đang tải hạn mức...": "Refreshing quotas...",
+  "Hạn mức Agent": "Agent Quotas",
+  "Làm mới hạn mức": "Refresh quotas",
+  "Đang kiểm tra…": "Checking…",
+  "Đang tải…": "Loading…",
+  "sắp đặt lại": "resetting soon",
+  "Trạng thái hệ thống và hạn mức": "System status and quotas",
+  "Xem hạn mức tài khoản Codex, Antigravity, Claude và lượng token sử dụng": "Inspect Codex, Antigravity, and Claude account quotas and token usage",
+  "Đã cập nhật hạn mức của các Agent.": "Updated Agent quotas.",
+  "Cài Claude Code CLI và đặt CLAUDE_CLI_PATH nếu chưa có trên PATH.": "Install Claude Code CLI and set CLAUDE_CLI_PATH if it is not on your PATH.",
+  "Mở tổng hợp tất cả thay đổi trong dự án": "Open all changes in project",
+  "Thư mục có tệp thay đổi": "Folder contains changed files",
+  "Stage tệp (+)": "Stage file (+)",
+  "Đã stage · Bấm để bỏ stage": "Staged · Click to unstage",
+  "Chọn mốc so sánh thay đổi": "Select diff base",
+  "Đóng chế độ xem thay đổi": "Close diff view",
+  "Không có thay đổi nào chưa commit": "No uncommitted changes",
+  "Thư mục làm việc hiện tại hoàn toàn sạch.": "Working tree is clean.",
+  "Thay đổi trước": "Previous change",
+  "Thay đổi tiếp theo": "Next change",
+  "Hiển thị các dòng thay đổi Git ngay trong tệp": "Show inline Git changes in file",
+  "Xem mã nguồn tệp": "View file source",
+  "Xem bản dựng trực quan": "View rich preview",
+  "Chuyển sang xem Diff 1 cột (Unified)": "Switch to Unified diff",
+  "Chuyển sang xem Diff 2 cột song song (Split)": "Switch to Split diff",
+  "Mở thư mục dự án": "Open project folder",
+  "Tùy chọn mở hoặc chỉnh sửa tệp": "Open or edit file options",
+  "Mở trong Explorer": "Open in Explorer",
+  "Sao chép toàn bộ nội dung": "Copy full content",
 };
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));
@@ -1485,11 +1539,20 @@ function dynamicTranslation(value, language) {
     match = value.match(/^Tất cả \((\d+)\)$/); if (match) return `All (${match[1]})`;
     match = value.match(/^Dùng chung \((\d+)\)$/); if (match) return `Shared (${match[1]})`;
     match = value.match(/^CẦN BẠN DUYỆT · (\d+)$/); if (match) return `NEEDS YOUR APPROVAL · ${match[1]}`;
+    match = value.match(/^(\d+)g (\d+)p$/); if (match) return `${match[1]}h ${match[2]}m`;
+    match = value.match(/^(\d+)n (\d+)g$/); if (match) return `${match[1]}d ${match[2]}h`;
+    match = value.match(/^Di chuyển giữa (\d+) cụm thay đổi$/); if (match) return `Navigate between ${match[1]} change blocks`;
+    match = value.match(/^Tất cả thay đổi trong (.+)$/); if (match) return `All changes in ${match[1]}`;
     match = value.match(/^(\d+)p$/); if (match) return `${match[1]}m`;
     match = value.match(/^(\d+)g$/); if (match) return `${match[1]}h`;
     match = value.match(/^(\d+)n$/); if (match) return `${match[1]}d`;
   } else {
     let match = value.match(/^(\d+) tasks$/i); if (match) return `${match[1]} task`;
+    match = value.match(/^(\d+)h (\d+)m$/); if (match) return `${match[1]}g ${match[2]}p`;
+    match = value.match(/^(\d+)d (\d+)h$/); if (match) return `${match[1]}n ${match[2]}g`;
+    match = value.match(/^(\d+)m$/); if (match) return `${match[1]}p`;
+    match = value.match(/^(\d+)h$/); if (match) return `${match[1]}g`;
+    match = value.match(/^(\d+)d$/); if (match) return `${match[1]}n`;
     match = value.match(/^(\d+) skills$/i); if (match) return `${match[1]} skill`;
     match = value.match(/^(\d+) tasks recorded on this computer$/i); if (match) return `${match[1]} task đã ghi trên máy này`;
     match = value.match(/^(\d+) events · real tasks$/i); if (match) return `${match[1]} sự kiện · task thật`;

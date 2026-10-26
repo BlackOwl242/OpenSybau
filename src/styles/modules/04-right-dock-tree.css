@@ -1144,3 +1144,214 @@ body.is-resizing-dock .orca-dock-resizer {
   font-weight: 450 !important;
 }
 
+/* ==========================================================================
+   Codex-Style Unified Right Sidebar Tree (Filter + All Changes + Changed/All Files)
+   ========================================================================== */
+.orca-dock-body:has(.codex-unified-tree-scroll) {
+  overflow: hidden;
+  padding: 0;
+}
+
+.codex-sidebar-filter-wrap {
+  flex: 0 0 auto;
+  padding: 7px 8px 5px;
+}
+
+.codex-sidebar-filter {
+  height: 29px;
+  border-radius: 7px;
+  padding: 0 9px;
+  background: color-mix(in srgb, var(--wb-tint) 4.5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 9%, transparent);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.codex-sidebar-filter:focus-within {
+  border-color: color-mix(in srgb, var(--wb-tint) 22%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 6.5%, transparent);
+}
+
+.codex-unified-tree-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 0 12px;
+}
+
+.codex-all-changes-row {
+  width: calc(100% - 12px);
+  margin: 1px 6px 4px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--wb-tint) 82%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.codex-all-changes-row:hover {
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  color: var(--wb-ink-strong);
+}
+
+.codex-all-changes-row.is-selected {
+  background: color-mix(in srgb, var(--wb-tint) 11%, transparent);
+  color: var(--wb-ink-strong);
+  font-weight: 580;
+}
+
+.codex-all-changes-icon {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  color: color-mix(in srgb, var(--wb-tint) 58%, transparent);
+}
+
+.codex-all-changes-icon svg,
+.orca-tree-caret svg,
+.orca-tree-icon svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.codex-all-changes-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-tree-section {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+}
+
+.codex-tree-section + .codex-tree-section {
+  margin-top: 6px;
+}
+
+.codex-tree-section-btn {
+  width: 100%;
+  height: 25px;
+  padding: 0 10px 0 8px;
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--wb-tint) 56%, transparent);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: color 100ms ease;
+}
+
+.codex-tree-section-btn:hover {
+  color: var(--wb-ink-strong);
+}
+
+.codex-tree-section-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-folder-dot {
+  flex: 0 0 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #3b82f6;
+  margin-left: auto;
+}
+
+.orca-tree-item {
+  margin: 0 4px;
+  border-radius: 5px;
+}
+
+.orca-tree-row {
+  border-radius: 5px;
+  padding-right: 26px;
+}
+
+.codex-git-badge {
+  flex: 0 0 auto;
+  min-width: 16px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-align: center;
+  color: #60a5fa;
+}
+
+.codex-git-badge.is-added {
+  color: var(--wb-green, #4ade80);
+}
+
+.codex-git-badge.is-deleted {
+  color: var(--wb-red, #f87171);
+}
+
+.orca-tree-label.is-git-modified {
+  color: color-mix(in srgb, #60a5fa 78%, var(--wb-ink-strong));
+}
+
+.orca-tree-label.is-git-added {
+  color: color-mix(in srgb, var(--wb-green, #4ade80) 75%, var(--wb-ink-strong));
+}
+
+.orca-tree-label.is-git-deleted {
+  color: color-mix(in srgb, var(--wb-red, #f87171) 75%, var(--wb-muted));
+  text-decoration: line-through;
+}
+
+.codex-stage-btn {
+  position: absolute;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: color-mix(in srgb, var(--wb-tint) 52%, transparent);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.codex-stage-btn:hover {
+  background: color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  color: var(--wb-ink-strong);
+}
+
+.codex-stage-btn.is-staged {
+  color: #3b82f6;
+  font-size: 18px;
+}
+
+

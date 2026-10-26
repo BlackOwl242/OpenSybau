@@ -7,12 +7,15 @@ import {
   api,
   closeOverlay,
   ensureWorkspaceFileIndex,
+  ensureWorkspaceGitStatus,
   refresh,
   render,
   showModal,
   showToast,
 } from "../runtime.js";
 import {
+  loadStageTabDiff,
+  openAllChangesStageTab,
   openLiveUrlTab,
   openStageDocTab,
   openStageFileTab,
@@ -31,12 +34,154 @@ export async function handleStageAndDiffAction(action, id, button, event) {
     return true;
   }
   if (action === "open-diff-file") {
-    const targetTask = view.state.tasks.find((item) => item.id === (id || view.selected));
+    const targetTask = (view.state?.tasks || []).find((item) => item.id === (id || view.selected));
     await openStageFileTab({
       workspaceId: button.dataset.workspaceId || targetTask?.workspaceId || "",
       taskId: id || view.selected || "",
       path: button.dataset.path || "",
+      showChanges: true,
     });
+    return true;
+  }
+  if (action === "open-all-changes-tab") {
+    const selectedTask = view.selected ? (view.state?.tasks || []).find((t) => t.id === view.selected) : null;
+    const wsId = button.dataset.workspaceId
+      || (view.page === "workspaces" && view.selected ? view.selected : "")
+      || selectedTask?.workspaceId
+      || view.homeWorkspaceId
+      || view.state?.workspaces?.[0]?.id
+      || "";
+    if (wsId) {
+      if (window.matchMedia("(max-width: 740px)").matches) {
+        view.chatDrawerOpen = false;
+      }
+      await openAllChangesStageTab({
+        workspaceId: wsId,
+        taskId: id || (view.page === "chat" ? view.selected : "") || "",
+      });
+    }
+    return true;
+  }
+  if (action === "toggle-dock-section") {
+    const section = button.dataset.section || "";
+    if (section) {
+      const set = new Set(view.collapsedDockSections || []);
+      if (set.has(section)) set.delete(section);
+      else set.add(section);
+      view.collapsedDockSections = [...set];
+      render();
+    }
+    return true;
+  }
+  if (action === "git-toggle-stage") {
+    event.stopPropagation();
+    const wsId = button.dataset.workspaceId
+      || (view.page === "workspaces" && view.selected ? view.selected : "")
+      || view.homeWorkspaceId
+      || view.state?.workspaces?.[0]?.id
+      || "";
+    const filePath = button.dataset.path || "";
+    const stageAction = button.dataset.stageAction || "stage";
+    const taskId = id || (view.page === "chat" ? view.selected : "") || "";
+    if (wsId && filePath) {
+      await api(`/api/workspaces/${encodeURIComponent(wsId)}/git-stage`, {
+        method: "POST",
+        body: JSON.stringify({ path: filePath, action: stageAction, taskId }),
+      });
+      await ensureWorkspaceGitStatus(wsId, taskId, { force: true });
+      const activeTab = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId);
+      if (activeTab && activeTab.workspaceId === wsId && (activeTab.path === filePath || activeTab.kind === "all-changes")) {
+        await loadStageTabDiff(activeTab.id, activeTab.diffBase || "unstaged");
+      } else {
+        render();
+      }
+    }
+    return true;
+  }
+  if (action === "toggle-stage-show-changes") {
+    const tabId = button.dataset.tabId || view.activeStageTabId;
+    const tab = (view.stageTabs || []).find((item) => item.id === tabId);
+    if (tab) {
+      tab.showChanges = !tab.showChanges;
+      if (tab.showChanges) {
+        tab.mode = "code";
+        tab.diffHunkIndex = 0;
+        if (!tab.diffData) {
+          await loadStageTabDiff(tab.id, tab.diffBase || "unstaged");
+          return true;
+        }
+      }
+      render();
+    }
+    return true;
+  }
+  if (action === "select-stage-diff-base") {
+    const tabId = button.dataset.tabId || view.activeStageTabId;
+    const tab = (view.stageTabs || []).find((item) => item.id === tabId);
+    const nextBase = button.dataset.base || "unstaged";
+    button.closest?.("details")?.removeAttribute("open");
+    if (tab) {
+      tab.diffBase = nextBase;
+      tab.showChanges = true;
+      tab.mode = "code";
+      tab.diffHunkIndex = 0;
+      await loadStageTabDiff(tab.id, nextBase);
+    }
+    return true;
+  }
+  if (action === "toggle-stage-diff-split") {
+    const tabId = button.dataset.tabId || view.activeStageTabId;
+    const tab = (view.stageTabs || []).find((item) => item.id === tabId);
+    if (tab) {
+      tab.diffSplit = !tab.diffSplit;
+      view.stageDiffSplit = tab.diffSplit;
+      render();
+    }
+    return true;
+  }
+  if (action === "step-stage-diff-hunk") {
+    const tabId = button.dataset.tabId || view.activeStageTabId;
+    const tab = (view.stageTabs || []).find((item) => item.id === tabId);
+    if (tab) {
+      const dir = Number(button.dataset.dir || 1);
+      const anchors = document.querySelectorAll('[id^="stage-diff-change-"]');
+      const total = Math.max(1, anchors.length);
+      const current = Number(tab.diffHunkIndex) || 0;
+      tab.diffHunkIndex = ((current + dir) % total + total) % total;
+      render();
+      requestAnimationFrame(() => {
+        document.getElementById(`stage-diff-change-${tab.diffHunkIndex}`)?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      });
+    }
+    return true;
+  }
+  if (action === "copy-stage-file-content") {
+    const tabId = button.dataset.tabId || view.activeStageTabId;
+    const tab = (view.stageTabs || []).find((item) => item.id === tabId);
+    const text = tab?.fileData?.content ?? tab?.diffData?.diff ?? "";
+    button.closest?.("details")?.removeAttribute("open");
+    try {
+      await navigator.clipboard.writeText(String(text));
+      showToast("Đã sao chép nội dung tệp vào clipboard.");
+    } catch {
+      showToast("Không thể sao chép vào clipboard.");
+    }
+    return true;
+  }
+  if (action === "copy-stage-file-path") {
+    const path = button.dataset.path || "";
+    button.closest?.("details")?.removeAttribute("open");
+    if (path) {
+      try {
+        await navigator.clipboard.writeText(path);
+        showToast(`Đã sao chép đường dẫn: ${path}`);
+      } catch {
+        showToast("Không thể sao chép đường dẫn.");
+      }
+    }
     return true;
   }
   if (action === "activate-stage-tab") {
@@ -110,6 +255,8 @@ export async function handleStageAndDiffAction(action, id, button, event) {
     delete tab.editDraft;
     tab.mode = defaultFileTabMode(tab.ext);
     tab.loadedAt = Date.now();
+    await ensureWorkspaceGitStatus(tab.workspaceId, tab.taskId || "", { force: true });
+    await loadStageTabDiff(tab.id, tab.diffBase || "unstaged");
     render();
     showToast(`Đã lưu tệp ${tab.path}.`);
     return true;
@@ -388,7 +535,8 @@ export async function handleStageAndDiffAction(action, id, button, event) {
   }
   if (action === "toggle-chat-drawer") {
     view.chatDrawerOpen = !view.chatDrawerOpen;
-    const task = view.state.tasks.find((item) => item.id === (id || view.selected));
+    if (view.page !== "chat") view.homeDockOpen = view.chatDrawerOpen;
+    const task = (view.state?.tasks || []).find((item) => item.id === (id || view.selected));
     if (view.chatDrawerOpen && task?.workspaceId) {
       void ensureWorkspaceFileIndex(task.workspaceId).then(() => render());
     }
@@ -426,7 +574,7 @@ export async function handleStageAndDiffAction(action, id, button, event) {
   if (action === "dock-open-workspace-file" || action === "preview-drawer-file") {
     const wsId = button.dataset.workspaceId
       || (view.page === "workspaces" && view.selected ? view.selected : "")
-      || view.state.tasks.find((item) => item.id === (id || view.selected))?.workspaceId
+      || (view.state?.tasks || []).find((item) => item.id === (id || view.selected))?.workspaceId
       || view.homeWorkspaceId
       || view.state?.workspaces?.[0]?.id;
     if (wsId && button.dataset.path) {
@@ -437,6 +585,7 @@ export async function handleStageAndDiffAction(action, id, button, event) {
         workspaceId: wsId,
         taskId: id || (view.page === "chat" ? view.selected : "") || "",
         path: button.dataset.path,
+        showChanges: button.dataset.showChanges === "true",
       });
     }
     return true;
@@ -455,7 +604,10 @@ export async function handleStageAndDiffAction(action, id, button, event) {
       : selectedTask?.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
     if (wsId) {
       if (view.workspaceFileIndex) delete view.workspaceFileIndex[wsId];
-      await ensureWorkspaceFileIndex(wsId);
+      await Promise.all([
+        ensureWorkspaceFileIndex(wsId),
+        ensureWorkspaceGitStatus(wsId, selectedTask?.id || "", { force: true }),
+      ]);
       render();
       showToast("Đã làm mới cây thư mục dự án.");
     }

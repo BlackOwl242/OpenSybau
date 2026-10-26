@@ -126,6 +126,51 @@ export function settingsSidebarMarkup() {
   </div>`;
 }
 
+function formatInlineReset(isoTime) {
+  if (!isoTime) return "";
+  const diffMs = Date.parse(isoTime) - Date.now();
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return "sắp đặt lại";
+  const totalMins = Math.max(1, Math.round(diffMs / 60_000));
+  if (totalMins >= 1440) {
+    const days = Math.floor(totalMins / 1440);
+    const hours = Math.floor((totalMins % 1440) / 60);
+    return `${days}n${hours ? ` ${hours}g` : ""}`;
+  }
+  if (totalMins >= 60) {
+    const hours = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    return `${hours}g${mins ? ` ${mins}p` : ""}`;
+  }
+  return `${totalMins}p`;
+}
+
+function renderInlineQuotaWindow(win) {
+  const used = Number(win.usedPercent || 0);
+  const remaining = Number(win.remainingPercent ?? Math.max(0, 100 - used));
+  const tone = used >= 90 ? "critical" : used >= 80 ? "warning" : "normal";
+  const label = String(win.label || "").toLowerCase() === "5h" ? "5h" : String(win.label || "").toLowerCase() === "7d" ? "7 ngày" : win.label;
+  const reset = formatInlineReset(win.resetsAt);
+  return `<div class="wb-quota-window-row is-inline">
+    <div class="wb-quota-window-meta">
+      <span class="wb-quota-window-label"><b>${esc(label)}</b>${reset ? ` · <em class="wb-quota-reset">${esc(reset)}</em>` : ""}</span>
+      <strong class="wb-quota-pct is-${tone}" data-localize-skip="true">${remaining}%</strong>
+    </div>
+    <div class="wb-quota-bar"><i class="wb-quota-fill is-${tone}" style="width:${Math.max(3, remaining)}%"></i></div>
+  </div>`;
+}
+
+function renderCliQuotaDetails(providerId) {
+  const q = view.quotas?.providers?.[providerId];
+  if (!q || q.status !== "ok") return "";
+  const hasGroups = Array.isArray(q.groups) && q.groups.length > 0;
+  const hasWindows = Array.isArray(q.windows) && q.windows.length > 0;
+  if (!hasGroups && !hasWindows) return "";
+  const body = hasGroups
+    ? `<div class="wb-quota-groups is-inline">${q.groups.map((g) => `<div class="wb-quota-group"><div class="wb-quota-group-title" data-localize-skip="true">${esc(g.name)}</div><div class="wb-quota-grid">${g.windows.map(renderInlineQuotaWindow).join("")}</div></div>`).join("")}</div>`
+    : `<div class="wb-quota-grid is-inline">${q.windows.map(renderInlineQuotaWindow).join("")}</div>`;
+  return `<div class="cli-quota-inline">${body}</div>`;
+}
+
 export function settingsPage() {
   const defaults = view.state?.settings?.defaults || {};
   const maxConcurrent = view.state?.settings?.maxConcurrent || 2;
@@ -133,18 +178,35 @@ export function settingsPage() {
   const apiSetup = (view.providers || []).map((provider) => `<div class="provider-setup-row"><span class="provider-status-dot ${provider.available ? "ready" : "missing"}"></span><div><strong>${esc(provider.name)}</strong><small>${provider.available ? `${provider.models.length} model · sẵn sàng${provider.apiKeyConfigured ? " · đã lưu khóa API" : ""}` : esc(provider.error || "Chưa đủ cấu hình")} · ${esc(provider.baseUrl)}</small></div><div class="provider-row-actions">${provider.managedBy === "local" ? `<button class="button quiet small" type="button" data-action="provider-edit" data-id="${esc(provider.id)}">Sửa</button><button class="button quiet small" type="button" data-action="provider-delete" data-id="${esc(provider.id)}">Xóa</button>` : `<button class="button quiet small" type="button" data-action="provider-import-env" data-id="${esc(provider.id)}">Quản lý trong app</button>`}</div></div>`).join("");
   const cliSetup = cliProviderGuides.map((agent) => {
     const connector = view.connectors?.[agent.id];
+    const q = view.quotas?.providers?.[agent.id];
     const status = cliConnectionStatus(connector);
     const action = status.tone === "missing"
       ? window.opensybauDesktop?.supportsCliInstall
         ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${esc(agent.id)}" ${view.cliInstallProvider ? "disabled" : ""}>${view.cliInstallProvider === agent.id ? "Đang cài đặt…" : "Cài CLI"}</button>`
         : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
-      : status.action === "refresh"
-        ? cliRefreshButton()
-        : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Mở terminal đăng nhập</button>`;
+      : status.tone === "ready"
+        ? ""
+        : status.action === "refresh"
+          ? cliRefreshButton()
+          : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Mở terminal đăng nhập</button>`;
     const detail = status.tone === "ready"
-      ? `${status.label} · ${connector.models.length} model${connector.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
+      ? `${q?.email ? `${q.email} · ` : ""}${connector.models.length} model`
       : status.tone === "missing" ? connector?.error || agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
-    return `<article class="cli-guide-row"><span class="provider-status-dot ${status.tone === "ready" ? "ready" : "missing"}"></span><div><strong>${esc(agent.name)}</strong><small>${esc(detail)}</small></div><div class="cli-guide-actions">${action}</div></article>`;
+    const planBadge = q?.planType ? `<span class="wb-quota-plan-badge" data-localize-skip="true">${esc(q.planType)}</span>` : "";
+    return `<article class="cli-guide-row ${status.tone === "ready" ? "is-ready" : ""}">
+      <div class="cli-guide-copy">
+        <div class="cli-guide-head">
+          <div class="cli-guide-title">
+            <span class="provider-status-dot ${status.tone === "ready" ? "ready" : "missing"}"></span>
+            <strong>${esc(agent.name)}</strong>
+            ${planBadge}
+          </div>
+          <small class="cli-guide-sub">${esc(detail)}</small>
+        </div>
+        ${renderCliQuotaDetails(agent.id)}
+      </div>
+      ${action ? `<div class="cli-guide-actions">${action}</div>` : ""}
+    </article>`;
   }).join("");
   const noReadyConnector = !Object.values(view.connectors || {}).some((connector) => connector?.available && connector.capabilities?.plan);
   const activeTheme = getThemeDefinition(view.theme);
@@ -219,7 +281,7 @@ export function settingsPage() {
       ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Hãy khởi động lại để lưu model mặc định.</div>`}
       <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu model mặc định</button></footer>
     </section>
-    <section class="settings-card cli-setup-card" id="cli-setup" data-settings-section="cli" ${showSection("cli") ? "" : "hidden"}><header><div><h2>Công cụ CLI trên máy</h2><p>Tự động nhận diện Codex, Antigravity và Claude Code đã cài trên máy tính.</p></div>${cliRefreshButton()}</header><div class="cli-guide-list">${cliSetup}</div></section>
+    <section class="settings-card cli-setup-card" id="cli-setup" data-settings-section="cli" ${showSection("cli") ? "" : "hidden"}><header><div><h2>Công cụ CLI & Hạn mức</h2><p>Tự động nhận diện Codex, Antigravity, Claude Code và kiểm tra hạn mức tài khoản trên máy.</p></div><div class="page-head-actions"><button class="button quiet small" type="button" data-action="refresh-quotas" ${view.quotasLoading ? "disabled" : ""}>${icon("refresh-cw", 13)} ${view.quotasLoading ? "Đang tải hạn mức..." : "Cập nhật hạn mức"}</button>${cliRefreshButton()}</div></header><div class="cli-guide-list">${cliSetup}</div></section>
     <section class="settings-card provider-setup-card" id="settings-api" data-settings-section="api" ${showSection("api") ? "" : "hidden"}><header><div><h2>Kết nối API & Model cục bộ</h2><p>Dùng thêm khóa API (OpenAI, Gemini, Claude) hoặc model chạy qua Ollama, LM Studio.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa thêm nguồn API nào</strong><p>Bấm Thêm nguồn nếu bạn muốn dùng API key riêng hoặc kết nối Ollama / LM Studio.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm nguồn API</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div></section>
     ${renderDeviceConnectSettingsSection({ hidden: !showSection("devices") })}
     <section class="settings-card concurrency-card" id="settings-concurrency" data-settings-section="concurrency" ${showSection("concurrency") ? "" : "hidden"}><header><div><h2>Số công việc chạy cùng lúc</h2><p>Giới hạn số công việc AI được phép chạy song song trên máy.</p></div></header>

@@ -25,6 +25,7 @@ const loadState = createStateLoader();
 let lastConfigurationRefresh = 0;
 let cliScanPromise = null;
 let cliScanInProgress = false;
+let quotaRefreshPromise = null;
 let events = null;
 let remotePollTimer = null;
 
@@ -131,6 +132,9 @@ async function refreshSnapshot(includeConfiguration, background) {
   view.settingsSupported = Object.hasOwn(state.settings, "defaults");
   normalizeRouteSelection();
   render({ background });
+  if (configuration || (!view.quotas && !quotaRefreshPromise)) {
+    void refreshQuotas({ background: true });
+  }
   if (routeNeedsHydration) {
     routeNeedsHydration = false;
     hydrateRouteData().catch((error) => showToast(error.message));
@@ -204,6 +208,43 @@ export async function ensureWorkspaceFileIndex(workspaceId) {
   }
 }
 
+const gitStatusInFlight = new Map();
+
+export async function ensureWorkspaceGitStatus(workspaceId, taskId = "", { force = false } = {}) {
+  if (!workspaceId) return { currentBranch: "main", branches: ["main"], changedFiles: [] };
+  const cacheKey = `${workspaceId}::${taskId || ""}`;
+  view.workspaceGitStatus ||= {};
+  const existing = view.workspaceGitStatus[cacheKey];
+  if (!force && existing && Date.now() - (existing.fetchedAt || 0) < 12_000) {
+    return existing;
+  }
+  if (gitStatusInFlight.has(cacheKey)) {
+    return gitStatusInFlight.get(cacheKey);
+  }
+  const promise = (async () => {
+    try {
+      const q = taskId ? `?taskId=${encodeURIComponent(taskId)}` : "";
+      const res = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/git-status${q}`);
+      const record = {
+        currentBranch: res.currentBranch || "main",
+        branches: Array.isArray(res.branches) && res.branches.length ? res.branches : ["main"],
+        changedFiles: Array.isArray(res.changedFiles) ? res.changedFiles : [],
+        fetchedAt: Date.now(),
+      };
+      view.workspaceGitStatus[cacheKey] = record;
+      return record;
+    } catch {
+      const fallback = existing || { currentBranch: "main", branches: ["main"], changedFiles: [], fetchedAt: Date.now() };
+      view.workspaceGitStatus[cacheKey] = fallback;
+      return fallback;
+    } finally {
+      gitStatusInFlight.delete(cacheKey);
+    }
+  })();
+  gitStatusInFlight.set(cacheKey, promise);
+  return promise;
+}
+
 export function showModal(title, body, submitLabel, formType = "") {
   const inferred = title === "Task mới" ? "task" : title === "Thêm workspace" ? "workspace" : title === "Ghi nhớ mới" ? "memory" : "dismiss";
   const type = formType || inferred;
@@ -231,6 +272,27 @@ export function showToast(message) {
   view.toastTimer = setTimeout(() => toast.classList.remove("visible"), 3500);
 }
 
+export function refreshQuotas({ force = false, background = false } = {}) {
+  if (quotaRefreshPromise) return quotaRefreshPromise;
+  view.quotasLoading = true;
+  if (!background) render({ background: true });
+  quotaRefreshPromise = (async () => {
+    try {
+      const data = await api(force ? "/api/quotas?refresh=1" : "/api/quotas");
+      view.quotas = data;
+      return data;
+    } catch (error) {
+      if (!background) showToast(`Không tải được hạn mức: ${error.message}`);
+      return null;
+    } finally {
+      view.quotasLoading = false;
+      quotaRefreshPromise = null;
+      render({ background: true });
+    }
+  })();
+  return quotaRefreshPromise;
+}
+
 export function cliRefreshButton(label = "Quét lại", { small = true } = {}) {
   const busy = cliScanInProgress;
   return `<button class="button quiet${small ? " small" : ""}" type="button" data-action="provider-cli-refresh" ${busy ? 'disabled aria-busy="true"' : ""}>${icon("refresh-cw", 13)} ${busy ? "Đang quét..." : label}</button>`;
@@ -253,6 +315,7 @@ export function scanCliProviders(button, { openModal = false } = {}) {
       view.connectors = await api("/api/connectors?refresh=1");
       cliScanInProgress = false;
       await refresh();
+      void refreshQuotas({ force: true, background: true });
       if (openModal) runtimeHooks.showCliProviderModal?.();
       showToast("Đã quét lại Codex, Antigravity và Claude Code trên máy chạy OpenSybau.");
     } catch (error) {

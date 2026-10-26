@@ -432,16 +432,37 @@ export function MobileOrcaOverlay({ snapshot }) {
             const count = snapshot.connectors?.[row.id]?.models?.length || 0;
             const pUsage = telemetry.byProvider?.[row.id] || {};
             const tok7d = Number(pUsage.tokens7d || 0);
+            const quota = snapshot.quotas?.[row.id] || snapshot.quotas?.providers?.[row.id];
+            const wins = quota?.groups?.[0]?.windows || quota?.windows || [];
+            const firstWin = wins[0];
+            const secondWin = wins[1];
+            const pctLeft = typeof firstWin?.remainingPercent === "number" ? firstWin.remainingPercent : null;
+            const pctUsed = typeof firstWin?.usedPercent === "number"
+              ? firstWin.usedPercent
+              : pctLeft !== null ? Math.max(0, 100 - pctLeft) : null;
+            const weekLeft = typeof secondWin?.remainingPercent === "number" ? secondWin.remainingPercent : null;
+            const barTone = pctLeft !== null && pctLeft <= 10 ? "is-danger" : pctLeft !== null && pctLeft <= 20 ? "is-warn" : "";
             return <button
               type="button"
               class={`mp-agent-status-pill ${avail ? "is-ready" : "is-missing"}`}
               key={row.id}
               data-page="settings"
-              title={row.email}
+              title={quota?.email || row.email}
             >
-              <span class={`mp-status-dot ${avail ? "is-green" : "is-muted"}`} />
-              <strong data-localize-skip="true">{row.id === "antigravity" ? "Antigravity" : row.id === "claude" ? "Claude" : "Codex"}</strong>
-              <small>{avail ? (tok7d > 0 ? `${formatNumber(tok7d)} tok` : `${count} model`) : "Chưa kết nối"}</small>
+              <div class="mp-agent-pill-top">
+                <span class={`mp-status-dot ${avail ? "is-green" : "is-muted"}`} />
+                <strong data-localize-skip="true">{row.id === "antigravity" ? "Antigravity" : row.id === "claude" ? "Claude" : "Codex"}</strong>
+              </div>
+              <small data-localize-skip="true">
+                {avail
+                  ? (pctLeft !== null
+                    ? `${pctLeft}% 5h${weekLeft !== null ? ` · ${weekLeft}% 7d` : ""}`
+                    : (tok7d > 0 ? `${formatNumber(tok7d)} tok` : `${count} model`))
+                  : "Chưa kết nối"}
+              </small>
+              {avail && pctLeft !== null ? <span class="mp-agent-quota-bar" aria-hidden="true">
+                <span class={`mp-agent-quota-fill ${barTone}`} style={{ width: `${Math.min(100, Math.max(3, pctLeft))}%` }} />
+              </span> : null}
             </button>;
           })}
         </div>

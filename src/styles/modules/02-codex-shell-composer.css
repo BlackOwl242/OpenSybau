@@ -421,15 +421,12 @@ body .wb-top-icon:hover {
   color: var(--wb-ink-strong) !important;
 }
 .wb-statusbar {
-  height: 20px !important;
+  height: 22px !important;
   background: transparent !important;
   border-top: 0 !important;
   color: color-mix(in srgb, var(--wb-tint) 42%, transparent) !important;
   font-size: 11px !important;
   padding: 0 14px !important;
-}
-.wb-main.is-home-stage .wb-statusbar {
-  display: none !important;
 }
 
 /* 6. Codex Home Stage: Balanced Center Emblem Hero + Bottom-Docked Two-Tier Composer */

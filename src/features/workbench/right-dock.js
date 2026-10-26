@@ -29,24 +29,21 @@ export function getRightDockTabsForPage(page = view.page, selectedTask = null) {
   }
   if (page === "workspaces") {
     return [
-      { id: "files", icon: "files", title: "Cây thư mục dự án" },
-      { id: "search", icon: "search", title: "Tìm kiếm tệp trong dự án" },
+      { id: "files", icon: "files", title: "Cây thư mục & Thay đổi" },
     ];
   }
   // page === "chat"
   if (selectedTask) {
     return [
-      { id: "files", icon: "files", title: "Cây thư mục & Tệp" },
-      { id: "search", icon: "search", title: "Tìm kiếm tệp" },
-      { id: "git", icon: "git-branch", title: "Thay đổi, Commit & Worktree" },
+      { id: "files", icon: "files", title: "Cây thư mục & Thay đổi" },
+      { id: "git", icon: "git-branch", title: "Commit, PR & Worktree" },
       { id: "docs", icon: "book-open-text", title: "Tài liệu giai đoạn (Kế hoạch / Triển khai / Đánh giá / QA)" },
       { id: "terminal", icon: "square-terminal", title: "Kiểm thử QA, Terminal & Xem trực tiếp" },
       { id: "tasks", icon: "list-checks", title: "Mục tiêu & Công cụ phiên" },
     ];
   }
   return [
-    { id: "files", icon: "files", title: "Cây thư mục dự án" },
-    { id: "search", icon: "search", title: "Tìm kiếm tệp" },
+    { id: "files", icon: "files", title: "Cây thư mục & Thay đổi" },
     { id: "terminal", icon: "square-terminal", title: "Xem trực tiếp ứng dụng cục bộ" },
   ];
 }
@@ -54,6 +51,7 @@ export function getRightDockTabsForPage(page = view.page, selectedTask = null) {
 export function renderOrcaRightDockMarkup({
   loadVaultGraph,
   ensureWorkspaceFileIndex,
+  ensureWorkspaceGitStatus,
   vaultNoteOptionsMenu,
   render,
 } = {}) {
@@ -185,24 +183,111 @@ export function renderOrcaRightDockMarkup({
       if (!view.workspaceFileIndex?.[activeWs.id] && typeof ensureWorkspaceFileIndex === "function") {
         void ensureWorkspaceFileIndex(activeWs.id).then(() => render?.());
       }
-      const tree = buildDockFileTree(allFiles);
+      const gitCacheKey = `${activeWs.id}::${selectedTask?.id || ""}`;
+      const gitStatus = view.workspaceGitStatus?.[gitCacheKey] || null;
+      if (!gitStatus && typeof ensureWorkspaceGitStatus === "function") {
+        void ensureWorkspaceGitStatus(activeWs.id, selectedTask?.id || "").then(() => render?.());
+      }
+
+      const gitStatusMap = new Map();
+      const folderHasChangesSet = new Set();
+      const rawChangedList = gitStatus?.changedFiles?.length
+        ? gitStatus.changedFiles
+        : (selectedTask?.artifacts || []).map((p) => ({
+            path: p,
+            unstaged: true,
+            staged: false,
+            badge: "M↓",
+            statusKind: "modified",
+          }));
+
+      for (const entry of rawChangedList) {
+        if (!entry?.path) continue;
+        gitStatusMap.set(entry.path, entry);
+        const segs = entry.path.split("/").filter(Boolean);
+        for (let i = 1; i < segs.length; i++) {
+          folderHasChangesSet.add(segs.slice(0, i).join("/"));
+        }
+      }
+
+      const changedPaths = [...gitStatusMap.keys()].filter((f) => !filter || f.toLowerCase().includes(filter));
+      const filteredAllFiles = allFiles.filter((f) => !filter || f.toLowerCase().includes(filter));
+
+      const allTree = buildDockFileTree(filteredAllFiles);
+      const changedTree = buildDockFileTree(changedPaths);
       if (view.collapsedDockFolders === null && allFiles.length > 0) {
-        const topFolders = (tree.foldersList || [...tree.folders.values()]).map((f) => f.path);
+        const topFolders = (allTree.foldersList || [...allTree.folders.values()]).map((f) => f.path);
         view.collapsedDockFolders = topFolders.filter((p) => p !== "src");
       }
-      const collapsedSet = new Set(view.collapsedDockFolders || []);
+      const collapsedSet = filter ? new Set() : new Set(view.collapsedDockFolders || []);
+      const collapsedSections = new Set(view.collapsedDockSections || []);
+      const isChangedSectionCollapsed = collapsedSections.has("changed-files");
+      const isAllSectionCollapsed = collapsedSections.has("all-files");
+
       const activeStageTab = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId);
+      const isAllChangesSelected = activeStageTab?.kind === "all-changes" && activeStageTab?.workspaceId === activeWs.id;
       const activePath = activeStageTab?.path || (page === "workspaces" ? (view.filePreview?.path || "") : (view.chatDrawerPreview?.path || ""));
       const fileAction = page === "workspaces" ? "dock-open-workspace-file" : "preview-drawer-file";
-      const rows = renderDockTreeLevel(tree, 0, {
-        collapsedSet,
-        activePath,
-        fileAction,
-        workspaceId: activeWs.id,
-        taskId: selectedTask?.id || "",
-        showMention: page === "chat",
-      });
-      bodyHtml = `<ul class="orca-tree-list">${rows || `<li class="orca-dock-empty">Đang tải cây tệp dự án…</li>`}</ul>`;
+
+      const changedRows = changedPaths.length && !isChangedSectionCollapsed
+        ? renderDockTreeLevel(changedTree, 0, {
+            collapsedSet,
+            activePath,
+            fileAction,
+            workspaceId: activeWs.id,
+            taskId: selectedTask?.id || "",
+            showMention: false,
+            gitStatusMap,
+            folderHasChangesSet,
+            showStageButtons: true,
+            keyPrefix: "chg",
+          })
+        : "";
+
+      const allRows = !isAllSectionCollapsed
+        ? renderDockTreeLevel(allTree, 0, {
+            collapsedSet,
+            activePath,
+            fileAction,
+            workspaceId: activeWs.id,
+            taskId: selectedTask?.id || "",
+            showMention: page === "chat",
+            gitStatusMap,
+            folderHasChangesSet,
+            showStageButtons: false,
+          })
+        : "";
+
+      bodyHtml = `<div class="orca-dock-search-wrap codex-sidebar-filter-wrap">
+        <label class="orca-dock-search codex-sidebar-filter">
+          ${icon("search", 13)}
+          <input type="search" data-chat-drawer-filter value="${esc(view.chatDrawerFilter || "")}" placeholder="Lọc tệp…" autocomplete="off">
+        </label>
+      </div>
+      <div class="codex-unified-tree-scroll">
+        ${gitStatusMap.size > 0 ? `
+          <button type="button" class="codex-all-changes-row ${isAllChangesSelected ? "is-selected" : ""}" data-action="open-all-changes-tab" data-workspace-id="${esc(activeWs.id)}" data-id="${esc(selectedTask?.id || "")}" title="Mở tổng hợp tất cả thay đổi trong dự án">
+            <span class="codex-all-changes-icon">${icon("list-checks", 13)}</span>
+            <span class="codex-all-changes-label">Tất cả thay đổi</span>
+            <small class="orca-tree-badge">${gitStatusMap.size}</small>
+          </button>
+          <div class="codex-tree-section">
+            <button type="button" class="codex-tree-section-btn" data-action="toggle-dock-section" data-section="changed-files">
+              <span class="orca-tree-caret ${isChangedSectionCollapsed ? "" : "is-open"}">${icon("chevron-right", 12)}</span>
+              <span class="codex-tree-section-title">Tệp đã sửa</span>
+              <span class="codex-folder-dot" title="${changedPaths.length} tệp thay đổi"></span>
+            </button>
+            ${!isChangedSectionCollapsed ? `<ul class="orca-tree-list codex-changed-tree">${changedRows || `<li class="orca-dock-empty">Không có tệp thay đổi khớp bộ lọc.</li>`}</ul>` : ""}
+          </div>
+        ` : ""}
+        <div class="codex-tree-section">
+          <button type="button" class="codex-tree-section-btn" data-action="toggle-dock-section" data-section="all-files">
+            <span class="orca-tree-caret ${isAllSectionCollapsed ? "" : "is-open"}">${icon("chevron-right", 12)}</span>
+            <span class="codex-tree-section-title">Tất cả tệp</span>
+          </button>
+          ${!isAllSectionCollapsed ? `<ul class="orca-tree-list codex-all-files-tree">${allRows || `<li class="orca-dock-empty">${allFiles.length ? "Không tìm thấy tệp phù hợp." : "Đang tải cây tệp dự án…"}</li>`}</ul>` : ""}
+        </div>
+      </div>`;
     } else {
       bodyHtml = `<div class="orca-dock-empty"><p>Chưa có dự án nào được chọn.</p><button type="button" class="button primary small" data-action="add-workspace">${icon("plus", 12)}<span>Thêm dự án</span></button></div>`;
     }

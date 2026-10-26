@@ -39,6 +39,18 @@ for (const [vi, en] of [
   ["1. Tạo mật khẩu kết nối", "1. Create connection password"],
   ["2. Quét mã QR hoặc sao chép mã sang điện thoại", "2. Scan QR code or copy pairing code to your phone"],
   ["OpenSybau tự dò Codex CLI. Đăng nhập bằng tài khoản ChatGPT trong cửa sổ terminal; không cần OpenAI API key.", "OpenSybau auto-detects Codex CLI. Sign in with your ChatGPT account in the terminal window; no OpenAI API key required."],
+  ["Công cụ CLI & Hạn mức", "CLI Tools & Quotas"],
+  ["Cập nhật hạn mức", "Update quotas"],
+  ["Làm mới hạn mức", "Refresh quotas"],
+  ["Hạn mức Agent", "Agent Quotas"],
+  ["Tất cả thay đổi", "All changes"],
+  ["Tệp đã sửa", "Changed files"],
+  ["Tất cả tệp", "All files"],
+  ["Xem thay đổi", "Show changes"],
+  ["Xem mã nguồn", "View source"],
+  ["Xem bản dựng", "View preview"],
+  ["2g 6p", "2h 6m"],
+  ["6n 21g", "6d 21h"],
 ]) {
   assert.equal(translateText(vi, "en"), en);
   assert.equal(translateText(en, "en"), en);

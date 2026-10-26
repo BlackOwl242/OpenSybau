@@ -10,8 +10,8 @@ import { handleStageAndDiffAction } from "./stage-diff-actions.js";
 import { handleWorkspaceVaultSettingsAction } from "./workspace-vault-actions.js";
 
 export async function handleWorkbenchClick(event) {
-  const clickedPop = event.target.closest?.(".codex-pop-menu, .composer-add");
-  document.querySelectorAll(".codex-pop-menu[open], .composer-add[open]").forEach((menu) => {
+  const clickedPop = event.target.closest?.(".codex-pop-menu, .composer-add, .wb-status-usage");
+  document.querySelectorAll(".codex-pop-menu[open], .composer-add[open], .wb-status-usage[open]").forEach((menu) => {
     if (menu !== clickedPop) menu.open = false;
   });
 

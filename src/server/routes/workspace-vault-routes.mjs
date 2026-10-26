@@ -71,7 +71,7 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
   const { listRemoteContextFiles } = promptService;
   const state = getState();
 
-  const workspaceFileMatch = pathname.match(/^\/api\/workspaces\/([^/]+)\/(files|file|file-index|raw|file-diff|github)(?:\/(.*))?$/);
+  const workspaceFileMatch = pathname.match(/^\/api\/workspaces\/([^/]+)\/(files|file|file-index|raw|file-diff|github|git-status|git-stage)(?:\/(.*))?$/);
   if (workspaceFileMatch) {
     const workspace = state.workspaces.find((item) => item.id === decodeURIComponent(workspaceFileMatch[1]));
     if (!workspace) { json(response, 404, { error: "Workspace không tồn tại." }); return true; }
@@ -87,6 +87,91 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
     }
     if (request.method === "GET" && workspaceFileMatch[2] === "file") {
       json(response, 200, await readLocalTextFile(baseRoot, params.get("path") || ""));
+      return true;
+    }
+    if (request.method === "GET" && workspaceFileMatch[2] === "git-status") {
+      try {
+        const [statusRes, branchListRes, headRes] = await Promise.all([
+          git(baseRoot, ["status", "--porcelain=v1", "-uall"]).catch(() => ({ stdout: "" })),
+          git(baseRoot, ["branch", "--format=%(refname:short)"]).catch(() => ({ stdout: "" })),
+          git(baseRoot, ["rev-parse", "--abbrev-ref", "HEAD"]).catch(() => ({ stdout: "" })),
+        ]);
+        const currentBranch = String(headRes.stdout || "").trim() || "main";
+        const branches = [...new Set(
+          String(branchListRes.stdout || "")
+            .split(/\r?\n/)
+            .map((b) => b.trim())
+            .filter(Boolean),
+        )];
+        if (currentBranch && !branches.includes(currentBranch)) branches.unshift(currentBranch);
+        const changedFiles = [];
+        const rawLines = String(statusRes.stdout || "").split(/\r?\n/);
+        for (const rawLine of rawLines) {
+          if (!rawLine || rawLine.length < 4) continue;
+          const indexStatus = rawLine[0] || " ";
+          const workTreeStatus = rawLine[1] || " ";
+          let filePath = rawLine.slice(3).trim();
+          if (filePath.includes(" -> ")) {
+            filePath = filePath.split(" -> ").at(-1).trim();
+          }
+          if (filePath.startsWith('"') && filePath.endsWith('"')) {
+            filePath = filePath.slice(1, -1).replace(/\\"/g, '"');
+          }
+          filePath = filePath.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+          if (!filePath) continue;
+          const staged = indexStatus !== " " && indexStatus !== "?";
+          const unstaged = workTreeStatus !== " ";
+          let statusKind = "modified";
+          let badge = "M↓";
+          if (indexStatus === "?" || indexStatus === "A") {
+            statusKind = "added";
+            badge = indexStatus === "?" ? "M↓" : "A";
+          } else if (workTreeStatus === "D" || indexStatus === "D") {
+            statusKind = "deleted";
+            badge = "D";
+          }
+          changedFiles.push({
+            path: filePath,
+            indexStatus,
+            workTreeStatus,
+            staged,
+            unstaged,
+            badge,
+            statusKind,
+          });
+        }
+        json(response, 200, { currentBranch, branches, changedFiles });
+      } catch (error) {
+        json(response, 200, { currentBranch: "main", branches: ["main"], changedFiles: [], error: safeError(error) });
+      }
+      return true;
+    }
+    if (request.method === "POST" && workspaceFileMatch[2] === "git-stage") {
+      try {
+        const body = await readBody(request);
+        const stageAction = String(body.action || "stage").trim();
+        const bodyTaskId = String(body.taskId || taskId || "").trim();
+        const targetTask = bodyTaskId ? state.tasks.find((t) => t.id === bodyTaskId && t.workspaceId === workspace.id) : null;
+        const targetRoot = (targetTask?.executionPath || targetTask?.worktreePath) && existsSync(targetTask.executionPath || targetTask.worktreePath)
+          ? (targetTask.executionPath || targetTask.worktreePath)
+          : baseRoot;
+        if (stageAction === "stage-all") {
+          await git(targetRoot, ["add", "-A"]);
+        } else if (stageAction === "unstage-all") {
+          await git(targetRoot, ["restore", "--staged", "."]).catch(() => git(targetRoot, ["reset", "HEAD"]));
+        } else {
+          const relPath = safeRelativePath(body.path || "").split(sep).join("/");
+          if (!relPath) { json(response, 400, { error: "Thiếu đường dẫn tệp." }); return true; }
+          if (stageAction === "unstage") {
+            await git(targetRoot, ["restore", "--staged", "--", relPath]).catch(() => git(targetRoot, ["reset", "HEAD", "--", relPath]));
+          } else {
+            await git(targetRoot, ["add", "--", relPath]);
+          }
+        }
+        json(response, 200, { ok: true });
+      } catch (error) {
+        json(response, 400, { error: safeError(error) });
+      }
       return true;
     }
     if (request.method === "PUT" && workspaceFileMatch[2] === "file") {
@@ -167,30 +252,94 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
     }
     if (request.method === "GET" && workspaceFileMatch[2] === "file-diff") {
       try {
+        if (params.get("all") === "1") {
+          const baseParam = String(params.get("base") || "head").trim();
+          let diffArgs = ["diff", "--no-ext-diff", "--no-color", "HEAD"];
+          if (baseParam === "unstaged") {
+            diffArgs = ["diff", "--no-ext-diff", "--no-color"];
+          } else if (baseParam.startsWith("branch:")) {
+            const branchRef = baseParam.slice("branch:".length).trim();
+            if (/^[\w./-]+$/.test(branchRef) && !branchRef.includes("..") && !branchRef.startsWith("-")) {
+              diffArgs = ["diff", "--no-ext-diff", "--no-color", branchRef];
+            }
+          } else if (taskForRoot?.isolated && taskForRoot?.worktreeBaseHead) {
+            diffArgs = ["diff", "--no-ext-diff", "--no-color", taskForRoot.worktreeBaseHead];
+          }
+          const res = await git(baseRoot, diffArgs).catch(() => ({ stdout: "" }));
+          let diff = res.stdout || "";
+          const untracked = await git(baseRoot, ["ls-files", "--others", "--exclude-standard"]).catch(() => ({ stdout: "" }));
+          for (const uFile of String(untracked.stdout || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean).slice(0, 25)) {
+            if (!allowedTextFile(uFile)) continue;
+            const candidate = resolve(baseRoot, uFile);
+            const lstat = await fs.lstat(candidate).catch(() => null);
+            if (lstat && lstat.isFile() && !lstat.isSymbolicLink() && lstat.size <= 200_000) {
+              const content = await fs.readFile(candidate, "utf8").catch(() => "");
+              const lines = content.split(/\r?\n/);
+              diff += `\ndiff --git a/${uFile} b/${uFile}\n--- /dev/null\n+++ b/${uFile}\n@@ -0,0 +1,${lines.length} @@\n${lines.map((l) => `+${l}`).join("\n")}\n`;
+            }
+          }
+          json(response, 200, { path: "", base: baseParam, diff, files: parseUnifiedDiffFiles(diff) });
+          return true;
+        }
         const relPath = safeRelativePath(params.get("path") || "").split(sep).join("/");
         if (!relPath) { json(response, 400, { error: "Thiếu đường dẫn tệp." }); return true; }
         if (!allowedTextFile(relPath)) { json(response, 403, { error: "Không được phép đọc tệp nhạy cảm này." }); return true; }
-        const baseArgs = taskForRoot?.isolated && taskForRoot?.worktreeBaseHead
-          ? ["diff", "--no-ext-diff", "--no-color", taskForRoot.worktreeBaseHead, "--", relPath]
-          : ["diff", "--no-ext-diff", "--no-color", "--", relPath];
-        const res = await git(baseRoot, baseArgs);
-        let diff = res.stdout || "";
-        if (!diff.trim()) {
-          const untracked = await git(baseRoot, ["ls-files", "--others", "--exclude-standard", "--", relPath]);
-          if ((untracked.stdout || "").trim()) {
-            const candidate = resolve(baseRoot, relPath);
-            const lstat = await fs.lstat(candidate).catch(() => null);
-            if (lstat && lstat.isFile() && !lstat.isSymbolicLink() && lstat.size <= 300_000) {
-              const { target, stat } = await resolveInside(baseRoot, relPath, true);
-              if (stat.isFile() && stat.size <= 300_000 && allowedTextFile(target)) {
-                const content = await fs.readFile(target, "utf8");
-                const lines = content.split(/\r?\n/);
-                diff = `diff --git a/${relPath} b/${relPath}\n--- /dev/null\n+++ b/${relPath}\n@@ -0,0 +1,${lines.length} @@\n` + lines.map((l) => `+${l}`).join("\n") + "\n";
-              }
-            }
+        const requestedBase = String(params.get("base") || "unstaged").trim();
+        let effectiveBase = requestedBase;
+        let baseRef = "";
+        if (requestedBase === "head") {
+          baseRef = "HEAD";
+        } else if (requestedBase.startsWith("branch:")) {
+          const cand = requestedBase.slice("branch:".length).trim();
+          if (/^[\w./-]+$/.test(cand) && !cand.includes("..") && !cand.startsWith("-")) {
+            baseRef = cand;
+          } else {
+            effectiveBase = "unstaged";
           }
         }
-        json(response, 200, { path: relPath, diff, files: parseUnifiedDiffFiles(diff) });
+        const diffArgs = baseRef
+          ? ["diff", "--no-ext-diff", "--no-color", baseRef, "--", relPath]
+          : ["diff", "--no-ext-diff", "--no-color", "--", relPath];
+        let res = await git(baseRoot, diffArgs);
+        let diff = res.stdout || "";
+        if (!diff.trim() && !baseRef) {
+          const fallbackRef = (taskForRoot?.isolated && taskForRoot?.worktreeBaseHead) ? taskForRoot.worktreeBaseHead : "HEAD";
+          const headRes = await git(baseRoot, ["diff", "--no-ext-diff", "--no-color", fallbackRef, "--", relPath]).catch(() => ({ stdout: "" }));
+          if ((headRes.stdout || "").trim()) {
+            diff = headRes.stdout;
+            baseRef = fallbackRef;
+          }
+        }
+        let newContent = "";
+        const candidate = resolve(baseRoot, relPath);
+        const lstat = await fs.lstat(candidate).catch(() => null);
+        if (lstat && lstat.isFile() && !lstat.isSymbolicLink() && lstat.size <= 400_000) {
+          const { target, stat } = await resolveInside(baseRoot, relPath, true);
+          if (stat.isFile() && stat.size <= 400_000 && allowedTextFile(target)) {
+            newContent = await fs.readFile(target, "utf8");
+          }
+        }
+        if (!diff.trim() && newContent) {
+          const untracked = await git(baseRoot, ["ls-files", "--others", "--exclude-standard", "--", relPath]);
+          if ((untracked.stdout || "").trim()) {
+            const lines = newContent.split(/\r?\n/);
+            diff = `diff --git a/${relPath} b/${relPath}\n--- /dev/null\n+++ b/${relPath}\n@@ -0,0 +1,${lines.length} @@\n` + lines.map((l) => `+${l}`).join("\n") + "\n";
+          }
+        }
+        let oldContent = "";
+        const showSpec = baseRef ? `${baseRef}:${relPath}` : `:${relPath}`;
+        const showRes = await git(baseRoot, ["show", showSpec]).catch(() => ({ code: 1, stdout: "" }));
+        if (showRes.code === 0 && typeof showRes.stdout === "string") {
+          oldContent = showRes.stdout;
+        }
+        json(response, 200, {
+          path: relPath,
+          base: effectiveBase,
+          oldContent,
+          newContent,
+          diff,
+          files: parseUnifiedDiffFiles(diff),
+        });
       } catch (error) {
         json(response, 400, { error: safeError(error) });
       }

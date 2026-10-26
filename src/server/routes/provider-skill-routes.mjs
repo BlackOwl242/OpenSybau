@@ -44,6 +44,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     run,
     isForbiddenSystemPath,
     cliDiscovery,
+    providerQuotaService,
     skillCatalogService,
     taskRunner,
   } = ctx;
@@ -237,7 +238,18 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
   }
 
   if (request.method === "GET" && pathname === "/api/connectors") {
-    json(response, 200, await loadModels(new URL(request.url, `http://${host}:${port}`).searchParams.has("refresh")));
+    const force = new URL(request.url, `http://${host}:${port}`).searchParams.has("refresh");
+    if (force) providerQuotaService?.invalidateQuotaCache();
+    json(response, 200, await loadModels(force));
+    return true;
+  }
+
+  if (request.method === "GET" && pathname === "/api/quotas") {
+    const force = new URL(request.url, `http://${host}:${port}`).searchParams.has("refresh");
+    const quotas = providerQuotaService
+      ? await providerQuotaService.loadQuotas(force)
+      : { updatedAt: new Date().toISOString(), providers: {} };
+    json(response, 200, quotas);
     return true;
   }
 

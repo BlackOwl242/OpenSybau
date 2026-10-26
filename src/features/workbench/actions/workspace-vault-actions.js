@@ -11,6 +11,7 @@ import {
   closeOverlay,
   connectEventStream,
   refresh,
+  refreshQuotas,
   render,
   scanCliProviders,
   showToast,
@@ -141,6 +142,11 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
     view.connectionInfo = await api("/api/connection-info");
     render();
     showToast("Đã làm mới thông tin kết nối thiết bị.");
+    return true;
+  }
+  if (action === "refresh-quotas") {
+    await refreshQuotas({ force: true, background: false });
+    showToast("Đã cập nhật hạn mức Codex, Antigravity và Claude Code.");
     return true;
   }
   if (action === "open-orca-connect") {

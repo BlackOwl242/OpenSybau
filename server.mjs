@@ -18,6 +18,7 @@ import {
 import { createSkillCatalogService } from "./src/server/skill-catalog.mjs";
 import { discoverLanAddresses } from "./src/server/network-pairing.mjs";
 import { createCliDiscoveryService } from "./src/server/cli-discovery.mjs";
+import { createProviderQuotaService } from "./src/server/provider-quotas.mjs";
 import { createTaskPromptService, publicProviderName, stageSelection } from "./src/server/task-prompts.mjs";
 import { createTaskStageRunner, failQueuedChatTurns, finishStageRerun } from "./src/server/task-stage-runner.mjs";
 import { createTaskRunnerService } from "./src/server/task-runner.mjs";
@@ -414,6 +415,12 @@ const cliDiscovery = createCliDiscoveryService({
   safeError,
 });
 
+const providerQuotaService = createProviderQuotaService({
+  getCliExecutables: () => cliDiscovery.getCliExecutables(),
+  loadModels: (force) => cliDiscovery.loadModels(force),
+  run,
+});
+
 const skillCatalogService = createSkillCatalogService({
   runtime,
   getWorkspaces: () => state.workspaces,
@@ -570,6 +577,7 @@ const routeContext = {
   isForbiddenSystemPath,
   autoDistillTaskMemory,
   cliDiscovery,
+  providerQuotaService,
   skillCatalogService,
   promptService,
   stageRunner,
