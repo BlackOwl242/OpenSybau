@@ -3,7 +3,22 @@
 **A local-first multi-agent coding workbench & parallel Git worktree arena.**  
 OpenSybau brings **Codex CLI**, **Claude Code**, **Antigravity CLI**, and **Anthropic / OpenAI-compatible APIs** (including Ollama, LM Studio, and LocalAI) into a unified frosted-glass desktop and browser interface. Every task, chat, and Git worktree executes directly on your machine with full transparency and zero cloud lock-in.
 
-**Documentation:** [Tiếng Việt](README.vi.md) · **Changelog:** [CHANGELOG.md](CHANGELOG.md) · **License:** [MIT](LICENSE)
+**Documentation:** [Tiếng Việt](README.vi.md) · **Latest Release:** [v0.3.2](https://github.com/BlackOwl242/OpenSybau/releases/latest) · **Changelog:** [CHANGELOG.md](CHANGELOG.md) · **License:** [MIT](LICENSE)
+
+---
+
+## ⬇️ Download for Your Device (`v0.3.2`)
+
+Download the prebuilt installer for your platform directly from **[GitHub Releases](https://github.com/BlackOwl242/OpenSybau/releases/latest)** — no Node.js or manual build required:
+
+| Platform / Device | Package Format | Architecture | Direct Download (`v0.3.2`) |
+| :--- | :--- | :---: | :--- |
+| 🪟 **Windows Desktop (PC)** | NSIS Installer (`.exe`) | `x64` (Windows 10 / 11) | **[⬇️ Download `OpenSybau-Setup-0.3.2-x64.exe`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.2/OpenSybau-Setup-0.3.2-x64.exe)** |
+| 🐧 **Linux (Debian / Ubuntu / Mint)** | Debian Package (`.deb`) | `amd64` (`x86_64`) | **[⬇️ Download `OpenSybau-0.3.2-amd64.deb`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.2/OpenSybau-0.3.2-amd64.deb)** |
+| 🎩 **Linux (Fedora / RHEL / openSUSE)** | RPM Package (`.rpm`) | `x86_64` | **[⬇️ Download `OpenSybau-0.3.2-x86_64.rpm`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.2/OpenSybau-0.3.2-x86_64.rpm)** |
+| 📱 **Android (Phone & Tablet)** | Android APK (`.apk`) | Universal (Android 8.0+) | **[⬇️ Download `OpenSybau-0.3.2-android.apk`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.2/OpenSybau-0.3.2-android.apk)** |
+
+> 💡 **Auto-Update & All Versions:** Windows and Linux desktop apps automatically check for new versions in the background. Browse all versions and checksums on the **[Releases page](https://github.com/BlackOwl242/OpenSybau/releases)**.
 
 ---
 
@@ -44,7 +59,9 @@ OpenSybau brings **Codex CLI**, **Claude Code**, **Antigravity CLI**, and **Anth
     - 🧑‍💻 **Read & Edit Project (`Đọc & sửa dự án`):** Read, edit files, and run tools scoped to the active workspace.
     - ⚡ **Full Execution Access (`Toàn quyền`):** Unrestricted command execution, package installation, and file operations on your machine.
 
-### 2. Multi-Window File Tabs, Split Review & Page-Aware Right Sidebar
+### 2. Codex Unified File/Diff Studio, Live CLI Quota Inspector & Multi-Window Tabs
+- **Codex Unified File & Diff Studio:** 3-tab right dock (`All changes`, `Modified`, `All files`) with live `+added -removed` line counters, Git diff scope selector (`Uncommitted changes`, `Staged`, `Unstaged`, or base branch comparison), and interactive **Unified / Split Diff Viewer** with syntax highlighting and line expansion.
+- **Real-Time Local CLI Quota Inspector:** Inspect live remaining capacity (`5h` and `7d` windows) and subscription tiers (`Ultra`, `Pro`, `Plus`) for **Codex CLI**, **Antigravity CLI**, and **Claude Code** directly from the Desktop StatusBar popover, Mobile Home runtime card, and Settings CLI cards.
 - **Multi-Tab Stage Viewer & Side-by-Side Split View:** Open any workspace file directly from the right file tree or from changed file pills inside a chat message. View Chat and File Preview side by side with a draggable splitter.
 - **Rich Native Format Previews:**
   - **HTML (`Xem trước` / `Mã nguồn`):** Live sandboxed iframe with an address bar (`Back`, `Reload`, path badge) or numbered source code.

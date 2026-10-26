@@ -3,7 +3,22 @@
 **Trung tâm điều phối AI Coding Agent & Thực thi Đa luồng Git Worktree chạy trực tiếp trên máy của bạn.**  
 OpenSybau kết hợp **Codex CLI**, **Claude Code**, **Antigravity CLI** cùng các nguồn **API tương thích Anthropic / OpenAI** (bao gồm cả Ollama, LM Studio, LocalAI) trong một giao diện Desktop kính mờ hiện đại. Mọi tác vụ, cuộc trò chuyện và nhánh Git worktree đều thực thi trực tiếp trên máy tính của bạn — minh bạch, tốc độ cao và toàn quyền kiểm soát dữ liệu.
 
-**Tài liệu:** [English](README.md) · **Nhật ký thay đổi:** [CHANGELOG.md](CHANGELOG.md) · **Giấy phép:** [MIT License](LICENSE)
+**Tài liệu:** [English](README.md) · **Bản phát hành mới nhất:** [v0.3.2](https://github.com/BlackOwl242/OpenSybau/releases/latest) · **Nhật ký thay đổi:** [CHANGELOG.md](CHANGELOG.md) · **Giấy phép:** [MIT License](LICENSE)
+
+---
+
+## ⬇️ Tải xuống cho Thiết bị của bạn (`v0.3.2`)
+
+Tải trực tiếp bộ cài đặt đã đóng gói sẵn cho máy tính và điện thoại từ **[GitHub Releases](https://github.com/BlackOwl242/OpenSybau/releases/latest)** (không cần cài đặt Node.js hay biên dịch thủ công):
+
+| Thiết bị / Hệ điều hành | Định dạng Gói cài đặt | Kiến trúc | Liên kết Tải trực tiếp (`v0.3.2`) |
+| :--- | :--- | :---: | :--- |
+| 🪟 **Windows Desktop (PC)** | Bộ cài NSIS (`.exe`) | `x64` (Windows 10 / 11) | **[⬇️ Tải `OpenSybau-Setup-0.3.2-x64.exe`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.2/OpenSybau-Setup-0.3.2-x64.exe)** |
+| 🐧 **Linux (Debian / Ubuntu / Mint)** | Gói Debian (`.deb`) | `amd64` (`x86_64`) | **[⬇️ Tải `OpenSybau-0.3.2-amd64.deb`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.2/OpenSybau-0.3.2-amd64.deb)** |
+| 🎩 **Linux (Fedora / RHEL / openSUSE)** | Gói RPM (`.rpm`) | `x86_64` | **[⬇️ Tải `OpenSybau-0.3.2-x86_64.rpm`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.2/OpenSybau-0.3.2-x86_64.rpm)** |
+| 📱 **Android (Điện thoại & Máy tính bảng)** | Gói cài đặt Android (`.apk`) | Android 8.0+ | **[⬇️ Tải `OpenSybau-0.3.2-android.apk`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.2/OpenSybau-0.3.2-android.apk)** |
+
+> 💡 **Tự động cập nhật & Danh sách phiên bản:** Bản cài đặt trên PC tự động kiểm tra bản mới từ GitHub Releases. Xem toàn bộ lịch sử các bản phát hành tại **[trang Releases](https://github.com/BlackOwl242/OpenSybau/releases)**.
 
 ---
 
@@ -44,7 +59,9 @@ OpenSybau kết hợp **Codex CLI**, **Claude Code**, **Antigravity CLI** cùng 
     - 🧑‍💻 **Đọc & sửa dự án (`workspace-write`):** Cho phép đọc, chỉnh sửa tệp và chạy công cụ trong phạm vi workspace.
     - ⚡ **Toàn quyền (`full-access`):** Tự động chạy lệnh, cài gói và thao tác tệp trên máy không giới hạn.
 
-### 2. Đa cửa sổ Tab Xem tệp, Chia đôi màn hình & Sidebar Phải theo ngữ cảnh
+### 2. Khung Duyệt Tệp & Diff Chuẩn Codex, Trình Kiểm Tra Hạn Mức CLI & Đa Tab Xem Tệp
+- **Khung Duyệt Tệp & Diff 3 Tab Chuẩn Codex:** Tích hợp 3 tab (`Tất cả thay đổi`, `Tệp đã sửa`, `Tất cả tệp`) kèm bộ đếm dòng `+thêm -xóa`, hộp chọn phạm vi/nhánh so sánh (`Thay đổi chưa commit`, `Chỉ mục (Index)`, `Chưa stage` hoặc nhánh gốc) và trình xem **Diff Gộp / Chia đôi** có tô màu cú pháp.
+- **Kiểm Tra Hạn Mức CLI Thời Gian Thực (`5h` | `7 ngày`):** Tự động truy vấn trực tiếp hạn mức còn lại và gói thuê bao (`Ultra`, `Pro`, `Plus`) của **Codex CLI**, **Antigravity CLI** và **Claude Code** ngay trên thanh trạng thái Desktop, thẻ trang chủ Mobile và trang Cài đặt.
 - **Trình xem tệp đa cửa sổ & Chia đôi màn hình (Split View):** Nhấp trực tiếp vào bất kỳ tệp nào ở cây thư mục bên phải hoặc chip tệp thay đổi trong đoạn chat để mở tab mới, hoặc bật **Chia đôi màn hình** để vừa đọc cuộc trò chuyện vừa kiểm tra mã nguồn.
 - **Hỗ trợ xem trước đa định dạng trực tiếp:**
   - **HTML (`Xem trước` / `Mã nguồn`):** Khung chạy thử trực tiếp có thanh địa chỉ (`Quay lại`, `Tải lại`) hoặc chuyển sang xem mã nguồn có đánh số dòng.
