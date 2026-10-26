@@ -5,6 +5,22 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.2] - 2026-10-26
+
+### English
+- **Codex Unified File/Diff Studio & Live CLI Quota Inspector (`src/server/provider-quotas.mjs`, `src/features/workbench/right-dock.js`, `src/features/workbench/stage-viewer.js`, `src/shell/shell.jsx`, `src/shell/components/MobileOrcaShell.jsx`, `src/features/workbench/pages/settings-page.js`)**:
+  - Upgrade the right dock into a unified 3-tab Codex File/Diff Studio (`All changes`, `Modified`, `All files`) with live Git diff summary (`+added -removed`), branch/scope selector popover (`Uncommitted changes`, `Staged`, `Unstaged`, or base branch comparison), and interactive Unified/Split diff rendering with syntax highlighting and line expansion.
+  - Add real-time local CLI Quota Inspection (`/api/providers/quotas`) across Codex CLI (`codex app-server` `account/rateLimits/read`), Antigravity CLI (local Language Server `GetUserStatus` / `RetrieveUserQuotaSummary` with `Ultra` / `Pro` tier detection), and Claude Code (`~/.claude/.credentials.json` OAuth usage windows).
+  - Surface theme-adaptive 2-column remaining-capacity progress bars (`5h` | `7d`) with inline reset countdowns in the Desktop StatusBar popover, Mobile Home runtime card, and Settings CLI cards, with complete bidirectional Vietnamese and English localization.
+
+### Tiếng Việt
+- **Khung Duyệt Tệp & Diff Chuẩn Codex cùng Trình Kiểm Tra Hạn Mức CLI Thời Gian Thực (`src/server/provider-quotas.mjs`, `src/features/workbench/right-dock.js`, `src/features/workbench/stage-viewer.js`, `src/shell/shell.jsx`, `src/shell/components/MobileOrcaShell.jsx`, `src/features/workbench/pages/settings-page.js`)**:
+  - Nâng cấp thanh bên phải thành không gian duyệt tệp & Diff 3 tab kiểu Codex (`Tất cả thay đổi`, `Tệp đã sửa`, `Tất cả tệp`) kèm thống kê dòng (`+thêm -xóa`), hộp chọn phạm vi/nhánh so sánh (`Thay đổi chưa commit`, `Chỉ mục (Index)`, `Chưa stage` hoặc nhánh gốc) và trình xem Diff Gộp/Chia đôi có tô màu cú pháp.
+  - Bổ sung hệ thống kiểm tra hạn mức CLI thời gian thực (`/api/providers/quotas`) cho Codex CLI (`codex app-server`), Antigravity CLI (truy vấn Language Server cục bộ và tự động nhận diện gói `Ultra` / `Pro`) và Claude Code (OAuth usage API).
+  - Hiển thị lưới hạn mức 2 cột (`5h` | `7 ngày`) đồng bộ hoàn toàn theo màu chủ đề (theme) kèm đếm ngược làm mới trên thanh trạng thái Desktop, thẻ trang chủ Mobile và trang Cài đặt, hỗ trợ đầy đủ song ngữ Việt – Anh.
+
+---
+
 ## [0.3.1] - 2026-10-21
 
 ### English
