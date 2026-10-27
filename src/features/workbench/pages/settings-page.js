@@ -266,7 +266,7 @@ export function settingsPage() {
       <h1>Cài đặt</h1>
       <p>${isMobile ? "Tùy chỉnh giao diện, ghép nối với máy tính (PC) và quản lý nguồn AI trên máy chủ." : "Tùy chỉnh giao diện, chọn model AI mặc định và kết nối với điện thoại."}</p>
     </div>
-    <div class="page-head-actions">
+    <div class="page-head-actions" ${isMobile && (activeSection === "devices" || mobileDisconnected) ? "hidden" : ""}>
       ${cliRefreshButton("Quét lại", { small: false })}
       <button class="button primary" type="button" data-action="provider-add">${icon("plus", 15)} Thêm nguồn AI</button>
     </div>

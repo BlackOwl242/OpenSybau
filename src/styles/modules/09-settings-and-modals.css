@@ -177,10 +177,17 @@
   gap: 8px;
   align-items: center;
 }
-.device-password-box .device-input-action-row,
-.device-qr-body .device-input-action-row,
-.device-quick-pair-box .device-input-action-row {
+.device-password-box .device-input-action-row {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+}
+.device-qr-body .device-input-action-row {
   grid-template-columns: minmax(0, 1fr) auto auto;
+}
+@media (max-width: 680px) {
+  .device-password-box .device-input-action-row,
+  .device-qr-body .device-input-action-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .device-lan-chips {
   display: flex;
@@ -862,7 +869,10 @@ details.composer-add:not([open]) > .composer-add-menu {
   background: var(--wb-panel) !important;
   box-shadow: none !important;
 }
-.wb-page-content .settings-form > .settings-card[hidden] {
+.wb-page-content .settings-form > .settings-card[hidden],
+.wb-page-content .settings-form > .settings-search-empty[hidden],
+.wb-page-content .page-head-actions[hidden],
+.empty-state[hidden] {
   display: none !important;
 }
 .wb-page-content .settings-card > header {

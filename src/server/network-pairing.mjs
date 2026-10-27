@@ -8,7 +8,7 @@ export function discoverLanAddresses(port = 4173, protocol = "http") {
   const nets = networkInterfaces();
   const list = [];
   for (const [name, entries] of Object.entries(nets || {})) {
-    if (/(?:vethernet|wsl|hyper-v|docker|vmware|virtualbox|vboxnet|virbr|npcap|loopback)/i.test(name)) {
+    if (/(?:vethernet|wsl|hyper-v|docker|vmware|virtualbox|vboxnet|virbr|npcap|loopback|radmin|hamachi)/i.test(name)) {
       continue;
     }
     for (const entry of entries || []) {

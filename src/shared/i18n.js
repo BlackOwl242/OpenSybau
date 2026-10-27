@@ -1043,6 +1043,8 @@ const english = {
   "Chưa có thư mục dự án trên PC": "No project folders on PC yet",
   "Ghép nối điện thoại với OpenSybau trên máy tính qua cùng mạng Wi-Fi để xem dự án và điều khiển AI.": "Pair your phone with OpenSybau on your computer over the same Wi-Fi network to view projects and control AI.",
   "Thêm thư mục dự án nằm trên máy tính (PC) để AI đọc hiểu và viết code.": "Add a project folder located on your computer (PC) for AI to read and write code.",
+  "Chưa kết nối · Cùng Wi-Fi": "Not connected · Same Wi-Fi",
+  "Chưa ghép nối · Cùng mạng Wi-Fi": "Not paired · Same Wi-Fi network",
   "Chưa ghép nối · Bấm Ghép nối PC để kết nối qua Wi-Fi": "Not paired · Tap Pair PC to connect over Wi-Fi",
   "Đường dẫn thư mục dự án trên máy tính (PC)": "Project folder path on computer (PC)",
   "Nhập đường dẫn tuyệt đối của thư mục dự án nằm trên máy tính (PC) đang kết nối.": "Enter the absolute path of the project folder located on the connected computer (PC).",

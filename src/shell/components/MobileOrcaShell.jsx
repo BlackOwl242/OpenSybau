@@ -411,7 +411,7 @@ export function MobileOrcaOverlay({ snapshot }) {
             <div class="mp-host-name" data-localize-skip={isDisconnectedApk ? undefined : "true"}>{hostName}</div>
             <div class="mp-host-meta">
               <span class={`mp-status-dot ${connected ? "is-green" : "is-muted"}`} />
-              <span>{isDisconnectedApk ? "Chưa ghép nối · Bấm Ghép nối PC để kết nối qua Wi-Fi" : `${connected ? "Đã kết nối" : "Đang kết nối lại"} · ${workspaces.length} dự án · ${formatNumber(tokens7d)} tok (7d)`}</span>
+              <span>{isDisconnectedApk ? "Chưa kết nối · Cùng Wi-Fi" : `${connected ? "Đã kết nối" : "Đang kết nối lại"} · ${workspaces.length} dự án · ${formatNumber(tokens7d)} tok (7d)`}</span>
             </div>
           </div>
           <button type="button" class="button quiet small mp-pair-btn" data-action="mp-open-pair">
@@ -434,7 +434,7 @@ export function MobileOrcaOverlay({ snapshot }) {
 
         <div class="mp-agent-pills-row">
           {usageRows.map((row) => {
-            const avail = Boolean(snapshot.connectors?.[row.id]?.available);
+            const avail = !isDisconnectedApk && Boolean(snapshot.connectors?.[row.id]?.available);
             const count = snapshot.connectors?.[row.id]?.models?.length || 0;
             const pUsage = telemetry.byProvider?.[row.id] || {};
             const tok7d = Number(pUsage.tokens7d || 0);

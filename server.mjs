@@ -129,9 +129,15 @@ if (!connectionConfig.password && connectionConfig.remoteEnabled !== false) {
   try { persistJsonFile(connectionConfigFile, connectionConfig); } catch {}
 }
 function getEffectiveAccessUsername() {
+  if (connectionConfig?.userConfigured && connectionConfig?.username) {
+    return String(connectionConfig.username).trim() || "opensybau";
+  }
   return String(process.env.WORKBENCH_ACCESS_USERNAME || connectionConfig?.username || "opensybau").trim() || "opensybau";
 }
 function getEffectiveAccessPassword() {
+  if (connectionConfig?.userConfigured && connectionConfig?.password) {
+    return String(connectionConfig.password);
+  }
   return String(process.env.WORKBENCH_ACCESS_PASSWORD || connectionConfig?.password || "");
 }
 
@@ -363,7 +369,7 @@ function matchesCredential(input, expected) {
 function hasValidAccess(request) {
   const requestHost = String(request.headers.host || "").toLowerCase();
   const localHost = /^(?:localhost|127\.0\.0\.1|\[::1\]|::1)(?::\d{1,5})?$/.test(requestHost);
-  if (isLoopbackClient(request) && (!accessPassword || process.env.WORKBENCH_MODE !== "production" || (!isLoopbackBind && localHost))) return true;
+  if (isLoopbackClient(request) && (!accessPassword || process.env.WORKBENCH_MODE !== "production" || process.env.OPENSYBAU_DESKTOP === "1" || (!isLoopbackBind && localHost))) return true;
   const activePassword = getEffectiveAccessPassword();
   if (!activePassword) return isLoopbackBind && isLoopbackClient(request);
   const match = String(request.headers.authorization || "").match(/^Basic\s+([A-Za-z0-9+/]+=*)$/i);
@@ -641,8 +647,12 @@ function isAllowedRequestHost(requestHost) {
   const clean = String(requestHost || "").trim().toLowerCase();
   if (!clean) return false;
   if (allowedHosts.has(clean)) return true;
-  if (!isLoopbackBind && allowedHosts.size > 0) return false;
-  if (lanCompanionServers.length > 0 && isPrivateOrLocalHostName(clean)) return true;
+  if (isPrivateOrLocalHostName(clean)) return true;
+  const hostOnly = clean.replace(/:\d+$/, "");
+  const currentLan = discoverLanAddresses(4173);
+  if (currentLan.some((item) => String(item.address || "").toLowerCase() === hostOnly)) {
+    return true;
+  }
   return false;
 }
 

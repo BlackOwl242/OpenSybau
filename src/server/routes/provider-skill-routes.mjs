@@ -140,6 +140,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       username: nextUsername,
       password: nextPassword,
       remoteEnabled: Boolean(nextPassword),
+      userConfigured: true,
       updatedAt: new Date().toISOString(),
     };
     setConnectionConfig(nextConfig);

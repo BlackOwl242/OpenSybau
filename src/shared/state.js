@@ -1,5 +1,5 @@
 import { getLanguage, formatNumber } from "./i18n.js";
-import { isAndroidApkRuntime } from "./remote-host.js";
+import { isMobileCompanionMode } from "./remote-host.js";
 import { getSavedThemeId } from "./themes.js";
 import { iconSvg } from "./ui/icons.js";
 
@@ -99,7 +99,7 @@ export const view = {
   settingsSection: "all",
   renderedPage: "",
   renderedSelection: "",
-  desktopSetupOpen: !setupAlreadyDismissed() && !isAndroidApkRuntime(),
+  desktopSetupOpen: !setupAlreadyDismissed() && !isMobileCompanionMode(),
   cliInstallProvider: "",
   waveRiskFilter: "all",
   waveCriticalOnly: false,

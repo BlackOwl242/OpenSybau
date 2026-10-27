@@ -12,6 +12,7 @@ import { Icon } from "../shared/ui/Icon.jsx";
 import { formatNumber } from "../shared/i18n.js";
 import { THEMES, THEME_GROUPS, getThemeDefinition } from "../shared/themes.js";
 import { compactChatTitle } from "../shared/chat-labels.js";
+import { isMobileCompanionMode } from "../shared/remote-host.js";
 
 function quotaTone(usedPercent) {
   const used = Number(usedPercent || 0);
@@ -442,6 +443,6 @@ export function AppShell({ snapshot, pageMarkup }) {
       <StatusBar snapshot={snapshot} />
     </main>
     <MobileNav page={page} />
-    {snapshot.desktopSetupOpen && <DesktopSetupDialog connectors={snapshot.connectors} installingProvider={snapshot.cliInstallProvider} />}
+    {snapshot.desktopSetupOpen && !isMobileCompanionMode() && <DesktopSetupDialog connectors={snapshot.connectors} installingProvider={snapshot.cliInstallProvider} />}
   </div>;
 }
