@@ -6,9 +6,20 @@ import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { cliIsInstalled } from "../src/server/cli-status.mjs";
+import { unquoteGitPath } from "../src/server/fs-security.mjs";
 import { pipelineStepperData, computeWaveDag } from "../src/domain/task-flow.js";
 
 const root = process.cwd();
+assert.equal(
+  unquoteGitPath('"H\\341\\273\\207 th\\341\\273\\221ng th\\303\\264ng tin qu\\341\\272\\243n l\\303\\275 h\\303\\240nh ch\\303\\255nh/frontend/src/CitizenProfile.tsx"'),
+  "Hệ thống thông tin quản lý hành chính/frontend/src/CitizenProfile.tsx",
+  "unquoteGitPath must decode Git octal UTF-8 paths.",
+);
+assert.equal(
+  unquoteGitPath("H/341/273/207 th/341/273/221ng th/303/264ng tin qu/341/272/243n l/303/275 h/303/240nh ch/303/255nh/frontend/src/CitizenProfile.tsx"),
+  "Hệ thống thông tin quản lý hành chính/frontend/src/CitizenProfile.tsx",
+  "unquoteGitPath must recover slash-corrupted octal UTF-8 paths.",
+);
 assert.equal(cliIsInstalled("C:\\Users\\test\\agy.exe", -1, () => true), true, "An executable present on disk is installed even if its version command cannot start.");
 assert.equal(cliIsInstalled("C:\\Users\\test\\missing.exe", -1, () => false), false, "A missing executable with a failed version command is not installed.");
 assert.equal(cliIsInstalled("", 0, () => false), true, "A successful version command confirms installation.");

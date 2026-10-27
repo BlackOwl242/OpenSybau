@@ -3,6 +3,31 @@ import { pipelineStepperData } from "../../domain/task-flow.js";
 import { extractMarkdownOutline } from "./markdown.js";
 import { buildDockFileTree, dockFileIconName, renderDockTreeLevel } from "./stage-viewer.js";
 
+const utf8Decoder = typeof TextDecoder !== "undefined" ? new TextDecoder("utf-8") : null;
+
+export function normalizeFrontendGitPath(raw = "", workspacePath = "") {
+  let str = String(raw || "").trim();
+  if (str.startsWith('"') && str.endsWith('"') && str.length >= 2) {
+    str = str.slice(1, -1);
+  }
+  str = str.replace(/(?:\/[0-3][0-7]{2}){2,}/g, (match) => match.replaceAll("/", "\\"));
+  if (str.includes("\\") && utf8Decoder) {
+    str = str.replace(/(?:\\[0-3][0-7]{2})+/g, (match) => {
+      const bytes = new Uint8Array(match.slice(1).split("\\").map((oct) => parseInt(oct, 8)));
+      return utf8Decoder.decode(bytes);
+    });
+    str = str.replace(/\\"/g, '"').replace(/\\t/g, "\t").replace(/\\n/g, "\n");
+  }
+  str = str.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+  if (workspacePath && str.includes("/")) {
+    const wsFolder = String(workspacePath).replaceAll("\\", "/").replace(/\/+$/g, "").split("/").at(-1) || "";
+    if (wsFolder && str.toLowerCase().startsWith(`${wsFolder.toLowerCase()}/`)) {
+      str = str.slice(wsFolder.length + 1).replace(/^\/+/, "");
+    }
+  }
+  return str;
+}
+
 export function pageSupportsRightDock(page = view.page) {
   if (page === "chat" || page === "workspaces" || page === "skills") return true;
   if (page === "knowledge") return Boolean(view.state?.settings?.vaultPath);
@@ -203,8 +228,10 @@ export function renderOrcaRightDockMarkup({
 
       for (const entry of rawChangedList) {
         if (!entry?.path) continue;
-        gitStatusMap.set(entry.path, entry);
-        const segs = entry.path.split("/").filter(Boolean);
+        const cleanEntryPath = normalizeFrontendGitPath(entry.path, activeWs.path || activeWs.name || "");
+        if (!cleanEntryPath) continue;
+        gitStatusMap.set(cleanEntryPath, { ...entry, path: cleanEntryPath });
+        const segs = cleanEntryPath.split("/").filter(Boolean);
         for (let i = 1; i < segs.length; i++) {
           folderHasChangesSet.add(segs.slice(0, i).join("/"));
         }

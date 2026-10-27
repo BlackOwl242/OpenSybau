@@ -1,7 +1,7 @@
 import { view } from "../../shared/state.js";
 import { pipelineStepperData } from "../../domain/task-flow.js";
 import { defaultFileTabMode } from "./stage-viewer.js";
-import { renderOrcaRightDockMarkup } from "./right-dock.js";
+import { normalizeFrontendGitPath, renderOrcaRightDockMarkup } from "./right-dock.js";
 import { api, ensureWorkspaceFileIndex, ensureWorkspaceGitStatus, render, showToast } from "./runtime.js";
 import { loadVaultGraph, vaultNoteOptionsMenu } from "./pages/knowledge-skills-page.js";
 
@@ -13,8 +13,6 @@ export async function openStageFileTab({
   showChanges = undefined,
   diffBase = "",
 } = {}) {
-  const cleanPath = String(path || "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
-  if (!cleanPath) return;
   const selectedTask = (taskId || view.selected) ? (view.state?.tasks || []).find((t) => t.id === (taskId || view.selected)) : null;
   const wsId = workspaceId
     || (view.page === "workspaces" && view.selected ? view.selected : "")
@@ -23,6 +21,9 @@ export async function openStageFileTab({
     || view.state?.workspaces?.[0]?.id
     || "";
   if (!wsId) return;
+  const wsObj = (view.state?.workspaces || []).find((w) => w.id === wsId) || null;
+  const cleanPath = normalizeFrontendGitPath(path, wsObj?.path || wsObj?.name || "");
+  if (!cleanPath) return;
   const tId = taskId || selectedTask?.id || "";
   const tabId = `${wsId}::${cleanPath}`;
   const name = cleanPath.split("/").at(-1) || cleanPath;
@@ -192,6 +193,10 @@ export async function reloadStageFileTab(tabId) {
       api(`/api/workspaces/${encodeURIComponent(tab.workspaceId)}/file-diff?${q}&base=${encodeURIComponent(effectiveBase)}`).catch(() => null),
     ]);
     tab.fileData = fileRes;
+    if (fileRes?.path) {
+      tab.path = fileRes.path;
+      tab.name = fileRes.name || tab.name;
+    }
     tab.diffData = diffRes;
     tab.ext = fileRes.extension || tab.ext;
     if (tab.mode === "edit" && tab.editDraft === undefined) {

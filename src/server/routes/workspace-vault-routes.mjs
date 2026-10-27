@@ -7,7 +7,9 @@ import {
   listLocalFiles,
   readLocalTextFile,
   resolveInside,
+  resolveWorkspaceRelativePath,
   safeRelativePath,
+  unquoteGitPath,
   writeLocalWorkspaceTextFile,
 } from "../fs-security.mjs";
 import {
@@ -91,11 +93,15 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
     }
     if (request.method === "GET" && workspaceFileMatch[2] === "git-status") {
       try {
-        const [statusRes, branchListRes, headRes] = await Promise.all([
-          git(baseRoot, ["status", "--porcelain=v1", "-uall"]).catch(() => ({ stdout: "" })),
+        const [statusRes, branchListRes, headRes, prefixRes] = await Promise.all([
+          git(baseRoot, ["status", "--porcelain=v1", "-uall", "--", "."]).catch(() => ({ stdout: "" })),
           git(baseRoot, ["branch", "--format=%(refname:short)"]).catch(() => ({ stdout: "" })),
           git(baseRoot, ["rev-parse", "--abbrev-ref", "HEAD"]).catch(() => ({ stdout: "" })),
+          git(baseRoot, ["rev-parse", "--show-prefix"]).catch(() => ({ stdout: "" })),
         ]);
+        const repoPrefix = unquoteGitPath(String(prefixRes.stdout || "").trim())
+          .replaceAll("\\", "/")
+          .replace(/^\/+|\/+$/g, "");
         const currentBranch = String(headRes.stdout || "").trim() || "main";
         const branches = [...new Set(
           String(branchListRes.stdout || "")
@@ -114,10 +120,19 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
           if (filePath.includes(" -> ")) {
             filePath = filePath.split(" -> ").at(-1).trim();
           }
-          if (filePath.startsWith('"') && filePath.endsWith('"')) {
-            filePath = filePath.slice(1, -1).replace(/\\"/g, '"');
+          filePath = unquoteGitPath(filePath).replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+          if (repoPrefix) {
+            const prefixSlash = `${repoPrefix}/`;
+            if (filePath.toLowerCase().startsWith(prefixSlash.toLowerCase())) {
+              filePath = filePath.slice(prefixSlash.length).replace(/^\/+/, "");
+            } else {
+              continue;
+            }
           }
-          filePath = filePath.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+          if (!filePath) continue;
+          try {
+            filePath = resolveWorkspaceRelativePath(baseRoot, filePath).split(sep).join("/");
+          } catch {}
           if (!filePath) continue;
           const staged = indexStatus !== " " && indexStatus !== "?";
           const unstaged = workTreeStatus !== " ";
@@ -156,11 +171,11 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
           ? (targetTask.executionPath || targetTask.worktreePath)
           : baseRoot;
         if (stageAction === "stage-all") {
-          await git(targetRoot, ["add", "-A"]);
+          await git(targetRoot, ["add", "-A", "--", "."]);
         } else if (stageAction === "unstage-all") {
-          await git(targetRoot, ["restore", "--staged", "."]).catch(() => git(targetRoot, ["reset", "HEAD"]));
+          await git(targetRoot, ["restore", "--staged", "."]).catch(() => git(targetRoot, ["reset", "HEAD", "--", "."]));
         } else {
-          const relPath = safeRelativePath(body.path || "").split(sep).join("/");
+          const relPath = resolveWorkspaceRelativePath(targetRoot, body.path || "").split(sep).join("/");
           if (!relPath) { json(response, 400, { error: "Thiếu đường dẫn tệp." }); return true; }
           if (stageAction === "unstage") {
             await git(targetRoot, ["restore", "--staged", "--", relPath]).catch(() => git(targetRoot, ["reset", "HEAD", "--", relPath]));
@@ -254,21 +269,22 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
       try {
         if (params.get("all") === "1") {
           const baseParam = String(params.get("base") || "head").trim();
-          let diffArgs = ["diff", "--no-ext-diff", "--no-color", "HEAD"];
+          let diffArgs = ["diff", "--relative", "--no-ext-diff", "--no-color", "HEAD"];
           if (baseParam === "unstaged") {
-            diffArgs = ["diff", "--no-ext-diff", "--no-color"];
+            diffArgs = ["diff", "--relative", "--no-ext-diff", "--no-color"];
           } else if (baseParam.startsWith("branch:")) {
             const branchRef = baseParam.slice("branch:".length).trim();
             if (/^[\w./-]+$/.test(branchRef) && !branchRef.includes("..") && !branchRef.startsWith("-")) {
-              diffArgs = ["diff", "--no-ext-diff", "--no-color", branchRef];
+              diffArgs = ["diff", "--relative", "--no-ext-diff", "--no-color", branchRef];
             }
           } else if (taskForRoot?.isolated && taskForRoot?.worktreeBaseHead) {
-            diffArgs = ["diff", "--no-ext-diff", "--no-color", taskForRoot.worktreeBaseHead];
+            diffArgs = ["diff", "--relative", "--no-ext-diff", "--no-color", taskForRoot.worktreeBaseHead];
           }
           const res = await git(baseRoot, diffArgs).catch(() => ({ stdout: "" }));
           let diff = res.stdout || "";
           const untracked = await git(baseRoot, ["ls-files", "--others", "--exclude-standard"]).catch(() => ({ stdout: "" }));
-          for (const uFile of String(untracked.stdout || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean).slice(0, 25)) {
+          for (const rawUFile of String(untracked.stdout || "").split(/\r?\n/).map((s) => unquoteGitPath(s.trim())).filter(Boolean).slice(0, 25)) {
+            const uFile = resolveWorkspaceRelativePath(baseRoot, rawUFile).split(sep).join("/");
             if (!allowedTextFile(uFile)) continue;
             const candidate = resolve(baseRoot, uFile);
             const lstat = await fs.lstat(candidate).catch(() => null);
@@ -281,7 +297,7 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
           json(response, 200, { path: "", base: baseParam, diff, files: parseUnifiedDiffFiles(diff) });
           return true;
         }
-        const relPath = safeRelativePath(params.get("path") || "").split(sep).join("/");
+        const relPath = resolveWorkspaceRelativePath(baseRoot, params.get("path") || "").split(sep).join("/");
         if (!relPath) { json(response, 400, { error: "Thiếu đường dẫn tệp." }); return true; }
         if (!allowedTextFile(relPath)) { json(response, 403, { error: "Không được phép đọc tệp nhạy cảm này." }); return true; }
         const requestedBase = String(params.get("base") || "unstaged").trim();
@@ -298,13 +314,13 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
           }
         }
         const diffArgs = baseRef
-          ? ["diff", "--no-ext-diff", "--no-color", baseRef, "--", relPath]
-          : ["diff", "--no-ext-diff", "--no-color", "--", relPath];
+          ? ["diff", "--relative", "--no-ext-diff", "--no-color", baseRef, "--", relPath]
+          : ["diff", "--relative", "--no-ext-diff", "--no-color", "--", relPath];
         let res = await git(baseRoot, diffArgs);
         let diff = res.stdout || "";
         if (!diff.trim() && !baseRef) {
           const fallbackRef = (taskForRoot?.isolated && taskForRoot?.worktreeBaseHead) ? taskForRoot.worktreeBaseHead : "HEAD";
-          const headRes = await git(baseRoot, ["diff", "--no-ext-diff", "--no-color", fallbackRef, "--", relPath]).catch(() => ({ stdout: "" }));
+          const headRes = await git(baseRoot, ["diff", "--relative", "--no-ext-diff", "--no-color", fallbackRef, "--", relPath]).catch(() => ({ stdout: "" }));
           if ((headRes.stdout || "").trim()) {
             diff = headRes.stdout;
             baseRef = fallbackRef;
@@ -327,8 +343,12 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
           }
         }
         let oldContent = "";
-        const showSpec = baseRef ? `${baseRef}:${relPath}` : `:${relPath}`;
-        const showRes = await git(baseRoot, ["show", showSpec]).catch(() => ({ code: 1, stdout: "" }));
+        const showSpecRel = baseRef ? `${baseRef}:./${relPath}` : `:./${relPath}`;
+        let showRes = await git(baseRoot, ["show", showSpecRel]).catch(() => ({ code: 1, stdout: "" }));
+        if (showRes.code !== 0) {
+          const showSpecRoot = baseRef ? `${baseRef}:${relPath}` : `:${relPath}`;
+          showRes = await git(baseRoot, ["show", showSpecRoot]).catch(() => ({ code: 1, stdout: "" }));
+        }
         if (showRes.code === 0 && typeof showRes.stdout === "string") {
           oldContent = showRes.stdout;
         }

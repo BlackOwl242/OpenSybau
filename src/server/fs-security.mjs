@@ -74,17 +74,61 @@ export function isForbiddenSystemPath(targetPath, runtimeDir = "") {
   return false;
 }
 
+export function unquoteGitPath(raw = "") {
+  let str = String(raw || "").trim();
+  if (str.startsWith('"') && str.endsWith('"') && str.length >= 2) {
+    str = str.slice(1, -1);
+  }
+  // Recover octal UTF-8 sequences that had backslashes converted into forward slashes (e.g. /341/273/207 -> \341\273\207)
+  str = str.replace(/(?:\/[0-3][0-7]{2}){2,}/g, (match) => match.replaceAll("/", "\\"));
+  if (str.includes("\\")) {
+    str = str.replace(/(?:\\[0-3][0-7]{2})+/g, (match) => {
+      const bytes = match
+        .slice(1)
+        .split("\\")
+        .map((oct) => parseInt(oct, 8));
+      return Buffer.from(bytes).toString("utf8");
+    });
+    str = str
+      .replace(/\\"/g, '"')
+      .replace(/\\t/g, "\t")
+      .replace(/\\n/g, "\n");
+  }
+  return str;
+}
+
 export function safeRelativePath(value = "") {
-  const input = String(value).trim();
+  const input = unquoteGitPath(String(value).trim());
   if (isAbsolute(input) || /^[a-z]:/i.test(input) || /^(?:\\\\|\/)/.test(input)) throw new Error("Đường dẫn tệp không hợp lệ.");
   const segments = input.split(/[\\/]+/).filter((part) => part && part !== ".");
   if (segments.some((part) => part === ".." || part.includes(":"))) throw new Error("Đường dẫn tệp không hợp lệ.");
   return segments.join(sep);
 }
 
+export function resolveWorkspaceRelativePath(rootPath, relativePath = "") {
+  let relativeValue = safeRelativePath(relativePath);
+  if (!relativeValue || !rootPath) return relativeValue;
+  const candidate = resolve(rootPath, relativeValue);
+  if (!existsSync(candidate)) {
+    const rootParts = resolve(rootPath).split(/[\\/]+/).filter(Boolean);
+    const relParts = relativeValue.split(/[\\/]+/).filter(Boolean);
+    for (let maxOverlap = Math.min(rootParts.length, relParts.length - 1); maxOverlap >= 1; maxOverlap--) {
+      const rootTail = rootParts.slice(-maxOverlap).join("/").toLowerCase();
+      const relHead = relParts.slice(0, maxOverlap).join("/").toLowerCase();
+      if (rootTail === relHead) {
+        const stripped = relParts.slice(maxOverlap).join(sep);
+        if (stripped && existsSync(resolve(rootPath, stripped))) {
+          return stripped;
+        }
+      }
+    }
+  }
+  return relativeValue;
+}
+
 export async function resolveInside(rootPath, relativePath, mustBeFile = false) {
   const realRoot = await fs.realpath(rootPath);
-  const relativeValue = safeRelativePath(relativePath);
+  const relativeValue = resolveWorkspaceRelativePath(realRoot, relativePath);
   const candidate = resolve(realRoot, relativeValue || ".");
   if (!within(realRoot, candidate)) throw new Error("Đường dẫn nằm ngoài thư mục được kết nối.");
   const realTarget = await fs.realpath(candidate);
@@ -92,7 +136,7 @@ export async function resolveInside(rootPath, relativePath, mustBeFile = false) 
   const stat = await fs.stat(realTarget);
   if (mustBeFile && !stat.isFile()) throw new Error("Đường dẫn này không phải tệp.");
   if (!mustBeFile && !stat.isDirectory()) throw new Error("Đường dẫn này không phải thư mục.");
-  return { root: realRoot, target: realTarget, stat };
+  return { root: realRoot, target: realTarget, stat, relativePath: relativeValue };
 }
 
 export function decodeXmlEntities(str = "") {
@@ -209,9 +253,9 @@ export async function listLocalFiles(rootPath, relativePath = "", markdownOnly =
 }
 
 export async function readLocalTextFile(rootPath, relativePath, markdownOnly = false) {
-  const { target, stat } = await resolveInside(rootPath, relativePath, true);
+  const { target, stat, relativePath: resolvedRel } = await resolveInside(rootPath, relativePath, true);
   const ext = extname(target).toLowerCase();
-  const relClean = safeRelativePath(relativePath).split(sep).join("/");
+  const relClean = (resolvedRel || safeRelativePath(relativePath)).split(sep).join("/");
   if (!markdownOnly && (ext === ".docx" || ext === ".doc")) {
     if (stat.size > 25_000_000) throw new Error("Tệp tài liệu lớn hơn 25 MB; hãy mở bằng Word trên máy.");
     const buf = await fs.readFile(target);
@@ -273,7 +317,7 @@ export async function listRemoteContextFiles(cwd, maxFiles = 180, gitFn = null) 
   if (typeof gitFn === "function") {
     const result = await gitFn(cwd, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"]);
     if (result.code === 0) {
-      const paths = [...new Set(result.stdout.split("\0").map((path) => path.trim()).filter(safeForRemoteContext))];
+      const paths = [...new Set(result.stdout.split("\0").map((path) => unquoteGitPath(path.trim())).filter(safeForRemoteContext))];
       if (paths.length) return paths.slice(0, maxFiles);
     }
   }

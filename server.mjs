@@ -328,10 +328,12 @@ function run(exe, args, options = {}) {
     let stderr = "";
     let timedOut = false;
     const limit = options.maxBuffer || 2_000_000;
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
     child.stdout.on("error", () => {});
     child.stderr.on("error", () => {});
-    child.stdout.on("data", (chunk) => { if (stdout.length < limit) stdout += chunk.toString(); });
-    child.stderr.on("data", (chunk) => { if (stderr.length < limit) stderr += chunk.toString(); });
+    child.stdout.on("data", (chunk) => { if (stdout.length < limit) stdout += chunk; });
+    child.stderr.on("data", (chunk) => { if (stderr.length < limit) stderr += chunk; });
     const timer = options.timeout ? setTimeout(() => {
       timedOut = true;
       killTree(child);
@@ -344,7 +346,7 @@ function run(exe, args, options = {}) {
 }
 
 async function git(cwd, args) {
-  return run(process.platform === "win32" ? "git.exe" : "git", args, { cwd, timeout: 10000, maxBuffer: 500000 });
+  return run(process.platform === "win32" ? "git.exe" : "git", ["-c", "core.quotepath=false", ...args], { cwd, timeout: 10000, maxBuffer: 500000 });
 }
 
 function openFolder(path) {
