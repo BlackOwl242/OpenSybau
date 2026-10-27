@@ -1,5 +1,6 @@
 import { $, efforts, esc, icon, view } from "../../shared/state.js";
 import { connectorSupports, providersForRole, roleConfig, workflowRoles } from "../../domain/agent-roles.js";
+import { isMobileCompanionMode } from "../../shared/remote-host.js";
 import {
   openArenaCompareModal as openFanoutCompareModal,
   renderDiffStudioModal as renderDiffModalContent,
@@ -136,7 +137,8 @@ export async function openTaskModal() {
 }
 
 export function showWorkspaceModal() {
-  const body = `<label>Đường dẫn thư mục trên máy<input name="path" required placeholder="D:\\Projects\\my-app" autocomplete="off" spellcheck="false" data-workspace-path></label><div class="form-note">Dán đường dẫn hoặc kéo thả một thư mục từ Explorer vào ô này. OpenSybau sẽ dùng đúng thư mục bạn chọn.</div>`;
+  const isMobile = isMobileCompanionMode();
+  const body = `<label>${isMobile ? "Đường dẫn thư mục dự án trên máy tính (PC)" : "Đường dẫn thư mục trên máy"}<input name="path" required placeholder="D:\\Projects\\my-app" autocomplete="off" spellcheck="false" data-workspace-path></label><div class="form-note">${isMobile ? "Nhập đường dẫn tuyệt đối của thư mục dự án nằm trên máy tính (PC) đang kết nối." : "Dán đường dẫn hoặc kéo thả một thư mục từ Explorer vào ô này. OpenSybau sẽ dùng đúng thư mục bạn chọn."}</div>`;
   showModal("Thêm workspace", body, "Kiểm tra và thêm");
 }
 

@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import { extname, resolve, sep } from "node:path";
-import { homedir } from "node:os";
+import { homedir, hostname as osHostname } from "node:os";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { workflowRoles } from "./src/domain/agent-roles.js";
@@ -16,7 +16,7 @@ import {
   relevantMemory as queryRelevantMemory,
 } from "./src/server/memory-bm25.mjs";
 import { createSkillCatalogService } from "./src/server/skill-catalog.mjs";
-import { discoverLanAddresses } from "./src/server/network-pairing.mjs";
+import { discoverLanAddresses, generateStrongAccessPassword } from "./src/server/network-pairing.mjs";
 import { createCliDiscoveryService } from "./src/server/cli-discovery.mjs";
 import { createProviderQuotaService } from "./src/server/provider-quotas.mjs";
 import { createTaskPromptService, publicProviderName, stageSelection } from "./src/server/task-prompts.mjs";
@@ -119,6 +119,15 @@ function persistJsonFile(filePath, value, options = { encoding: "utf8", mode: 0o
 
 let connectionConfig = loadJson(connectionConfigFile, {});
 if (!connectionConfig || typeof connectionConfig !== "object" || Array.isArray(connectionConfig)) connectionConfig = {};
+if (!connectionConfig.password && connectionConfig.remoteEnabled !== false) {
+  connectionConfig = {
+    username: String(connectionConfig.username || "opensybau").trim() || "opensybau",
+    password: generateStrongAccessPassword(),
+    remoteEnabled: true,
+    updatedAt: new Date().toISOString(),
+  };
+  try { persistJsonFile(connectionConfigFile, connectionConfig); } catch {}
+}
 function getEffectiveAccessUsername() {
   return String(process.env.WORKBENCH_ACCESS_USERNAME || connectionConfig?.username || "opensybau").trim() || "opensybau";
 }
@@ -509,6 +518,27 @@ async function syncLanCompanionServers() {
   const mainPort = server.address()?.port || port || 4173;
   const preferredPort = process.env.OPENSYBAU_DESKTOP === "1" ? 4173 : mainPort;
   const lanList = discoverLanAddresses(preferredPort, secureTransport ? "https" : "http");
+  if (preferredPort && preferredPort !== mainPort) {
+    const wildcardSrv = createWorkbenchServer();
+    try {
+      await new Promise((resolvePromise, reject) => {
+        wildcardSrv.once("error", reject);
+        wildcardSrv.listen(preferredPort, "0.0.0.0", () => {
+          wildcardSrv.off("error", reject);
+          resolvePromise();
+        });
+      });
+      const actualPort = wildcardSrv.address()?.port || preferredPort;
+      activeLanPort = actualPort;
+      for (const item of lanList) {
+        allowedHosts.add(`${item.address}:${actualPort}`.toLowerCase());
+      }
+      lanCompanionServers.push(wildcardSrv);
+      return;
+    } catch {
+      try { wildcardSrv.close(); } catch {}
+    }
+  }
   for (const item of lanList) {
     for (const candidatePort of [...new Set([preferredPort, mainPort])]) {
       if (!candidatePort) continue;
@@ -598,15 +628,42 @@ const securityHeaders = {
 };
 const htmlCspHeader = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
+function isPrivateOrLocalHostName(hostnameValue) {
+  const hostOnly = String(hostnameValue || "").trim().toLowerCase().replace(/:\d+$/, "");
+  if (!hostOnly) return false;
+  if (hostOnly === "localhost" || hostOnly === "127.0.0.1" || hostOnly === "[::1]" || hostOnly === "::1") return true;
+  const machineHost = String(osHostname() || "").trim().toLowerCase();
+  if (machineHost && (hostOnly === machineHost || hostOnly === `${machineHost}.local`)) return true;
+  return /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|100\.(6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\.\d{1,3}\.\d{1,3})$/.test(hostOnly);
+}
+
+function isAllowedRequestHost(requestHost) {
+  const clean = String(requestHost || "").trim().toLowerCase();
+  if (!clean) return false;
+  if (allowedHosts.has(clean)) return true;
+  if (!isLoopbackBind && allowedHosts.size > 0) return false;
+  if (lanCompanionServers.length > 0 && isPrivateOrLocalHostName(clean)) return true;
+  return false;
+}
+
 function isTrustedAndroidApkOrigin(origin, requestHost) {
   if (!origin) return true;
   const lower = String(origin).toLowerCase();
-  if (lower === "capacitor://localhost" || lower === "https://appassets.androidplatform.net" || lower === "http://localhost" || lower === "https://localhost") {
+  if (
+    lower === "capacitor://localhost"
+    || lower === "https://appassets.androidplatform.net"
+    || lower === "http://appassets.androidplatform.net"
+    || lower === "http://localhost"
+    || lower === "https://localhost"
+    || lower === "null"
+  ) {
     return true;
   }
   try {
     const parsed = new URL(origin);
-    return ["http:", "https:"].includes(parsed.protocol) && parsed.host.toLowerCase() === requestHost;
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    if (parsed.host.toLowerCase() === requestHost) return true;
+    return isPrivateOrLocalHostName(parsed.hostname);
   } catch {
     return false;
   }
@@ -617,12 +674,12 @@ function createWorkbenchServer() {
   const serverOptions = secureTransport ? { cert: readFileSync(resolve(tlsCert)), key: readFileSync(resolve(tlsKey)) } : undefined;
   return serverFactory(serverOptions, async (request, response) => {
     const requestHost = (request.headers.host || "").toLowerCase();
-    if (!allowedHosts.has(requestHost)) return json(response, 403, { error: "Host not allowed" });
+    if (!isAllowedRequestHost(requestHost)) return json(response, 403, { error: "Host not allowed" });
     const origin = request.headers.origin;
-    const reqHeaders = String(request.headers["access-control-request-headers"] || "").toLowerCase();
-    if (request.method === "OPTIONS" && reqHeaders.includes("x-opensybau-client") && isTrustedAndroidApkOrigin(origin, requestHost)) {
+    if (request.method === "OPTIONS" && isTrustedAndroidApkOrigin(origin, requestHost)) {
       response.writeHead(204, {
-        ...(origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : {}),
+        ...(origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : { "Access-Control-Allow-Origin": "*" }),
+        "Access-Control-Allow-Private-Network": "true",
         "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "Authorization, Content-Type, If-None-Match, X-OpenSybau-Client",
         "Access-Control-Max-Age": "600",
@@ -631,24 +688,31 @@ function createWorkbenchServer() {
       response.end();
       return;
     }
-    const isAndroidApkClient = String(request.headers["x-opensybau-client"] || "").toLowerCase() === "android-apk"
-      && isTrustedAndroidApkOrigin(origin, requestHost);
-    if (isAndroidApkClient && origin) {
-      response.setHeader("Access-Control-Allow-Origin", origin);
+    const isAndroidApkClient = (
+      String(request.headers["x-opensybau-client"] || "").toLowerCase() === "android-apk"
+      || Boolean(origin && /^(capacitor:\/\/localhost|https?:\/\/appassets\.androidplatform\.net|https?:\/\/localhost(?::\d+)?)$/i.test(String(origin)))
+    ) && isTrustedAndroidApkOrigin(origin, requestHost);
+    if (isAndroidApkClient) {
+      response.setHeader("Access-Control-Allow-Origin", origin || "*");
+      response.setHeader("Access-Control-Allow-Private-Network", "true");
       response.setHeader("Access-Control-Expose-Headers", "ETag");
-      response.setHeader("Vary", "Origin");
+      if (origin) response.setHeader("Vary", "Origin");
     }
-    if (!hasValidAccess(request)) {
+    let pathname;
+    try { pathname = new URL(request.url || "/", `${secureTransport ? "https" : "http"}://${requestHost}`).pathname; }
+    catch { return json(response, 400, { error: "Invalid request URL" }); }
+    const isPublicDiscoveryPing = request.method === "GET" && pathname === "/api/ping" && !request.headers.authorization;
+    if (!isPublicDiscoveryPing && !hasValidAccess(request)) {
       response.writeHead(401, {
         "WWW-Authenticate": 'Basic realm="OpenSybau", charset="UTF-8"',
         "Cache-Control": "no-store",
-        ...(isAndroidApkClient && origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : {}),
+        ...(isAndroidApkClient ? { "Access-Control-Allow-Origin": origin || "*", "Access-Control-Allow-Private-Network": "true", ...(origin ? { Vary: "Origin" } : {}) } : {}),
         ...securityHeaders,
       });
       response.end("Authentication required");
       return;
     }
-    if (!isAndroidApkClient) {
+    if (!isAndroidApkClient && !isPublicDiscoveryPing) {
       const secFetchSite = String(request.headers["sec-fetch-site"] || "").toLowerCase();
       if (secFetchSite === "cross-site" || (request.method !== "GET" && request.method !== "HEAD" && secFetchSite && secFetchSite !== "same-origin" && secFetchSite !== "none")) {
         return json(response, 403, { error: "Cross-site requests are not allowed" });
@@ -660,9 +724,6 @@ function createWorkbenchServer() {
       }
     }
     if (shuttingDown) return json(response, 503, { error: "OpenSybau đang tắt; hãy thử lại khi mở app." });
-    let pathname;
-    try { pathname = new URL(request.url || "/", `${secureTransport ? "https" : "http"}://${requestHost}`).pathname; }
-    catch { return json(response, 400, { error: "Invalid request URL" }); }
     if (pathname === "/__events") {
       response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no", ...securityHeaders });
       response.write("retry: 3000\nevent: connected\ndata: ready\n\n");

@@ -8,18 +8,23 @@ export function discoverLanAddresses(port = 4173, protocol = "http") {
   const nets = networkInterfaces();
   const list = [];
   for (const [name, entries] of Object.entries(nets || {})) {
+    if (/(?:vethernet|wsl|hyper-v|docker|vmware|virtualbox|vboxnet|virbr|npcap|loopback)/i.test(name)) {
+      continue;
+    }
     for (const entry of entries || []) {
       const family = String(entry.family || "");
       if ((family !== "IPv4" && family !== "4") || entry.internal) continue;
       const address = String(entry.address || "").trim();
-      if (!address || address.startsWith("169.254.")) continue;
-      const isTailscale = /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(address) || /tailscale|utun|wg/i.test(name);
+      if (!address || address.startsWith("169.254.") || address === "192.168.56.1") continue;
+      const isTailscale = /^100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(address) || /tailscale|utun|wg|zerotier/i.test(name);
       const isPrivateLan = /^(?:192\.168\.|10\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(address);
       const kind = isTailscale ? "tailscale" : isPrivateLan ? "lan" : "public";
+      const isPhysicalWifiOrEth = /(?:wi-fi|wifi|wlan|ethernet|eth\d|en\d)/i.test(name);
       list.push({
         interface: name,
         address,
         kind,
+        isPhysical: isPhysicalWifiOrEth,
         label: isTailscale ? `Tailscale (${name})` : isPrivateLan ? `Mạng LAN (${name})` : name,
         hostPort: `${address}:${port}`,
         url: `${protocol}://${address}:${port}`,
@@ -27,7 +32,12 @@ export function discoverLanAddresses(port = 4173, protocol = "http") {
     }
   }
   return list.sort((a, b) => {
-    const score = (item) => (item.kind === "lan" ? 0 : item.kind === "tailscale" ? 1 : 2);
+    const score = (item) => {
+      if (item.kind === "lan" && item.isPhysical) return 0;
+      if (item.kind === "lan") return 1;
+      if (item.kind === "tailscale") return 2;
+      return 3;
+    };
     return score(a) - score(b);
   });
 }

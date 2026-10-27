@@ -28,6 +28,56 @@ export function isAndroidApkRuntime() {
   return false;
 }
 
+export function isMobileCompanionMode() {
+  if (isAndroidApkRuntime()) return true;
+  if (typeof globalThis.window === "undefined") return false;
+  if (globalThis.window.opensybauDesktop?.isDesktop) return false;
+  if (getActiveRemoteHost()?.url) return true;
+  return Boolean(globalThis.window.matchMedia?.("(max-width: 820px)")?.matches);
+}
+
+export async function remoteFetch(url, options = {}) {
+  const targetUrl = String(url || "");
+  const bridge = typeof globalThis.window !== "undefined" ? globalThis.window.opensybauAndroid : null;
+  if (bridge && typeof bridge.httpRequest === "function" && /^https?:\/\//i.test(targetUrl)) {
+    const method = String(options.method || "GET").toUpperCase();
+    const headersObj = { ...(options.headers || {}) };
+    const bodyStr = typeof options.body === "string" ? options.body : (options.body ? JSON.stringify(options.body) : "");
+    const rawResult = bridge.httpRequest(method, targetUrl, JSON.stringify(headersObj), bodyStr);
+    let parsed;
+    try {
+      parsed = JSON.parse(rawResult || "{}");
+    } catch {
+      parsed = { ok: false, status: 0, error: "Invalid native bridge response" };
+    }
+    if (!parsed.status) {
+      throw new Error(parsed.error || "Network request failed");
+    }
+    const responseText = String(parsed.body ?? "");
+    const etag = String(parsed.etag || "");
+    const contentType = String(parsed.contentType || "application/json");
+    return {
+      ok: Boolean(parsed.ok),
+      status: Number(parsed.status),
+      headers: {
+        get(name) {
+          const lower = String(name || "").toLowerCase();
+          if (lower === "etag") return etag || null;
+          if (lower === "content-type") return contentType || null;
+          return null;
+        },
+      },
+      async text() {
+        return responseText;
+      },
+      async json() {
+        return responseText ? JSON.parse(responseText) : {};
+      },
+    };
+  }
+  return globalThis.fetch(targetUrl, options);
+}
+
 export function normalizeRemoteHostUrl(rawUrl) {
   let clean = String(rawUrl || "").trim();
   if (!clean) return "";
@@ -193,7 +243,7 @@ export function buildRemoteRequestHeaders(extraHeaders = {}, hostOverride = null
   return headers;
 }
 
-export async function probeRemoteHost({ url, username = "opensybau", password = "" } = {}, fetchImpl = globalThis.fetch) {
+export async function probeRemoteHost({ url, username = "opensybau", password = "" } = {}, fetchImpl = remoteFetch) {
   const normalizedUrl = normalizeRemoteHostUrl(url);
   const headers = buildRemoteRequestHeaders({}, { url: normalizedUrl, username, password });
   const startedAt = performance.now();
@@ -211,7 +261,7 @@ export async function probeRemoteHost({ url, username = "opensybau", password = 
         status: 401,
         latencyMs,
         url: normalizedUrl,
-        error: "Máy chủ yêu cầu mật khẩu truy cập (Basic Auth). Hãy nhập đúng WORKBENCH_ACCESS_PASSWORD.",
+        error: "Máy tính PC yêu cầu mật khẩu kết nối. Hãy nhập đúng mật khẩu hiển thị trong mục Kết nối điện thoại trên PC.",
       };
     }
     if (response.status === 403) {
@@ -222,8 +272,8 @@ export async function probeRemoteHost({ url, username = "opensybau", password = 
         latencyMs,
         url: normalizedUrl,
         error: errData.error === "Host not allowed"
-          ? `Địa chỉ ${new URL(normalizedUrl).host} chưa có trong WORKBENCH_ALLOWED_HOSTS trên máy chủ.`
-          : (errData.error || "Máy chủ từ chối truy cập (403)."),
+          ? `Địa chỉ ${new URL(normalizedUrl).host} chưa được cho phép trên máy tính PC.`
+          : (errData.error || "Máy tính PC từ chối truy cập (403)."),
       };
     }
     const data = await response.json().catch(() => ({}));
@@ -233,7 +283,7 @@ export async function probeRemoteHost({ url, username = "opensybau", password = 
         status: response.status,
         latencyMs,
         url: normalizedUrl,
-        error: data.error || `Không thể kết nối máy chủ (${response.status})`,
+        error: data.error || `Không thể kết nối máy tính PC (${response.status})`,
       };
     }
     return {
@@ -249,7 +299,91 @@ export async function probeRemoteHost({ url, username = "opensybau", password = 
       status: 0,
       latencyMs: null,
       url: normalizedUrl,
-      error: `Không thể kết nối tới ${normalizedUrl}. Kiểm tra PC đang bật OpenSybau và cùng mạng Wi-Fi / Tailscale (${error?.message || "Network error"}).`,
+      error: `Không thể kết nối tới ${normalizedUrl}. Kiểm tra máy tính PC đang mở OpenSybau và cùng mạng Wi-Fi / Tailscale (${error?.message || "Network error"}).`,
     };
   }
+}
+
+export async function scanLanForOpenSybauHosts({ port = 4173, hintUrl = "" } = {}) {
+  const cleanPort = Number(port) > 0 && Number(port) <= 65535 ? Number(port) : 4173;
+  const bridge = typeof globalThis.window !== "undefined" ? globalThis.window.opensybauAndroid : null;
+  if (bridge && typeof bridge.scanLanHosts === "function") {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    try {
+      const raw = bridge.scanLanHosts(cleanPort);
+      const parsed = JSON.parse(raw || "[]");
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    } catch {}
+  }
+
+  const subnets = new Set();
+  const addSubnetFromHost = (hostValue) => {
+    const m = String(hostValue || "").match(/^(\d{1,3}\.\d{1,3}\.\d{1,3})\.\d{1,3}$/);
+    if (m) subnets.add(m[1]);
+  };
+
+  if (bridge && typeof bridge.getDeviceLanInfo === "function") {
+    try {
+      const info = JSON.parse(bridge.getDeviceLanInfo() || "{}");
+      if (info.subnet) subnets.add(String(info.subnet));
+    } catch {}
+  }
+  if (hintUrl) {
+    try { addSubnetFromHost(new URL(normalizeRemoteHostUrl(hintUrl)).hostname); } catch {}
+  }
+  for (const saved of getSavedRemoteHosts()) {
+    try { addSubnetFromHost(new URL(saved.url).hostname); } catch {}
+  }
+  if (typeof globalThis.window !== "undefined") {
+    addSubnetFromHost(globalThis.window.location?.hostname || "");
+  }
+  if (!subnets.size) {
+    subnets.add("192.168.1");
+    subnets.add("192.168.0");
+  }
+
+  const candidateIps = [];
+  for (const subnet of [...subnets].slice(0, 2)) {
+    for (let i = 1; i <= 254; i++) {
+      candidateIps.push(`${subnet}.${i}`);
+    }
+  }
+
+  const discovered = [];
+  const batchSize = 28;
+  for (let offset = 0; offset < candidateIps.length; offset += batchSize) {
+    const batch = candidateIps.slice(offset, offset + batchSize);
+    const results = await Promise.all(batch.map(async (ip) => {
+      const targetUrl = `http://${ip}:${cleanPort}`;
+      try {
+        const res = await globalThis.fetch(`${targetUrl}/api/ping`, {
+          method: "GET",
+          headers: { "X-OpenSybau-Client": "android-apk" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(750),
+        });
+        if (!res.ok) return null;
+        const data = await res.json().catch(() => null);
+        if (!data || data.app !== "OpenSybau") return null;
+        const hostLabel = String(data.hostname || ip).trim();
+        return {
+          address: ip,
+          port: Number(data.port || cleanPort),
+          url: `http://${ip}:${Number(data.port || cleanPort)}`,
+          hostname: hostLabel,
+          name: hostLabel || `PC (${ip})`,
+          platform: String(data.platform || ""),
+          authRequired: Boolean(data.authRequired ?? true),
+        };
+      } catch {
+        return null;
+      }
+    }));
+    for (const item of results) {
+      if (item) discovered.push(item);
+    }
+  }
+  return discovered;
 }

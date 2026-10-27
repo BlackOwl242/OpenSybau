@@ -3,6 +3,7 @@ import {
   getActiveRemoteHost,
   getSavedRemoteHosts,
   isAndroidApkRuntime,
+  isMobileCompanionMode,
 } from "../../shared/remote-host.js";
 
 export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
@@ -10,11 +11,13 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
   const activeHost = getActiveRemoteHost();
   const savedHosts = getSavedRemoteHosts();
   const isApk = isAndroidApkRuntime();
-  const tab = view.orcaConnectTab || (isApk || activeHost ? "client" : "host");
+  const isMobile = isMobileCompanionMode();
+  const tab = isMobile ? "client" : (view.orcaConnectTab || (activeHost ? "client" : "host"));
   const probe = view.orcaConnectProbeResult || null;
+  const discoveredHosts = Array.isArray(view.discoveredLanHosts) ? view.discoveredLanHosts : [];
   const draft = view.orcaConnectDraft || {
-    name: activeHost?.name || info?.hostname || "",
-    url: activeHost?.url || info?.primaryUrl || "192.168.1.3:4173",
+    name: activeHost?.name || discoveredHosts[0]?.name || info?.hostname || "",
+    url: activeHost?.url || discoveredHosts[0]?.url || info?.primaryUrl || "",
     username: activeHost?.username || info?.accessUsername || "opensybau",
     password: activeHost?.password || "",
     quickPair: "",
@@ -24,13 +27,14 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
   const lanList = info?.lanAddresses || [];
   const currentPassword = view.connectionPasswordDraft ?? info?.accessPassword ?? info?.launchers?.suggestedPassword ?? "";
   const hasSavedPassword = Boolean(info?.authRequired || info?.accessPassword);
+  const isScanningLan = Boolean(view.scanningLanHosts);
 
   const hostPaneHtml = `<div class="device-connect-pane">
     <div class="device-password-box">
       <div class="device-password-head">
         <div>
-          <strong>1. Tạo mật khẩu kết nối</strong>
-          <small>${hasSavedPassword ? "Đã bật mật khẩu bảo vệ. Điện thoại dùng mật khẩu này (hoặc quét mã QR bên dưới) để kết nối." : "Nhập mật khẩu bạn muốn dùng hoặc bấm Tạo tự động rồi bấm Lưu để mở kết nối cho điện thoại."}</small>
+          <strong>1. Mật khẩu kết nối cho điện thoại</strong>
+          <small>${hasSavedPassword ? `Đang mở kết nối mạng LAN (Cổng ${esc(String(info?.port || 4173))}). Điện thoại dùng mật khẩu này hoặc mã kết nối nhanh bên dưới để ghép nối.` : "Nhập mật khẩu bạn muốn dùng hoặc bấm Tạo tự động rồi bấm Lưu để mở kết nối cho điện thoại."}</small>
         </div>
       </div>
       <div class="device-input-action-row">
@@ -42,6 +46,9 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
           autocomplete="off"
           spellcheck="false"
         >
+        <button type="button" class="button quiet" data-action="copy-connection-password">
+          ${icon("copy", 13)} Sao chép mật khẩu
+        </button>
         <button type="button" class="button quiet" data-action="generate-connection-password">
           ${icon("refresh-cw", 13)} Tạo tự động
         </button>
@@ -78,6 +85,35 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
     </div>
   </div>`;
 
+  const discoveredHostsHtml = `<div class="device-quick-pair-box">
+    <div class="device-password-head" style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;">
+      <div>
+        <strong>Tìm máy tính trong mạng Wi-Fi</strong>
+        <small style="display:block;color:var(--muted);">Tự động dò máy tính đang chạy OpenSybau trong cùng mạng Wi-Fi.</small>
+      </div>
+      <button type="button" class="button quiet small" data-action="scan-lan-hosts" ${isScanningLan ? "disabled" : ""}>
+        ${icon("refresh-cw", 13)} ${isScanningLan ? "Đang quét Wi-Fi…" : "Quét mạng Wi-Fi"}
+      </button>
+    </div>
+    ${discoveredHosts.length
+      ? `<div class="provider-setup-list">${discoveredHosts.map((item) => {
+          const isSelected = draft.url && draft.url.toLowerCase() === String(item.url || "").toLowerCase();
+          return `<div class="provider-setup-row">
+            <span class="provider-status-dot ready"></span>
+            <div>
+              <strong>${esc(item.name || item.hostname || item.url)}</strong>
+              <small>${esc(String(item.url || "").replace(/^https?:\/\//, ""))} · Mạng Wi-Fi nội bộ</small>
+            </div>
+            <div class="provider-row-actions">
+              <button class="button ${isSelected ? "quiet" : "primary"} small" type="button" data-action="pick-discovered-host" data-url="${esc(item.url)}" data-name="${esc(item.name || item.hostname || "")}">
+                ${isSelected ? "Đã chọn" : "Chọn máy này"}
+              </button>
+            </div>
+          </div>`;
+        }).join("")}</div>`
+      : `<p class="form-note" style="margin:0;">${isScanningLan ? "Đang tự động tìm máy tính đang mở OpenSybau trong mạng Wi-Fi…" : "Bấm Quét mạng Wi-Fi để tự động tìm máy tính hoặc dán mã kết nối nhanh bên dưới."}</p>`}
+  </div>`;
+
   const savedHostsHtml = savedHosts.length
     ? `<div class="provider-setup-list">${savedHosts.map((item) => {
         const isCurrent = activeHost?.url && activeHost.url.toLowerCase() === item.url.toLowerCase();
@@ -99,6 +135,8 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
     : "";
 
   const clientPaneHtml = `<div class="device-connect-pane">
+    ${discoveredHostsHtml}
+
     <div class="device-quick-pair-box">
       <label>Cách 1: Dán mã kết nối nhanh từ máy tính
         <div class="device-input-action-row">
@@ -116,18 +154,18 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
         <strong>Cách 2: Nhập địa chỉ IP máy tính & mật khẩu</strong>
       </div>
       <div class="modal-grid-2">
-        <label>Địa chỉ IP máy tính
-          <input type="text" data-orca-host-url value="${esc(draft.url || "")}" placeholder="Ví dụ: 192.168.1.3:4173" autocomplete="off" spellcheck="false">
+        <label>Địa chỉ IP máy tính (PC)
+          <input type="text" data-orca-host-url value="${esc(draft.url || "")}" placeholder="Ví dụ: 192.168.1.15:4173" autocomplete="off" spellcheck="false">
         </label>
-        <label>Mật khẩu kết nối
-          <input type="text" data-orca-host-pass value="${esc(draft.password || "")}" placeholder="Nhập mật khẩu đã tạo trên máy tính" autocomplete="off" spellcheck="false">
+        <label>Mật khẩu kết nối trên PC
+          <input type="text" data-orca-host-pass value="${esc(draft.password || "")}" placeholder="Nhập mật khẩu hiển thị trên máy tính" autocomplete="off" spellcheck="false">
         </label>
       </div>
       <details class="device-advanced-details">
         <summary>Tùy chọn thêm (Tên gợi nhớ & tài khoản)</summary>
         <div class="modal-grid-2">
           <label>Tên gợi nhớ máy tính
-            <input type="text" data-orca-host-name value="${esc(draft.name || "")}" placeholder="Ví dụ: Máy tính ở nhà" autocomplete="off">
+            <input type="text" data-orca-host-name value="${esc(draft.name || "")}" placeholder="Ví dụ: Máy tính bàn ở nhà" autocomplete="off">
           </label>
           <label>Tài khoản (mặc định: opensybau)
             <input type="text" data-orca-host-user value="${esc(draft.username || "opensybau")}" placeholder="opensybau" autocomplete="off" spellcheck="false">
@@ -146,15 +184,17 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
   return `<section class="settings-card device-connect-card" id="settings-devices" data-settings-section="devices" ${hidden ? "hidden" : ""}>
     <header>
       <div>
-        <h2>Kết nối điện thoại</h2>
-        <p>Tạo mật khẩu trên máy tính rồi quét mã hoặc nhập IP trên điện thoại để điều khiển từ xa.</p>
+        <h2>${isMobile ? "Kết nối với Máy tính (PC)" : "Kết nối điện thoại"}</h2>
+        <p>${isMobile
+          ? "Ghép nối điện thoại với OpenSybau đang chạy trên máy tính qua cùng mạng Wi-Fi hoặc Tailscale."
+          : "Mật khẩu và mã kết nối mạng LAN đã bật sẵn trên máy tính này. Quét mã hoặc nhập IP trên điện thoại để điều khiển từ xa."}</p>
       </div>
-      <div class="device-card-head-right">
+      ${isMobile ? "" : `<div class="device-card-head-right">
         <div class="device-mode-switch" role="tablist" aria-label="Chế độ kết nối thiết bị">
           <button type="button" class="device-mode-btn ${tab === "host" ? "is-active" : ""}" data-action="orca-connect-tab" data-tab="host">Trên máy tính này</button>
           <button type="button" class="device-mode-btn ${tab === "client" ? "is-active" : ""}" data-action="orca-connect-tab" data-tab="client">Kết nối sang máy khác${savedHosts.length ? ` (${savedHosts.length})` : ""}</button>
         </div>
-      </div>
+      </div>`}
     </header>
     ${tab === "host" ? hostPaneHtml : clientPaneHtml}
   </section>`;

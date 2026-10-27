@@ -404,6 +404,32 @@ try {
   });
   assert.equal(apkCorsRes.status, 200);
   assert.equal(apkCorsRes.headers.get("access-control-allow-origin"), "capacitor://localhost");
+  assert.equal(apkCorsRes.headers.get("access-control-allow-private-network"), "true");
+
+  const publicPingRes = await fetch(`${serverUrl}/api/ping`, {
+    method: "GET",
+    headers: {
+      Origin: "https://appassets.androidplatform.net",
+      "X-OpenSybau-Client": "android-apk",
+    },
+  });
+  assert.equal(publicPingRes.status, 200, "Unauthenticated /api/ping must succeed for LAN Wi-Fi host discovery.");
+  const publicPingBody = await publicPingRes.json();
+  assert.equal(publicPingBody.app, "OpenSybau");
+  assert.equal(typeof publicPingBody.hostname, "string");
+  assert.equal(publicPingBody.authRequired, true);
+
+  const pnaPreflightRes = await fetch(`${serverUrl}/api/connection-info`, {
+    method: "OPTIONS",
+    headers: {
+      Origin: "https://appassets.androidplatform.net",
+      "Access-Control-Request-Method": "GET",
+      "Access-Control-Request-Private-Network": "true",
+    },
+  });
+  assert.equal(pnaPreflightRes.status, 204, "Android WebView PNA preflight must return 204.");
+  assert.equal(pnaPreflightRes.headers.get("access-control-allow-origin"), "https://appassets.androidplatform.net");
+  assert.equal(pnaPreflightRes.headers.get("access-control-allow-private-network"), "true");
 
   // Test Wave DAG Decompose
   const waveRes = await request("/api/tasks/decompose", "POST", {

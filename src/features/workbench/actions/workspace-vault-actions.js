@@ -4,6 +4,7 @@ import {
   parsePairingInput,
   probeRemoteHost,
   removeRemoteHostProfile,
+  scanLanForOpenSybauHosts,
   setActiveRemoteHost,
 } from "../../../shared/remote-host.js";
 import {
@@ -192,6 +193,61 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
     view.connectionPasswordDraft = info.accessPassword || password;
     render();
     showToast("Đã lưu mật khẩu và mở kết nối cho điện thoại!");
+    return true;
+  }
+  if (action === "copy-connection-password") {
+    const pass = $("[data-connection-password-input]")?.value || view.connectionInfo?.accessPassword || "";
+    if (pass) {
+      await navigator.clipboard?.writeText(pass);
+      showToast("Đã sao chép mật khẩu kết nối.");
+    }
+    return true;
+  }
+  if (action === "scan-lan-hosts") {
+    if (view.scanningLanHosts) return true;
+    view.scanningLanHosts = true;
+    render();
+    try {
+      const hintUrl = $("[data-orca-host-url]")?.value || view.orcaConnectDraft?.url || "";
+      const hosts = await scanLanForOpenSybauHosts({ hintUrl });
+      view.discoveredLanHosts = Array.isArray(hosts) ? hosts : [];
+      if (view.discoveredLanHosts.length > 0 && !($("[data-orca-host-url]")?.value || "").trim()) {
+        const first = view.discoveredLanHosts[0];
+        view.orcaConnectDraft = {
+          ...(view.orcaConnectDraft || {}),
+          name: first.name || first.hostname || first.url,
+          url: first.url,
+          username: view.orcaConnectDraft?.username || "opensybau",
+          password: $("[data-orca-host-pass]")?.value || view.orcaConnectDraft?.password || "",
+        };
+      }
+      showToast(
+        view.discoveredLanHosts.length
+          ? `Đã tìm thấy ${view.discoveredLanHosts.length} máy tính trong mạng Wi-Fi!`
+          : "Chưa tìm thấy máy tính tự động. Hãy kiểm tra PC đang mở OpenSybau cùng mạng Wi-Fi."
+      );
+    } finally {
+      view.scanningLanHosts = false;
+      render();
+    }
+    return true;
+  }
+  if (action === "pick-discovered-host") {
+    const pickedUrl = button.dataset.url || "";
+    const pickedName = button.dataset.name || "";
+    if (pickedUrl) {
+      view.orcaConnectDraft = {
+        name: pickedName || pickedUrl,
+        url: pickedUrl,
+        username: $("[data-orca-host-user]")?.value || view.orcaConnectDraft?.username || "opensybau",
+        password: $("[data-orca-host-pass]")?.value || view.orcaConnectDraft?.password || "",
+        quickPair: $("[data-orca-quick-pair-input]")?.value || "",
+      };
+      view.orcaConnectProbeResult = null;
+      render();
+      setTimeout(() => $("[data-orca-host-pass]")?.focus(), 40);
+      showToast(`Đã chọn ${pickedName || pickedUrl}. Nhập mật khẩu trên PC rồi bấm Lưu & Kết nối.`);
+    }
     return true;
   }
   if (action === "copy-pairing-uri") {

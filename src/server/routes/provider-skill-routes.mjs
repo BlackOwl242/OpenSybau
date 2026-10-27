@@ -1,5 +1,6 @@
 import { promises as fs } from "node:fs";
 import { basename, extname, isAbsolute, resolve, sep } from "node:path";
+import { hostname } from "node:os";
 import { randomUUID } from "node:crypto";
 import { configuredApiProviders, listProviderModels, normalizeUserApiProvider } from "../provider-registry.mjs";
 import { workflowRoles } from "../../domain/agent-roles.js";
@@ -75,7 +76,11 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       ok: true,
       app: "OpenSybau",
       name: "OpenSybau",
-      version: "0.3.1",
+      hostname: hostname(),
+      platform: process.platform,
+      port: getBoundPort(),
+      authRequired: Boolean(getEffectiveAccessPassword()),
+      version: "0.3.3",
       mode: (!isLoopbackBind || isLanActive()) ? "network" : "loopback",
       ts: Date.now(),
     });
@@ -100,7 +105,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       includePassword: isLoopbackClient(request),
       hasAccessPassword: Boolean(activePass),
       allowedHosts,
-      version: "0.3.1",
+      version: "0.3.3",
       connectors,
       activeWorktreesCount,
       runningTasksCount,
@@ -157,7 +162,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       includePassword: true,
       hasAccessPassword: Boolean(activePass),
       allowedHosts,
-      version: "0.2.105",
+      version: "0.3.3",
       connectors,
       activeWorktreesCount,
       runningTasksCount,

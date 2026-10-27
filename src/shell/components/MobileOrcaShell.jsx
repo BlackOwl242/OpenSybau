@@ -2,7 +2,7 @@ import { h } from "preact";
 import { Icon } from "../../shared/ui/Icon.jsx";
 import { chatNumber, compactChatTitle } from "../../shared/chat-labels.js";
 import { formatNumber } from "../../shared/i18n.js";
-import { getActiveRemoteHost, getSavedRemoteHosts } from "../../shared/remote-host.js";
+import { getActiveRemoteHost, getSavedRemoteHosts, isAndroidApkRuntime } from "../../shared/remote-host.js";
 
 const REPO_COLORS = ["blue", "green", "orange", "violet"];
 
@@ -227,8 +227,9 @@ export function MobileOrcaOverlay({ snapshot }) {
   const telemetry = state.telemetry || {};
   const activeHost = getActiveRemoteHost();
   const savedHosts = getSavedRemoteHosts();
-  const hostName = activeHost?.name || snapshot.connectionInfo?.hostname || "Máy tính này";
-  const connected = snapshot.streamConnected !== false;
+  const isDisconnectedApk = isAndroidApkRuntime() && !activeHost?.url;
+  const hostName = activeHost?.name || snapshot.connectionInfo?.hostname || (isDisconnectedApk ? "Chưa kết nối máy tính (PC)" : "Máy tính PC");
+  const connected = !isDisconnectedApk && snapshot.streamConnected !== false;
   const tokens7d = Number(telemetry.tokens7d || 0);
 
   const hasStageTabs = (page === "chat" || page === "workspaces") && (snapshot.stageTabs?.length || 0) > 0;
@@ -386,13 +387,18 @@ export function MobileOrcaOverlay({ snapshot }) {
           </div>
         </> : (pinned.length === 0 ? <div class="mp-wl-empty-row">
           <div class="mp-wl-empty-text">
-            <strong>{workspaces.length ? `Sẵn sàng trên ${workspaces[0].name}` : "Chưa có thư mục dự án"}</strong>
-            <span>{workspaces.length ? "Chọn gợi ý phía trên hoặc nhập yêu cầu để bắt đầu phiên mới." : "Thêm thư mục dự án trên máy để AI đọc hiểu và viết code."}</span>
+            <strong>{isDisconnectedApk ? "Chưa kết nối với máy tính (PC)" : (workspaces.length ? `Sẵn sàng trên ${workspaces[0].name}` : "Chưa có thư mục dự án trên PC")}</strong>
+            <span>{isDisconnectedApk
+              ? "Ghép nối điện thoại với OpenSybau trên máy tính qua cùng mạng Wi-Fi để xem dự án và điều khiển AI."
+              : (workspaces.length ? "Chọn gợi ý phía trên hoặc nhập yêu cầu để bắt đầu phiên mới." : "Thêm thư mục dự án nằm trên máy tính (PC) để AI đọc hiểu và viết code.")}</span>
           </div>
-          {!workspaces.length ? <button type="button" class="button primary small" data-action="add-workspace">
+          {isDisconnectedApk ? <button type="button" class="button primary small" data-action="mp-open-pair">
+            <Icon name="qr-code" size={13} />
+            <span>Ghép nối PC</span>
+          </button> : (!workspaces.length ? <button type="button" class="button primary small" data-action="add-workspace">
             <Icon name="plus" size={13} />
             <span>Thêm dự án</span>
-          </button> : null}
+          </button> : null)}
         </div> : null)}
       </div>
 
@@ -402,10 +408,10 @@ export function MobileOrcaOverlay({ snapshot }) {
             <Icon name="monitor" size={16} />
           </div>
           <div class="mp-host-main">
-            <div class="mp-host-name" data-localize-skip="true">{hostName}</div>
+            <div class="mp-host-name" data-localize-skip={isDisconnectedApk ? undefined : "true"}>{hostName}</div>
             <div class="mp-host-meta">
               <span class={`mp-status-dot ${connected ? "is-green" : "is-muted"}`} />
-              <span>{connected ? "Đã kết nối" : "Đang kết nối lại"} · {workspaces.length} dự án · {formatNumber(tokens7d)} tok (7d)</span>
+              <span>{isDisconnectedApk ? "Chưa ghép nối · Bấm Ghép nối PC để kết nối qua Wi-Fi" : `${connected ? "Đã kết nối" : "Đang kết nối lại"} · ${workspaces.length} dự án · ${formatNumber(tokens7d)} tok (7d)`}</span>
             </div>
           </div>
           <button type="button" class="button quiet small mp-pair-btn" data-action="mp-open-pair">

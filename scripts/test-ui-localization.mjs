@@ -49,6 +49,13 @@ for (const [vi, en] of [
   ["Xem thay đổi", "Show changes"],
   ["Xem mã nguồn", "View source"],
   ["Xem bản dựng", "View preview"],
+  ["Kết nối với Máy tính (PC)", "Connect to Computer (PC)"],
+  ["Tìm máy tính trong mạng Wi-Fi", "Find computers on Wi-Fi"],
+  ["Quét mạng Wi-Fi", "Scan Wi-Fi"],
+  ["Chọn máy này", "Select this PC"],
+  ["Trực tiếp trên PC", "Directly on PC"],
+  ["Chưa kết nối với máy tính (PC)", "Not connected to a computer (PC)"],
+  ["Kết nối máy tính ngay", "Connect to PC now"],
   ["2g 6p", "2h 6m"],
   ["6n 21g", "6d 21h"],
 ]) {

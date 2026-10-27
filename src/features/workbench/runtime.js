@@ -7,7 +7,9 @@ import {
   buildRemoteRequestHeaders,
   getActiveRemoteHost,
   isAndroidApkRuntime,
+  remoteFetch,
   resolveRemoteUrl,
+  scanLanForOpenSybauHosts,
 } from "../../shared/remote-host.js";
 
 let browserRouteInitialized = false;
@@ -78,7 +80,7 @@ export async function hydrateRouteData() {
 }
 
 export async function api(path, options = {}) {
-  const response = await fetch(resolveRemoteUrl(path), {
+  const response = await remoteFetch(resolveRemoteUrl(path), {
     ...options,
     headers: buildRemoteRequestHeaders({
       ...(options.body ? { "Content-Type": "application/json" } : {}),
@@ -103,6 +105,29 @@ async function refreshSnapshot(includeConfiguration, background) {
       view.page = "settings";
       view.settingsSection = "devices";
       view.orcaConnectTab = "client";
+    }
+    if (!view.lanScanAutoStarted && !view.scanningLanHosts) {
+      view.lanScanAutoStarted = true;
+      view.scanningLanHosts = true;
+      scanLanForOpenSybauHosts()
+        .then((hosts) => {
+          view.discoveredLanHosts = Array.isArray(hosts) ? hosts : [];
+          if (view.discoveredLanHosts.length === 1 && !view.orcaConnectDraft?.url) {
+            const first = view.discoveredLanHosts[0];
+            view.orcaConnectDraft = {
+              name: first.name || first.hostname || first.url,
+              url: first.url,
+              username: "opensybau",
+              password: "",
+              quickPair: "",
+            };
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          view.scanningLanHosts = false;
+          render({ background: true });
+        });
     }
     render({ background });
     return;

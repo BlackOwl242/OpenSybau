@@ -1,6 +1,7 @@
 import { $, esc, icon, view } from "../../../shared/state.js";
 import { providersForRole, roleConfig, workflowRoles } from "../../../domain/agent-roles.js";
 import { cliConnectionStatus, cliProviderGuides } from "../../../domain/provider-guides.js";
+import { getActiveRemoteHost, isMobileCompanionMode } from "../../../shared/remote-host.js";
 import { THEMES, THEME_GROUPS, getThemeDefinition } from "../../../shared/themes.js";
 import { renderDeviceConnectSettingsSection } from "../device-connect.js";
 import { cliRefreshButton, showModal } from "../runtime.js";
@@ -96,6 +97,7 @@ export function settingsSidebarMarkup() {
   const activeSection = view.settingsSection || "all";
   const searchQuery = view.settingsSearchQuery || "";
   const hasQuery = Boolean(searchQuery.trim());
+  const isMobile = isMobileCompanionMode();
   return `<header class="wb-sidebar-header">
     <button type="button" class="wb-sidebar-brand" data-page="chat">
       <strong>OpenSybau</strong>
@@ -117,8 +119,10 @@ export function settingsSidebarMarkup() {
       <div class="wb-settings-nav-list" role="navigation" aria-label="Danh mục cài đặt">
         ${SETTINGS_NAV_ITEMS.map((item) => {
           const hiddenAttr = hasQuery && item.id !== "all" && !matchesSettingsSection(item.id, searchQuery) ? "hidden" : "";
+          const navLabel = isMobile && item.id === "devices" ? "Kết nối máy tính" : item.label;
+          const navIcon = isMobile && item.id === "devices" ? "laptop" : item.icon;
           return `<button type="button" class="wb-side-link wb-settings-side-link ${activeSection === item.id ? "is-active" : ""}" data-action="settings-nav" data-section="${esc(item.id)}" aria-current="${activeSection === item.id ? "true" : "false"}" ${hiddenAttr}>
-            <span class="wb-side-link-main">${icon(item.icon, 16)}<span>${esc(item.label)}</span></span>
+            <span class="wb-side-link-main">${icon(navIcon, 16)}<span>${esc(navLabel)}</span></span>
           </button>`;
         }).join("")}
       </div>
@@ -174,24 +178,31 @@ function renderCliQuotaDetails(providerId) {
 export function settingsPage() {
   const defaults = view.state?.settings?.defaults || {};
   const maxConcurrent = view.state?.settings?.maxConcurrent || 2;
+  const isMobile = isMobileCompanionMode();
+  const hasConnectedPc = Boolean(getActiveRemoteHost()?.url);
+  const mobileDisconnected = isMobile && !hasConnectedPc;
   const canSaveRoles = workflowRoles.every((role) => providersForRole(view.connectors, role.id).length > 0);
   const apiSetup = (view.providers || []).map((provider) => `<div class="provider-setup-row"><span class="provider-status-dot ${provider.available ? "ready" : "missing"}"></span><div><strong>${esc(provider.name)}</strong><small>${provider.available ? `${provider.models.length} model · sẵn sàng${provider.apiKeyConfigured ? " · đã lưu khóa API" : ""}` : esc(provider.error || "Chưa đủ cấu hình")} · ${esc(provider.baseUrl)}</small></div><div class="provider-row-actions">${provider.managedBy === "local" ? `<button class="button quiet small" type="button" data-action="provider-edit" data-id="${esc(provider.id)}">Sửa</button><button class="button quiet small" type="button" data-action="provider-delete" data-id="${esc(provider.id)}">Xóa</button>` : `<button class="button quiet small" type="button" data-action="provider-import-env" data-id="${esc(provider.id)}">Quản lý trong app</button>`}</div></div>`).join("");
   const cliSetup = cliProviderGuides.map((agent) => {
     const connector = view.connectors?.[agent.id];
     const q = view.quotas?.providers?.[agent.id];
     const status = cliConnectionStatus(connector);
-    const action = status.tone === "missing"
-      ? window.opensybauDesktop?.supportsCliInstall
-        ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${esc(agent.id)}" ${view.cliInstallProvider ? "disabled" : ""}>${view.cliInstallProvider === agent.id ? "Đang cài đặt…" : "Cài CLI"}</button>`
-        : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
+    const action = mobileDisconnected
+      ? `<button class="button quiet small" type="button" data-action="settings-nav" data-section="devices">Kết nối máy tính</button>`
+      : status.tone === "missing"
+        ? window.opensybauDesktop?.supportsCliInstall
+          ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${esc(agent.id)}" ${view.cliInstallProvider ? "disabled" : ""}>${view.cliInstallProvider === agent.id ? "Đang cài đặt…" : "Cài CLI"}</button>`
+          : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
+        : status.tone === "ready"
+          ? ""
+          : status.action === "refresh"
+            ? cliRefreshButton()
+            : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Mở terminal đăng nhập</button>`;
+    const detail = mobileDisconnected
+      ? "Chưa kết nối với máy tính (PC). Ghép nối với PC để đồng bộ CLI và hạn mức."
       : status.tone === "ready"
-        ? ""
-        : status.action === "refresh"
-          ? cliRefreshButton()
-          : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Mở terminal đăng nhập</button>`;
-    const detail = status.tone === "ready"
-      ? `${q?.email ? `${q.email} · ` : ""}${connector.models.length} model`
-      : status.tone === "missing" ? connector?.error || agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
+        ? `${q?.email ? `${q.email} · ` : ""}${connector.models.length} model`
+        : status.tone === "missing" ? connector?.error || agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
     const planBadge = q?.planType ? `<span class="wb-quota-plan-badge" data-localize-skip="true">${esc(q.planType)}</span>` : "";
     return `<article class="cli-guide-row ${status.tone === "ready" ? "is-ready" : ""}">
       <div class="cli-guide-copy">
@@ -253,7 +264,7 @@ export function settingsPage() {
   return `<div class="page-head">
     <div>
       <h1>Cài đặt</h1>
-      <p>Tùy chỉnh giao diện, chọn model AI mặc định và kết nối với điện thoại.</p>
+      <p>${isMobile ? "Tùy chỉnh giao diện, ghép nối với máy tính (PC) và quản lý nguồn AI trên máy chủ." : "Tùy chỉnh giao diện, chọn model AI mặc định và kết nối với điện thoại."}</p>
     </div>
     <div class="page-head-actions">
       ${cliRefreshButton("Quét lại", { small: false })}
@@ -261,9 +272,13 @@ export function settingsPage() {
     </div>
   </div>
   <nav class="settings-nav-sidebar settings-mobile-nav" aria-label="Danh mục cài đặt">
-    ${SETTINGS_NAV_ITEMS.map((item) => `<button type="button" class="settings-nav-item ${activeSection === item.id ? "is-active" : ""}" data-action="settings-nav" data-section="${esc(item.id)}" aria-current="${activeSection === item.id ? "true" : "false"}">
-      <span class="settings-nav-item-main">${icon(item.icon, 14)}<span>${esc(item.mobileLabel || item.label)}</span></span>
-    </button>`).join("")}
+    ${SETTINGS_NAV_ITEMS.map((item) => {
+      const mobileTitle = isMobile && item.id === "devices" ? "Máy tính" : (item.mobileLabel || item.label);
+      const mobileIcon = isMobile && item.id === "devices" ? "laptop" : item.icon;
+      return `<button type="button" class="settings-nav-item ${activeSection === item.id ? "is-active" : ""}" data-action="settings-nav" data-section="${esc(item.id)}" aria-current="${activeSection === item.id ? "true" : "false"}">
+      <span class="settings-nav-item-main">${icon(mobileIcon, 14)}<span>${esc(mobileTitle)}</span></span>
+    </button>`;
+    }).join("")}
   </nav>
   <form class="settings-form" data-modal data-form="settings">
     <section class="settings-card theme-gallery-card" id="settings-theme" data-settings-section="theme" ${showSection("theme") ? "" : "hidden"}>
@@ -276,15 +291,19 @@ export function settingsPage() {
       <div class="theme-gallery-groups">${themeGroupsHtml}</div>
     </section>
     <section class="settings-card" id="settings-roles" data-settings-section="roles" ${showSection("roles") ? "" : "hidden"}><header><div><h2>Chọn model AI cho từng việc</h2><p>Chọn AI mặc định phụ trách từng khâu: Lên kế hoạch, Viết code và Kiểm tra code.</p></div></header>
-        ${noReadyConnector ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI</button></div></div>` : ""}
+        ${mobileDisconnected
+          ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("laptop", 17)}</span><div><strong>Chưa kết nối với máy tính (PC)</strong><p>Điện thoại là thiết bị điều khiển từ xa. Hãy kết nối với OpenSybau trên máy tính để tải danh sách model AI.</p></div><div><button class="button primary small" type="button" data-action="settings-nav" data-section="devices">Kết nối máy tính</button></div></div>`
+          : noReadyConnector
+            ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI</button></div></div>`
+            : ""}
       <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
       ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Hãy khởi động lại để lưu model mặc định.</div>`}
       <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu model mặc định</button></footer>
     </section>
-    <section class="settings-card cli-setup-card" id="cli-setup" data-settings-section="cli" ${showSection("cli") ? "" : "hidden"}><header><div><h2>Công cụ CLI & Hạn mức</h2><p>Tự động nhận diện Codex, Antigravity, Claude Code và kiểm tra hạn mức tài khoản trên máy.</p></div><div class="page-head-actions"><button class="button quiet small" type="button" data-action="refresh-quotas" ${view.quotasLoading ? "disabled" : ""}>${icon("refresh-cw", 13)} ${view.quotasLoading ? "Đang tải hạn mức..." : "Cập nhật hạn mức"}</button>${cliRefreshButton()}</div></header><div class="cli-guide-list">${cliSetup}</div></section>
+    <section class="settings-card cli-setup-card" id="cli-setup" data-settings-section="cli" ${showSection("cli") ? "" : "hidden"}><header><div><h2>Công cụ CLI & Hạn mức</h2><p>${isMobile ? "Trạng thái Codex, Antigravity, Claude Code và hạn mức tài khoản trên máy tính (PC) đang kết nối." : "Tự động nhận diện Codex, Antigravity, Claude Code và kiểm tra hạn mức tài khoản trên máy."}</p></div><div class="page-head-actions"><button class="button quiet small" type="button" data-action="refresh-quotas" ${view.quotasLoading ? "disabled" : ""}>${icon("refresh-cw", 13)} ${view.quotasLoading ? "Đang tải hạn mức..." : "Cập nhật hạn mức"}</button>${cliRefreshButton()}</div></header><div class="cli-guide-list">${cliSetup}</div></section>
     <section class="settings-card provider-setup-card" id="settings-api" data-settings-section="api" ${showSection("api") ? "" : "hidden"}><header><div><h2>Kết nối API & Model cục bộ</h2><p>Dùng thêm khóa API (OpenAI, Gemini, Claude) hoặc model chạy qua Ollama, LM Studio.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa thêm nguồn API nào</strong><p>Bấm Thêm nguồn nếu bạn muốn dùng API key riêng hoặc kết nối Ollama / LM Studio.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm nguồn API</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div></section>
     ${renderDeviceConnectSettingsSection({ hidden: !showSection("devices") })}
-    <section class="settings-card concurrency-card" id="settings-concurrency" data-settings-section="concurrency" ${showSection("concurrency") ? "" : "hidden"}><header><div><h2>Số công việc chạy cùng lúc</h2><p>Giới hạn số công việc AI được phép chạy song song trên máy.</p></div></header>
+    <section class="settings-card concurrency-card" id="settings-concurrency" data-settings-section="concurrency" ${showSection("concurrency") ? "" : "hidden"}><header><div><h2>Số công việc chạy cùng lúc</h2><p>${isMobile ? "Giới hạn số công việc AI được phép chạy song song trên máy tính (PC)." : "Giới hạn số công việc AI được phép chạy song song trên máy."}</p></div></header>
       <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${maxConcurrent}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
     </section>
     <section class="empty-state settings-search-empty" data-settings-search-empty ${searchQuery && !anyVisibleSection ? "" : "hidden"}>

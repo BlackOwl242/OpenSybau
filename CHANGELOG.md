@@ -5,6 +5,24 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.3] - 2026-10-27
+
+### English
+- **Mobile Companion Mode, Wi-Fi Auto-Discovery & Reliable LAN Connectivity (`server.mjs`, `src/server/network-pairing.mjs`, `android/app/src/main/java/com/opensybau/mobile/MainActivity.java`, `src/shared/remote-host.js`, `src/features/workbench/device-connect.js`, `src/features/workbench/pages/*`, `src/shell/components/MobileOrcaShell.jsx`)**:
+  - Auto-initialize and persist a strong LAN access password (`connection-config.json`) on first PC startup so the LAN companion server (`:4173`) and QR/quick-pairing code (`opensybau://connect?...&pass=...`) work immediately out-of-the-box without requiring manual setup first.
+  - Filter out virtual switch adapters (`vEthernet`, `WSL`, `Hyper-V`, `Docker`, `VMware`, `VirtualBox`, `192.168.56.1`) and prioritize physical `Wi-Fi` / `Ethernet` interfaces in `discoverLanAddresses()` so the primary LAN IP and QR code always point to the real Wi-Fi/LAN address.
+  - Add native Android `HttpURLConnection` bridge (`window.opensybauAndroid.httpRequest`) and multi-threaded `/24` Wi-Fi subnet scanner (`scanLanHosts` + `/api/ping` discovery) alongside Chromium Private Network Access (`Access-Control-Allow-Private-Network: true`) headers so Android APK and mobile browsers connect reliably on the same Wi-Fi without Mixed Content or PNA/CORS blocks.
+  - Redesign the mobile companion experience & terminology (`Kết nối với Máy tính (PC)`, `Tìm máy tính trong mạng Wi-Fi`, `Trực tiếp trên PC`, `Chưa kết nối với máy tính (PC)`) so mobile clearly operates as a remote controller for the PC rather than a standalone computer, with full Vietnamese and English (`i18n.js`) localization.
+
+### Tiếng Việt
+- **Chế độ Điều khiển Di động (Mobile Companion), Tự động Dò Máy tính qua Wi-Fi & Khắc phục Kết nối Mạng LAN (`server.mjs`, `src/server/network-pairing.mjs`, `android/app/src/main/java/com/opensybau/mobile/MainActivity.java`, `src/shared/remote-host.js`, `src/features/workbench/device-connect.js`, `src/features/workbench/pages/*`, `src/shell/components/MobileOrcaShell.jsx`)**:
+  - Tự động khởi tạo mật khẩu bảo vệ mạng LAN (`connection-config.json`) và bật máy chủ LAN (`:4173`) ngay khi mở ứng dụng trên PC, giúp mã QR và chuỗi ghép nối nhanh luôn kèm sẵn mật khẩu hợp lệ.
+  - Loại bỏ các card mạng ảo (`vEthernet`, `WSL`, `Hyper-V`, `Docker`, `VMware`, `VirtualBox`, `192.168.56.1`) và ưu tiên card `Wi-Fi` / `Ethernet` vật lý khi lấy địa chỉ IP máy tính.
+  - Bổ sung cầu nối mạng gốc Android (`httpRequest`) và bộ quét đa luồng tự động tìm máy tính đang mở OpenSybau trong cùng mạng Wi-Fi (`scanLanHosts` + `/api/ping`), kèm header `Access-Control-Allow-Private-Network: true` để khắc phục triệt để lỗi chặn kết nối từ điện thoại sang PC.
+  - Thiết kế lại giao diện và thuật ngữ trên điện thoại theo đúng vai trò thiết bị điều khiển PC từ xa (`Kết nối với Máy tính (PC)`, `Tìm máy tính trong mạng Wi-Fi`, `Trực tiếp trên PC`, `Chưa kết nối với máy tính (PC)`), hỗ trợ đầy đủ song ngữ Việt – Anh.
+
+---
+
 ## [0.3.2] - 2026-10-26
 
 ### English

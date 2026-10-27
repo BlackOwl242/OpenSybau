@@ -23,7 +23,31 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
     private static final String APP_ENTRY_URL = "https://appassets.androidplatform.net/assets/public/index.html";
@@ -81,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.2.104 Capacitor");
+        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.3.3 Capacitor");
 
         webView.clearCache(true);
         WebView.setWebContentsDebuggingEnabled(true);
@@ -193,7 +217,7 @@ public class MainActivity extends AppCompatActivity {
     public class OpenSybauNativeBridge {
         @JavascriptInterface
         public String getAppVersion() {
-            return "0.2.104";
+            return "0.3.3";
         }
 
         @JavascriptInterface
@@ -208,6 +232,211 @@ public class MainActivity extends AppCompatActivity {
                 return info.toString();
             } catch (Exception e) {
                 return "{\"platform\":\"android\"}";
+            }
+        }
+
+        @JavascriptInterface
+        public String getDeviceLanInfo() {
+            try {
+                String primaryIp = "";
+                String primarySubnet = "";
+                String tailscaleIp = "";
+                JSONArray allIps = new JSONArray();
+                Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+                if (interfaces != null) {
+                    for (NetworkInterface nif : Collections.list(interfaces)) {
+                        if (!nif.isUp() || nif.isLoopback()) continue;
+                        String nifName = nif.getName() != null ? nif.getName().toLowerCase() : "";
+                        for (InetAddress addr : Collections.list(nif.getInetAddresses())) {
+                            if (!(addr instanceof Inet4Address) || addr.isLoopbackAddress()) continue;
+                            String ip = addr.getHostAddress();
+                            if (ip == null || ip.startsWith("169.254.")) continue;
+                            allIps.put(ip);
+                            if (ip.startsWith("100.")) {
+                                if (tailscaleIp.isEmpty()) tailscaleIp = ip;
+                                continue;
+                            }
+                            if (ip.startsWith("192.168.") || ip.startsWith("10.") || ip.matches("^172\\.(1[6-9]|2\\d|3[0-1])\\..*")) {
+                                boolean isWifi = nifName.startsWith("wlan") || nifName.startsWith("eth") || nifName.startsWith("ap");
+                                if (primaryIp.isEmpty() || isWifi) {
+                                    primaryIp = ip;
+                                    int lastDot = ip.lastIndexOf('.');
+                                    if (lastDot > 0) primarySubnet = ip.substring(0, lastDot);
+                                }
+                            }
+                        }
+                    }
+                }
+                JSONObject res = new JSONObject();
+                res.put("ip", primaryIp);
+                res.put("subnet", primarySubnet);
+                res.put("tailscaleIp", tailscaleIp);
+                res.put("addresses", allIps);
+                return res.toString();
+            } catch (Exception e) {
+                return "{\"ip\":\"\",\"subnet\":\"\",\"tailscaleIp\":\"\"}";
+            }
+        }
+
+        @JavascriptInterface
+        public String scanLanHosts(int targetPort) {
+            final int portToScan = targetPort > 0 && targetPort <= 65535 ? targetPort : 4173;
+            try {
+                Set<String> subnets = new LinkedHashSet<>();
+                String selfIp = "";
+                JSONObject lanInfo = new JSONObject(getDeviceLanInfo());
+                String detectedSubnet = lanInfo.optString("subnet", "");
+                selfIp = lanInfo.optString("ip", "");
+                if (!detectedSubnet.isEmpty()) {
+                    subnets.add(detectedSubnet);
+                }
+                if (subnets.isEmpty()) {
+                    subnets.add("192.168.1");
+                    subnets.add("192.168.0");
+                }
+                final String finalSelfIp = selfIp;
+                ExecutorService pool = Executors.newFixedThreadPool(36);
+                List<Callable<JSONObject>> tasks = new ArrayList<>();
+                for (final String subnet : subnets) {
+                    for (int hostIdx = 1; hostIdx <= 254; hostIdx++) {
+                        final String candidateIp = subnet + "." + hostIdx;
+                        if (candidateIp.equals(finalSelfIp)) continue;
+                        tasks.add(() -> {
+                            HttpURLConnection conn = null;
+                            try {
+                                URL url = new URL("http://" + candidateIp + ":" + portToScan + "/api/ping");
+                                conn = (HttpURLConnection) url.openConnection();
+                                conn.setRequestMethod("GET");
+                                conn.setConnectTimeout(420);
+                                conn.setReadTimeout(600);
+                                conn.setRequestProperty("Accept", "application/json");
+                                conn.setRequestProperty("X-OpenSybau-Client", "android-apk");
+                                int code = conn.getResponseCode();
+                                if (code != 200 && code != 401) return null;
+                                if (code == 401) {
+                                    String wwwAuth = conn.getHeaderField("WWW-Authenticate");
+                                    if (wwwAuth != null && wwwAuth.contains("OpenSybau")) {
+                                        JSONObject item = new JSONObject();
+                                        item.put("address", candidateIp);
+                                        item.put("port", portToScan);
+                                        item.put("url", "http://" + candidateIp + ":" + portToScan);
+                                        item.put("hostname", candidateIp);
+                                        item.put("name", "PC (" + candidateIp + ")");
+                                        item.put("authRequired", true);
+                                        return item;
+                                    }
+                                    return null;
+                                }
+                                InputStream in = conn.getInputStream();
+                                BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                                StringBuilder sb = new StringBuilder();
+                                String line;
+                                while ((line = reader.readLine()) != null) {
+                                    sb.append(line);
+                                }
+                                reader.close();
+                                JSONObject payload = new JSONObject(sb.toString());
+                                if (!"OpenSybau".equalsIgnoreCase(payload.optString("app", ""))) return null;
+                                String hostName = payload.optString("hostname", candidateIp);
+                                JSONObject item = new JSONObject();
+                                item.put("address", candidateIp);
+                                item.put("port", payload.optInt("port", portToScan));
+                                item.put("url", "http://" + candidateIp + ":" + portToScan);
+                                item.put("hostname", hostName);
+                                item.put("name", hostName.isEmpty() ? ("PC (" + candidateIp + ")") : hostName);
+                                item.put("platform", payload.optString("platform", ""));
+                                item.put("authRequired", payload.optBoolean("authRequired", true));
+                                return item;
+                            } catch (Exception ignored) {
+                                return null;
+                            } finally {
+                                if (conn != null) conn.disconnect();
+                            }
+                        });
+                    }
+                }
+                List<Future<JSONObject>> futures = pool.invokeAll(tasks, 4500, TimeUnit.MILLISECONDS);
+                pool.shutdownNow();
+                JSONArray found = new JSONArray();
+                for (Future<JSONObject> fut : futures) {
+                    if (fut.isDone() && !fut.isCancelled()) {
+                        try {
+                            JSONObject item = fut.get();
+                            if (item != null) found.put(item);
+                        } catch (Exception ignored) {}
+                    }
+                }
+                return found.toString();
+            } catch (Exception e) {
+                return "[]";
+            }
+        }
+
+        @JavascriptInterface
+        public String httpRequest(String method, String urlString, String headersJson, String body) {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL(urlString);
+                conn = (HttpURLConnection) url.openConnection();
+                String cleanMethod = (method == null || method.isEmpty()) ? "GET" : method.toUpperCase();
+                conn.setRequestMethod(cleanMethod);
+                conn.setConnectTimeout(7000);
+                conn.setReadTimeout(20000);
+                conn.setUseCaches(false);
+                conn.setRequestProperty("X-OpenSybau-Client", "android-apk");
+                if (headersJson != null && !headersJson.isEmpty()) {
+                    JSONObject headersObj = new JSONObject(headersJson);
+                    Iterator<String> keys = headersObj.keys();
+                    while (keys.hasNext()) {
+                        String key = keys.next();
+                        String val = headersObj.optString(key, "");
+                        if (key != null && !key.isEmpty() && val != null) {
+                            conn.setRequestProperty(key, val);
+                        }
+                    }
+                }
+                if (body != null && !body.isEmpty() && ("POST".equals(cleanMethod) || "PUT".equals(cleanMethod) || "PATCH".equals(cleanMethod) || "DELETE".equals(cleanMethod))) {
+                    conn.setDoOutput(true);
+                    byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                    conn.setFixedLengthStreamingMode(bytes.length);
+                    OutputStream os = conn.getOutputStream();
+                    os.write(bytes);
+                    os.flush();
+                    os.close();
+                }
+                int status = conn.getResponseCode();
+                InputStream stream = (status >= 200 && status < 400) ? conn.getInputStream() : conn.getErrorStream();
+                String responseBody = "";
+                if (stream != null) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        if (sb.length() > 0) sb.append('\n');
+                        sb.append(line);
+                    }
+                    reader.close();
+                    responseBody = sb.toString();
+                }
+                JSONObject res = new JSONObject();
+                res.put("ok", status >= 200 && status < 300);
+                res.put("status", status);
+                res.put("etag", conn.getHeaderField("ETag") != null ? conn.getHeaderField("ETag") : "");
+                res.put("contentType", conn.getHeaderField("Content-Type") != null ? conn.getHeaderField("Content-Type") : "application/json");
+                res.put("body", responseBody);
+                return res.toString();
+            } catch (Exception e) {
+                try {
+                    JSONObject err = new JSONObject();
+                    err.put("ok", false);
+                    err.put("status", 0);
+                    err.put("error", e.getMessage() != null ? e.getMessage() : "Network error");
+                    return err.toString();
+                } catch (Exception ignored) {
+                    return "{\"ok\":false,\"status\":0,\"error\":\"Network error\"}";
+                }
+            } finally {
+                if (conn != null) conn.disconnect();
             }
         }
     }

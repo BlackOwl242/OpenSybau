@@ -1004,6 +1004,51 @@ const english = {
   "Trò chuyện trực tiếp": "Direct Chat",
   "Chọn tông màu hiển thị cho toàn bộ ứng dụng.": "Choose the color theme for the application.",
   "Kết nối điện thoại": "Phone & Remote Connect",
+  "Kết nối máy tính": "Connect to PC",
+  "Máy tính": "Computer (PC)",
+  "Kết nối với Máy tính (PC)": "Connect to Computer (PC)",
+  "Ghép nối điện thoại với OpenSybau đang chạy trên máy tính qua cùng mạng Wi-Fi hoặc Tailscale.": "Pair your phone with OpenSybau running on your computer over the same Wi-Fi network or Tailscale.",
+  "Mật khẩu và mã kết nối mạng LAN đã bật sẵn trên máy tính này. Quét mã hoặc nhập IP trên điện thoại để điều khiển từ xa.": "LAN password and pairing code are ready on this computer. Scan the QR code or enter the IP on your phone for remote control.",
+  "1. Mật khẩu kết nối cho điện thoại": "1. Connection password for your phone",
+  "Sao chép mật khẩu": "Copy password",
+  "Đã sao chép mật khẩu kết nối.": "Copied connection password.",
+  "Tìm máy tính trong mạng Wi-Fi": "Find computers on Wi-Fi",
+  "Tự động dò máy tính đang chạy OpenSybau trong cùng mạng Wi-Fi.": "Automatically discover computers running OpenSybau on the same Wi-Fi network.",
+  "Quét mạng Wi-Fi": "Scan Wi-Fi",
+  "Đang quét Wi-Fi…": "Scanning Wi-Fi…",
+  "Mạng Wi-Fi nội bộ": "Local Wi-Fi network",
+  "Đã chọn": "Selected",
+  "Chọn máy này": "Select this PC",
+  "Đang tự động tìm máy tính đang mở OpenSybau trong mạng Wi-Fi…": "Automatically scanning Wi-Fi for computers running OpenSybau…",
+  "Bấm Quét mạng Wi-Fi để tự động tìm máy tính hoặc dán mã kết nối nhanh bên dưới.": "Tap Scan Wi-Fi to discover your computer automatically, or paste the quick pairing code below.",
+  "Địa chỉ IP máy tính (PC)": "Computer (PC) IP address",
+  "Ví dụ: 192.168.1.15:4173": "Example: 192.168.1.15:4173",
+  "Mật khẩu kết nối trên PC": "Connection password on PC",
+  "Nhập mật khẩu hiển thị trên máy tính": "Enter the password shown on your computer",
+  "Ví dụ: Máy tính bàn ở nhà": "Example: Home Desktop PC",
+  "Tùy chỉnh giao diện, ghép nối với máy tính (PC) và quản lý nguồn AI trên máy chủ.": "Customize appearance, pair with your computer (PC), and manage AI sources on the host.",
+  "Chưa kết nối với máy tính (PC)": "Not connected to a computer (PC)",
+  "Chưa kết nối máy tính (PC)": "Computer (PC) not connected",
+  "Máy tính PC": "Computer (PC)",
+  "Điện thoại là thiết bị điều khiển từ xa. Hãy kết nối với OpenSybau trên máy tính để tải danh sách model AI.": "Your phone acts as a remote controller. Connect to OpenSybau on your computer to load AI models.",
+  "Điện thoại hoạt động như thiết bị điều khiển từ xa. Hãy ghép nối với OpenSybau trên máy tính qua cùng mạng Wi-Fi để bắt đầu.": "Your phone acts as a remote controller. Pair with OpenSybau on your computer over the same Wi-Fi network to get started.",
+  "Kết nối máy tính ngay": "Connect to PC now",
+  "Chưa kết nối với máy tính (PC). Ghép nối với PC để đồng bộ CLI và hạn mức.": "Not connected to a computer (PC). Pair with your PC to sync CLI tools and quotas.",
+  "Trạng thái Codex, Antigravity, Claude Code và hạn mức tài khoản trên máy tính (PC) đang kết nối.": "Status of Codex, Antigravity, Claude Code, and account quotas on the connected computer (PC).",
+  "Giới hạn số công việc AI được phép chạy song song trên máy tính (PC).": "Limit the number of AI tasks allowed to run in parallel on the connected computer (PC).",
+  "Trực tiếp trên PC": "Directly on PC",
+  "Đang chạy trên nhánh Git Worktree cô lập (bấm để chuyển về chạy trực tiếp trên PC)": "Running on an isolated Git Worktree branch (tap to switch to running directly on PC)",
+  "Đang chạy trực tiếp trên thư mục dự án PC (bấm để tách nhánh Git Worktree)": "Running directly on the PC project folder (tap to isolate in a Git Worktree)",
+  "Môi trường thực thi trên máy tính PC": "Execution environment on the PC",
+  "Chưa có thư mục dự án trên PC": "No project folders on PC yet",
+  "Ghép nối điện thoại với OpenSybau trên máy tính qua cùng mạng Wi-Fi để xem dự án và điều khiển AI.": "Pair your phone with OpenSybau on your computer over the same Wi-Fi network to view projects and control AI.",
+  "Thêm thư mục dự án nằm trên máy tính (PC) để AI đọc hiểu và viết code.": "Add a project folder located on your computer (PC) for AI to read and write code.",
+  "Chưa ghép nối · Bấm Ghép nối PC để kết nối qua Wi-Fi": "Not paired · Tap Pair PC to connect over Wi-Fi",
+  "Đường dẫn thư mục dự án trên máy tính (PC)": "Project folder path on computer (PC)",
+  "Nhập đường dẫn tuyệt đối của thư mục dự án nằm trên máy tính (PC) đang kết nối.": "Enter the absolute path of the project folder located on the connected computer (PC).",
+  "Chưa tìm thấy máy tính tự động. Hãy kiểm tra PC đang mở OpenSybau cùng mạng Wi-Fi.": "No computers found automatically. Make sure OpenSybau is open on your PC on the same Wi-Fi.",
+  "Máy tính PC yêu cầu mật khẩu kết nối. Hãy nhập đúng mật khẩu hiển thị trong mục Kết nối điện thoại trên PC.": "The PC requires a connection password. Enter the password shown under Phone Connect on your PC.",
+  "Máy tính PC từ chối truy cập (403).": "The PC denied access (403).",
   "Tạo mật khẩu trên máy tính rồi quét mã hoặc nhập IP trên điện thoại để điều khiển từ xa.": "Create a password on your computer, then scan the QR code or enter the IP on your phone for remote control.",
   "Trên máy tính này": "On this computer",
   "Kết nối sang máy khác": "Connect to another PC",
@@ -1543,6 +1588,12 @@ function dynamicTranslation(value, language) {
     match = value.match(/^(\d+)n (\d+)g$/); if (match) return `${match[1]}d ${match[2]}h`;
     match = value.match(/^Di chuyển giữa (\d+) cụm thay đổi$/); if (match) return `Navigate between ${match[1]} change blocks`;
     match = value.match(/^Tất cả thay đổi trong (.+)$/); if (match) return `All changes in ${match[1]}`;
+    match = value.match(/^Đang mở kết nối mạng LAN \(Cổng (\d+)\)\. Điện thoại dùng mật khẩu này hoặc mã kết nối nhanh bên dưới để ghép nối\.$/);
+    if (match) return `LAN access is active (Port ${match[1]}). Use this password or the quick pairing code below on your phone to connect.`;
+    match = value.match(/^Đã tìm thấy (\d+) máy tính trong mạng Wi-Fi!$/);
+    if (match) return `Found ${match[1]} computer(s) on Wi-Fi!`;
+    match = value.match(/^Đã chọn (.+)\. Nhập mật khẩu trên PC rồi bấm Lưu & Kết nối\.$/);
+    if (match) return `Selected ${match[1]}. Enter the password from your PC and tap Save & Connect.`;
     match = value.match(/^(\d+)p$/); if (match) return `${match[1]}m`;
     match = value.match(/^(\d+)g$/); if (match) return `${match[1]}h`;
     match = value.match(/^(\d+)n$/); if (match) return `${match[1]}d`;

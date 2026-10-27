@@ -1,6 +1,6 @@
-import { buildRemoteRequestHeaders, resolveRemoteUrl } from "./remote-host.js";
+import { buildRemoteRequestHeaders, remoteFetch, resolveRemoteUrl } from "./remote-host.js";
 
-export function createStateLoader(fetchState = globalThis.fetch) {
+export function createStateLoader(fetchState = remoteFetch) {
   let etag = "";
   let snapshot;
   let lastTargetUrl = "";

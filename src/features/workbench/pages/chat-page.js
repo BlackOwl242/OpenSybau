@@ -1,6 +1,7 @@
 import { efforts, esc, icon, statuses, view } from "../../../shared/state.js";
 import { connectorSupports, providerTitle, workflowRoles } from "../../../domain/agent-roles.js";
 import { compactChatTitle } from "../../../shared/chat-labels.js";
+import { getActiveRemoteHost, isMobileCompanionMode } from "../../../shared/remote-host.js";
 import {
   chatAgentEditor,
   customSelectControl,
@@ -190,13 +191,20 @@ export function chatPage() {
     </svg>
   </div>`;
 
+  const isMobile = isMobileCompanionMode();
+  const mobileDisconnected = isMobile && !getActiveRemoteHost()?.url;
+
   return `<section class="command-home">
     <div class="command-stage">
       <div class="home-welcome">
         ${heroEmblem}
         <h1>${activeWorkspace ? `Bạn muốn xây dựng gì trong ${esc(activeWorkspace.name)}?` : "Bạn muốn xây dựng gì?"}</h1>
       </div>
-      ${chatProviders.length ? "" : `<div class="provider-connect-callout home-provider-empty"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa có agent sẵn sàng</strong><p>Kết nối API/model local hoặc cài và đăng nhập Codex, Claude Code hay Antigravity để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="desktop-open-settings">Mở cài đặt</button><button class="button quiet small" type="button" data-action="open-setup-assistant">Hướng dẫn</button></div></div>`}
+      ${chatProviders.length
+        ? ""
+        : mobileDisconnected
+          ? `<div class="provider-connect-callout home-provider-empty"><span class="provider-connect-icon">${icon("laptop", 17)}</span><div><strong>Chưa kết nối với máy tính (PC)</strong><p>Điện thoại hoạt động như thiết bị điều khiển từ xa. Hãy ghép nối với OpenSybau trên máy tính qua cùng mạng Wi-Fi để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="mp-open-pair">Kết nối máy tính ngay</button></div></div>`
+          : `<div class="provider-connect-callout home-provider-empty"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa có agent sẵn sàng</strong><p>Kết nối API/model local hoặc cài và đăng nhập Codex, Claude Code hay Antigravity để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="desktop-open-settings">Mở cài đặt</button><button class="button quiet small" type="button" data-action="open-setup-assistant">Hướng dẫn</button></div></div>`}
       <div class="codex-composer-stack">
         <div class="codex-composer-rail">
           <div class="codex-rail-bar">
@@ -222,9 +230,9 @@ export function chatPage() {
                 ${icon("folder", 14)}
                 <span>Chọn dự án</span>
               </button>`}
-              <button type="button" class="codex-rail-pill is-exec-env ${homeIsolated ? "is-active" : ""}" data-action="toggle-home-isolated" ${!canIsolateHome || isArena ? "disabled" : ""} title="${canIsolateHome ? (homeIsolated ? "Đang chạy trên nhánh Git Worktree cô lập (bấm để chuyển về Máy tính này)" : "Đang chạy trực tiếp trên Máy tính này (bấm để tách nhánh Git Worktree)") : "Môi trường thực thi cục bộ"}">
+              <button type="button" class="codex-rail-pill is-exec-env ${homeIsolated ? "is-active" : ""}" data-action="toggle-home-isolated" ${!canIsolateHome || isArena ? "disabled" : ""} title="${canIsolateHome ? (homeIsolated ? "Đang chạy trên nhánh Git Worktree cô lập (bấm để chuyển về chạy trực tiếp trên PC)" : "Đang chạy trực tiếp trên thư mục dự án PC (bấm để tách nhánh Git Worktree)") : "Môi trường thực thi trên máy tính PC"}">
                 ${homeIsolated ? icon("git-branch", 14) : icon("laptop", 14)}
-                <span>${homeIsolated ? "Git Worktree" : "Máy tính này"}</span>
+                <span>${homeIsolated ? "Git Worktree" : (isMobile ? "Trực tiếp trên PC" : "Máy tính này")}</span>
               </button>
               ${workflow !== "chat-only" && !isArena ? `<button type="button" class="codex-rail-pill ${view.homePlanGate ? "is-active" : ""}" data-action="toggle-home-plan-gate" title="Cổng duyệt kế hoạch (Trạm 2): Tạm dừng sau bước Lập kế hoạch để bạn duyệt trước khi Agent sửa code">
                 ${icon("shield-check", 13)}
