@@ -9,6 +9,10 @@ const apiCapabilities = { chat: true, plan: true, build: true, review: true };
 const executableCache = new Map();
 const EXECUTABLE_CACHE_TTL_MS = 60_000;
 
+export function clearExecutableCache() {
+  executableCache.clear();
+}
+
 function findExecutable(name) {
   const now = Date.now();
   const cached = executableCache.get(name);
@@ -32,6 +36,9 @@ export function findClaudeCode({ env = process.env, platform = process.platform,
     const candidates = [
       resolve(profile, ".local/bin/claude.exe"),
       resolve(profile, ".claude/local/claude.exe"),
+      resolve(profile, ".claude/bin/claude.exe"),
+      resolve(localAppData, "Programs/claude/claude.exe"),
+      resolve(localAppData, "Claude/claude.exe"),
       resolve(appData, "npm/node_modules/@anthropic-ai/claude-code/cli.js"),
       resolve(localAppData, "npm/node_modules/@anthropic-ai/claude-code/cli.js"),
     ];

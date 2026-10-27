@@ -261,7 +261,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
 
   const cliLoginMatch = pathname.match(/^\/api\/connectors\/(codex|antigravity|claude)\/login$/);
   if (request.method === "POST" && cliLoginMatch) {
-    refreshCliExecutables();
+    refreshCliExecutables(true);
     const { codexExe, agyExe, claudeCommand } = getCliExecutables();
     const id = cliLoginMatch[1];
     const login = id === "codex"

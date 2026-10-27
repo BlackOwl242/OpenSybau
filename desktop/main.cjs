@@ -177,8 +177,13 @@ function runCliInstaller(command, args, cwd) {
       cwd,
       shell: false,
       windowsHide: true,
-      stdio: "ignore",
-      env: { ...process.env, NO_COLOR: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, NO_COLOR: "1", CODEX_NON_INTERACTIVE: "1" },
+    });
+    let stderr = "";
+    child.stdout?.on("data", () => {});
+    child.stderr?.on("data", (chunk) => {
+      if (stderr.length < 4000) stderr += chunk.toString("utf8");
     });
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -192,7 +197,10 @@ function runCliInstaller(command, args, cwd) {
     child.once("close", (code) => {
       clearTimeout(timer);
       if (timedOut) rejectPromise(new Error("CLI installation took longer than 15 minutes and was stopped."));
-      else if (code !== 0) rejectPromise(new Error(`The vendor installer exited with code ${code ?? "unknown"}.`));
+      else if (code !== 0) {
+        const detail = stderr.trim().split(/\r?\n/).filter(Boolean).slice(-2).join(" ");
+        rejectPromise(new Error(`The vendor installer exited with code ${code ?? "unknown"}${detail ? `: ${detail}` : "."}`));
+      }
       else resolvePromise();
     });
   });

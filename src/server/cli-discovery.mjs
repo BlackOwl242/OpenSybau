@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import { delimiter, dirname, isAbsolute, resolve } from "node:path";
 import { homedir } from "node:os";
-import { configuredApiProviders, findClaudeCode } from "./provider-registry.mjs";
+import { clearExecutableCache, configuredApiProviders, findClaudeCode } from "./provider-registry.mjs";
 import { cliIsInstalled } from "./cli-status.mjs";
 import { findAntigravityCli, parseWindowsRegisteredEnvironmentValue, probeAntigravityCli } from "./antigravity-cli.mjs";
 import { within } from "./fs-security.mjs";
@@ -78,6 +78,18 @@ export function createCliDiscoveryService({
   function findCodex() {
     if (process.env.CODEX_CLI_PATH) return resolve(process.env.CODEX_CLI_PATH);
     if (process.platform === "win32") {
+      const profile = process.env.USERPROFILE || homedir();
+      const localAppData = process.env.LOCALAPPDATA || resolve(profile, "AppData/Local");
+      const appData = process.env.APPDATA || resolve(profile, "AppData/Roaming");
+      const standaloneCandidates = [
+        resolve(localAppData, "Programs/OpenAI/Codex/bin/codex.exe"),
+        resolve(profile, ".codex/packages/standalone/current/bin/codex.exe"),
+        resolve(profile, ".codex/packages/standalone/current/codex.exe"),
+        resolve(appData, "npm/node_modules/@openai/codex/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe"),
+        resolve(localAppData, "npm/node_modules/@openai/codex/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe"),
+      ];
+      const direct = standaloneCandidates.find((candidate) => existsSync(candidate));
+      if (direct) return direct;
       const shim = findOnPath("codex.cmd");
       if (shim) {
         const stable = resolve(dirname(shim), "node_modules/@openai/codex/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe");
@@ -124,9 +136,10 @@ export function createCliDiscoveryService({
   function refreshCliExecutables(force = false) {
     const now = Date.now();
     if (!force && lastCliRefreshAt && now - lastCliRefreshAt < CLI_CACHE_TTL_MS) return;
-    if (force && now - lastCliRefreshAt > 3000) {
+    if (force) {
       regEnvCache.clear();
       pathExeCache.clear();
+      clearExecutableCache();
     }
     refreshWindowsPath(force);
     lastCliRefreshAt = Date.now();
@@ -159,27 +172,33 @@ export function createCliDiscoveryService({
     const windowsRoot = process.env.WINDIR || "C:\\Windows";
     const powershell = resolve(windowsRoot, "System32/WindowsPowerShell/v1.0/powershell.exe");
     if (!existsSync(powershell)) throw new Error("Không tìm thấy Windows PowerShell. Hãy mở PowerShell thủ công và chạy lệnh đăng nhập trong hướng dẫn.");
+    const runWithElectronNode = executable === process.execPath;
     const invocation = [executable, ...args].map(powershellLiteral).join(" ");
     const script = [
       `$Host.UI.RawUI.WindowTitle = ${powershellLiteral(`OpenSybau · ${title}`)}`,
       `Set-Location -LiteralPath ${powershellLiteral(homedir())}`,
-      `Write-Host ${powershellLiteral(`Đang mở ${title}. Hoàn tất đăng nhập trong cửa sổ này.`)}`,
+      "try { (New-Object -ComObject WScript.Shell).AppActivate($PID) | Out-Null } catch {}",
+      "$uPath = [Environment]::GetEnvironmentVariable('Path', 'User'); $mPath = [Environment]::GetEnvironmentVariable('Path', 'Machine'); if ($uPath -or $mPath) { $env:Path = (@($uPath, $mPath, $env:Path) | Where-Object { $_ }) -join ';' }",
+      runWithElectronNode ? "$env:ELECTRON_RUN_AS_NODE = '1'" : "",
+      `Write-Host ${powershellLiteral(`=== OpenSybau · Đăng nhập ${title} ===`)} -ForegroundColor Cyan`,
+      `Write-Host ${powershellLiteral(`Đang mở ${title}. Hoàn tất đăng nhập trong cửa sổ này hoặc trên trình duyệt vừa mở.`)}`,
+      "Write-Host ''",
       `& ${invocation}`,
       "if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) { Write-Host ('CLI kết thúc với mã ' + $LASTEXITCODE) -ForegroundColor Yellow }",
-      "Write-Host 'Quay lại OpenSybau và chọn Quét lại để cập nhật trạng thái.' -ForegroundColor Cyan",
-    ].join("; ");
+      "Write-Host ''",
+      "Write-Host 'Hoàn tất! OpenSybau sẽ tự động nhận diện hoặc bạn có thể bấm Quét lại.' -ForegroundColor Cyan",
+    ].filter(Boolean).join("; ");
     const encoded = Buffer.from(script, "utf16le").toString("base64");
-    const windowsTerminal = findOnPath("wt.exe");
-    const launcher = windowsTerminal || resolve(windowsRoot, "System32/cmd.exe");
-    const launcherArgs = windowsTerminal
-      ? ["-w", "new", powershell, "-NoProfile", "-NoExit", "-EncodedCommand", encoded]
-      : ["/d", "/s", "/c", `start "" "${powershell}" -NoProfile -NoExit -EncodedCommand ${encoded}`];
+    const launchCmd = `Start-Process -FilePath ${powershellLiteral(powershell)} -ArgumentList @('-NoProfile', '-NoExit', '-EncodedCommand', ${powershellLiteral(encoded)}) -WorkingDirectory ${powershellLiteral(homedir())} -WindowStyle Normal`;
     return new Promise((resolvePromise, rejectPromise) => {
-      const child = spawn(launcher, launcherArgs, {
-        cwd: homedir(), detached: true, stdio: "ignore", windowsHide: !windowsTerminal, env: process.env,
+      const child = spawn(powershell, ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", launchCmd], {
+        cwd: homedir(), detached: true, stdio: "ignore", windowsHide: true, env: process.env,
       });
-      child.once("spawn", () => { child.unref(); resolvePromise(); });
       child.once("error", rejectPromise);
+      child.once("close", (code) => {
+        if (code === 0) resolvePromise();
+        else rejectPromise(new Error(`Không thể mở cửa sổ PowerShell đăng nhập (mã ${code ?? "unknown"}).`));
+      });
     });
   }
 
@@ -280,7 +299,7 @@ export function createCliDiscoveryService({
       await pending.catch(() => {});
       if (modelLoadPromise) return modelLoadPromise;
     }
-    if (force) refreshCliExecutables();
+    if (force) refreshCliExecutables(true);
     modelLoadPromise = loadModelsUncached();
     try { return await modelLoadPromise; }
     finally { modelLoadPromise = null; }

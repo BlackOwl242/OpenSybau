@@ -41,9 +41,7 @@ export function DesktopSetupDialog({ connectors, installingProvider = "" }) {
                   ? supportsInstall
                     ? <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-install" data-id={agent.id} disabled={Boolean(installingProvider)}>{installingProvider === agent.id ? "Đang cài đặt…" : "Cài CLI"}</button>
                     : <a class="button quiet desktop-setup-install" href={agent.url} target="_blank" rel="noreferrer">Hướng dẫn cài</a>
-                  : status.action === "refresh"
-                    ? <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-refresh">Quét lại</button>
-                    : <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-login" data-id={agent.id}>Mở terminal đăng nhập</button>}
+                  : <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-login" data-id={agent.id}>Mở terminal đăng nhập</button>}
             </div>
           </article>;
         })}

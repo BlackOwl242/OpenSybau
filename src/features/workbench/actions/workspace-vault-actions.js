@@ -45,6 +45,44 @@ import {
   showCliProviderModal,
 } from "../pages/settings-page.js";
 
+let cliLoginPollTimer = null;
+
+function startCliLoginAutoPoll(providerId) {
+  if (cliLoginPollTimer) {
+    clearInterval(cliLoginPollTimer);
+    cliLoginPollTimer = null;
+  }
+  let attempts = 0;
+  let pollInFlight = false;
+  cliLoginPollTimer = setInterval(async () => {
+    if (pollInFlight) return;
+    attempts += 1;
+    if (attempts > 30) {
+      clearInterval(cliLoginPollTimer);
+      cliLoginPollTimer = null;
+      return;
+    }
+    pollInFlight = true;
+    try {
+      const connectors = await api("/api/connectors?refresh=1");
+      view.connectors = connectors;
+      if (connectors?.[providerId]?.available) {
+        clearInterval(cliLoginPollTimer);
+        cliLoginPollTimer = null;
+        await refresh();
+        void refreshQuotas({ force: true, background: true });
+        if (!$("#overlay")?.hidden && $(".cli-connect-list", $("#overlay"))) {
+          showCliProviderModal();
+        }
+        showToast("Đã đăng nhập và kết nối CLI thành công!");
+      }
+    } catch {
+    } finally {
+      pollInFlight = false;
+    }
+  }, 4000);
+}
+
 export async function handleWorkspaceVaultSettingsAction(action, id, button, event) {
   if (action === "scan-skills") {
     button.disabled = true;
@@ -415,7 +453,16 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
       const result = await install(id, view.language);
       if (result?.cancelled) return true;
       if (!result?.ok) throw new Error("Trình cài đặt chưa hoàn tất.");
-      await scanCliProviders();
+      const reopenModal = Boolean(button.closest("#overlay"));
+      await scanCliProviders(undefined, { openModal: reopenModal });
+      const installedConnector = view.connectors?.[id];
+      if (installedConnector && !installedConnector.available) {
+        try {
+          const loginRes = await api(`/api/connectors/${encodeURIComponent(id)}/login`, { method: "POST" });
+          showToast(loginRes.message || "Đã cài đặt xong và mở cửa sổ đăng nhập CLI.");
+          startCliLoginAutoPoll(id);
+        } catch {}
+      }
     } catch (error) {
       showToast(`Cài CLI thất bại: ${error.message}`);
     } finally {
@@ -434,7 +481,15 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
       const feedback = $(".cli-connect-feedback", button.closest(".modal"));
       if (feedback) { feedback.textContent = result.message; feedback.hidden = false; }
       showToast(result.message);
-    } finally { button.disabled = false; button.innerHTML = label; }
+      startCliLoginAutoPoll(id);
+    } catch (error) {
+      showToast(error.message || "Không thể mở terminal đăng nhập CLI.");
+    } finally {
+      if (button.isConnected) {
+        button.disabled = false;
+        button.innerHTML = label;
+      }
+    }
     return true;
   }
   if (action === "provider-preset") {

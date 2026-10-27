@@ -195,9 +195,7 @@ export function settingsPage() {
           : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
         : status.tone === "ready"
           ? ""
-          : status.action === "refresh"
-            ? cliRefreshButton()
-            : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Mở terminal đăng nhập</button>`;
+          : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Mở terminal đăng nhập</button>`;
     const detail = mobileDisconnected
       ? "Chưa kết nối với máy tính (PC). Ghép nối với PC để đồng bộ CLI và hạn mức."
       : status.tone === "ready"
@@ -342,8 +340,8 @@ export function showCliProviderModal() {
       ? window.opensybauDesktop?.supportsCliInstall
         ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${esc(agent.id)}">Cài CLI</button>`
         : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
-      : status.action === "refresh"
-        ? cliRefreshButton(status.tone === "ready" ? "Đã kết nối · quét lại" : "Quét lại")
+      : status.tone === "ready"
+        ? cliRefreshButton("Đã kết nối · quét lại")
         : `<button class="button primary small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">${icon("square-terminal", 13)} ${status.tone === "needs-action" && connector?.authenticated ? "Mở CLI để kiểm tra" : "Bắt đầu đăng nhập"}</button>`;
     const docsUrl = status.tone === "missing" ? agent.url : agent.authUrl || agent.url;
     const instructions = status.tone === "missing"

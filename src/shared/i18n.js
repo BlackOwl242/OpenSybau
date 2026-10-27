@@ -73,6 +73,8 @@ const english = {
   "Bắt đầu đăng nhập": "Start sign-in",
   "Mở terminal đăng nhập": "Open sign-in terminal",
   "Mở CLI để kiểm tra": "Open CLI to check",
+  "Đã cài đặt xong và mở cửa sổ đăng nhập CLI.": "CLI installed and sign-in terminal opened.",
+  "Đã đăng nhập và kết nối CLI thành công!": "Signed in and connected CLI successfully!",
   "Terminal được mở trên máy đang chạy OpenSybau. Hoàn tất OAuth hoặc đăng nhập ở đó rồi chọn Quét lại; CLI không cần khai báo API key riêng.": "The terminal opens on the computer running OpenSybau. Complete OAuth or sign in there, then scan again. CLI providers do not need a separate API key.",
   "Chưa kết nối nguồn AI nào": "No AI source connected",
   "Thêm API/model local hoặc cài, đăng nhập CLI. Sau đó bạn có thể gán riêng model lập kế hoạch, triển khai và review.": "Add an API or local model, or install and sign in to a CLI. Then assign separate models for planning, implementation, and review.",
