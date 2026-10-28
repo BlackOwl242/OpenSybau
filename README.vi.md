@@ -3,20 +3,20 @@
 **Trung tâm điều phối AI Coding Agent & Thực thi Đa luồng Git Worktree chạy trực tiếp trên máy của bạn.**  
 OpenSybau kết hợp **Codex CLI**, **Claude Code**, **Antigravity CLI** cùng các nguồn **API tương thích Anthropic / OpenAI** (bao gồm cả Ollama, LM Studio, LocalAI) trong một giao diện Desktop kính mờ hiện đại. Mọi tác vụ, cuộc trò chuyện và nhánh Git worktree đều thực thi trực tiếp trên máy tính của bạn — minh bạch, tốc độ cao và toàn quyền kiểm soát dữ liệu.
 
-**Tài liệu:** [English](README.md) · **Bản phát hành mới nhất:** [v0.3.3](https://github.com/BlackOwl242/OpenSybau/releases/latest) · **Nhật ký thay đổi:** [CHANGELOG.md](CHANGELOG.md) · **Giấy phép:** [MIT License](LICENSE)
+**Tài liệu:** [English](README.md) · **Bản phát hành mới nhất:** [v0.3.4](https://github.com/BlackOwl242/OpenSybau/releases/latest) · **Nhật ký thay đổi:** [CHANGELOG.md](CHANGELOG.md) · **Giấy phép:** [MIT License](LICENSE)
 
 ---
 
-## ⬇️ Tải xuống cho Thiết bị của bạn (`v0.3.3`)
+## ⬇️ Tải xuống cho Thiết bị của bạn (`v0.3.4`)
 
 Tải trực tiếp bộ cài đặt đã đóng gói sẵn cho máy tính và điện thoại từ **[GitHub Releases](https://github.com/BlackOwl242/OpenSybau/releases/latest)** (không cần cài đặt Node.js hay biên dịch thủ công):
 
-| Thiết bị / Hệ điều hành | Định dạng Gói cài đặt | Kiến trúc | Liên kết Tải trực tiếp (`v0.3.3`) |
+| Thiết bị / Hệ điều hành | Định dạng Gói cài đặt | Kiến trúc | Liên kết Tải trực tiếp (`v0.3.4`) |
 | :--- | :--- | :---: | :--- |
-| 🪟 **Windows Desktop (PC)** | Bộ cài NSIS (`.exe`) | `x64` (Windows 10 / 11) | **[⬇️ Tải `OpenSybau-Setup-0.3.3-x64.exe`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.3/OpenSybau-Setup-0.3.3-x64.exe)** |
-| 🐧 **Linux (Debian / Ubuntu / Mint)** | Gói Debian (`.deb`) | `amd64` (`x86_64`) | **[⬇️ Tải `OpenSybau-0.3.3-amd64.deb`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.3/OpenSybau-0.3.3-amd64.deb)** |
-| 🎩 **Linux (Fedora / RHEL / openSUSE)** | Gói RPM (`.rpm`) | `x86_64` | **[⬇️ Tải `OpenSybau-0.3.3-x86_64.rpm`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.3/OpenSybau-0.3.3-x86_64.rpm)** |
-| 📱 **Android (Điện thoại & Máy tính bảng)** | Gói cài đặt Android (`.apk`) | Android 8.0+ | **[⬇️ Tải `OpenSybau-0.3.3-android.apk`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.3/OpenSybau-0.3.3-android.apk)** |
+| 🪟 **Windows Desktop (PC)** | Bộ cài NSIS (`.exe`) | `x64` (Windows 10 / 11) | **[⬇️ Tải `OpenSybau-Setup-0.3.4-x64.exe`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.4/OpenSybau-Setup-0.3.4-x64.exe)** |
+| 🐧 **Linux (Debian / Ubuntu / Mint)** | Gói Debian (`.deb`) | `amd64` (`x86_64`) | **[⬇️ Tải `OpenSybau-0.3.4-amd64.deb`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.4/OpenSybau-0.3.4-amd64.deb)** |
+| 🎩 **Linux (Fedora / RHEL / openSUSE)** | Gói RPM (`.rpm`) | `x86_64` | **[⬇️ Tải `OpenSybau-0.3.4-x86_64.rpm`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.4/OpenSybau-0.3.4-x86_64.rpm)** |
+| 📱 **Android (Điện thoại & Máy tính bảng)** | Gói cài đặt Android (`.apk`) | Android 8.0+ | **[⬇️ Tải `OpenSybau-0.3.4-android.apk`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.4/OpenSybau-0.3.4-android.apk)** |
 
 > 💡 **Tự động cập nhật & Danh sách phiên bản:** Bản cài đặt trên PC tự động kiểm tra bản mới từ GitHub Releases. Xem toàn bộ lịch sử các bản phát hành tại **[trang Releases](https://github.com/BlackOwl242/OpenSybau/releases)**.
 

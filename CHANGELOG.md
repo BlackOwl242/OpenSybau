@@ -5,6 +5,52 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.4] - 2026-10-29
+
+### English
+- **Progressive Skill Disclosure, Zero-Latency Selection, Self-Improving Skill Distillation & Workspace Skill Trust (`src/server/skill-catalog.mjs`, `src/server/task-runner.mjs`, `src/server/routes/task-routes.mjs`, `src/server/routes/workspace-vault-routes.mjs`, `src/features/workbench/pages/flows-memory-page.js`)**:
+  - Eliminate the extra CLI/API `skill-selection` spawn on `plan-only` and `codex-antigravity` workflows, using instant local scoring (`selectTaskSkillsProgressive`) to inject Tier 1 active skills (`score >= 10`) alongside a lightweight Tier 0 Progressive Disclosure metadata index (`<available_skills_index>`) for secondary matches (`score 3..9`).
+  - Add self-improving Skill Distillation (`POST /api/tasks/:id/distill-skill` and the **Đúc kết Skill** Mission Control button) to synthesize reusable `SKILL.md` files from completed tasks, including resolved `[BLOCKING]` review pitfalls, QA verification commands, and modified file patterns.
+  - Add workspace-scoped skill trust gating (`workspace.trustedSkills` and `POST /api/workspaces/:id/trust-skills`) so untrusted repository skills are flagged and skipped during automatic selection until explicitly trusted.
+- **2-Tier Memory System (`USER.md` & `MEMORY.md`) & Pitfall-Aware Lesson Distillation (`src/server/memory-bm25.mjs`, `src/server/routes/provider-skill-routes.mjs`)**:
+  - Upgrade `autoDistillTaskMemory` to extract `[BLOCKING]` / `[ADVISORY]` review findings, multi-round fix lessons (`Resolved Pitfalls (N rounds)`), and QA verification results instead of mechanically slicing the first 3 lines of `plan`.
+  - Split memory into a frozen global user profile snapshot (`USER.md`, `USER_MEMORY_MAX_CHARS = 1375`) and BM25-ranked workspace lessons (`MEMORY.md`, `WORKSPACE_MEMORY_MAX_CHARS = 2200`) with a relevance boost for pitfalls, automatically mirrored to `.runtime/memories/{USER,MEMORY}.md` (`GET /api/memory/markdown`).
+- **3-Tier Prompt Assembly, Prefix Caching, Rolling Context Compaction & CLI Session Lineage (`src/server/task-prompts.mjs`, `src/server/provider-registry.mjs`, `src/server/task-stage-runner.mjs`)**:
+  - Structure prompts into 3 tiers (Stable User Snapshot & Skills → Context & Progressive Index → Volatile Turn/Request), enable Anthropic prompt caching (`cache_control: { type: "ephemeral" }`), and track `cached_input_tokens` across providers.
+  - Replace hard `.slice(-12)` chat truncation with rolling context compaction (`compactChatHistory`, `POST /api/tasks/:id/compact`) that preserves a structured summary (`chatCompactedSummary`) and `compactionLineage` for older turns.
+  - Capture native CLI session/thread IDs (`task.cliSessions`) from Codex, Antigravity, and Claude JSON streams.
+- **API Provider Multi-Turn Workspace Tool Loop & Targeted Patch Edits (`src/server/api-build-ops.mjs`, `src/server/task-stage-runner.mjs`)**:
+  - Allow API providers to invoke read-only workspace inspection tools (`list_files`, `read_file` with line numbers and SHA-256 snapshot tracking, `search_files`) for up to 4 turns before producing stage output.
+  - Support targeted `patches: [{ path, edits: [{ search, replace }] }]` operations in `applyApiBuildResult` so API models can edit specific code blocks without rewriting entire files.
+- **Per-Task Atomic Detail Store, SQLite FTS5 Cross-Session Search & Scheduled Worktree Tasks (`src/server/task-store.mjs`, `server.mjs`, `src/server/routes/provider-skill-routes.mjs`)**:
+  - Sync per-task detail snapshots to `.runtime/tasks/<id>/detail.json` (`syncTaskDetailFiles`, `hydrateTasksFromDetailStore`) and provide cross-session Full-Text Search (`GET /api/search?q=...`) powered by built-in `node:sqlite` FTS5 (`unicode61`) with BM25 fallback.
+  - Add recurring scheduled tasks (`GET /api/schedules`, `POST /api/schedules`, `POST /api/schedules/:id/trigger`, `DELETE /api/schedules/:id`) that default to running in isolated Git Worktrees (`CRON-XX`).
+- **CLI Login, Vietnamese UTF-8 Git Paths & Mobile Companion Polish (`src/server/cli-discovery.mjs`, `src/server/fs-security.mjs`, `server.mjs`)**:
+  - Fix Windows CLI login terminal launch (`cmd.exe /k`) and auto-detect newly installed CLIs; decode octal UTF-8 Vietnamese Git paths (`unquoteGitPath`) and resolve nested workspace subdirectories cleanly.
+
+### Tiếng Việt
+- **Hệ thống Skill Progressive Disclosure, Chọn Skill Tức thì, Tự Đúc kết Skill & Kiểm soát Tin cậy theo Workspace (`src/server/skill-catalog.mjs`, `src/server/task-runner.mjs`, `src/server/routes/task-routes.mjs`, `src/server/routes/workspace-vault-routes.mjs`, `src/features/workbench/pages/flows-memory-page.js`)**:
+  - Loại bỏ bước gọi tiến trình CLI/API phụ để chọn skill trên luồng `plan-only` và `codex-antigravity`; chuyển sang chấm điểm cục bộ tức thì (`selectTaskSkillsProgressive`) kết hợp nạp trực tiếp skill khớp mạnh (Tier 1) và chỉ mục siêu gọn `<available_skills_index>` (Tier 0) cho các skill tham khảo phụ.
+  - Bổ sung tính năng tự đúc kết Skill từ task đã hoàn thành (`POST /api/tasks/:id/distill-skill` và nút **Đúc kết Skill**) để tổng hợp quy trình giải quyết, các lỗi chặn `[BLOCKING]` đã xử lý và lệnh QA thành tệp `SKILL.md` tái sử dụng.
+  - Bổ sung cơ chế kiểm soát độ tin cậy cho skill nằm trong thư mục dự án (`workspace.trustedSkills` và `POST /api/workspaces/:id/trust-skills`).
+- **Bộ nhớ 2 Tầng (`USER.md` & `MEMORY.md`) & Trích xuất Bài học / Lỗi chặn (`src/server/memory-bm25.mjs`, `src/server/routes/provider-skill-routes.mjs`)**:
+  - Nâng cấp `autoDistillTaskMemory` để bóc tách các lỗi `[BLOCKING]` / `[ADVISORY]` từ bước Review, bài học qua nhiều vòng sửa (`Resolved Pitfalls`) và kết quả chạy QA thay vì chỉ cắt 3 dòng đầu của kế hoạch.
+  - Tách bộ nhớ thành Hồ sơ người dùng cố định (`USER.md`, giới hạn `1.375` ký tự) và Bài học dự án truy xuất theo BM25 (`MEMORY.md`, giới hạn `2.200` ký tự, ưu tiên trọng số cho `pitfall`), tự động đồng bộ ra `.runtime/memories/{USER,MEMORY}.md` (`GET /api/memory/markdown`).
+- **Cấu trúc Prompt 3 Tầng, Prompt Caching, Nén Ngữ cảnh Cuốn chiếu & Theo dõi CLI Session (`src/server/task-prompts.mjs`, `src/server/provider-registry.mjs`, `src/server/task-stage-runner.mjs`)**:
+  - Tổ chức lại thứ tự lắp ghép prompt theo 3 tầng (Tĩnh → Ngữ cảnh → Biến động), bật Anthropic Prompt Caching (`cache_control: { type: "ephemeral" }`) và thống kê `cached_input_tokens`.
+  - Thay thế cơ chế cắt cứng `.slice(-12)` bằng nén ngữ cảnh cuốn chiếu (`compactChatHistory`, `POST /api/tasks/:id/compact`) giúp bảo toàn tóm tắt các lượt hội thoại cũ (`chatCompactedSummary`) và phả hệ nén (`compactionLineage`).
+  - Ghi nhận mã phiên `session_id` / `thread_id` thực tế từ Codex, Antigravity và Claude vào `task.cliSessions`.
+- **Vòng lặp Công cụ Đọc Workspace & Chỉnh sửa Patch (`search`/`replace`) cho API Provider (`src/server/api-build-ops.mjs`, `src/server/task-stage-runner.mjs`)**:
+  - Cho phép các model API gọi công cụ đọc mã nguồn cục bộ (`list_files`, `read_file` kèm số dòng và kiểm tra xung đột SHA-256, `search_files`) tối đa 4 lượt trước khi trả kết quả.
+  - Hỗ trợ chỉnh sửa từng khối mã qua `patches: [{ path, edits: [{ search, replace }] }]` trong `applyApiBuildResult` thay vì phải ghi đè toàn bộ tệp.
+- **Lưu trữ Chi tiết Task Nguyên tử (`detail.json`), Tìm kiếm Toàn văn SQLite FTS5 & Lịch chạy Định kỳ trên Git Worktree (`src/server/task-store.mjs`, `server.mjs`, `src/server/routes/provider-skill-routes.mjs`)**:
+  - Đồng bộ chi tiết từng task ra `.runtime/tasks/<id>/detail.json` và bổ sung công cụ tìm kiếm xuyên phiên `GET /api/search?q=...` dùng `node:sqlite` FTS5 (`unicode61`) tích hợp sẵn trong Node.js.
+  - Bổ sung lịch chạy tác vụ định kỳ (`GET/POST /api/schedules`, `POST /api/schedules/:id/trigger`, `DELETE /api/schedules/:id`) mặc định chạy cô lập trên nhánh Git Worktree riêng (`CRON-XX`).
+- **Khắc phục Đăng nhập CLI trên Windows, Đường dẫn Git Tiếng Việt UTF-8 & Kết nối Di động (`src/server/cli-discovery.mjs`, `src/server/fs-security.mjs`, `server.mjs`)**:
+  - Sửa lỗi mở cửa sổ terminal đăng nhập CLI trên Windows và tự động nhận diện CLI vừa cài; giải mã đường dẫn Git octal UTF-8 tiếng Việt (`unquoteGitPath`) và xử lý chính xác thư mục con trong workspace.
+
+---
+
 ## [0.3.3] - 2026-10-27
 
 ### English

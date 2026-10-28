@@ -3,20 +3,20 @@
 **A local-first multi-agent coding workbench & parallel Git worktree arena.**  
 OpenSybau brings **Codex CLI**, **Claude Code**, **Antigravity CLI**, and **Anthropic / OpenAI-compatible APIs** (including Ollama, LM Studio, and LocalAI) into a unified frosted-glass desktop and browser interface. Every task, chat, and Git worktree executes directly on your machine with full transparency and zero cloud lock-in.
 
-**Documentation:** [Tiếng Việt](README.vi.md) · **Latest Release:** [v0.3.3](https://github.com/BlackOwl242/OpenSybau/releases/latest) · **Changelog:** [CHANGELOG.md](CHANGELOG.md) · **License:** [MIT](LICENSE)
+**Documentation:** [Tiếng Việt](README.vi.md) · **Latest Release:** [v0.3.4](https://github.com/BlackOwl242/OpenSybau/releases/latest) · **Changelog:** [CHANGELOG.md](CHANGELOG.md) · **License:** [MIT](LICENSE)
 
 ---
 
-## ⬇️ Download for Your Device (`v0.3.3`)
+## ⬇️ Download for Your Device (`v0.3.4`)
 
 Download the prebuilt installer for your platform directly from **[GitHub Releases](https://github.com/BlackOwl242/OpenSybau/releases/latest)** — no Node.js or manual build required:
 
-| Platform / Device | Package Format | Architecture | Direct Download (`v0.3.3`) |
+| Platform / Device | Package Format | Architecture | Direct Download (`v0.3.4`) |
 | :--- | :--- | :---: | :--- |
-| 🪟 **Windows Desktop (PC)** | NSIS Installer (`.exe`) | `x64` (Windows 10 / 11) | **[⬇️ Download `OpenSybau-Setup-0.3.3-x64.exe`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.3/OpenSybau-Setup-0.3.3-x64.exe)** |
-| 🐧 **Linux (Debian / Ubuntu / Mint)** | Debian Package (`.deb`) | `amd64` (`x86_64`) | **[⬇️ Download `OpenSybau-0.3.3-amd64.deb`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.3/OpenSybau-0.3.3-amd64.deb)** |
-| 🎩 **Linux (Fedora / RHEL / openSUSE)** | RPM Package (`.rpm`) | `x86_64` | **[⬇️ Download `OpenSybau-0.3.3-x86_64.rpm`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.3/OpenSybau-0.3.3-x86_64.rpm)** |
-| 📱 **Android (Phone & Tablet)** | Android APK (`.apk`) | Universal (Android 8.0+) | **[⬇️ Download `OpenSybau-0.3.3-android.apk`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.3/OpenSybau-0.3.3-android.apk)** |
+| 🪟 **Windows Desktop (PC)** | NSIS Installer (`.exe`) | `x64` (Windows 10 / 11) | **[⬇️ Download `OpenSybau-Setup-0.3.4-x64.exe`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.4/OpenSybau-Setup-0.3.4-x64.exe)** |
+| 🐧 **Linux (Debian / Ubuntu / Mint)** | Debian Package (`.deb`) | `amd64` (`x86_64`) | **[⬇️ Download `OpenSybau-0.3.4-amd64.deb`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.4/OpenSybau-0.3.4-amd64.deb)** |
+| 🎩 **Linux (Fedora / RHEL / openSUSE)** | RPM Package (`.rpm`) | `x86_64` | **[⬇️ Download `OpenSybau-0.3.4-x86_64.rpm`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.4/OpenSybau-0.3.4-x86_64.rpm)** |
+| 📱 **Android (Phone & Tablet)** | Android APK (`.apk`) | Universal (Android 8.0+) | **[⬇️ Download `OpenSybau-0.3.4-android.apk`](https://github.com/BlackOwl242/OpenSybau/releases/download/v0.3.4/OpenSybau-0.3.4-android.apk)** |
 
 > 💡 **Auto-Update & All Versions:** Windows and Linux desktop apps automatically check for new versions in the background. Browse all versions and checksums on the **[Releases page](https://github.com/BlackOwl242/OpenSybau/releases)**.
 
