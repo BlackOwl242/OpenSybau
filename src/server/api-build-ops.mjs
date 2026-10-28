@@ -77,6 +77,118 @@ export async function externalWorkspaceContext(task, stage, gitFn) {
   return { text: `\n\nExternal provider context (shared outside this computer; obvious secret patterns were redacted):\n${sections.join("\n\n")}`, buildSnapshotHashes };
 }
 
+export function parseApiToolCall(responseText) {
+  const trimmed = String(responseText || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
+  let parsed;
+  try { parsed = JSON.parse(trimmed); } catch { return null; }
+  const call = parsed?.tool_call;
+  if (!call || typeof call !== "object" || Array.isArray(call)) return null;
+  const name = String(call.name || "").trim();
+  if (!["read_file", "search_files", "list_files"].includes(name)) return null;
+  const args = call.args && typeof call.args === "object" && !Array.isArray(call.args) ? call.args : {};
+  return { name, args };
+}
+
+export async function executeApiWorkspaceTool(cwdOrTask, toolCallOrCwd, optionsOrToolCall = {}, maybeOptions = {}) {
+  let task = null;
+  let cwd = cwdOrTask;
+  let toolCall = toolCallOrCwd;
+  let options = optionsOrToolCall || {};
+  if (cwdOrTask && typeof cwdOrTask === "object") {
+    task = cwdOrTask;
+    cwd = toolCallOrCwd;
+    toolCall = optionsOrToolCall;
+    options = maybeOptions || {};
+  }
+  const { gitFn = null, buildSnapshotHashes = null } = options;
+  const { name, args = {} } = toolCall || {};
+  if (name === "list_files") {
+    const prefix = String(args.directory || args.path || "").replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+    const allFiles = await listRemoteContextFiles(cwd, 200, gitFn);
+    const filtered = prefix ? allFiles.filter((f) => f.toLowerCase().startsWith(prefix.toLowerCase())) : allFiles;
+    return {
+      ok: true,
+      summary: `list_files(${prefix || "."}) -> ${filtered.length} files`,
+      output: filtered.slice(0, 150).join("\n") || "No matching files found.",
+    };
+  }
+  if (name === "read_file") {
+    const rawPath = String(args.path || "").replace(/\\/g, "/").replace(/^\/+/, "").trim();
+    if (!rawPath || !safeForRemoteContext(rawPath)) {
+      return { ok: false, summary: `read_file(${rawPath || "?"}) blocked`, output: "Error: Path is protected or invalid." };
+    }
+    try {
+      const resolved = await resolveInside(cwd, rawPath, true);
+      if (!resolved?.target || !resolved.stat?.isFile() || !allowedTextFile(resolved.target)) {
+        return { ok: false, summary: `read_file(${rawPath}) rejected`, output: "Error: Target is not a readable text file." };
+      }
+      if (resolved.stat.size > 250_000) {
+        return { ok: false, summary: `read_file(${rawPath}) too large`, output: "Error: File exceeds 250 KB limit." };
+      }
+      const rawBytes = await fs.readFile(resolved.target);
+      const original = rawBytes.toString("utf8");
+      const redacted = redactRemoteSecrets(original);
+      if (redacted === original && !original.includes("\uFFFD")) {
+        const digest = createHash("sha256").update(rawBytes).digest("hex");
+        const key = rawPath.toLocaleLowerCase();
+        if (buildSnapshotHashes instanceof Map) buildSnapshotHashes.set(key, digest);
+        if (task && typeof task === "object") {
+          task.buildSnapshotHashes ||= {};
+          task.buildSnapshotHashes[key] = digest;
+        }
+      }
+      const lines = redacted.split(/\r?\n/);
+      const startLine = Math.max(1, Number(args.startLine) || 1);
+      const endLine = Math.min(lines.length, Math.max(startLine, Number(args.endLine) || (startLine + 249)));
+      const sliced = lines
+        .slice(startLine - 1, endLine)
+        .map((line, idx) => `${startLine + idx}: ${line}`)
+        .join("\n")
+        .slice(0, 12_000);
+      return {
+        ok: true,
+        summary: `read_file(${rawPath}:${startLine}-${endLine})`,
+        output: `--- ${rawPath} (lines ${startLine}-${endLine} of ${lines.length}) ---\n${sliced}`,
+      };
+    } catch (err) {
+      return { ok: false, summary: `read_file(${rawPath}) failed`, output: `Error reading file: ${err?.message || "not found"}` };
+    }
+  }
+  if (name === "search_files") {
+    const query = String(args.query || "").trim();
+    if (!query || query.length < 2) {
+      return { ok: false, summary: "search_files() invalid query", output: "Error: Provide a search query of at least 2 characters." };
+    }
+    const maxResults = Math.max(1, Math.min(30, Number(args.maxResults) || 20));
+    const files = await listRemoteContextFiles(cwd, 180, gitFn);
+    const needle = query.toLowerCase();
+    const matches = [];
+    for (const rel of files) {
+      if (matches.length >= maxResults) break;
+      if (!safeForRemoteContext(rel)) continue;
+      try {
+        const resolved = await resolveInside(cwd, rel, true).catch(() => null);
+        if (!resolved?.target || !resolved.stat?.isFile() || resolved.stat.size > 150_000 || !allowedTextFile(resolved.target)) continue;
+        const content = redactRemoteSecrets(await fs.readFile(resolved.target, "utf8"));
+        const lines = content.split(/\r?\n/);
+        for (let i = 0; i < lines.length; i += 1) {
+          if (lines[i].toLowerCase().includes(needle)) {
+            matches.push(`${rel}:${i + 1}: ${lines[i].trim().slice(0, 180)}`);
+            if (matches.length >= maxResults) break;
+          }
+        }
+      } catch {}
+    }
+    return {
+      ok: true,
+      summary: `search_files("${query.slice(0, 40)}") -> ${matches.length} matches`,
+      output: matches.length ? matches.join("\n") : `No matches found for "${query}".`,
+    };
+  }
+  return { ok: false, summary: `unknown tool ${name}`, output: "Error: Unsupported tool." };
+}
+
 export function parseApiBuildOperations(responseText) {
   const source = String(responseText || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   const start = source.indexOf("{");
@@ -85,19 +197,38 @@ export function parseApiBuildOperations(responseText) {
   let result;
   try { result = JSON.parse(source.slice(start, end + 1)); }
   catch { throw new Error("API implementation returned invalid JSON; no files were applied."); }
-  if (!result || typeof result !== "object" || Array.isArray(result) || !Array.isArray(result.files) || !Array.isArray(result.deletePaths)) throw new Error("API implementation JSON must include files and deletePaths arrays; no files were applied.");
-  if (result.files.length > 40 || result.deletePaths.length > 40) throw new Error("API implementation returned too many file operations; limit is 40 files per task.");
+  const hasPatches = Array.isArray(result?.patches);
+  if (!result || typeof result !== "object" || Array.isArray(result) || (!Array.isArray(result.files) && !hasPatches) || (!Array.isArray(result.deletePaths) && !hasPatches)) {
+    throw new Error("API implementation JSON must include files and deletePaths arrays; no files were applied.");
+  }
+  const files = Array.isArray(result.files) ? result.files : [];
+  const patches = hasPatches ? result.patches : [];
+  const deletePaths = Array.isArray(result.deletePaths) ? result.deletePaths : [];
+  if (files.length > 40 || patches.length > 40 || deletePaths.length > 40) throw new Error("API implementation returned too many file operations; limit is 40 files per task.");
   let total = 0;
-  for (const item of result.files) {
+  for (const item of files) {
     if (!item || typeof item.path !== "string" || typeof item.content !== "string") throw new Error("API implementation contains a malformed file operation; no files were applied.");
     if (item.content.includes("\0")) throw new Error("API implementation returned binary data; no files were applied.");
     total += Buffer.byteLength(item.content, "utf8");
     if (total > 1_000_000) throw new Error("API implementation exceeds the 1 MB total write limit; no files were applied.");
   }
-  return { summary: String(result.summary || "API implementation completed.").slice(0, 3000), files: result.files, deletePaths: result.deletePaths };
+  for (const patch of patches) {
+    if (!patch || typeof patch.path !== "string" || !Array.isArray(patch.edits) || !patch.edits.length) {
+      throw new Error("API implementation contains a malformed patch operation; no files were applied.");
+    }
+    for (const edit of patch.edits) {
+      if (!edit || typeof edit.search !== "string" || !edit.search || typeof edit.replace !== "string") {
+        throw new Error("API implementation patch edit must include non-empty search and replace strings; no files were applied.");
+      }
+      if (edit.search.includes("\0") || edit.replace.includes("\0")) throw new Error("API implementation returned binary data in patch; no files were applied.");
+      total += Buffer.byteLength(edit.replace, "utf8");
+      if (total > 1_000_000) throw new Error("API implementation exceeds the 1 MB total write limit; no files were applied.");
+    }
+  }
+  return { summary: String(result.summary || "API implementation completed.").slice(0, 3000), files, patches, deletePaths };
 }
 
-export async function apiBuildTarget(rootPath, rawPath, buildSnapshotHashes) {
+export async function apiBuildTarget(rootPath, rawPath, buildSnapshotHashes, { isPatch = false } = {}) {
   const normalized = rawPath.replace(/\\/g, "/");
   const parts = normalized.split("/");
   const name = basename(normalized);
@@ -121,11 +252,23 @@ export async function apiBuildTarget(rootPath, rawPath, buildSnapshotHashes) {
   try {
     const stat = await fs.lstat(target);
     if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`API implementation target must be a regular file: ${rawPath}`);
-    const expectedHash = buildSnapshotHashes.get(normalized.toLocaleLowerCase());
-    if (!expectedHash) throw new Error(`API implementation cannot replace a file whose full contents were not supplied as context: ${rawPath}`);
-    const currentHash = createHash("sha256").update(await fs.readFile(target)).digest("hex");
-    if (currentHash !== expectedHash) throw new Error(`Workspace file changed while the API was working; refusing to overwrite it: ${rawPath}`);
-  } catch (error) { if (error.code !== "ENOENT") throw error; }
+    const expectedHash = buildSnapshotHashes instanceof Map
+      ? buildSnapshotHashes.get(normalized.toLocaleLowerCase())
+      : (buildSnapshotHashes?.expectedFileHashes?.[normalized.toLocaleLowerCase()] || buildSnapshotHashes?.[normalized.toLocaleLowerCase()]);
+    if (!isPatch) {
+      if (!expectedHash) throw new Error(`API implementation cannot replace a file whose full contents were not supplied as context: ${rawPath}`);
+      const currentHash = createHash("sha256").update(await fs.readFile(target)).digest("hex");
+      if (currentHash !== expectedHash) throw new Error(`Workspace file changed while the API was working; refusing to overwrite it: ${rawPath}`);
+    } else if (expectedHash) {
+      const currentHash = createHash("sha256").update(await fs.readFile(target)).digest("hex");
+      if (currentHash !== expectedHash) throw new Error(`Workspace file changed while the API was working; refusing to patch it: ${rawPath}`);
+    }
+  } catch (error) {
+    if (error.code === "ENOENT" && isPatch) {
+      throw new Error(`API patch target does not exist: ${rawPath}`);
+    }
+    if (error.code !== "ENOENT") throw error;
+  }
   return target;
 }
 
@@ -133,12 +276,27 @@ export async function applyApiBuildResult(cwd, responseText, buildSnapshotHashes
   const operations = parseApiBuildOperations(responseText);
   const seen = new Set();
   const writes = [];
+  const patches = [];
   const deletes = [];
   for (const item of operations.files) {
     const key = item.path.replace(/\\/g, "/").toLocaleLowerCase();
     if (seen.has(key)) throw new Error(`API implementation returned a duplicate path: ${item.path}`);
     seen.add(key);
     writes.push({ path: item.path, target: await apiBuildTarget(cwd, item.path, buildSnapshotHashes), content: item.content });
+  }
+  for (const patch of operations.patches || []) {
+    const key = patch.path.replace(/\\/g, "/").toLocaleLowerCase();
+    if (seen.has(key)) throw new Error(`API implementation returned a duplicate path: ${patch.path}`);
+    seen.add(key);
+    const target = await apiBuildTarget(cwd, patch.path, buildSnapshotHashes, { isPatch: true });
+    let nextContent = await fs.readFile(target, "utf8");
+    for (const edit of patch.edits) {
+      if (!nextContent.includes(edit.search)) {
+        throw new Error(`API patch search block did not match existing file content in: ${patch.path}`);
+      }
+      nextContent = nextContent.replace(edit.search, () => edit.replace);
+    }
+    patches.push({ path: patch.path, target, content: nextContent });
   }
   for (const item of operations.deletePaths) {
     if (typeof item !== "string") throw new Error("API implementation contains an invalid delete path.");
@@ -156,6 +314,10 @@ export async function applyApiBuildResult(cwd, responseText, buildSnapshotHashes
     await fs.mkdir(dirname(item.target), { recursive: true });
     await fs.writeFile(item.target, item.content, "utf8");
     changed.push(`Updated ${item.path}`);
+  }
+  for (const item of patches) {
+    await fs.writeFile(item.target, item.content, "utf8");
+    changed.push(`Patched ${item.path}`);
   }
   return `${operations.summary}${changed.length ? `\n\n${changed.join("\n")}` : "\n\nNo workspace files were changed."}`;
 }

@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { completeWithApi } from "./provider-registry.mjs";
 import { workflowRoles } from "../domain/agent-roles.js";
 import { estimateTaskCostUsd } from "../domain/task-flow.js";
-import { applyApiBuildResult } from "./api-build-ops.mjs";
+import { applyApiBuildResult, executeApiWorkspaceTool, parseApiToolCall } from "./api-build-ops.mjs";
 import { addTaskUsage, publicProviderName, roleLabel, stageSelection } from "./task-prompts.mjs";
 
 export function finishStageRerun(task, status, error = "") {
@@ -227,6 +227,11 @@ export function createTaskStageRunner({
   function parseCodexEvent(line, task, outputParts) {
     let event;
     try { event = JSON.parse(line); } catch { return; }
+    const sid = event.thread_id || event.session_id || event.conversation_id;
+    if (sid && typeof sid === "string") {
+      task.cliSessions ||= {};
+      task.cliSessions.codex = sid;
+    }
     const item = event.item || {};
     if (event.type === "item.started" && ["command_execution", "mcp_tool_call", "collab_tool_call", "tool_call", "file_change"].includes(item.type)) {
       const tool = item.name || item.tool || item.server_label || (item.type === "command_execution" ? "terminal" : item.type === "file_change" ? "edit" : item.type === "collab_tool_call" ? "subagent" : item.type);
@@ -254,6 +259,11 @@ export function createTaskStageRunner({
   function parseAgyEvent(line, task, outputParts) {
     let event;
     try { event = JSON.parse(line); } catch { return record(task, line, "output"); }
+    const sid = event.session_id || event.conversation_id || event.thread_id;
+    if (sid && typeof sid === "string") {
+      task.cliSessions ||= {};
+      task.cliSessions.antigravity = sid;
+    }
     const type = String(event.type || event.event || "").toLowerCase();
     const update = event.step_update || {};
     const message = event.message;
@@ -345,11 +355,34 @@ export function createTaskStageRunner({
         const isChatStage = stage === "chat-initial" || String(stage).startsWith("chat-");
         const remoteContext = ["plan", "build", "review"].includes(stage) || isChatStage ? await externalWorkspaceContext(task, isChatStage ? "plan" : stage) : null;
         assertTaskActive(task);
-        const remotePrompt = remoteContext ? `${prompt}${remoteContext.text}` : prompt;
-        const result = await completeWithApi(providerRuntime, selection.model, remotePrompt, controller.signal);
-        if (result.usage) addTaskUsage(task, provider, result.usage);
-        task._currentStageUsage = result.usage || null;
-        const output = stage === "build" ? await applyApiBuildResult(cwd, result.content, remoteContext?.buildSnapshotHashes || new Map()) : String(result.content || "").trim();
+        const buildSnapshotHashes = remoteContext?.buildSnapshotHashes || new Map();
+        const gitFn = (targetCwd, args) => run(process.platform === "win32" ? "git.exe" : "git", ["-c", "core.quotepath=false", ...args], { cwd: targetCwd, timeout: 10000, maxBuffer: 500000 });
+        let activePrompt = remoteContext ? `${prompt}${remoteContext.text}` : prompt;
+        let finalContent = "";
+        const maxToolTurns = 4;
+        for (let toolTurn = 0; toolTurn <= maxToolTurns; toolTurn += 1) {
+          const result = await completeWithApi(providerRuntime, selection.model, activePrompt, controller.signal);
+          if (result.usage) addTaskUsage(task, provider, result.usage);
+          task._currentStageUsage = result.usage || task._currentStageUsage || null;
+          finalContent = String(result.content || "").trim();
+          const toolCall = toolTurn < maxToolTurns ? parseApiToolCall(finalContent) : null;
+          if (!toolCall) break;
+          assertTaskActive(task);
+          record(task, `${publicProviderName(provider)} gọi công cụ nội bộ · Tool call (${toolCall.name})`, "tool", {
+            toolName: toolCall.name,
+            filePath: toolCall.args?.path || toolCall.args?.directory || undefined,
+            status: "running",
+          });
+          const toolRes = await executeApiWorkspaceTool(task, cwd, toolCall, { gitFn, buildSnapshotHashes });
+          record(task, `${publicProviderName(provider)} hoàn tất công cụ · ${toolRes.summary}`, "tool", {
+            toolName: toolCall.name,
+            filePath: toolCall.args?.path || toolCall.args?.directory || undefined,
+            detail: toolRes.output.slice(0, 500),
+            status: "done",
+          });
+          activePrompt = `${activePrompt}\n\n<tool_response name="${toolCall.name}" summary="${toolRes.summary}">\n${toolRes.output}\n</tool_response>\n\nContinue with the requested stage output.`;
+        }
+        const output = stage === "build" ? await applyApiBuildResult(cwd, finalContent, buildSnapshotHashes) : finalContent;
         await fs.writeFile(resolve(task.storagePath, `${stage}.md`), output, "utf8");
         record(task, output.slice(-1500), "output");
         task.stageMetrics ||= [];
@@ -452,6 +485,10 @@ export function createTaskStageRunner({
         if (provider === "claude" && stdoutRaw.trim()) {
           try {
             const data = JSON.parse(stdoutRaw.trim());
+            if (data?.session_id && typeof data.session_id === "string") {
+              task.cliSessions ||= {};
+              task.cliSessions.claude = data.session_id;
+            }
             output = String(data.result || data.message || "").trim();
             if (data.usage) { addTaskUsage(task, "claude", data.usage); task._currentStageUsage = data.usage; }
             if (data?.is_error) {

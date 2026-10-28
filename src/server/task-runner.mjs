@@ -34,8 +34,7 @@ export function createTaskRunnerService({
   const {
     loadSkillCatalog,
     resolveSelectedSkills,
-    rankSkillCandidatesScored,
-    skillSelectionPrompt,
+    selectTaskSkillsProgressive,
     stageAntigravitySkillBundles,
     stageAntigravitySkills,
   } = skillCatalogService;
@@ -143,27 +142,12 @@ export function createTaskRunnerService({
     if (task.skillSelectionMode !== "manual" && !task.skillSelectionCompleted) {
       skillCatalog = await loadSkillCatalog(workspace.id);
       assertTaskActive(task);
-      const scoredCandidates = rankSkillCandidatesScored(task, skillCatalog);
-      const candidates = scoredCandidates.map(({ skill }) => skill);
-      task.skillCandidatesConsidered = candidates.length;
-      if (candidates.length) {
-        if (task.config.workflow === "chat-only") {
-          const strongMatches = scoredCandidates.filter(({ score }) => score >= 10).slice(0, 3);
-          skillIds = strongMatches.map(({ skill }) => skill.id);
-          task.skillSelectionReason = skillIds.length
-            ? `Đã tự động khớp nhanh ${skillIds.length} skill sát nhất với nội dung chat.`
-            : "Không có skill nào vượt ngưỡng khớp trực tiếp cho lượt chat này.";
-        } else {
-          const selector = stageSelection(task, "plan");
-          record(task, `${publicProviderName(selector.provider)} đang chọn skill phù hợp từ ${candidates.length} ứng viên tìm được trong thư viện`, "stage");
-          const selectionOutput = await spawnStage(task, selector.provider, "skill-selection", cwd, skillSelectionPrompt(task, workspace, candidates), selector);
-          const decision = parseSkillSelection(selectionOutput, candidates);
-          skillIds = decision.ids;
-          task.skillSelectionReason = decision.reason;
-        }
-      } else {
-        skillIds = [];
-        task.skillSelectionReason = "Không có skill khớp đủ gần với yêu cầu.";
+      const selection = selectTaskSkillsProgressive(task, skillCatalog);
+      task.skillCandidatesConsidered = selection.scoredCandidates.length;
+      skillIds = selection.skillIds;
+      task.progressiveSkills = selection.progressiveSkills;
+      task.skillSelectionReason = selection.reason;
+      if (!selection.scoredCandidates.length) {
         record(task, "Không tìm được skill phù hợp trực tiếp; tiếp tục với yêu cầu và workspace làm ngữ cảnh.", "memory");
       }
       task.skillSelectionMode = "auto";
@@ -174,7 +158,7 @@ export function createTaskRunnerService({
     task.antigravitySkillDirs = task.config.workflow === "chat-only" && task.config.chatProvider !== "antigravity" ? [] : await stageAntigravitySkillBundles(task, skillInstructionsList);
     task.skillIds = skillInstructionsList.map((skill) => skill.id);
     task.skills = skillInstructionsList.map(({ id, name, source, sources, providers }) => ({ id, name, source, sources, providers }));
-    if (task.skills.length) record(task, `${publicProviderName(task.config.workflow === "chat-only" ? task.config.chatProvider : stageSelection(task, "plan").provider)} tự chọn và nạp ${task.skills.length} skill vào stage phù hợp${task.antigravitySkillDirs.length ? ` · ${task.antigravitySkillDirs.length} bộ tài nguyên Antigravity` : ""}`, "memory");
+    if (task.skills.length) record(task, `${publicProviderName(task.config.workflow === "chat-only" ? task.config.chatProvider : stageSelection(task, "plan").provider)} tự chọn và nạp ${task.skills.length} skill vào stage phù hợp${task.progressiveSkills?.length ? ` · ${task.progressiveSkills.length} skill Progressive Disclosure` : ""}${task.antigravitySkillDirs.length ? ` · ${task.antigravitySkillDirs.length} bộ tài nguyên Antigravity` : ""}`, "memory");
     else if (task.skillSelectionMode === "auto" && task.skillCandidatesConsidered) record(task, task.skillSelectionReason || "Không chọn skill nào vì không có skill thật sự cần thiết.", "memory");
     persist(); publish("task");
     if (task.config.workflow === "chat-only") {
@@ -197,6 +181,7 @@ export function createTaskRunnerService({
         assertTaskActive(task);
         task.status = "done"; task.phase = "done"; task.completedAt = new Date().toISOString();
         finishStageRerun(task, "done");
+        if ((task.artifacts || []).length || task.goal) autoDistillTaskMemory(task, workspace);
         record(task, "Cuộc trò chuyện đã sẵn sàng. Bạn có thể tiếp tục với agent đã chọn hoặc chuyển sang agent khác.", "success");
       } catch (error) {
         message.status = "failed";

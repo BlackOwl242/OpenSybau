@@ -66,6 +66,7 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
     openFolder,
     isForbiddenSystemPath,
     cliDiscovery,
+    skillCatalogService,
     promptService,
   } = ctx;
 
@@ -427,13 +428,23 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
     if (isForbiddenSystemPath(info.path)) { json(response, 400, { error: "Không được đăng ký thư mục gốc ổ đĩa hoặc thư mục hệ thống nhạy cảm làm workspace." }); return true; }
     const existing = state.workspaces.find((w) => w.path.toLowerCase() === info.path.toLowerCase());
     if (existing) { json(response, 200, { workspace: existing }); return true; }
-    const workspace = { id: randomUUID(), name: basename(info.path) || info.path, path: info.path, sourceFolders: [info.path], pinned: false, section: "Projects", addedAt: new Date().toISOString(), runtime: info };
+    const workspace = {
+      id: randomUUID(),
+      name: basename(info.path) || info.path,
+      path: info.path,
+      sourceFolders: [info.path],
+      pinned: false,
+      trustedSkills: body.trustedSkills !== undefined ? Boolean(body.trustedSkills) : true,
+      section: "Projects",
+      addedAt: new Date().toISOString(),
+      runtime: info,
+    };
     state.workspaces.push(workspace); persist(); publish("workspace");
     json(response, 201, { workspace });
     return true;
   }
 
-  const workspaceRoute = pathname.match(/^\/api\/workspaces\/([^/]+)(?:\/(open|archive-chats))?$/);
+  const workspaceRoute = pathname.match(/^\/api\/workspaces\/([^/]+)(?:\/(open|archive-chats|trust-skills))?$/);
   if (workspaceRoute && request.method !== "DELETE") {
     const id = decodeURIComponent(workspaceRoute[1]);
     const action = workspaceRoute[2] || "";
@@ -452,6 +463,10 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
         workspace.section = section;
       }
       if (body.pinned !== undefined) workspace.pinned = Boolean(body.pinned);
+      if (body.trustedSkills !== undefined) {
+        workspace.trustedSkills = Boolean(body.trustedSkills);
+        skillCatalogService?.invalidateSkillCatalogCache();
+      }
       if (body.sourceFolders !== undefined) {
         if (!Array.isArray(body.sourceFolders)) { json(response, 400, { error: "Danh sách thư mục nguồn không hợp lệ." }); return true; }
         const folders = [];
@@ -488,6 +503,16 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
       for (const task of affected) task.archived = true;
       persist(); publish("tasks");
       json(response, 200, { archived: affected.length });
+      return true;
+    }
+    if (request.method === "POST" && action === "trust-skills") {
+      const body = await readBody(request).catch(() => ({}));
+      workspace.trustedSkills = body.trusted !== undefined ? Boolean(body.trusted) : true;
+      skillCatalogService?.invalidateSkillCatalogCache();
+      persist();
+      publish("workspace");
+      publish("skills");
+      json(response, 200, { ok: true, workspace });
       return true;
     }
   }

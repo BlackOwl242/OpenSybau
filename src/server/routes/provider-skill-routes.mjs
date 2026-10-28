@@ -9,11 +9,14 @@ import { defaultSkillScope, frontmatterValue, validateSkillContent } from "../sk
 import { buildConnectionInfoPayload, generateStrongAccessPassword } from "../network-pairing.mjs";
 import { normalizeDirectoryInput } from "../cli-discovery.mjs";
 import { normalizeTaskPresetProfile, validateAgentSelection } from "../task-prompts.mjs";
+import { normalizeScheduleProfile, spawnScheduledTask } from "../task-store.mjs";
 
 export async function handleProviderSkillRoutes(request, response, pathname, ctx) {
   const {
     host,
     port,
+    runtime,
+    taskDir,
     secureTransport,
     isLoopbackBind,
     productionMode,
@@ -44,9 +47,12 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     safeError,
     run,
     isForbiddenSystemPath,
+    readMarkdownMemories,
+    taskStore,
     cliDiscovery,
     providerQuotaService,
     skillCatalogService,
+    promptService,
     taskRunner,
   } = ctx;
 
@@ -395,7 +401,19 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
   if (request.method === "GET" && pathname === "/api/skills") {
     const params = new URL(request.url, `http://${host}:${port}`).searchParams;
     const skills = await loadSkillCatalog(params.get("workspaceId") || "", params.has("refresh"));
-    json(response, 200, { skills: skills.map(({ id, name, description, source, sources, providers, files }) => ({ id, name, description, source, sources, providers, editable: files.some((file) => file.managed) })) });
+    json(response, 200, {
+      skills: skills.map(({ id, name, description, source, sources, providers, files, workspaceScoped, trusted }) => ({
+        id,
+        name,
+        description,
+        source,
+        sources,
+        providers,
+        workspaceScoped: Boolean(workspaceScoped),
+        trusted: Boolean(trusted !== false),
+        editable: files.some((file) => file.managed),
+      })),
+    });
     return true;
   }
 
@@ -584,12 +602,31 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     return true;
   }
 
+  if (request.method === "GET" && pathname === "/api/memory/markdown") {
+    json(response, 200, readMarkdownMemories(runtime, getMemories(), state.workspaces));
+    return true;
+  }
+
   if (request.method === "POST" && pathname === "/api/memory") {
     const body = await readBody(request);
     const title = String(body.title || "").trim();
     const content = String(body.content || "").trim();
     if (!title || !content || title.length > 120 || content.length > 5000) { json(response, 400, { error: "Tên tối đa 120 ký tự, nội dung 1–5.000 ký tự." }); return true; }
-    const memory = { id: randomUUID(), title, content, workspaceId: state.workspaces.some((w) => w.id === body.workspaceId) ? body.workspaceId : "all", createdAt: new Date().toISOString() };
+    const kind = ["user-profile", "pitfall", "lesson"].includes(String(body.kind || ""))
+      ? String(body.kind)
+      : (String(body.category || "") === "user" ? "user-profile" : "lesson");
+    const category = kind === "user-profile" ? "user" : "workspace";
+    const pinned = Boolean(body.pinned);
+    const memory = {
+      id: randomUUID(),
+      title,
+      content,
+      kind,
+      category,
+      pinned,
+      workspaceId: kind === "user-profile" ? "all" : (state.workspaces.some((w) => w.id === body.workspaceId) ? body.workspaceId : "all"),
+      createdAt: new Date().toISOString(),
+    };
     const memories = getMemories();
     memories.unshift(memory);
     persistMemory();
@@ -605,6 +642,98 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     publish("memory");
     json(response, 200, { ok: true });
     return true;
+  }
+
+  if (request.method === "GET" && pathname === "/api/search") {
+    const params = new URL(request.url, `http://${host}:${port}`).searchParams;
+    const query = String(params.get("q") || params.get("query") || "").trim();
+    const workspaceId = String(params.get("workspaceId") || "").trim();
+    const scope = String(params.get("scope") || "all").trim();
+    const limit = Math.max(1, Math.min(50, Number(params.get("limit")) || 20));
+    const skills = await loadSkillCatalog(workspaceId || "").catch(() => []);
+    const result = await taskStore.searchWorkbench({
+      query,
+      tasks: state.tasks,
+      memories: getMemories(),
+      skills,
+      workspaceId,
+      scope,
+      limit,
+    });
+    json(response, 200, result);
+    return true;
+  }
+
+  if (pathname === "/api/schedules" && request.method === "GET") {
+    state.settings.schedules = Array.isArray(state.settings.schedules) ? state.settings.schedules : [];
+    json(response, 200, { schedules: state.settings.schedules });
+    return true;
+  }
+
+  if (pathname === "/api/schedules" && request.method === "POST") {
+    const body = await readBody(request);
+    state.settings.schedules = Array.isArray(state.settings.schedules) ? state.settings.schedules : [];
+    if (!body.id && state.settings.schedules.length >= 30) {
+      json(response, 409, { error: "Tối đa 30 lịch chạy định kỳ." });
+      return true;
+    }
+    let normalized;
+    try {
+      const connectors = await loadModels().catch(() => ({}));
+      normalized = normalizeScheduleProfile(body, state, connectors);
+    } catch (error) {
+      json(response, 400, { error: safeError(error) });
+      return true;
+    }
+    const existingIdx = state.settings.schedules.findIndex((item) => item.id === normalized.id);
+    if (existingIdx >= 0) {
+      state.settings.schedules[existingIdx] = { ...state.settings.schedules[existingIdx], ...normalized };
+    } else {
+      state.settings.schedules.push(normalized);
+    }
+    persist();
+    publish("settings");
+    json(response, existingIdx >= 0 ? 200 : 201, { schedule: normalized });
+    return true;
+  }
+
+  const scheduleMatch = pathname.match(/^\/api\/schedules\/([^/]+)(?:\/(trigger))?$/);
+  if (scheduleMatch) {
+    const scheduleId = decodeURIComponent(scheduleMatch[1]);
+    const scheduleAction = scheduleMatch[2] || "";
+    state.settings.schedules = Array.isArray(state.settings.schedules) ? state.settings.schedules : [];
+    const schedule = state.settings.schedules.find((item) => item.id === scheduleId);
+    if (!schedule) {
+      json(response, 404, { error: "Lịch chạy định kỳ không tồn tại." });
+      return true;
+    }
+    if (request.method === "DELETE" && !scheduleAction) {
+      state.settings.schedules = state.settings.schedules.filter((item) => item.id !== scheduleId);
+      persist();
+      publish("settings");
+      json(response, 200, { ok: true, id: scheduleId });
+      return true;
+    }
+    if (request.method === "POST" && scheduleAction === "trigger") {
+      try {
+        const connectors = await loadModels();
+        const task = await spawnScheduledTask(schedule, {
+          state,
+          taskDir,
+          inspectWorkspace: (p) => cliDiscovery.inspectWorkspace(p),
+          requestedRole: (b, roleId, conn) => promptService.requestedRole(b, roleId, conn),
+          connectors,
+        });
+        persist();
+        publish("tasks");
+        publish("settings");
+        pump();
+        json(response, 201, { ok: true, schedule, task });
+      } catch (error) {
+        json(response, 400, { error: safeError(error) });
+      }
+      return true;
+    }
   }
 
   return false;

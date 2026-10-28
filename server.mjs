@@ -13,9 +13,12 @@ import { isForbiddenSystemPath as checkForbiddenSystemPath } from "./src/server/
 import {
   autoDistillTaskMemory as distillTaskMemory,
   buildTelemetrySummary as computeTelemetrySummary,
+  readMarkdownMemories,
   relevantMemory as queryRelevantMemory,
+  syncMarkdownMemories,
 } from "./src/server/memory-bm25.mjs";
 import { createSkillCatalogService } from "./src/server/skill-catalog.mjs";
+import { createTaskStoreService, spawnScheduledTask } from "./src/server/task-store.mjs";
 import { discoverLanAddresses, generateStrongAccessPassword } from "./src/server/network-pairing.mjs";
 import { createCliDiscoveryService } from "./src/server/cli-discovery.mjs";
 import { createProviderQuotaService } from "./src/server/provider-quotas.mjs";
@@ -56,11 +59,13 @@ const tlsKey = process.env.WORKBENCH_TLS_KEY || "";
 const secureTransport = Boolean(tlsCert && tlsKey);
 let shuttingDown = false;
 let pumpTimer;
+let scheduleTimer = null;
 let persistTimer = null;
 let publishTimer = null;
 let pendingPublishType = null;
 const gitRepoLocks = new Map();
 const stateSnapshot = createStateSnapshot(publicState);
+const taskStore = createTaskStoreService({ taskDir });
 
 async function withGitRepoLock(repoKey, fn) {
   const key = String(repoKey || "").toLowerCase();
@@ -90,7 +95,7 @@ if (accessUsername.includes(":")) throw new Error("WORKBENCH_ACCESS_USERNAME can
 function initialState() {
   return {
     version: 1,
-    settings: { maxConcurrent: 2, defaults: {}, vaultPath: "", taskPresets: [] },
+    settings: { maxConcurrent: 2, defaults: {}, vaultPath: "", taskPresets: [], schedules: [] },
     workspaces: [],
     tasks: [],
   };
@@ -147,10 +152,13 @@ state.settings.defaults ||= {};
 state.settings.vaultPath ||= "";
 state.settings.maxConcurrent ||= 2;
 state.settings.taskPresets = Array.isArray(state.settings.taskPresets) ? state.settings.taskPresets : [];
+state.settings.schedules = Array.isArray(state.settings.schedules) ? state.settings.schedules : [];
 state.workspaces ||= [];
 state.tasks ||= [];
+taskStore.hydrateTasksFromDetailStore(state.tasks);
 for (const workspace of state.workspaces) {
   workspace.pinned = Boolean(workspace.pinned);
+  workspace.trustedSkills = workspace.trustedSkills !== false;
   workspace.section ||= "Projects";
   workspace.sourceFolders = Array.isArray(workspace.sourceFolders) && workspace.sourceFolders.length ? workspace.sourceFolders : [workspace.path];
   if (!workspace.sourceFolders.some((path) => String(path).toLowerCase() === String(workspace.path).toLowerCase())) workspace.sourceFolders.unshift(workspace.path);
@@ -175,6 +183,7 @@ for (const task of state.tasks) {
   }
 }
 let memories = loadJson(memoryFile, []);
+syncMarkdownMemories(runtime, memories, state.workspaces);
 
 function persist() {
   stateSnapshot.invalidate();
@@ -183,6 +192,7 @@ function persist() {
     persistTimer = null;
   }
   persistJsonFile(stateFile, state, "utf8");
+  taskStore.syncTaskDetailFiles(state.tasks);
 }
 
 function schedulePersist(delayMs = 750) {
@@ -198,6 +208,7 @@ function schedulePersist(delayMs = 750) {
 function persistMemory() {
   stateSnapshot.invalidate();
   persistJsonFile(memoryFile, memories, "utf8");
+  syncMarkdownMemories(runtime, memories, state.workspaces);
 }
 
 function isLoopbackClient(request) {
@@ -393,8 +404,8 @@ function relevantMemory(task, workspace) {
   return queryRelevantMemory(task, workspace, memories);
 }
 
-function autoDistillTaskMemory(task, workspace) {
-  return distillTaskMemory(task, workspace, memories, persistMemory);
+function autoDistillTaskMemory(task, workspace, options = {}) {
+  return distillTaskMemory(task, workspace, memories, persistMemory, options);
 }
 
 function publicState() {
@@ -571,9 +582,43 @@ async function syncLanCompanionServers() {
   }
 }
 
+async function checkDueSchedules() {
+  if (shuttingDown) return [];
+  const schedules = Array.isArray(state.settings?.schedules) ? state.settings.schedules : [];
+  if (!schedules.length) return [];
+  const nowMs = Date.now();
+  const spawned = [];
+  for (const sched of schedules) {
+    if (!sched.enabled) continue;
+    const dueMs = sched.nextRunAt ? Date.parse(sched.nextRunAt) : 0;
+    if (Number.isFinite(dueMs) && dueMs > nowMs) continue;
+    const activeForSchedule = state.tasks.some((t) => t.scheduleId === sched.id && ["queued", "running"].includes(t.status));
+    if (activeForSchedule) continue;
+    try {
+      const connectors = await cliDiscovery.loadModels();
+      const task = await spawnScheduledTask(sched, {
+        state,
+        taskDir,
+        inspectWorkspace: (p) => cliDiscovery.inspectWorkspace(p),
+        requestedRole: (b, roleId, conn) => promptService.requestedRole(b, roleId, conn),
+        connectors,
+      });
+      spawned.push(task);
+    } catch {}
+  }
+  if (spawned.length) {
+    persist();
+    publish("tasks");
+    publish("settings");
+    taskRunner.pump();
+  }
+  return spawned;
+}
+
 const routeContext = {
   host,
   port,
+  runtime,
   taskDir,
   secureTransport,
   isLoopbackBind,
@@ -614,6 +659,9 @@ const routeContext = {
   killTree,
   isForbiddenSystemPath,
   autoDistillTaskMemory,
+  readMarkdownMemories,
+  taskStore,
+  checkDueSchedules,
   cliDiscovery,
   providerQuotaService,
   skillCatalogService,
@@ -837,6 +885,12 @@ export async function startWorkbench() {
   console.log(`Data: ${runtime}`);
   if (!isLoopbackBind) console.log(`Allowed hosts: ${[...allowedHosts].join(", ")} · Basic Auth enabled`);
   pumpTimer = setTimeout(() => { pumpTimer = undefined; taskRunner.pump(); }, 500);
+  if (!scheduleTimer) {
+    scheduleTimer = setInterval(() => {
+      void checkDueSchedules();
+    }, 30_000);
+    scheduleTimer.unref?.();
+  }
   return { server, host, port: boundPort, protocol: secureTransport ? "https" : "http" };
 }
 
@@ -844,6 +898,8 @@ export async function stopWorkbench() {
   shuttingDown = true;
   if (pumpTimer) clearTimeout(pumpTimer);
   pumpTimer = undefined;
+  if (scheduleTimer) clearInterval(scheduleTimer);
+  scheduleTimer = null;
   let interrupted = false;
   for (const [taskId, item] of running) {
     item.stopped = true;

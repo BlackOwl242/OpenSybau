@@ -46,8 +46,8 @@ export function parseSkillSelection(output, candidates) {
   } catch {
     const ids = [...new Set((text.match(/[a-f\d]{16}/gi) || []).map((id) => id.toLowerCase()).filter((id) => allowed.has(id)))];
     return ids.length
-      ? { ids, reason: "Đã đọc các skill ID Codex đề xuất từ phần trả lời." }
-      : { ids: [], reason: "Codex không trả về được danh sách skill hợp lệ; tiếp tục không gắn skill." };
+      ? { ids, reason: "Đã đọc các skill ID đề xuất từ phần trả lời." }
+      : { ids: [], reason: "Không trả về được danh sách skill hợp lệ; tiếp tục không gắn skill." };
   }
   const ids = Array.isArray(decision.skillIds)
     ? [...new Set(decision.skillIds.map((id) => String(id).toLowerCase()).filter((id) => allowed.has(id)))]
@@ -67,6 +67,16 @@ export function validateSkillContent(content) {
   return content.endsWith("\n") ? content : `${content}\n`;
 }
 
+export function formatProgressiveSkillsIndex(progressiveSkills = []) {
+  if (!Array.isArray(progressiveSkills) || !progressiveSkills.length) return "";
+  const rows = progressiveSkills.slice(0, 8).map((item) => {
+    const desc = String(item.description || "").replace(/\s+/g, " ").trim().slice(0, 180);
+    const loc = item.filePath ? ` (path: ${item.filePath})` : "";
+    return `- ${item.name}${loc}: ${desc}`;
+  });
+  return `\n\n<available_skills_index note="Progressive disclosure: read the SKILL.md path on demand only if your task specifically requires that procedure">\n${rows.join("\n")}\n</available_skills_index>`;
+}
+
 export function createSkillCatalogService({
   runtime,
   getWorkspaces,
@@ -84,31 +94,33 @@ export function createSkillCatalogService({
   async function loadSkillCatalog(workspaceId = "", force = false) {
     const workspaces = getWorkspaces() || [];
     const workspace = workspaces.find((item) => item.id === workspaceId);
-    const cacheKey = workspace ? resolve(workspace.path).toLowerCase() : "__global__";
+    const wsTrustFlag = workspace ? (workspace.trustedSkills !== false ? "trusted" : "untrusted") : "global";
+    const cacheKey = workspace ? `${resolve(workspace.path).toLowerCase()}::${wsTrustFlag}` : "__global__";
     const cached = skillCatalogCache.get(cacheKey);
     if (!force && cached && Date.now() < cached.expiresAt) return cached.items;
     const codexHome = resolve(process.env.CODEX_HOME || resolve(homedir(), ".codex"));
     const geminiHome = resolve(homedir(), ".gemini");
     const claudeHome = resolve(homedir(), ".claude");
     const roots = [
-      { path: resolve(runtime, "skills"), source: "OpenSybau · mọi agent (API/CLI)", providers: ["*"], managed: true },
-      { path: resolve(codexHome, "skills"), source: "Codex · cá nhân", providers: ["codex"], managed: true },
-      { path: resolve(codexHome, "plugins", "cache"), source: "Codex · plugin đã cài", providers: ["codex"], managed: false },
-      { path: resolve(claudeHome, "skills"), source: "Claude Code · cá nhân", providers: ["claude"], managed: true },
-      { path: resolve(geminiHome, "antigravity-cli", "skills"), source: "Antigravity CLI · cá nhân", providers: ["antigravity"], managed: true },
-      { path: resolve(geminiHome, "antigravity-cli", "plugins"), source: "Antigravity CLI · plugin đã cài", providers: ["antigravity"], managed: false },
-      { path: resolve(geminiHome, "antigravity-cli", "builtin", "skills"), source: "Antigravity CLI · tích hợp sẵn", providers: ["antigravity"], managed: false },
-      { path: resolve(geminiHome, "config", "skills"), source: "Antigravity IDE · cá nhân", providers: ["antigravity"], managed: true },
-      { path: resolve(geminiHome, "config", "plugins"), source: "Antigravity IDE · plugin đã cài", providers: ["antigravity"], managed: false },
-      { path: resolve(geminiHome, "antigravity", "skills"), source: "Antigravity IDE · legacy", providers: ["antigravity"], managed: true },
+      { path: resolve(runtime, "skills"), source: "OpenSybau · mọi agent (API/CLI)", providers: ["*"], managed: true, workspaceScoped: false, trusted: true },
+      { path: resolve(codexHome, "skills"), source: "Codex · cá nhân", providers: ["codex"], managed: true, workspaceScoped: false, trusted: true },
+      { path: resolve(codexHome, "plugins", "cache"), source: "Codex · plugin đã cài", providers: ["codex"], managed: false, workspaceScoped: false, trusted: true },
+      { path: resolve(claudeHome, "skills"), source: "Claude Code · cá nhân", providers: ["claude"], managed: true, workspaceScoped: false, trusted: true },
+      { path: resolve(geminiHome, "antigravity-cli", "skills"), source: "Antigravity CLI · cá nhân", providers: ["antigravity"], managed: true, workspaceScoped: false, trusted: true },
+      { path: resolve(geminiHome, "antigravity-cli", "plugins"), source: "Antigravity CLI · plugin đã cài", providers: ["antigravity"], managed: false, workspaceScoped: false, trusted: true },
+      { path: resolve(geminiHome, "antigravity-cli", "builtin", "skills"), source: "Antigravity CLI · tích hợp sẵn", providers: ["antigravity"], managed: false, workspaceScoped: false, trusted: true },
+      { path: resolve(geminiHome, "config", "skills"), source: "Antigravity IDE · cá nhân", providers: ["antigravity"], managed: true, workspaceScoped: false, trusted: true },
+      { path: resolve(geminiHome, "config", "plugins"), source: "Antigravity IDE · plugin đã cài", providers: ["antigravity"], managed: false, workspaceScoped: false, trusted: true },
+      { path: resolve(geminiHome, "antigravity", "skills"), source: "Antigravity IDE · legacy", providers: ["antigravity"], managed: true, workspaceScoped: false, trusted: true },
     ];
     if (workspace) {
+      const wsTrusted = workspace.trustedSkills !== false;
       roots.push(
-        { path: resolve(workspace.path, ".claude", "skills"), source: `Workspace · ${workspace.name} (Claude Code)`, providers: ["claude"], managed: true },
-        { path: resolve(workspace.path, ".agents", "skills"), source: `Workspace · ${workspace.name}`, providers: ["codex", "antigravity"], managed: true },
-        { path: resolve(workspace.path, ".agent", "skills"), source: `Workspace · ${workspace.name} (legacy)`, providers: ["antigravity"], managed: true },
-        { path: resolve(workspace.path, ".gemini", "skills"), source: `Workspace · ${workspace.name} (Gemini)`, providers: ["antigravity"], managed: true },
-        { path: resolve(workspace.path, ".codex", "skills"), source: `Workspace · ${workspace.name} (Codex)`, providers: ["codex"], managed: true },
+        { path: resolve(workspace.path, ".claude", "skills"), source: `Workspace · ${workspace.name} (Claude Code)`, providers: ["claude"], managed: true, workspaceScoped: true, workspaceId: workspace.id, trusted: wsTrusted },
+        { path: resolve(workspace.path, ".agents", "skills"), source: `Workspace · ${workspace.name}`, providers: ["codex", "antigravity", "*"], managed: true, workspaceScoped: true, workspaceId: workspace.id, trusted: wsTrusted },
+        { path: resolve(workspace.path, ".agent", "skills"), source: `Workspace · ${workspace.name} (legacy)`, providers: ["antigravity"], managed: true, workspaceScoped: true, workspaceId: workspace.id, trusted: wsTrusted },
+        { path: resolve(workspace.path, ".gemini", "skills"), source: `Workspace · ${workspace.name} (Gemini)`, providers: ["antigravity"], managed: true, workspaceScoped: true, workspaceId: workspace.id, trusted: wsTrusted },
+        { path: resolve(workspace.path, ".codex", "skills"), source: `Workspace · ${workspace.name} (Codex)`, providers: ["codex"], managed: true, workspaceScoped: true, workspaceId: workspace.id, trusted: wsTrusted },
       );
     }
     const catalog = new Map();
@@ -141,7 +153,8 @@ export function createSkillCatalogService({
             if (existing) {
               if (!existing.sources.includes(rootInfo.source)) existing.sources.push(rootInfo.source);
               for (const provider of rootInfo.providers) if (!existing.providers.includes(provider)) existing.providers.push(provider);
-              existing.files.push({ file: realFile, directory: current.directory, root: rootPath, source: rootInfo.source, managed: rootInfo.managed, providers: [...rootInfo.providers] });
+              if (!rootInfo.workspaceScoped) existing.trusted = true;
+              existing.files.push({ file: realFile, directory: current.directory, root: rootPath, source: rootInfo.source, managed: rootInfo.managed, providers: [...rootInfo.providers], workspaceScoped: Boolean(rootInfo.workspaceScoped), trusted: Boolean(rootInfo.trusted) });
             } else {
               const folderName = basename(current.directory);
               catalog.set(fingerprint, {
@@ -151,8 +164,11 @@ export function createSkillCatalogService({
                 source: rootInfo.source,
                 sources: [rootInfo.source],
                 providers: [...rootInfo.providers],
+                workspaceScoped: Boolean(rootInfo.workspaceScoped),
+                workspaceId: rootInfo.workspaceId || null,
+                trusted: Boolean(rootInfo.trusted),
                 instruction: content,
-                files: [{ file: realFile, directory: current.directory, root: rootPath, source: rootInfo.source, managed: rootInfo.managed, providers: [...rootInfo.providers] }],
+                files: [{ file: realFile, directory: current.directory, root: rootPath, source: rootInfo.source, managed: rootInfo.managed, providers: [...rootInfo.providers], workspaceScoped: Boolean(rootInfo.workspaceScoped), trusted: Boolean(rootInfo.trusted) }],
               });
             }
           } catch {}
@@ -187,8 +203,8 @@ export function createSkillCatalogService({
   }
 
   function rankSkillCandidatesScored(task, catalog) {
-    const words = new Set(tokenize(`${task.title} ${task.prompt}`));
-    const queryText = `${task.title} ${task.prompt}`.toLocaleLowerCase();
+    const words = new Set(tokenize(`${task.title || ""} ${task.prompt || ""}`));
+    const queryText = `${task.title || ""} ${task.prompt || ""}`.toLocaleLowerCase();
     for (const shortTerm of ["ui", "ux", "db", "ci", "ai"]) {
       if (new RegExp(`(?:^|[^\\p{L}\\p{N}])${shortTerm}(?:$|[^\\p{L}\\p{N}])`, "u").test(queryText)) words.add(shortTerm);
     }
@@ -211,22 +227,58 @@ export function createSkillCatalogService({
       const terms = group.flatMap((term) => tokenize(term).length ? tokenize(term) : [term.toLocaleLowerCase()]);
       if (terms.some((term) => words.has(term))) for (const term of terms) expanded.add(term);
     }
-    const activeProvider = task.config?.workflow === "chat-only" ? task.config.chatProvider || "codex" : stageSelection(task, "plan").provider;
+    const activeProviders = task.config?.workflow === "chat-only"
+      ? [task.config.chatProvider || "codex"]
+      : task.config?.workflow === "plan-only"
+        ? [stageSelection(task, "plan").provider]
+        : [...new Set((workflowRoles || [{ id: "plan" }, { id: "build" }, { id: "review" }]).map((r) => stageSelection(task, r.id).provider))];
+
     return catalog.map((skill) => {
+      if (skill.workspaceScoped && skill.trusted === false) return null;
       const providers = skill.providers || [];
-      if (!skillProviderCompatible(activeProvider, providers)) return null;
+      if (!activeProviders.some((prov) => skillProviderCompatible(prov, providers))) return null;
       const titleWords = tokenize(skill.name);
       const descriptionWords = tokenize(skill.description);
       const titleScore = titleWords.reduce((sum, word) => sum + (expanded.has(word) ? 5 : 0), 0);
       const descriptionScore = descriptionWords.reduce((sum, word) => sum + (expanded.has(word) ? 1 : 0), 0);
       const phraseScore = words.size && [...words].some((word) => word.length > 4 && skill.name.toLocaleLowerCase().includes(word)) ? 8 : 0;
-      const score = titleScore + descriptionScore + phraseScore;
+      const workspaceBoost = skill.workspaceScoped && skill.trusted !== false && (titleScore > 0 || descriptionScore > 0 || phraseScore > 0) ? 4 : 0;
+      const score = titleScore + descriptionScore + phraseScore + workspaceBoost;
       return score ? { skill, score } : null;
     }).filter(Boolean).sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name, "vi")).slice(0, 36);
   }
 
   function rankSkillCandidates(task, catalog) {
     return rankSkillCandidatesScored(task, catalog).map(({ skill }) => skill);
+  }
+
+  function selectTaskSkillsProgressive(task, catalog) {
+    const scoredCandidates = rankSkillCandidatesScored(task, catalog);
+    const strongMatches = scoredCandidates.filter(({ score }) => score >= 10).slice(0, 3);
+    const strongIds = new Set(strongMatches.map(({ skill }) => skill.id));
+    const progressiveMatches = scoredCandidates
+      .filter(({ skill, score }) => score >= 3 && !strongIds.has(skill.id))
+      .slice(0, 6)
+      .map(({ skill, score }) => ({
+        id: skill.id,
+        name: skill.name,
+        description: String(skill.description || "").slice(0, 200),
+        filePath: skill.files?.[0]?.file || "",
+        providers: skill.providers || [],
+        score,
+      }));
+    const skillIds = strongMatches.map(({ skill }) => skill.id);
+    const reason = skillIds.length
+      ? `Đã khớp tức thì ${skillIds.length} skill trọng tâm${progressiveMatches.length ? ` và đính kèm chỉ mục Progressive Disclosure (${progressiveMatches.length} skill tham khảo)` : ""}.`
+      : progressiveMatches.length
+        ? `Không nạp cứng toàn bộ skill; đã đính kèm chỉ mục Progressive Disclosure (${progressiveMatches.length} skill tham khảo theo nhu cầu).`
+        : "Không có skill nào vượt ngưỡng khớp trực tiếp cho yêu cầu này.";
+    return {
+      scoredCandidates,
+      skillIds,
+      progressiveSkills: progressiveMatches,
+      reason,
+    };
   }
 
   function skillSelectionPrompt(task, workspace, candidates) {
@@ -290,53 +342,151 @@ export function createSkillCatalogService({
     return stageAntigravitySkillBundles(task, resolved);
   }
 
-  async function skillRoots(scope) {
+  async function skillRoots(scope, workspacePath = "") {
     const opensybau = resolve(runtime, "skills");
     const codex = resolve(process.env.CODEX_HOME || resolve(homedir(), ".codex"), "skills");
     const antigravity = resolve(homedir(), ".gemini", "config", "skills");
     const claude = resolve(homedir(), ".claude", "skills");
+    if (scope === "workspace" && workspacePath) {
+      return [{ path: resolve(workspacePath, ".agents", "skills"), provider: "*", source: "Workspace · .agents/skills" }];
+    }
     if (scope === "universal") return [{ path: opensybau, provider: "*", source: "OpenSybau · mọi agent (API/CLI)" }];
     if (scope === "codex") return [{ path: codex, provider: "codex" }];
     if (scope === "antigravity") return [{ path: antigravity, provider: "antigravity" }];
     if (scope === "claude") return [{ path: claude, provider: "claude" }];
     if (scope === "shared") return [{ path: codex, provider: "codex" }, { path: antigravity, provider: "antigravity" }];
     if (scope === "all-cli") return [{ path: codex, provider: "codex" }, { path: antigravity, provider: "antigravity" }, { path: claude, provider: "claude" }];
-    throw new Error("Chọn OpenSybau, Codex, Antigravity, Claude Code hoặc tất cả CLI.");
+    throw new Error("Chọn OpenSybau, Workspace, Codex, Antigravity, Claude Code hoặc tất cả CLI.");
   }
 
-  async function createSkillFiles(name, description, instructions, scope) {
+  async function createSkillFiles(name, description, instructions, scope, { overwrite = false, workspacePath = "" } = {}) {
     const safeName = String(name || "").trim().slice(0, 100);
     const safeDescription = String(description || "").trim().slice(0, 500);
     if (!safeName || !safeDescription) throw new Error("Nhập tên và mô tả skill.");
     const content = validateSkillContent(`---\nname: ${JSON.stringify(safeName)}\ndescription: ${JSON.stringify(safeDescription)}\n---\n\n${String(instructions || "").trim()}\n`);
     const slug = slugSkill(safeName);
     const created = [];
+    const targets = await skillRoots(scope, workspacePath);
     try {
-      for (const target of await skillRoots(scope)) {
+      for (const target of targets) {
         const rootPath = resolve(target.path);
         await fs.mkdir(rootPath, { recursive: true });
         const realRoot = await fs.realpath(rootPath);
         const directory = resolve(realRoot, slug);
         if (!within(realRoot, directory) || directory === realRoot) throw new Error("Tên skill tạo đường dẫn không hợp lệ.");
-        await fs.mkdir(directory, { recursive: false });
-        const file = resolve(directory, "SKILL.md");
-        await fs.writeFile(file, content, { encoding: "utf8", flag: "wx" });
+        if (overwrite) {
+          await fs.mkdir(directory, { recursive: true });
+          const file = resolve(directory, "SKILL.md");
+          await fs.writeFile(file, content, { encoding: "utf8" });
+        } else {
+          await fs.mkdir(directory, { recursive: false });
+          const file = resolve(directory, "SKILL.md");
+          await fs.writeFile(file, content, { encoding: "utf8", flag: "wx" });
+        }
         created.push(directory);
       }
     } catch (error) {
-      for (const directory of created.reverse()) await fs.rm(directory, { recursive: true, force: true }).catch(() => {});
+      if (!overwrite) {
+        for (const directory of created.reverse()) await fs.rm(directory, { recursive: true, force: true }).catch(() => {});
+      }
       throw error;
     }
+    const primaryFile = created[0] ? resolve(created[0], "SKILL.md") : "";
+    let resolvedId = "";
+    if (primaryFile) {
+      try { resolvedId = skillId(await fs.realpath(primaryFile)); } catch { resolvedId = skillId(primaryFile); }
+    }
     return {
+      id: resolvedId,
+      slug,
       name: safeName,
-      sources: (await skillRoots(scope)).map((item) => item.source || ({ codex: "Codex · cá nhân", antigravity: "Antigravity · cá nhân", claude: "Claude Code · cá nhân" })[item.provider]),
+      description: safeDescription,
+      sources: targets.map((item) => item.source || ({ codex: "Codex · cá nhân", antigravity: "Antigravity · cá nhân", claude: "Claude Code · cá nhân" })[item.provider]),
     };
+  }
+
+  async function distillSkillFromTask(task, workspace, options = {}) {
+    if (!task) throw new Error("Task không tồn tại để đúc kết skill.");
+    const baseTitle = String(options.name || task.title || task.code || "Workflow Skill")
+      .replace(/^\[[^\]]+\]\s*/, "")
+      .trim()
+      .slice(0, 72);
+    const skillName = options.name
+      ? String(options.name).trim().slice(0, 90)
+      : slugSkill(baseTitle);
+    const description = String(
+      options.description
+      || `Quy trình tự động đúc kết từ ${task.code || "task"} (${workspace?.name || "Project"}): ${baseTitle}. Sử dụng khi gặp bài toán tương tự.`
+    ).trim().slice(0, 420);
+
+    const artifactsList = (task.artifacts || []).slice(0, 20);
+    const reviewLines = String(task.review || "")
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => /^(?:[-*]\s*)?\[(?:BLOCKING|ADVISORY)\]/i.test(l))
+      .slice(0, 8);
+    const lastAssistantText = (task.chatMessages || [])
+      .filter((m) => m.role === "assistant" && m.content)
+      .at(-1)?.content || "";
+
+    const bodySections = [
+      `# ${baseTitle}`,
+      "",
+      "## Khi nào sử dụng (Trigger Conditions)",
+      `- Áp dụng khi xử lý yêu cầu tương tự: ${String(task.prompt || baseTitle).split(/\r?\n/)[0].slice(0, 300)}`,
+      ...(task.goal ? [`- Mục tiêu chuẩn: ${String(task.goal).slice(0, 400)}`] : []),
+      "",
+      "## Quy trình Thực hiện Chuẩn (Step-by-Step Procedure)",
+      task.plan
+        ? String(task.plan).trim().slice(0, 3500)
+        : (task.implementation ? String(task.implementation).trim().slice(0, 3500) : String(lastAssistantText || task.prompt || "").trim().slice(0, 3000)),
+    ];
+
+    if (artifactsList.length) {
+      bodySections.push(
+        "",
+        "## Các Tệp & Thành phần Trọng tâm (Key Files)",
+        ...artifactsList.map((file) => `- \`${file}\``)
+      );
+    }
+
+    if (reviewLines.length || (Number(task.currentRound) || 1) > 1) {
+      bodySections.push(
+        "",
+        "## Lưu ý & Bẫy Kỹ thuật Cần Tránh (Pitfalls & Guardrails)",
+        ...(reviewLines.length
+          ? reviewLines.map((line) => `- ${line.replace(/^[-*]\s*/, "")}`)
+          : [`- Task đã trải qua ${task.currentRound} vòng kiểm tra để xử lý dứt điểm các vấn đề phát sinh.`])
+      );
+    }
+
+    if (task.qaCommand || task.qaResult?.command) {
+      const cmd = task.qaResult?.command || task.qaCommand;
+      bodySections.push(
+        "",
+        "## Kiểm chứng & QA (Verification)",
+        `- Chạy lệnh kiểm tra: \`${cmd}\``,
+        ...(task.qaResult?.summary ? [`- Kết quả chuẩn: ${task.qaResult.summary}`] : [])
+      );
+    }
+
+    const instructions = options.instructions
+      ? String(options.instructions).trim()
+      : bodySections.join("\n");
+    const scope = options.scope || "universal";
+    const created = await createSkillFiles(skillName, description, instructions, scope, {
+      overwrite: true,
+      workspacePath: workspace?.path || task.workspacePath || "",
+    });
+    invalidateSkillCatalogCache();
+    return created;
   }
 
   function skillInstructions(task, providerOverride = "") {
     const workspaces = getWorkspaces() || [];
     const ws = workspaces.find((item) => item.id === task.workspaceId);
-    const cacheKey = ws ? resolve(ws.path).toLowerCase() : "__global__";
+    const wsTrustFlag = ws ? (ws.trustedSkills !== false ? "trusted" : "untrusted") : "global";
+    const cacheKey = ws ? `${resolve(ws.path).toLowerCase()}::${wsTrustFlag}` : "__global__";
     const cachedCatalog = skillCatalogCache.get(cacheKey)?.items || [];
     const taskSkillIds = new Set([...(task.skillIds || []), ...(task.skills || []).map((s) => s.id)].filter(Boolean));
     const fullSkills = cachedCatalog.filter((s) => taskSkillIds.has(s.id));
@@ -344,9 +494,13 @@ export function createSkillCatalogService({
     const applicableSkills = (fullSkills.length ? fullSkills : (task.skills || [])).filter((skill) =>
       skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"])
     );
-    return applicableSkills.length
+    const activeBlock = applicableSkills.length
       ? `\n\nSelected local skills:\n${applicableSkills.map((skill) => `- ${skill.name}: ${String(skill.instruction || skill.description || "").slice(0, 5000)}`).join("\n\n").slice(0, 7000)}`
       : "";
+    const progressiveBlock = formatProgressiveSkillsIndex(
+      (task.progressiveSkills || []).filter((skill) => skillProviderCompatible(provider, skill.providers || ["*"]))
+    );
+    return `${activeBlock}${progressiveBlock}`;
   }
 
   return {
@@ -355,6 +509,9 @@ export function createSkillCatalogService({
     resolveSelectedSkills,
     rankSkillCandidatesScored,
     rankSkillCandidates,
+    selectTaskSkillsProgressive,
+    formatProgressiveSkillsIndex,
+    distillSkillFromTask,
     skillProviderCompatible,
     skillSelectionPrompt,
     stageAntigravitySkillBundles,

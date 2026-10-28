@@ -82,6 +82,9 @@ export function missionControlStepperMarkup(task, { compact = false } = {}) {
     ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${esc(task.id)}">${icon("delete", 13)}<span>Hủy worktree</span></button>`
     : "";
   const qaBtn = !busy ? `<button type="button" class="button quiet small" data-action="run-task-qa" data-id="${esc(task.id)}" title="Chạy lệnh kiểm thử cho công việc này">${icon("square-terminal", 13)}<span>Chạy thử</span></button>` : "";
+  const distillSkillBtn = !busy && task.status === "done"
+    ? `<button type="button" class="button quiet small" data-action="distill-task-skill" data-id="${esc(task.id)}" title="Đúc kết quy trình giải quyết công việc này thành Skill tái sử dụng">${icon("book-open-text", 13)}<span>${task.distilledSkillName ? "Cập nhật Skill" : "Đúc kết Skill"}</span></button>`
+    : "";
   const diffBtn = task.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${esc(task.id)}">${icon("file", 13)}<span>Diff${artifactsCount ? ` (${artifactsCount})` : ""}</span></button>` : "";
   const flowBtn = compact ? `<button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(task.id)}">${icon("workflow", 13)}<span>Luồng</span></button>` : "";
   const stopBtn = busy ? `<button type="button" class="button danger small" data-action="stop-task" data-id="${esc(task.id)}">${icon("square", 12)}<span>Dừng</span></button>` : "";
@@ -97,7 +100,7 @@ export function missionControlStepperMarkup(task, { compact = false } = {}) {
         ${worktreeChip}
         ${activityText}
       </div>
-      <div class="mc-stepper-actions">${applyWtBtn}${discardWtBtn}${qaBtn}${diffBtn}${flowBtn}${stopBtn}</div>
+      <div class="mc-stepper-actions">${applyWtBtn}${discardWtBtn}${qaBtn}${distillSkillBtn}${diffBtn}${flowBtn}${stopBtn}</div>
     </header>
     <div class="mc-stations-track">${stationsHtml}</div>
     ${planGateBanner}

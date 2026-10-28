@@ -7,6 +7,7 @@ import { usesSharedCheckout, within, workspaceLockKey } from "../fs-security.mjs
 import { parseUnifiedDiffFiles } from "../diff-parser.mjs";
 import { createTaskGithubPullRequest } from "../github-cli.mjs";
 import {
+  compactTaskConversationNow,
   createStageRerunSnapshot,
   inferredRerunStage,
   publicProviderName,
@@ -52,6 +53,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     killTree,
     autoDistillTaskMemory,
     cliDiscovery,
+    skillCatalogService,
     promptService,
     stageRunner,
     taskRunner,
@@ -327,7 +329,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     return true;
   }
 
-  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist|plan-gate|qa|exec|git-commit|github-pr|apply-worktree|discard-worktree|worktree\/apply|worktree\/discard))?$/);
+  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist|plan-gate|qa|exec|git-commit|github-pr|distill-skill|distill-memory|compact|apply-worktree|discard-worktree|worktree\/apply|worktree\/discard))?$/);
   if (!match) return false;
 
   const id = decodeURIComponent(match[1]);
@@ -451,6 +453,58 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     } catch (error) {
       json(response, 400, { error: safeError(error) });
     }
+    return true;
+  }
+
+  if (request.method === "POST" && action === "distill-skill") {
+    const body = await readBody(request).catch(() => ({}));
+    const workspace = state.workspaces.find((w) => w.id === task.workspaceId) || null;
+    try {
+      const skill = await skillCatalogService.distillSkillFromTask(task, workspace, body);
+      task.distilledSkillId = skill.id;
+      task.distilledSkillName = skill.name;
+      task.updatedAt = new Date().toISOString();
+      record(task, `Đã đúc kết Skill mới từ quy trình giải quyết task: "${skill.name}".`, "success");
+      persist();
+      publish("skills");
+      publish("task");
+      json(response, 201, { ok: true, skill, task });
+    } catch (error) {
+      json(response, 400, { error: safeError(error) });
+    }
+    return true;
+  }
+
+  if (request.method === "POST" && action === "distill-memory") {
+    const workspace = state.workspaces.find((w) => w.id === task.workspaceId);
+    if (!workspace) {
+      json(response, 404, { error: "Workspace của task không còn tồn tại." });
+      return true;
+    }
+    const memory = autoDistillTaskMemory(task, workspace, { forceChat: true });
+    if (!memory) {
+      json(response, 409, { error: "Task chưa có nội dung mới hoặc bài học đã được lưu trước đó." });
+      return true;
+    }
+    task.updatedAt = new Date().toISOString();
+    record(task, `Đã trích xuất bài học kinh nghiệm vào bộ nhớ: "${memory.title}".`, "success");
+    persist();
+    publish("memory");
+    publish("task");
+    json(response, 201, { ok: true, memory, task });
+    return true;
+  }
+
+  if (request.method === "POST" && action === "compact") {
+    const body = await readBody(request).catch(() => ({}));
+    const keepRecent = body.keepRecentMessages !== undefined ? Number(body.keepRecentMessages) : 8;
+    const result = compactTaskConversationNow(task, keepRecent);
+    if (result.compacted) {
+      record(task, `Đã nén ${result.compactedCount} lượt hội thoại cũ thành bản tóm tắt cấu trúc (giữ ${result.keptCount} lượt gần nhất).`, "info");
+      persist();
+      publish("task");
+    }
+    json(response, 200, { ok: true, ...result, task });
     return true;
   }
 

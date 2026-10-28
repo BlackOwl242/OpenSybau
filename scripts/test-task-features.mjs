@@ -8,6 +8,10 @@ import { setTimeout as delay } from "node:timers/promises";
 import { cliIsInstalled } from "../src/server/cli-status.mjs";
 import { unquoteGitPath } from "../src/server/fs-security.mjs";
 import { pipelineStepperData, computeWaveDag } from "../src/domain/task-flow.js";
+import { formatProgressiveSkillsIndex, createSkillCatalogService } from "../src/server/skill-catalog.mjs";
+import { autoDistillTaskMemory as distillTaskMemoryUnit, userProfileMemorySnapshot } from "../src/server/memory-bm25.mjs";
+import { compactChatHistory } from "../src/server/task-prompts.mjs";
+import { applyApiBuildResult, executeApiWorkspaceTool, parseApiBuildOperations, parseApiToolCall } from "../src/server/api-build-ops.mjs";
 
 const root = process.cwd();
 assert.equal(
@@ -23,6 +27,115 @@ assert.equal(
 assert.equal(cliIsInstalled("C:\\Users\\test\\agy.exe", -1, () => true), true, "An executable present on disk is installed even if its version command cannot start.");
 assert.equal(cliIsInstalled("C:\\Users\\test\\missing.exe", -1, () => false), false, "A missing executable with a failed version command is not installed.");
 assert.equal(cliIsInstalled("", 0, () => false), true, "A successful version command confirms installation.");
+
+// Unit tests for Hermes-inspired optimizations:
+// 1. Progressive Skill Selection & Workspace Trust Gating
+{
+  const skillSvc = createSkillCatalogService({
+    runtime: os.tmpdir(),
+    getWorkspaces: () => [],
+    hasApiProvider: () => true,
+    stageSelection: () => ({ provider: "codex" }),
+    publicProviderName: (p) => p,
+    workflowRoles: [{ id: "plan" }, { id: "build" }, { id: "review" }],
+  });
+  const catalog = [
+    { id: "skill-high00000001", name: "sqlite-fts-search", description: "Build SQLite FTS5 full text search indexes", providers: ["codex"], workspaceScoped: false, trusted: true },
+    { id: "skill-sec000000002", name: "search-ui-helper", description: "Helper for search filter bars and query inputs", providers: ["codex"], workspaceScoped: false, trusted: true },
+    { id: "skill-untrusted003", name: "sqlite-fts-untrusted", description: "Untrusted repo skill for sqlite-fts-search", providers: ["codex"], workspaceScoped: true, trusted: false },
+  ];
+  const selUntrusted = skillSvc.selectTaskSkillsProgressive({ title: "Implement sqlite-fts-search", prompt: "Add SQLite FTS5 search index" }, catalog);
+  assert.equal(selUntrusted.skillIds.includes("skill-high00000001"), true, "Strong matching skill must be selected in Tier 1.");
+  assert.equal(selUntrusted.skillIds.includes("skill-untrusted003"), false, "Untrusted workspace skill must be skipped.");
+  assert.equal(selUntrusted.progressiveSkills.some((s) => s.id === "skill-sec000000002"), true, "Secondary matching skill must be placed in Tier 0 progressive index.");
+  const indexText = formatProgressiveSkillsIndex(selUntrusted.progressiveSkills);
+  assert.equal(indexText.includes("</available_skills_index>"), true);
+  assert.equal(indexText.includes("search-ui-helper"), true);
+}
+
+// 2. 2-Tier Memory (User Profile Snapshot + Pitfall/Blocking Lesson Distillation)
+{
+  const memList = [
+    { id: "u1", title: "Coding Style", content: "Always use ES modules and strict assertions.", kind: "user-profile", category: "user", workspaceId: "all" },
+  ];
+  const snapshot = userProfileMemorySnapshot(memList);
+  assert.equal(snapshot.includes("Coding Style"), true);
+  let persistedCalled = false;
+  const distilled = distillTaskMemoryUnit(
+    {
+      id: "task-pitfall-1",
+      code: "LOOP-99",
+      title: "Fix race condition in worktree lock",
+      status: "done",
+      currentRound: 2,
+      plan: "## Steps\n1. Add mutex lock around git worktree add",
+      implementation: "Added withGitRepoLock around worktree creation.",
+      review: "- [BLOCKING] Missing lock release in finally block\n- [ADVISORY] Log lock wait duration",
+      qaResult: { command: "npm test", status: "passed", summary: "0 errors" },
+      artifacts: ["src/server/task-runner.mjs"],
+    },
+    { id: "workspace-test" },
+    memList,
+    () => { persistedCalled = true; },
+  );
+  assert.equal(persistedCalled, true);
+  assert.equal(distilled.kind, "pitfall");
+  assert.equal(distilled.content.includes("Resolved Pitfalls (2 rounds)"), true);
+  assert.equal(distilled.content.includes("Missing lock release in finally block"), true);
+  assert.equal(distilled.content.includes("QA (npm test): PASSED"), true);
+}
+
+// 3. Rolling Context Compaction
+{
+  const manyMessages = [];
+  for (let i = 1; i <= 8; i++) {
+    manyMessages.push({ id: `u-${i}`, role: "user", content: `User request number ${i} about module ${i}`, status: "done" });
+    manyMessages.push({ id: `a-${i}`, role: "assistant", content: `Assistant response number ${i} completed module ${i}`, status: "done" });
+  }
+  const compactTask = { id: "task-compact-unit", chatMessages: manyMessages };
+  const compacted = compactChatHistory(compactTask, undefined, 6);
+  assert.equal(compacted.recentMessages.length, 6);
+  assert.equal(compacted.compactedSummary.includes("User request number 1"), true);
+  assert.equal(Array.isArray(compactTask.compactionLineage) && compactTask.compactionLineage.length === 1, true);
+}
+
+// 4. Local Agentic Tool Loop & Targeted Patch Operations
+{
+  const patchTempDir = await mkdtemp(path.join(os.tmpdir(), "opensybau-patch-unit-"));
+  try {
+    await writeFile(path.join(patchTempDir, "app.js"), "const a = 1;\nconst b = 2;\nexport default a + b;\n", "utf8");
+    await writeFile(path.join(patchTempDir, ".env"), "SECRET_TOKEN=xyz\n", "utf8");
+    const toolTask = { id: "task-tool-unit" };
+    const parsedTool = parseApiToolCall('```json\n{"tool_call":{"name":"read_file","args":{"path":"app.js","startLine":1,"endLine":2}}}\n```');
+    assert.equal(parsedTool?.name, "read_file");
+    const readRes = await executeApiWorkspaceTool(toolTask, patchTempDir, parsedTool);
+    assert.equal(readRes.ok, true);
+    assert.equal(readRes.output.includes("1: const a = 1;"), true);
+    assert.equal(typeof toolTask.buildSnapshotHashes?.["app.js"], "string", "read_file tool must snapshot file hash for conflict detection.");
+
+    const envBlocked = await executeApiWorkspaceTool(toolTask, patchTempDir, { name: "read_file", args: { path: ".env" } });
+    assert.equal(envBlocked.ok, false, ".env must be blocked from API tool reading.");
+
+    const searchRes = await executeApiWorkspaceTool(toolTask, patchTempDir, { name: "search_files", args: { query: "const b" } });
+    assert.equal(searchRes.ok, true);
+    assert.equal(searchRes.output.includes("app.js:2:"), true);
+
+    const patchOutput = JSON.stringify({
+      summary: "Update b to 42 using targeted search/replace patch",
+      patches: [{ path: "app.js", edits: [{ search: "const b = 2;", replace: "const b = 42;" }] }],
+      deletePaths: [],
+    });
+    const parsedOps = parseApiBuildOperations(patchOutput);
+    assert.equal(parsedOps.patches.length, 1);
+    const appliedSummary = await applyApiBuildResult(patchTempDir, patchOutput, { expectedFileHashes: toolTask.buildSnapshotHashes });
+    assert.equal(appliedSummary.includes("Patched app.js"), true);
+    const updatedContent = await readFile(path.join(patchTempDir, "app.js"), "utf8");
+    assert.equal(updatedContent, "const a = 1;\nconst b = 42;\nexport default a + b;\n");
+  } finally {
+    await rm(patchTempDir, { recursive: true, force: true });
+  }
+}
+
 const dataDir = await mkdtemp(path.join(os.tmpdir(), "opensybau-feature-test-"));
 const now = new Date().toISOString();
 let providerCalls = 0;
@@ -31,11 +144,18 @@ const providerStub = createServer(async (request, response) => {
   for await (const chunk of request) chunks.push(chunk);
   const payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
   const prompt = payload.messages?.[0]?.content || "";
-  const content = prompt.includes("skill router")
-    ? JSON.stringify({ skillIds: [], reason: "No matching test skills." })
-    : `Fresh test plan ${++providerCalls}`;
+  let content;
+  if (prompt.includes("[TOOL_LOOP_TEST]") && !prompt.includes("<tool_response")) {
+    content = JSON.stringify({ tool_call: { name: "read_file", args: { path: "package.json", startLine: 1, endLine: 5 } } });
+  } else if (prompt.includes("[TOOL_LOOP_TEST]") && prompt.includes("<tool_response")) {
+    content = "Plan after reading package.json: opensybau";
+  } else if (prompt.includes("skill router")) {
+    content = JSON.stringify({ skillIds: [], reason: "No matching test skills." });
+  } else {
+    content = `Fresh test plan ${++providerCalls}`;
+  }
   response.writeHead(200, { "content-type": "application/json" });
-  response.end(JSON.stringify({ choices: [{ message: { content } }] }));
+  response.end(JSON.stringify({ choices: [{ message: { content } }], usage: { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150, prompt_tokens_details: { cached_tokens: 64 } } }));
 });
 await new Promise((resolve, reject) => {
   providerStub.once("error", reject);
@@ -462,6 +582,107 @@ try {
   await waitForTask(waveRes.body.tasks[0].id);
   await waitForTask(waveRes.body.tasks[1].id);
 
+  // Test API Provider Multi-Turn Workspace Tool Loop in spawnStage
+  const toolLoopTaskRes = await request("/api/tasks", "POST", {
+    workspaceId: "workspace-test",
+    title: "API Tool Loop Task",
+    prompt: "[TOOL_LOOP_TEST] Inspect package.json before writing the plan",
+    workflow: "plan-only",
+    planProvider: "test-api",
+    planModel: "test-model",
+    planEffort: "standard",
+  });
+  assert.equal(toolLoopTaskRes.status, 201);
+  const completedToolLoopTask = await waitForTask(toolLoopTaskRes.body.task.id);
+  assert.equal(completedToolLoopTask.plan, "Plan after reading package.json: opensybau");
+  assert.equal(completedToolLoopTask.events.some((e) => e.text.includes("Tool call (read_file)")), true, "Task events must record the workspace read_file tool call.");
+  assert.equal((completedToolLoopTask.usage?.["test-api"]?.cached_input_tokens || 0) >= 64, true, "Cached input tokens must be tracked in usage.");
+
+  // Test Self-Improving Skill Distillation (POST /api/tasks/:id/distill-skill)
+  const distillSkillRes = await request(`/api/tasks/${gatedId}/distill-skill`, "POST", {
+    name: "Gate Pipeline Skill",
+  });
+  assert.equal(distillSkillRes.status, 201, JSON.stringify(distillSkillRes.body));
+  assert.equal(distillSkillRes.body.ok, true);
+  assert.equal(distillSkillRes.body.skill.name, "Gate Pipeline Skill");
+  const skillsListAfterDistill = await request("/api/skills?refresh=1", "GET");
+  assert.equal(skillsListAfterDistill.status, 200);
+  assert.equal(skillsListAfterDistill.body.skills.some((s) => s.name === "Gate Pipeline Skill"), true, "Distilled skill must appear in skill catalog.");
+
+  // Test Workspace Skill Trust Gating (POST /api/workspaces/:id/trust-skills)
+  const untrustRes = await request("/api/workspaces/workspace-test/trust-skills", "POST", { trusted: false });
+  assert.equal(untrustRes.status, 200);
+  assert.equal(untrustRes.body.workspace.trustedSkills, false);
+  const retrustRes = await request("/api/workspaces/workspace-test/trust-skills", "POST", { trusted: true });
+  assert.equal(retrustRes.status, 200);
+  assert.equal(retrustRes.body.workspace.trustedSkills, true);
+
+  // Test 2-Tier Memory (user-profile + USER.md & MEMORY.md Markdown sync)
+  const userMemRes = await request("/api/memory", "POST", {
+    title: "Preferred Test Runner",
+    content: "Always run npm test and verify exit code 0 before finishing.",
+    kind: "user-profile",
+  });
+  assert.equal(userMemRes.status, 201);
+  assert.equal(userMemRes.body.memory.kind, "user-profile");
+  assert.equal(userMemRes.body.memory.category, "user");
+  const mdMemRes = await request("/api/memory/markdown", "GET");
+  assert.equal(mdMemRes.status, 200);
+  assert.equal(mdMemRes.body.userMarkdown.includes("Preferred Test Runner"), true);
+  assert.equal(mdMemRes.body.workspaceMarkdown.includes(gatedId), true);
+
+  // Test Rolling Context Compaction Endpoint (POST /api/tasks/:id/compact)
+  const compactRes = await request("/api/tasks/task-feature-test/compact", "POST", {
+    keepRecentMessages: 2,
+  });
+  assert.equal(compactRes.status, 200);
+  assert.equal(compactRes.body.compacted, true);
+  assert.equal(compactRes.body.compactedCount, 2);
+  assert.equal(compactRes.body.keptCount, 2);
+  assert.equal(compactRes.body.task.chatCompactedSummary.includes("Start the first branch"), true);
+
+  // Test Per-Task Atomic Detail Store & Cross-Session SQLite FTS5 Search (GET /api/search)
+  const gatedDetailRaw = JSON.parse(await readFile(path.join(dataDir, "tasks", gatedId, "detail.json"), "utf8"));
+  assert.equal(gatedDetailRaw.id, gatedId);
+  assert.equal(gatedDetailRaw.distilledSkillName, "Gate Pipeline Skill");
+
+  const searchRes = await request("/api/search?q=Gate%20Pipeline", "GET");
+  assert.equal(searchRes.status, 200);
+  assert.equal(searchRes.body.engine, "sqlite-fts5");
+  assert.equal(searchRes.body.results.some((r) => r.type === "skill" && r.title.includes("Gate Pipeline Skill")), true, "FTS5 search must find distilled skill.");
+
+  const searchTaskRes = await request("/api/search?q=package.json%20opensybau", "GET");
+  assert.equal(searchTaskRes.status, 200);
+  assert.equal(searchTaskRes.body.results.some((r) => r.id === completedToolLoopTask.id), true, "FTS5 search must find task by plan output.");
+
+  // Test Scheduled Worktree Tasks (POST /api/schedules, trigger, DELETE)
+  const createSchedRes = await request("/api/schedules", "POST", {
+    name: "Nightly Architecture Audit",
+    workspaceId: "workspace-test",
+    prompt: "Audit module boundaries and report findings",
+    workflow: "plan-only",
+    intervalMinutes: 60,
+    isolated: false,
+    planProvider: "test-api",
+    planModel: "test-model",
+    planEffort: "standard",
+  });
+  assert.equal(createSchedRes.status, 201, JSON.stringify(createSchedRes.body));
+  const scheduleId = createSchedRes.body.schedule.id;
+
+  const triggerSchedRes = await request(`/api/schedules/${scheduleId}/trigger`, "POST", {});
+  assert.equal(triggerSchedRes.status, 201, JSON.stringify(triggerSchedRes.body));
+  assert.equal(triggerSchedRes.body.task.scheduleId, scheduleId);
+  assert.equal(triggerSchedRes.body.task.code, "CRON-01");
+  await waitForTask(triggerSchedRes.body.task.id);
+
+  const listSchedRes = await request("/api/schedules", "GET");
+  assert.equal(listSchedRes.status, 200);
+  assert.equal(listSchedRes.body.schedules.find((s) => s.id === scheduleId)?.runCount, 1);
+
+  const delSchedRes = await request(`/api/schedules/${scheduleId}`, "DELETE");
+  assert.equal(delSchedRes.status, 200);
+
   const persisted = JSON.parse(await readFile(path.join(dataDir, "state.json"), "utf8"));
   const persistedMemories = JSON.parse(await readFile(path.join(dataDir, "memory.json"), "utf8"));
   const dag = computeWaveDag(persisted.tasks);
@@ -470,12 +691,12 @@ try {
   assert.equal(dag.waves[0].label, "Đợt 1");
   assert.equal(dag.edges.length >= 1, true, "Wave DAG must include dependency edges.");
   assert.equal(Array.isArray(dag.needsLookTasks), true);
-  assert.equal(persisted.tasks.length, 9);
+  assert.equal(persisted.tasks.length, 11);
   assert.equal(persistedMemories.some((m) => m.sourceTaskId === gatedId), true, "Completed pipeline task must auto-distill a lesson memory.");
   assert.equal(persisted.tasks.some((task) => task.forkedFromMessageId === userTwo.id), true);
   assert.equal(persisted.tasks.find((task) => task.id === createdTask.id).presetRef.version, 2);
   assert.equal(persisted.settings.taskPresets[0].versions.length, 2);
-  process.stdout.write("Task feature integration checks passed: goal/checklist, permissions, archived chat deletion, forks, stage reruns with history, versioned task presets, telemetry, file-index, diff studio parser, parallel arena fanout, Plan Gate, Multi-Round Cycles, QA Runner, Wave DAG, BM25 memory distillation, and persistence.\n");
+  process.stdout.write("Task feature integration checks passed: goal/checklist, permissions, archived chat deletion, forks, stage reruns with history, versioned task presets, telemetry, file-index, diff studio parser, parallel arena fanout, Plan Gate, Multi-Round Cycles, QA Runner, Wave DAG, 2-tier BM25 + USER.md/MEMORY.md memory distillation, progressive skill disclosure & distillation, workspace skill trust, rolling context compaction, API multi-turn tool loop & patch edits, per-task detail store, SQLite FTS5 cross-session search, scheduled tasks, and persistence.\n");
 } finally {
   if (child.exitCode === null) {
     const exited = new Promise((resolve) => child.once("exit", resolve));

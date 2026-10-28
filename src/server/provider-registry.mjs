@@ -195,8 +195,12 @@ export async function completeWithApi(provider, model, prompt, signal) {
   let body;
   if (provider.protocol === "anthropic") {
     headers["anthropic-version"] = "2023-06-01";
+    headers["anthropic-beta"] = "prompt-caching-2024-07-31";
     if (provider.apiKey) headers["x-api-key"] = provider.apiKey;
-    body = { model, max_tokens: 8192, messages: [{ role: "user", content: prompt }] };
+    const contentPayload = prompt.length >= 2048
+      ? [{ type: "text", text: prompt, cache_control: { type: "ephemeral" } }]
+      : prompt;
+    body = { model, max_tokens: 8192, messages: [{ role: "user", content: contentPayload }] };
   } else if (provider.protocol === "gemini") {
     headers["x-goog-api-key"] = provider.apiKey;
     body = { contents: [{ role: "user", parts: [{ text: prompt }] }] };

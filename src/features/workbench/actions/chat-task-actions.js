@@ -588,6 +588,22 @@ export async function handleChatAndTaskAction(action, id, button) {
     showToast(`QA hoàn tất: ${command} · ${statusMsg}`);
     return true;
   }
+  if (action === "distill-task-skill") {
+    const task = view.state.tasks.find((item) => item.id === (id || view.selected));
+    if (!task) return true;
+    const res = await api(`/api/tasks/${encodeURIComponent(task.id)}/distill-skill`, { method: "POST", body: JSON.stringify({}) });
+    await refresh({ configuration: true });
+    showToast(`Đã đúc kết Skill mới: ${res.skill?.name || "SKILL.md"}`);
+    return true;
+  }
+  if (action === "compact-task-chat") {
+    const task = view.state.tasks.find((item) => item.id === (id || view.selected));
+    if (!task) return true;
+    const res = await api(`/api/tasks/${encodeURIComponent(task.id)}/compact`, { method: "POST", body: JSON.stringify({}) });
+    await refresh();
+    showToast(res.compacted ? `Đã nén ${res.compactedCount} lượt hội thoại cũ.` : "Hội thoại còn ngắn, chưa cần nén.");
+    return true;
+  }
   if (action === "task-git-commit") {
     const message = String($("[data-git-commit-msg]")?.value || "").trim();
     if (!message) { showToast("Nhập nội dung commit message trước khi Commit."); $("[data-git-commit-msg]")?.focus(); return true; }
