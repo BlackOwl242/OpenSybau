@@ -1,7 +1,7 @@
 import { $, view } from "../../../shared/state.js";
 import { roleConfig } from "../../../domain/agent-roles.js";
 import { positionHtmlCommentMenu } from "../html-inspector.js";
-import { api, closeOverlay, refresh, render, showToast } from "../runtime.js";
+import { api, closeOverlay, ensureSubagentProfiles, refresh, render, showToast } from "../runtime.js";
 import { clearSidebarSearch } from "../pages/chat-page.js";
 import { loadWorkspaceDir } from "../pages/tasks-workspaces-page.js";
 import { loadVaultDir } from "../pages/knowledge-skills-page.js";
@@ -106,7 +106,11 @@ export async function handleWorkbenchClick(event) {
       if (view.page === "workspaces" && view.selected) await loadWorkspaceDir(view.selected, view.workspaceDir || "");
       if (view.page === "knowledge" && view.state.settings.vaultPath) await loadVaultDir("");
       if (view.page === "skills") {
-        const result = await api("/api/skills");
+        const activeWsId = view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+        const [result] = await Promise.all([
+          api("/api/skills"),
+          ensureSubagentProfiles(activeWsId),
+        ]);
         view.skills = result.skills || [];
         view.skillsLoaded = true;
         render();
@@ -172,7 +176,13 @@ export async function handleWorkbenchClick(event) {
 
   const action = button.dataset.action;
   const id = button.dataset.id;
-  button.closest(".codex-pop-menu")?.removeAttribute("open");
+  const keepPopOpen = Boolean(
+    button.closest(".codex-subagent-menu")
+    && ["pick-subagent-mode", "toggle-subagent-readonly", "toggle-codex-multi-v2", "toggle-subagent-profile"].includes(action)
+  );
+  if (!keepPopOpen) {
+    button.closest(".codex-pop-menu")?.removeAttribute("open");
+  }
   if (!button.closest(".wb-project-group") && view.projectMenuId) { view.projectMenuId = ""; render(); }
   if (!button.closest(".wb-task-item") && view.taskMenuId) view.taskMenuId = "";
 

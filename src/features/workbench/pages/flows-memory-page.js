@@ -70,6 +70,11 @@ export function missionControlStepperMarkup(task, { compact = false } = {}) {
     ${(data.stageDocuments || []).map((doc) => `<button type="button" class="mc-doc-pill ${doc.ready ? "is-ready" : ""}" data-action="open-stage-doc" data-id="${esc(task.id)}" data-doc-id="${esc(doc.id)}">${esc(doc.title)}</button>`).join("")}
   </div>`;
 
+  const subs = Array.isArray(task.subagents) ? task.subagents : [];
+  const activeSubsCount = subs.filter((s) => ["spawning", "running", "waiting"].includes(s.status)).length;
+  const subagentStepperChip = subs.length
+    ? `<button type="button" class="chat-worktree-chip is-subagent-chip ${activeSubsCount > 0 ? "is-subagent-live" : ""}" data-action="open-dock-subagents" data-id="${esc(task.id)}" title="Mở cây thực thi Subagent">${icon("waypoints", 12)} <span>${activeSubsCount > 0 ? `${activeSubsCount} subagent đang chạy` : `${subs.length} subagent`}</span></button>`
+    : "";
   const worktreeChip = task.isolated
     ? `<span class="chat-worktree-chip ${task.worktreeAppliedAt ? "is-merged" : ""}" title="${esc(task.worktreePath || task.executionPath || "")}">${icon(task.worktreeAppliedAt ? "check" : "git-branch", 12)} ${task.worktreeAppliedAt ? "Đã gộp vào dự án" : task.worktreeCleaned ? "Worktree đã dọn" : esc(task.worktreeBranch || "Worktree cô lập")}</span>`
     : "";
@@ -97,6 +102,7 @@ export function missionControlStepperMarkup(task, { compact = false } = {}) {
         ${data.findings.blocking > 0 ? `<span class="mc-badge is-blocking">${data.findings.blocking} lỗi chặn</span>` : ""}
         ${data.findings.advisory > 0 ? `<span class="mc-badge is-advisory">${data.findings.advisory} góp ý</span>` : ""}
         ${data.costUsd > 0 ? `<span class="mc-badge is-cost">$${data.costUsd.toFixed(2)}</span>` : ""}
+        ${subagentStepperChip}
         ${worktreeChip}
         ${activityText}
       </div>
@@ -257,6 +263,7 @@ export function workflowPage() {
                 <div class="mc-card-badges">
                   <span class="mc-code-pill">${esc(task.code || "TASK")}</span>
                   <span class="mc-round-pill">Vòng ${stepper.currentRound}/${stepper.maxRounds}</span>
+                  ${(task.subagents || []).length > 0 ? `<span class="mc-badge is-subagent-badge">${icon("waypoints", 11)} ${(task.subagents || []).length} subagent</span>` : ""}
                   ${stepper.findings.blocking > 0 ? `<span class="mc-badge is-blocking">${stepper.findings.blocking} lỗi chặn</span>` : ""}
                   ${stepper.findings.advisory > 0 ? `<span class="mc-badge is-advisory">${stepper.findings.advisory} góp ý</span>` : ""}
                   ${stepper.costUsd > 0 ? `<span class="mc-badge is-cost">$${stepper.costUsd.toFixed(2)}</span>` : ""}

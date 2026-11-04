@@ -530,9 +530,28 @@ export function orchestrationNodes(task) {
   nodes.push({ id: "skills", group: "ĐỊNH TUYẾN", title: "Tìm và chọn skill", detail: task.skills?.length ? `${task.skills.length} skill được chọn: ${task.skills.map((skill) => skill.name).join(", ")}` : skillEvidence ? "Đã tìm thư viện; task tiếp tục theo lựa chọn của bộ định tuyến." : "Tìm ứng viên phù hợp trong thư viện skill.", icon: "notebook-tabs", order: 1, state: status(1, skillEvidence, false, true), output: task.skillSelectionReason });
   const memoryEvidence = (task.memoryUsed || []).length > 0 || hasEvent(/ghi chú phù hợp từ bộ nhớ|bộ nhớ cục bộ/i);
   nodes.push({ id: "memory", group: "NGỮ CẢNH", title: "Nạp ghi nhớ liên quan (BM25)", detail: (task.memoryUsed || []).length ? `${task.memoryUsed.length} ghi chú: ${task.memoryUsed.map((item) => item.title).join(", ")}` : memoryEvidence ? "Đã kiểm tra bộ nhớ cục bộ." : task.status === "queued" ? "Chờ task bắt đầu để kiểm tra ghi nhớ phù hợp." : "Đã kiểm tra; không có ghi chú phù hợp.", icon: "brain", order: 1.5, state: status(1.5, memoryEvidence || task.status !== "queued"), output: task.memoryUsed?.map((item) => item.title).join("\n") });
+  const subs = Array.isArray(task.subagents) ? task.subagents : [];
+  const buildSubagentNode = (orderValue) => {
+    const activeSubs = subs.filter((s) => ["spawning", "running", "waiting"].includes(s.status)).length;
+    const doneSubs = subs.filter((s) => s.status === "completed" || s.status === "done").length;
+    const failedSubs = subs.filter((s) => ["failed", "cancelled"].includes(s.status)).length;
+    const subState = activeSubs > 0 ? "active" : (failedSubs > 0 && doneSubs === 0 ? "failed" : "complete");
+    const roleSummary = subs.slice(0, 4).map((s) => s.role || s.agentType || "subagent").join(", ");
+    return {
+      id: "subagents",
+      group: "ĐIỀU PHỐI SUBAGENT",
+      title: `${subs.length} Subagent phối hợp (${doneSubs}/${subs.length} hoàn tất)`,
+      detail: `${activeSubs > 0 ? `${activeSubs} đang chạy · ` : ""}Vai trò: ${roleSummary}${subs.length > 4 ? ` (+${subs.length - 4})` : ""}`,
+      icon: "waypoints",
+      order: orderValue,
+      state: subState,
+      subagents: subs,
+    };
+  };
   if (isChat) {
     const provider = label(task.config.chatProvider);
     nodes.push({ id: "agent-chat", group: "HỘI THOẠI", title: `Agent trả lời · ${provider}`, detail: `${task.config.chatModel || "Model theo cấu hình task"} · ${task.config.chatEffort || "mức suy nghĩ đã chọn"}`, icon: "book-open-text", order: 3, state: status(2, task.status === "done", task.phase === "chat", true), output: task.chatMessages?.filter((message) => message.role === "assistant").at(-1)?.content });
+    if (subs.length) nodes.push(buildSubagentNode(3.2));
     nodes.push({ id: "result", group: "KẾT QUẢ", title: "Lưu kết quả hội thoại", detail: task.status === "done" ? "Phản hồi đã được lưu trong task." : "Phản hồi sẽ xuất hiện tại đây khi CLI hoàn tất.", icon: "book-check", order: 9, state: status(9, task.status === "done") });
     return nodes;
   }
@@ -542,6 +561,7 @@ export function orchestrationNodes(task) {
   const planDone = Boolean(task.plan) || task.phase === "plan-gate" || task.phase === "build" || task.phase === "review" || task.phase === "qa" || pipelineCompleted && planOnly;
   nodes.push({ id: "plan", group: `BƯỚC 1 · ${label(planRole.provider).toLocaleUpperCase()}`, title: "Phân tích dự án & lên kế hoạch", detail: `${planRole.model || "Model chưa lưu"} · ${planRole.effort || "mức suy nghĩ đã chọn"}`, icon: "list-checks", order: 3, state: status(3, planDone, task.phase === "plan", true), output: task.plan });
   if (planOnly) {
+    if (subs.length) nodes.push(buildSubagentNode(3.2));
     nodes.push({ id: "result", group: "KẾT QUẢ", title: "Lưu kế hoạch", detail: pipelineCompleted ? "Kế hoạch đã hoàn tất; chưa chạy bước viết code." : "Đầu ra kế hoạch sẽ được lưu ở đây.", icon: "book-check", order: 9, state: status(9, pipelineCompleted), output: task.plan });
     return nodes;
   }
@@ -563,6 +583,7 @@ export function orchestrationNodes(task) {
   nodes.push({ id: "handoff-build", group: "CHUYỂN TIẾP", title: `Chuyển kế hoạch sang ${label(buildRole.provider)}`, detail: `Gửi kế hoạch từ ${label(planRole.provider)} sang bước viết code (Vòng ${Number(task.currentRound || 1)}/${Number(task.maxRounds || 1)}).`, icon: "arrow-up-right", order: 4, state: status(4, handoffToBuild || planDone && (task.phase === "build" || task.phase === "review" || task.phase === "qa" || Boolean(task.implementation) || pipelineCompleted)) });
   const buildDone = Boolean(task.implementation) || task.phase === "review" || task.phase === "qa" || pipelineCompleted;
   nodes.push({ id: "build", group: `BƯỚC 3 · ${label(buildRole.provider).toLocaleUpperCase()}`, title: `Viết code & chỉnh sửa (Vòng ${Number(task.currentRound || 1)})`, detail: `${buildRole.model || "Model chưa lưu"} · ${buildRole.effort || "mức suy nghĩ đã chọn"}`, icon: "folder-code", order: 5, state: status(5, buildDone, task.phase === "build", true), output: task.implementation });
+  if (subs.length) nodes.push(buildSubagentNode(5.2));
   const toolEvents = events.filter((event) => event.kind === "tool");
   if (toolEvents.length) nodes.push({ id: "tools", group: "CÔNG CỤ ĐÃ CHẠY", title: `${toolEvents.length} lần chạy công cụ CLI`, detail: "Danh sách chỉ gồm các lệnh và thao tác được CLI ghi nhận thực tế.", icon: "settings-2", order: 5.5, state: status(5.5, buildDone || task.status === "running" && task.phase === "review"), events: toolEvents });
   const handoffToReview = hasEvent(/stage triển khai đã kết thúc/i);

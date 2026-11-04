@@ -106,6 +106,109 @@ export function composerPermissionMenuMarkup(currentPreset = "workspace-write", 
   </details>`;
 }
 
+export function composerSubagentMenuMarkup(policyInput = {}, { scope = "home", taskId = "", workspaceId = "", isolated = false } = {}) {
+  const policy = {
+    mode: ["auto", "enabled", "disabled"].includes(policyInput?.mode) ? policyInput.mode : "auto",
+    codexMultiAgentV2: Boolean(policyInput?.codexMultiAgentV2),
+    sharedCheckoutReadOnly: policyInput?.sharedCheckoutReadOnly !== false,
+    profileIds: Array.isArray(policyInput?.profileIds) ? policyInput.profileIds : [],
+  };
+  const modeOptions = [
+    {
+      id: "auto",
+      pill: "Tự động",
+      title: "Tự động theo Harness",
+      desc: "Để CLI tự quyết định khi nào cần chia nhánh subagent",
+    },
+    {
+      id: "enabled",
+      pill: "Ưu tiên bật",
+      title: "Ưu tiên điều phối Subagent",
+      desc: "Khuyến khích chia nhỏ việc song song sang các subagent chuyên biệt",
+    },
+    {
+      id: "disabled",
+      pill: "Tắt",
+      title: "Tắt Subagent",
+      desc: "Chạy đơn luồng trên agent chính (tắt multi_agent)",
+    },
+  ];
+  const currentMode = modeOptions.find((m) => m.id === policy.mode) || modeOptions[0];
+  const availableProfiles = (view.subagentProfiles || []).filter(
+    (p) => p.trusted !== false && (!p.workspaceScoped || !workspaceId || p.workspaceId === workspaceId)
+  );
+  const selectedIds = new Set(policy.profileIds);
+  const selectedCount = availableProfiles.filter((p) => selectedIds.has(p.id)).length;
+  const popId = scope === "task" ? `task-subagents-${taskId}` : "home-subagents";
+  const isActive = policy.mode !== "auto" || selectedCount > 0 || policy.codexMultiAgentV2;
+  const hasSharedWriteRisk = !isolated && !policy.sharedCheckoutReadOnly && policy.mode !== "disabled";
+
+  return `<details class="codex-pop-menu is-up codex-subagent-menu" data-pop-id="${esc(popId)}">
+    <summary class="codex-perm-pill codex-subagent-pill ${isActive ? "is-active" : ""} ${hasSharedWriteRisk ? "is-warn" : ""}" title="Cấu hình điều phối Subagent">
+      ${icon("waypoints", 14)}
+      <span>Subagents: ${esc(currentMode.pill)}${selectedCount ? ` (${selectedCount})` : ""}</span>
+      ${icon("chevron-down", 12)}
+    </summary>
+    <div class="codex-pop-card is-subagent-card" role="menu" aria-label="Điều phối Subagent">
+      <div class="codex-perm-header codex-subagent-head">
+        <span class="codex-perm-title">Điều phối Subagent</span>
+        <button type="button" class="subagent-manage-link" data-action="open-subagent-profiles">${icon("settings-2", 12)}<span>Quản lý hồ sơ</span></button>
+      </div>
+      <div class="codex-perm-list">
+        ${modeOptions.map((opt) => {
+          const selected = opt.id === currentMode.id;
+          return `<button type="button" class="codex-perm-option ${selected ? "is-selected" : ""}" data-action="pick-subagent-mode" data-scope="${esc(scope)}" data-mode="${opt.id}" ${taskId ? `data-id="${esc(taskId)}"` : ""}>
+            <span class="codex-perm-option-icon">${icon(opt.id === "disabled" ? "square" : "waypoints", 16)}</span>
+            <span class="codex-perm-option-body">
+              <strong>${esc(opt.title)}</strong>
+              <small>${esc(opt.desc)}</small>
+            </span>
+            <span class="codex-perm-option-check">${selected ? icon("check", 14) : ""}</span>
+          </button>`;
+        }).join("")}
+      </div>
+      ${policy.mode !== "disabled" ? `
+        <div class="codex-subagent-toggles">
+          <button type="button" class="codex-subagent-toggle ${policy.sharedCheckoutReadOnly ? "is-checked" : ""}" data-action="toggle-subagent-readonly" data-scope="${esc(scope)}" ${taskId ? `data-id="${esc(taskId)}"` : ""}>
+            <span class="codex-subagent-box">${policy.sharedCheckoutReadOnly ? icon("check", 11) : ""}</span>
+            <span>
+              <strong>Chỉ đọc trên thư mục chung</strong>
+              <small>${isolated ? "Đang tách Git Worktree nên subagent có thể sửa tệp an toàn" : "Ngăn nhiều subagent ghi đè cùng tệp khi chưa tách Git Worktree"}</small>
+            </span>
+          </button>
+          <button type="button" class="codex-subagent-toggle ${policy.codexMultiAgentV2 ? "is-checked" : ""}" data-action="toggle-codex-multi-v2" data-scope="${esc(scope)}" ${taskId ? `data-id="${esc(taskId)}"` : ""}>
+            <span class="codex-subagent-box">${policy.codexMultiAgentV2 ? icon("check", 11) : ""}</span>
+            <span>
+              <strong>Codex Multi-Agent V2</strong>
+              <small>Bật cờ thử nghiệm <code>--enable multi_agent_v2</code> cho Codex CLI</small>
+            </span>
+          </button>
+        </div>
+        <div class="codex-subagent-profiles-sec">
+          <div class="codex-subagent-sec-label">Hồ sơ chuyên biệt (${availableProfiles.length})</div>
+          ${availableProfiles.length ? `<div class="codex-pop-scroll codex-subagent-profile-list">
+            ${availableProfiles.map((prof) => {
+              const checked = selectedIds.has(prof.id);
+              const harnessTag = (prof.harnesses || []).map((h) => h === "antigravity" ? "AGY" : h === "claude" ? "Claude" : "Codex").join("·");
+              return `<button type="button" class="codex-subagent-profile-row ${checked ? "is-selected" : ""}" data-action="toggle-subagent-profile" data-scope="${esc(scope)}" data-profile-id="${esc(prof.id)}" ${taskId ? `data-id="${esc(taskId)}"` : ""}>
+                <span class="codex-subagent-box">${checked ? icon("check", 11) : ""}</span>
+                <span class="codex-subagent-profile-info">
+                  <strong data-localize-skip="true">${esc(prof.name)}</strong>
+                  <small>${esc(prof.description || "")}</small>
+                </span>
+                <span class="codex-subagent-tags">
+                  ${prof.readOnly ? `<em class="is-ro">Chỉ đọc</em>` : ""}
+                  ${harnessTag ? `<em data-localize-skip="true">${esc(harnessTag)}</em>` : ""}
+                </span>
+              </button>`;
+            }).join("")}
+          </div>` : `<p class="codex-subagent-empty">Chưa có hồ sơ tùy chỉnh. Bấm Quản lý hồ sơ để tạo vai trò subagent riêng.</p>`}
+        </div>
+      ` : ""}
+    </div>
+  </details>`;
+}
+
 export function contentFileImportField(target) {
   return '<label class="content-file-import">Thêm tệp nội dung<input type="file" accept="' + contentImportAccept + '" multiple data-content-file-import data-import-target="' + esc(target) + '"><small data-content-file-status>Chọn nhiều tệp văn bản cùng lúc, gồm Markdown (.md), TXT, JSON, YAML, CSV, HTML và mã nguồn. Tệp được nối vào nội dung, không lưu riêng.</small></label>';
 }

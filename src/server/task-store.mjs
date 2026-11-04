@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { workflowRoles } from "../domain/agent-roles.js";
 import { within } from "./fs-security.mjs";
 import { tokenize, tokenizeTerms } from "./memory-bm25.mjs";
+import { hydrateTaskSubagentDetails, serializeTaskSubagentDetails } from "./subagent-tracker.mjs";
 
 let sqliteModulePromise = null;
 async function getSqliteModule() {
@@ -55,7 +56,9 @@ export function createTaskStoreService({ taskDir }) {
     if (!taskDir || !Array.isArray(tasks)) return;
     for (const task of tasks) {
       if (!task?.id) continue;
-      const stamp = `${task.updatedAt || ""}:${task.status || ""}:${task.distilledSkillId || ""}:${(task.chatMessages || []).length}:${(task.events || []).length}`;
+      const subCount = Array.isArray(task.subagents) ? task.subagents.length : 0;
+      const lastSubAt = subCount ? (task.subagents.at(-1)?.updatedAt || "") : "";
+      const stamp = `${task.updatedAt || ""}:${task.status || ""}:${task.distilledSkillId || ""}:${(task.chatMessages || []).length}:${(task.events || []).length}:${subCount}:${lastSubAt}`;
       if (syncedTaskTimestamps.get(task.id) === stamp) continue;
       const dir = resolve(taskDir, task.id);
       if (!within(taskDir, dir) || dir === taskDir) continue;
@@ -74,6 +77,9 @@ export function createTaskStoreService({ taskDir }) {
           distilledSkillId: task.distilledSkillId || "",
           distilledSkillName: task.distilledSkillName || "",
           cliSessions: task.cliSessions || {},
+          subagentPolicy: task.subagentPolicy || null,
+          subagents: task.subagents || [],
+          subagentDetails: serializeTaskSubagentDetails(task),
           chatCompactedSummary: task.chatCompactedSummary || "",
           chatCompactedCount: task.chatCompactedCount || 0,
           compactionLineage: task.compactionLineage || [],
@@ -115,6 +121,10 @@ export function createTaskStoreService({ taskDir }) {
           task.chatCompactedCount = detail.chatCompactedCount || 0;
           task.compactionLineage = detail.compactionLineage || [];
         }
+        if (!task.subagentPolicy && detail.subagentPolicy) {
+          task.subagentPolicy = detail.subagentPolicy;
+        }
+        hydrateTaskSubagentDetails(task, detail);
       } catch {}
     }
   }
@@ -195,6 +205,35 @@ export function createTaskStoreService({ taskDir }) {
           body: `${skill.description || ""}\n${skill.instruction || ""}`,
           updatedAt: "",
         });
+      }
+    }
+
+    if (allowScope("subagent")) {
+      for (const task of tasks) {
+        if (workspaceId && task.workspaceId !== workspaceId) continue;
+        const detailsMap = task._subagentDetails || {};
+        for (const sub of task.subagents || []) {
+          if (!sub?.id) continue;
+          const det = detailsMap[sub.id] || {};
+          const body = [
+            sub.role || "",
+            sub.agentType || "",
+            det.prompt || sub.promptPreview || "",
+            det.result || sub.resultPreview || "",
+            sub.lastActivity || "",
+          ].filter(Boolean).join("\n");
+          if (!body) continue;
+          docs.push({
+            docId: `subagent:${task.id}:${sub.id}`,
+            type: "subagent",
+            id: sub.id,
+            taskId: task.id,
+            workspaceId: task.workspaceId || "",
+            title: `${task.title || "Task"} · Subagent: ${sub.role || sub.name || sub.id}`,
+            body,
+            updatedAt: sub.updatedAt || task.updatedAt || "",
+          });
+        }
       }
     }
     return docs;

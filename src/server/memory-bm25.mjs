@@ -296,9 +296,19 @@ export function buildTelemetrySummary(tasks, runningCount = 0) {
   let tokens7d = 0;
   let cachedTokensTotal = 0;
   let worktreeCount = 0;
+  let activeSubagentCount = 0;
+  let subagentRunsTotal = 0;
   const byProvider = {};
   for (const task of tasks || []) {
     if (task.isolated && task.worktreePath && !task.worktreeCleaned) worktreeCount++;
+    if (Array.isArray(task.subagents) && task.subagents.length) {
+      subagentRunsTotal += task.subagents.length;
+      if (task.status === "running") {
+        for (const sub of task.subagents) {
+          if (["spawning", "running", "waiting"].includes(sub?.status)) activeSubagentCount++;
+        }
+      }
+    }
     const stageMetrics = Array.isArray(task.stageMetrics) ? task.stageMetrics : [];
     if (stageMetrics.length) {
       const meteredProviders = new Set();
@@ -361,6 +371,8 @@ export function buildTelemetrySummary(tasks, runningCount = 0) {
     runningCount,
     queuedCount: (tasks || []).filter((t) => t.status === "queued").length,
     worktreeCount,
+    activeSubagentCount,
+    subagentRunsTotal,
     tokens5h,
     tokens7d,
     cachedTokensTotal,

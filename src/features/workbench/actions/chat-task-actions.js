@@ -5,6 +5,8 @@ import { setSavedThemeId } from "../../../shared/themes.js";
 import {
   api,
   closeOverlay,
+  ensureSubagentProfiles,
+  ensureTaskSubagentsDetail,
   ensureWorkspaceFileIndex,
   refresh,
   render,
@@ -641,6 +643,102 @@ export async function handleChatAndTaskAction(action, id, button) {
       view.chatEffort = result.task.config.chatEffort || source.config?.roles?.plan?.effort || "";
       await refresh(); showToast("Đã tạo nhánh chat tại lượt này. Chat gốc vẫn được giữ nguyên.");
     }
+    return true;
+  }
+  if (["pick-subagent-mode", "toggle-subagent-readonly", "toggle-codex-multi-v2", "toggle-subagent-profile"].includes(action)) {
+    const scope = button.dataset.scope || (id ? "task" : "home");
+    const targetTask = scope === "task" ? view.state?.tasks?.find((item) => item.id === (id || view.selected)) : null;
+    const base = scope === "task" ? (targetTask?.subagentPolicy || {}) : (view.homeSubagentPolicy || {});
+    const next = {
+      mode: ["auto", "enabled", "disabled"].includes(base.mode) ? base.mode : "auto",
+      codexMultiAgentV2: Boolean(base.codexMultiAgentV2),
+      sharedCheckoutReadOnly: base.sharedCheckoutReadOnly !== false,
+      profileIds: Array.isArray(base.profileIds) ? [...base.profileIds] : [],
+    };
+    if (action === "pick-subagent-mode") {
+      const nextMode = button.dataset.mode || "auto";
+      if (["auto", "enabled", "disabled"].includes(nextMode)) next.mode = nextMode;
+    } else if (action === "toggle-subagent-readonly") {
+      next.sharedCheckoutReadOnly = !next.sharedCheckoutReadOnly;
+    } else if (action === "toggle-codex-multi-v2") {
+      next.codexMultiAgentV2 = !next.codexMultiAgentV2;
+    } else if (action === "toggle-subagent-profile") {
+      const pid = String(button.dataset.profileId || "").trim();
+      if (pid) {
+        if (next.profileIds.includes(pid)) {
+          next.profileIds = next.profileIds.filter((item) => item !== pid);
+        } else {
+          next.profileIds = [...next.profileIds, pid].slice(0, 12);
+          if (next.mode === "disabled") next.mode = "auto";
+        }
+      }
+    }
+    if (scope === "task" && targetTask) {
+      targetTask.subagentPolicy = next;
+      render();
+      await api(`/api/tasks/${encodeURIComponent(targetTask.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ subagentPolicy: next }),
+      });
+    } else {
+      view.homeSubagentPolicy = next;
+      render();
+    }
+    return true;
+  }
+  if (action === "open-dock-subagents" || action === "inspect-subagent") {
+    const targetId = id || view.selected;
+    if (targetId) {
+      view.selected = targetId;
+      view.page = "chat";
+      view.chatDrawerOpen = true;
+      view.chatDrawerTab = "subagents";
+      view.selectedDockSubagentId = button.dataset.subId || "";
+      render();
+      void ensureTaskSubagentsDetail(targetId, { force: true });
+    }
+    return true;
+  }
+  if (action === "dock-subagent-filter") {
+    view.dockSubagentFilter = button.dataset.subFilter || "all";
+    render();
+    return true;
+  }
+  if (action === "refresh-task-subagents") {
+    const targetId = id || view.selected;
+    if (targetId) {
+      await ensureTaskSubagentsDetail(targetId, { force: true });
+      showToast("Đã làm mới nhật ký Subagent.");
+    }
+    return true;
+  }
+  if (action === "promote-subagent") {
+    const targetId = id || view.selected;
+    const subId = button.dataset.subId || "";
+    if (!targetId || !subId) return true;
+    const res = await api(`/api/tasks/${encodeURIComponent(targetId)}/subagents/${encodeURIComponent(subId)}/promote`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    if (res?.task?.id) {
+      view.selected = res.task.id;
+      view.page = "chat";
+      view.mobileScreen = "session";
+      view.mpSessionTab = "chat";
+      view.chatDraft = "";
+    }
+    await refresh();
+    showToast(`Đã tách Subagent thành Worktree Task độc lập: ${res?.task?.title || "Task mới"}`);
+    return true;
+  }
+  if (action === "open-subagent-profiles") {
+    view.page = "skills";
+    view.skillsSection = "subagents";
+    view.selected = null;
+    view.mobileScreen = "page";
+    render();
+    await ensureSubagentProfiles("", { force: false });
+    render();
     return true;
   }
   if (action === "task-instruction") { const task = view.state.tasks.find((item) => item.id === id); if (task) openTaskInstructionModal(task); return true; }

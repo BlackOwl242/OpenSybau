@@ -81,6 +81,8 @@ function StatusBar({ snapshot }) {
   const runningCount = Number(telemetry.runningCount || 0);
   const queuedCount = Number(telemetry.queuedCount || 0);
   const worktreeCount = Number(telemetry.worktreeCount || 0);
+  const activeSubagentCount = Number(telemetry.activeSubagentCount || 0);
+  const subagentRunsTotal = Number(telemetry.subagentRunsTotal || 0);
   const tokens5h = Number(telemetry.tokens5h || 0);
   const tokens7d = Number(telemetry.tokens7d || 0);
   const usageProviders = [
@@ -115,6 +117,10 @@ function StatusBar({ snapshot }) {
         <span class={`wb-task-dot is-${runningCount > 0 ? "running" : queuedCount > 0 ? "queued" : "done"}`} />
         <span>{runningCount > 0 ? `${runningCount} agent đang chạy` : "0 đang chạy"}{queuedCount > 0 ? ` · ${queuedCount} chờ` : ""}</span>
       </button>
+      {activeSubagentCount > 0 ? <span class="wb-status-item is-subagent-live" title="Số Subagent đang hoạt động trên các CLI">
+        <Icon name="waypoints" size={12} />
+        <span>{activeSubagentCount} subagent</span>
+      </span> : null}
       {worktreeCount > 0 ? <span class="wb-status-item" title="Số Git worktree cô lập đang mở">
         <Icon name="git-branch" size={12} />
         <span>{worktreeCount} worktree</span>
@@ -182,9 +188,9 @@ function StatusBar({ snapshot }) {
             </section>;
           })}
         </div>
-        {(tokens5h > 0 || tokens7d > 0) ? (
+        {(tokens5h > 0 || tokens7d > 0 || subagentRunsTotal > 0) ? (
           <footer class="wb-quota-popover-foot">
-            <span>OpenSybau Tokens</span>
+            <span>OpenSybau Tokens{subagentRunsTotal > 0 ? ` · ${subagentRunsTotal} subagents` : ""}</span>
             <span>5h: <b>{formatNumber(tokens5h)}</b> · 7d: <b>{formatNumber(tokens7d)}</b></span>
           </footer>
         ) : null}

@@ -1487,6 +1487,81 @@ const english = {
   "Tùy chọn mở hoặc chỉnh sửa tệp": "Open or edit file options",
   "Mở trong Explorer": "Open in Explorer",
   "Sao chép toàn bộ nội dung": "Copy full content",
+  "Cấu hình điều phối Subagent": "Configure Subagent orchestration",
+  "Điều phối Subagent": "Subagent Orchestration",
+  "Quản lý hồ sơ": "Manage profiles",
+  "Tự động": "Auto",
+  "Tự động theo Harness": "Harness Automatic",
+  "Để CLI tự quyết định khi nào cần chia nhánh subagent": "Let the CLI decide when to delegate to subagents",
+  "Ưu tiên bật": "Prefer On",
+  "Ưu tiên điều phối Subagent": "Prefer Subagent Delegation",
+  "Khuyến khích chia nhỏ việc song song sang các subagent chuyên biệt": "Encourage parallel delegation to specialized subagents",
+  "Tắt": "Off",
+  "Tắt Subagent": "Disable Subagents",
+  "Chạy đơn luồng trên agent chính (tắt multi_agent)": "Run single-threaded on the main agent (disables multi_agent)",
+  "Chỉ đọc trên thư mục chung": "Read-only on shared checkout",
+  "Đang tách Git Worktree nên subagent có thể sửa tệp an toàn": "Isolated in a Git Worktree so subagents can safely edit files",
+  "Ngăn nhiều subagent ghi đè cùng tệp khi chưa tách Git Worktree": "Prevent multiple subagents from overwriting files on shared checkout",
+  "Chưa có hồ sơ tùy chỉnh. Bấm Quản lý hồ sơ để tạo vai trò subagent riêng.": "No custom profiles yet. Click Manage profiles to create a custom subagent role.",
+  "Tạo hồ sơ Subagent": "Create Subagent Profile",
+  "Lưu hồ sơ": "Save profile",
+  "Định danh hồ sơ (slug)": "Profile identifier (slug)",
+  "Ví dụ: security-auditor": "E.g. security-auditor",
+  "Model ưu tiên": "Preferred model",
+  "Kế thừa model của Agent cha (inherit)": "Inherit parent Agent model (inherit)",
+  "Claude Sonnet (nhanh & cân bằng)": "Claude Sonnet (fast & balanced)",
+  "Claude Opus (suy luận sâu)": "Claude Opus (deep reasoning)",
+  "Claude Haiku (tốc độ cao)": "Claude Haiku (high speed)",
+  "Mô tả nhiệm vụ khi uỷ quyền": "Delegation description",
+  "Khi nào Agent chính nên gọi subagent này?": "When should the main Agent invoke this subagent?",
+  "Phạm vi lưu trữ": "Storage scope",
+  "OpenSybau · Dùng chung mọi Harness (.runtime/subagents)": "OpenSybau · Shared across all Harnesses (.runtime/subagents)",
+  "Claude Code cá nhân (~/.claude/agents)": "Claude Code personal (~/.claude/agents)",
+  "Antigravity CLI cá nhân (~/.gemini/config/agents)": "Antigravity CLI personal (~/.gemini/config/agents)",
+  "Danh sách công cụ cho phép (tùy chọn)": "Allowed tools (optional)",
+  "VD: Read, Grep, Glob, Bash": "E.g. Read, Grep, Glob, Bash",
+  "Chế độ Subagent chỉ đọc (Read-only)": "Read-only Subagent mode",
+  "Khuyến nghị bật để nhiều subagent rà soát mã nguồn song song mà không gây xung đột ghi tệp.": "Recommended so multiple subagents can inspect code in parallel without write conflicts.",
+  "Chỉ dẫn hệ thống (System Prompt)": "System instructions (System Prompt)",
+  "Vai trò chuyên môn, tiêu chí kiểm tra và định dạng báo cáo trả về cho Agent cha…": "Domain role, review criteria, and report format returned to the parent Agent…",
+  "Subagents & Cây thực thi": "Subagents & Execution Tree",
+  "Subagents hoạt động": "Active Subagents",
+  "Cây thực thi": "Execution tree",
+  "Mở cây thực thi Subagent": "Open Subagent execution tree",
+  "Chi tiết & Nhật ký": "Details & Logs",
+  "Tách Worktree Task": "Split Worktree Task",
+  "Tách thành Worktree Task": "Promote to Worktree Task",
+  "Tách nhánh công việc của subagent này thành một Git Worktree Task độc lập": "Promote this subagent run into an independent Git Worktree Task",
+  "Đang khởi tạo": "Spawning",
+  "Khởi tạo": "Starting",
+  "Chưa có Subagent nào hoạt động": "No Subagents active yet",
+  "Hồ sơ Subagent": "Subagent Profiles",
+  "Không gian Hồ sơ Subagent": "Subagent Profiles Workspace",
+  "Chế độ xem Kỹ năng và Hồ sơ Subagent": "Skills and Subagent Profiles view mode",
+  "Quản lý cục bộ · Có thể sửa": "Local managed · Editable",
+  "Cấu hình CLI · Chỉ đọc": "CLI config · Read-only",
+  "Có thể sửa": "Can edit",
+  "Chỉ đọc mã nguồn": "Read-only source",
+  "Chưa tin cậy": "Untrusted",
+  "Hồ sơ cục bộ của dự án đang ở chế độ chưa tin cậy": "Workspace local profiles are currently untrusted",
+  "Tin cậy hồ sơ dự án": "Trust project profiles",
+  "Thu hồi tin cậy dự án": "Revoke project trust",
+  "Sao chép thành Markdown": "Copy as Markdown",
+  "Chưa có hồ sơ Subagent tùy chỉnh": "No custom Subagent profiles yet",
+  "Quét lại danh mục": "Rescan catalog",
+  "Quét lại danh mục hồ sơ Subagent": "Rescan Subagent profile catalog",
+  "Cá nhân · Quản lý": "Personal · Managed",
+  "Dự án hiện tại": "Current project",
+  "Không có hồ sơ Subagent phù hợp.": "No matching Subagent profiles.",
+  "Không có subagent khớp bộ lọc hiện tại.": "No subagents match the current filter.",
+  "Nhiệm vụ được giao": "Assigned prompt",
+  "Kết quả trả về": "Returned result",
+  "Tải lại": "Reload",
+  "ĐIỀU PHỐI SUBAGENT": "SUBAGENT ORCHESTRATION",
+  "Số Subagent đang hoạt động trên các CLI": "Active Subagents across CLIs",
+  "Nội dung Markdown hồ sơ Subagent…": "Subagent profile Markdown content…",
+  "Đang tải cấu hình vai trò Codex…": "Loading Codex role configuration…",
+  "Đang tải nội dung hồ sơ Subagent…": "Loading Subagent profile content…",
 };
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));
@@ -1545,6 +1620,21 @@ function dynamicTranslation(value, language) {
     match = value.match(/^(\d+) dòng$/); if (match) return `${match[1]} lines`;
     match = value.match(/^Đồ thị \((\d+)\)$/); if (match) return `Graph (${match[1]})`;
     match = value.match(/^Kỹ năng \((\d+)\)$/); if (match) return `Skills (${match[1]})`;
+    match = value.match(/^Hồ sơ Subagent \((\d+)\)$/); if (match) return `Subagent Profiles (${match[1]})`;
+    match = value.match(/^Hồ sơ \((\d+)\)$/); if (match) return `Profiles (${match[1]})`;
+    match = value.match(/^(\d+) hồ sơ đã quét$/); if (match) return `${match[1]} profiles scanned`;
+    match = value.match(/^Hồ sơ chuyên biệt \((\d+)\)$/); if (match) return `Specialized profiles (${match[1]})`;
+    match = value.match(/^CÂY THỰC THI SUBAGENT \((\d+)\)$/); if (match) return `SUBAGENT EXECUTION TREE (${match[1]})`;
+    match = value.match(/^Nhật ký công cụ \((\d+)\)$/); if (match) return `Tool log (${match[1]})`;
+    match = value.match(/^Tệp chạm tới \((\d+)\)$/); if (match) return `Files touched (${match[1]})`;
+    match = value.match(/^(\d+) công cụ$/); if (match) return `${match[1]} tools`;
+    match = value.match(/^(\d+) subagent đang chạy$/i); if (match) return `${match[1]} subagents running`;
+    match = value.match(/^(\d+) đang chạy · (\d+)\/(\d+) hoàn tất$/); if (match) return `${match[1]} running · ${match[2]}/${match[3]} done`;
+    match = value.match(/^(\d+)\/(\d+) hoàn tất$/); if (match) return `${match[1]}/${match[2]} done`;
+    match = value.match(/^(\d+) đang chạy$/); if (match) return `${match[1]} running`;
+    match = value.match(/^(\d+) Subagent phối hợp \((\d+)\/(\d+) hoàn tất\)$/); if (match) return `${match[1]} Subagents coordinated (${match[2]}/${match[3]} done)`;
+    match = value.match(/^Xem (\d+) phiên Subagent đã ghi nhận$/); if (match) return `View ${match[1]} recorded Subagent runs`;
+    match = value.match(/^Subagents: ([^\(\)]+?)(?: \((\d+)\))?$/); if (match) return `Subagents: ${translateText(match[1].trim(), "en")}${match[2] ? ` (${match[2]})` : ""}`;
     match = value.match(/^(\d+) ghi chú trong Vault$/); if (match) return `${match[1]} notes in Vault`;
     match = value.match(/^(\d+) skill cục bộ$/); if (match) return `${match[1]} local skills`;
     match = value.match(/^Đợt (\d+)$/); if (match) return `Wave ${match[1]}`;
@@ -1632,6 +1722,20 @@ function dynamicTranslation(value, language) {
     match = value.match(/^(\d+) lines$/); if (match) return `${match[1]} dòng`;
     match = value.match(/^Graph \((\d+)\)$/); if (match) return `Đồ thị (${match[1]})`;
     match = value.match(/^Skills \((\d+)\)$/); if (match) return `Kỹ năng (${match[1]})`;
+    match = value.match(/^Subagent Profiles \((\d+)\)$/); if (match) return `Hồ sơ Subagent (${match[1]})`;
+    match = value.match(/^Profiles \((\d+)\)$/); if (match) return `Hồ sơ (${match[1]})`;
+    match = value.match(/^(\d+) profiles scanned$/); if (match) return `${match[1]} hồ sơ đã quét`;
+    match = value.match(/^Specialized profiles \((\d+)\)$/); if (match) return `Hồ sơ chuyên biệt (${match[1]})`;
+    match = value.match(/^SUBAGENT EXECUTION TREE \((\d+)\)$/); if (match) return `CÂY THỰC THI SUBAGENT (${match[1]})`;
+    match = value.match(/^Tool log \((\d+)\)$/); if (match) return `Nhật ký công cụ (${match[1]})`;
+    match = value.match(/^Files touched \((\d+)\)$/); if (match) return `Tệp chạm tới (${match[1]})`;
+    match = value.match(/^(\d+) tools$/); if (match) return `${match[1]} công cụ`;
+    match = value.match(/^(\d+) subagents running$/i); if (match) return `${match[1]} subagent đang chạy`;
+    match = value.match(/^(\d+) running · (\d+)\/(\d+) done$/); if (match) return `${match[1]} đang chạy · ${match[2]}/${match[3]} hoàn tất`;
+    match = value.match(/^(\d+)\/(\d+) done$/); if (match) return `${match[1]}/${match[2]} hoàn tất`;
+    match = value.match(/^(\d+) Subagents coordinated \((\d+)\/(\d+) done\)$/); if (match) return `${match[1]} Subagent phối hợp (${match[2]}/${match[3]} hoàn tất)`;
+    match = value.match(/^View (\d+) recorded Subagent runs$/); if (match) return `Xem ${match[1]} phiên Subagent đã ghi nhận`;
+    match = value.match(/^Subagents: ([^\(\)]+?)(?: \((\d+)\))?$/); if (match) return `Subagents: ${translateText(match[1].trim(), "vi")}${match[2] ? ` (${match[2]})` : ""}`;
     match = value.match(/^Wave (\d+)$/); if (match) return `Đợt ${match[1]}`;
     match = value.match(/^Round (\d+)\/(\d+)$/); if (match) return `Vòng ${match[1]}/${match[2]}`;
     match = value.match(/^(\d+) blocking$/); if (match) return `${match[1]} lỗi chặn`;

@@ -38,6 +38,44 @@ export function showSkillCreateModal() {
   showModal("Tạo skill", body, "Tạo skill", "skill-create");
 }
 
+export function showSubagentProfileCreateModal() {
+  const activeWsId = (view.page === "workspaces" && view.selected)
+    ? view.selected
+    : view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+  const activeWs = (view.state?.workspaces || []).find((w) => w.id === activeWsId);
+  const scopeOptions = [
+    { value: "global", label: "OpenSybau · Dùng chung mọi Harness (.runtime/subagents)" },
+    { value: "claude-personal", label: "Claude Code cá nhân (~/.claude/agents)" },
+    { value: "agy-personal", label: "Antigravity CLI cá nhân (~/.gemini/config/agents)" },
+    ...(activeWs
+      ? [
+          { value: "workspace", label: `Dự án ${activeWs.name} · .agents/agents` },
+          { value: "workspace-claude", label: `Dự án ${activeWs.name} · .claude/agents` },
+        ]
+      : []),
+  ];
+  const modelOptions = [
+    { value: "inherit", label: "Kế thừa model của Agent cha (inherit)" },
+    { value: "sonnet", label: "Claude Sonnet (nhanh & cân bằng)" },
+    { value: "opus", label: "Claude Opus (suy luận sâu)" },
+    { value: "haiku", label: "Claude Haiku (tốc độ cao)" },
+  ];
+  const body = `<input type="hidden" name="workspaceId" value="${esc(activeWsId)}">
+    <div class="modal-grid-2">
+      <label>Định danh hồ sơ (slug)<input name="name" maxlength="80" required autocomplete="off" spellcheck="false" placeholder="Ví dụ: security-auditor"></label>
+      ${homeSelectField("Model ưu tiên", "model", "", modelOptions, "inherit")}
+    </div>
+    <label>Mô tả nhiệm vụ khi uỷ quyền<input name="description" maxlength="300" required placeholder="Khi nào Agent chính nên gọi subagent này?"></label>
+    <div class="modal-grid-2">
+      ${homeSelectField("Phạm vi lưu trữ", "scopeId", "", scopeOptions, "global")}
+      <label>Danh sách công cụ cho phép (tùy chọn)<input name="tools" maxlength="300" autocomplete="off" spellcheck="false" placeholder="VD: Read, Grep, Glob, Bash"></label>
+    </div>
+    <label class="check-row"><input type="checkbox" name="readOnly" checked><span><strong>Chế độ Subagent chỉ đọc (Read-only)</strong><small>Khuyến nghị bật để nhiều subagent rà soát mã nguồn song song mà không gây xung đột ghi tệp.</small></span></label>
+    <label>Chỉ dẫn hệ thống (System Prompt)<textarea name="prompt" maxlength="80000" rows="7" required spellcheck="false" placeholder="Vai trò chuyên môn, tiêu chí kiểm tra và định dạng báo cáo trả về cho Agent cha…"></textarea></label>
+    <p class="form-note">Hồ sơ được lưu dưới dạng Markdown chuẩn có YAML frontmatter. Claude Code nhận trực tiếp qua cờ <code>--agents</code>, còn Codex và Antigravity nhận hướng dẫn điều phối tương ứng.</p>`;
+  showModal("Tạo hồ sơ Subagent", body, "Lưu hồ sơ", "subagent-profile-create");
+}
+
 export function defaultSkillScope(providers = []) {
   if (providers.includes("*")) return "universal";
   const cliProviders = ["codex", "antigravity", "claude"].filter((provider) => providers.includes(provider));

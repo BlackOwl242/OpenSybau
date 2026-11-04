@@ -142,8 +142,14 @@ async function refreshSnapshot(includeConfiguration, background) {
     : Promise.resolve(null);
   const [{ state, changed }, configuration] = await Promise.all([statePromise, configurationPromise]);
   lastSnapshotRefresh = Date.now();
-  if (!changed && !configuration && background && view.skillsLoaded) return;
-  const skills = view.skillsLoaded ? { skills: view.skills } : await api("/api/skills").catch(() => ({ skills: [] }));
+  const activeWsId = view.homeWorkspaceId || state?.workspaces?.[0]?.id || "";
+  if (!changed && !configuration && background && view.skillsLoaded && view.subagentProfilesLoaded) return;
+  const [skills, subagentRes] = await Promise.all([
+    view.skillsLoaded ? Promise.resolve({ skills: view.skills }) : api(`/api/skills${activeWsId ? `?workspaceId=${encodeURIComponent(activeWsId)}` : ""}`).catch(() => ({ skills: [] })),
+    view.subagentProfilesLoaded && view.subagentProfilesWorkspaceId === activeWsId
+      ? Promise.resolve({ profiles: view.subagentProfiles })
+      : api(`/api/subagent-profiles${activeWsId ? `?workspaceId=${encodeURIComponent(activeWsId)}` : ""}`).catch(() => ({ profiles: [] })),
+  ]);
   view.state = state;
   trackTaskStatusNotifications(state.tasks, { showToast });
   if (configuration) {
@@ -154,6 +160,16 @@ async function refreshSnapshot(includeConfiguration, background) {
   }
   view.skills = skills.skills || [];
   view.skillsLoaded = true;
+  view.subagentProfiles = subagentRes.profiles || [];
+  view.subagentProfilesLoaded = true;
+  view.subagentProfilesWorkspaceId = activeWsId;
+  if (view.selected && view.chatDrawerTab === "subagents") {
+    const activeTask = (state.tasks || []).find((t) => t.id === view.selected);
+    const cached = view.taskSubagentDetailCache?.[view.selected];
+    if (activeTask && (activeTask.subagents || []).length > 0 && (!cached || cached.updatedAt !== activeTask.updatedAt)) {
+      void ensureTaskSubagentsDetail(activeTask.id, { force: true });
+    }
+  }
   view.settingsSupported = Object.hasOwn(state.settings, "defaults");
   normalizeRouteSelection();
   render({ background });
@@ -218,6 +234,68 @@ export function scheduleRefresh(delay = 160) {
     refreshTimer = null;
     void refresh({ background: true });
   }, delay);
+}
+
+const subagentProfilesInFlight = new Map();
+const taskSubagentDetailInFlight = new Map();
+
+export async function ensureSubagentProfiles(workspaceId = "", { force = false } = {}) {
+  const wsId = workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+  if (!force && view.subagentProfilesLoaded && view.subagentProfilesWorkspaceId === wsId) {
+    return view.subagentProfiles || [];
+  }
+  const key = `${wsId}::${force ? "1" : "0"}`;
+  if (subagentProfilesInFlight.has(key)) return subagentProfilesInFlight.get(key);
+  const promise = (async () => {
+    try {
+      const qs = new URLSearchParams();
+      if (wsId) qs.set("workspaceId", wsId);
+      if (force) qs.set("refresh", "1");
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      const res = await api(`/api/subagent-profiles${suffix}`);
+      view.subagentProfiles = Array.isArray(res.profiles) ? res.profiles : [];
+      view.subagentProfilesLoaded = true;
+      view.subagentProfilesWorkspaceId = wsId;
+      return view.subagentProfiles;
+    } catch {
+      return view.subagentProfiles || [];
+    } finally {
+      subagentProfilesInFlight.delete(key);
+    }
+  })();
+  subagentProfilesInFlight.set(key, promise);
+  return promise;
+}
+
+export async function ensureTaskSubagentsDetail(taskId, { force = false } = {}) {
+  if (!taskId) return null;
+  view.taskSubagentDetailCache ||= {};
+  const task = (view.state?.tasks || []).find((t) => t.id === taskId);
+  const existing = view.taskSubagentDetailCache[taskId];
+  if (!force && existing && (!task || existing.updatedAt === task.updatedAt)) {
+    return existing;
+  }
+  if (taskSubagentDetailInFlight.has(taskId)) return taskSubagentDetailInFlight.get(taskId);
+  const promise = (async () => {
+    try {
+      const res = await api(`/api/tasks/${encodeURIComponent(taskId)}/subagents`);
+      const entry = {
+        subagents: Array.isArray(res.subagents) ? res.subagents : [],
+        subagentPolicy: res.subagentPolicy || null,
+        updatedAt: task?.updatedAt || new Date().toISOString(),
+        fetchedAt: Date.now(),
+      };
+      view.taskSubagentDetailCache[taskId] = entry;
+      render({ background: true });
+      return entry;
+    } catch {
+      return existing || null;
+    } finally {
+      taskSubagentDetailInFlight.delete(taskId);
+    }
+  })();
+  taskSubagentDetailInFlight.set(taskId, promise);
+  return promise;
 }
 
 export async function ensureWorkspaceFileIndex(workspaceId) {
@@ -380,7 +458,14 @@ export function connectEventStream() {
   }
   try {
     events = new EventSource(resolveRemoteUrl("/__events"));
-    events.addEventListener("update", () => scheduleRefresh(220));
+    events.addEventListener("update", (ev) => {
+      try {
+        const payload = JSON.parse(ev.data || "{}");
+        if (payload.type === "subagents") view.subagentProfilesLoaded = false;
+        if (payload.type === "skills") view.skillsLoaded = false;
+      } catch {}
+      scheduleRefresh(220);
+    });
     events.addEventListener("open", () => {
       const changed = !view.streamConnected;
       view.streamConnected = true;

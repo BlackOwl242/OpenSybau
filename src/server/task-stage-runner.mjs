@@ -7,6 +7,17 @@ import { completeWithApi } from "./provider-registry.mjs";
 import { workflowRoles } from "../domain/agent-roles.js";
 import { estimateTaskCostUsd } from "../domain/task-flow.js";
 import { applyApiBuildResult, executeApiWorkspaceTool, parseApiToolCall } from "./api-build-ops.mjs";
+import { usesSharedCheckout } from "./fs-security.mjs";
+import {
+  createAgyStreamContext,
+  createClaudeStreamContext,
+  createCodexStreamContext,
+  createStageSubagentTracker,
+  enrichCodexSubagentsFromRollouts,
+  parseAgyStreamLine,
+  parseClaudeStreamLine,
+  parseCodexStreamLine,
+} from "./subagent-tracker.mjs";
 import { addTaskUsage, publicProviderName, roleLabel, stageSelection } from "./task-prompts.mjs";
 
 export function finishStageRerun(task, status, error = "") {
@@ -149,6 +160,7 @@ export function createTaskStageRunner({
   getApiProviderRuntime,
   additionalWritableProjectDirs,
   externalWorkspaceContext,
+  subagentCatalogService = null,
 }) {
   function assertTaskActive(task) {
     const runInfo = running.get(task.id);
@@ -224,108 +236,6 @@ export function createTaskStageRunner({
     return qaResult;
   }
 
-  function parseCodexEvent(line, task, outputParts) {
-    let event;
-    try { event = JSON.parse(line); } catch { return; }
-    const sid = event.thread_id || event.session_id || event.conversation_id;
-    if (sid && typeof sid === "string") {
-      task.cliSessions ||= {};
-      task.cliSessions.codex = sid;
-    }
-    const item = event.item || {};
-    if (event.type === "item.started" && ["command_execution", "mcp_tool_call", "collab_tool_call", "tool_call", "file_change"].includes(item.type)) {
-      const tool = item.name || item.tool || item.server_label || (item.type === "command_execution" ? "terminal" : item.type === "file_change" ? "edit" : item.type === "collab_tool_call" ? "subagent" : item.type);
-      const cmd = item.command ? (Array.isArray(item.command) ? item.command.join(" ") : String(item.command)).slice(0, 240) : "";
-      const filePath = item.changes?.[0]?.path || item.path || "";
-      record(task, `Codex gọi công cụ · ${String(tool).slice(0, 120)}${cmd ? ` · ${cmd.slice(0, 80)}` : filePath ? ` · ${filePath}` : ""}`, "tool", { toolName: String(tool).slice(0, 120), command: cmd || undefined, filePath: filePath || undefined, status: "running" });
-    }
-    if (event.type === "item.completed" && ["command_execution", "mcp_tool_call", "collab_tool_call", "tool_call", "file_change"].includes(item.type)) {
-      const tool = item.name || item.tool || item.server_label || (item.type === "command_execution" ? "terminal" : item.type === "file_change" ? "edit" : item.type === "collab_tool_call" ? "subagent" : item.type);
-      const cmd = item.command ? (Array.isArray(item.command) ? item.command.join(" ") : String(item.command)).slice(0, 240) : "";
-      const filePath = item.changes?.[0]?.path || item.path || "";
-      const exitCode = item.exit_code ?? null;
-      const detail = String(item.aggregated_output || item.output || "").trim().slice(0, 600);
-      record(task, `Codex hoàn tất công cụ · ${String(tool).slice(0, 120)}${cmd ? ` · ${cmd.slice(0, 80)}` : filePath ? ` · ${filePath}` : ""}`, "tool", { toolName: String(tool).slice(0, 120), command: cmd || undefined, filePath: filePath || undefined, exitCode, detail: detail || undefined, status: "done" });
-    }
-    if (event.type === "item.completed" && event.item?.type === "agent_message" && event.item.text) { outputParts.push(event.item.text); record(task, event.item.text.slice(-1500), "output"); }
-    if (event.type === "turn.completed" && event.usage) { addTaskUsage(task, "codex", event.usage); task._currentStageUsage = event.usage; }
-    if (event.type === "error" || event.type === "turn.failed") {
-      const errMsg = event.message || event.error?.message || "Codex reported an error";
-      task.stageFailure = String(errMsg);
-      record(task, errMsg, "error");
-    }
-  }
-
-  function parseAgyEvent(line, task, outputParts) {
-    let event;
-    try { event = JSON.parse(line); } catch { return record(task, line, "output"); }
-    const sid = event.session_id || event.conversation_id || event.thread_id;
-    if (sid && typeof sid === "string") {
-      task.cliSessions ||= {};
-      task.cliSessions.antigravity = sid;
-    }
-    const type = String(event.type || event.event || "").toLowerCase();
-    const update = event.step_update || {};
-    const message = event.message;
-    const deltaText = event.delta?.text || update.text_delta || "";
-    const messageText = typeof message === "string" ? message : message?.text || message?.content?.map?.((part) => part.text || "").join("") || "";
-    const fullText = event.text || (typeof event.content === "string" ? event.content : "") || event.response || messageText || "";
-    if (deltaText && typeof deltaText === "string") {
-      outputParts.push(deltaText);
-      record(task, deltaText.slice(-1500), "output");
-    } else if (fullText && typeof fullText === "string") {
-      const accumulated = outputParts.join("");
-      if (outputParts.length > 0 && (fullText === accumulated || fullText.includes(accumulated))) {
-        outputParts.length = 0;
-        outputParts.push(fullText);
-        const last = task.events?.at(-1);
-        if (last?.kind === "output") {
-          last.at = new Date().toISOString();
-          last.text = fullText.slice(-1500);
-          task.updatedAt = last.at;
-          schedulePersist();
-          schedulePublish("task");
-        } else {
-          record(task, fullText.slice(-1500), "output");
-        }
-      } else if (!accumulated.endsWith(fullText)) {
-        outputParts.push(fullText);
-        record(task, fullText.slice(-1500), "output");
-      }
-    }
-    const usageObj = (type === "result" && event.result?.usage) || event.usage || update.usage || null;
-    if (usageObj) { addTaskUsage(task, "antigravity", usageObj); task._currentStageUsage = usageObj; }
-    const toolError = update.tool_info?.error ? String(update.tool_info.error.message || update.tool_info.error) : "";
-    if (type === "result" && event.result) {
-      if (event.result.response && typeof event.result.response === "string") {
-        const respText = event.result.response;
-        const accumulated = outputParts.join("");
-        if (!outputParts.length) {
-          outputParts.push(respText);
-          record(task, respText.slice(-1500), "output");
-        } else if (respText === accumulated || respText.includes(accumulated)) {
-          outputParts.length = 0;
-          outputParts.push(respText);
-        }
-      }
-      if (event.result.status && event.result.status !== "SUCCESS") task.stageFailure = event.result.error || `Antigravity status: ${event.result.status}`;
-      else task.stageFailure = null;
-    }
-    const toolName = event.name || event.tool_name || event.tool?.name || update.tool_info?.name;
-    const toolArgs = update.tool_info?.args || event.tool?.args || event.args || {};
-    const filePath = String(toolArgs?.path || toolArgs?.file || toolArgs?.TargetFile || toolArgs?.AbsolutePath || "").slice(0, 200);
-    const cmd = String(toolArgs?.command || toolArgs?.CommandLine || "").slice(0, 240);
-    if (["tool_start", "tool_call", "tool.started", "tool_result", "tool.completed", "tool_use", "tool_result"].includes(type) || update.tool_info) {
-      record(task, `Antigravity · ${type || "tool"}${toolName ? ` · ${String(toolName).slice(0, 120)}` : ""}${filePath ? ` · ${filePath}` : cmd ? ` · ${cmd.slice(0, 80)}` : ""}${toolError ? ` · ${toolError.slice(0, 120)}` : ""}`, "tool", {
-        toolName: toolName ? String(toolName).slice(0, 120) : "tool",
-        filePath: filePath || undefined,
-        command: cmd || undefined,
-        detail: toolError ? toolError.slice(0, 600) : undefined,
-        status: toolError ? "done" : (type.includes("result") || type.includes("completed") ? "done" : "running"),
-      });
-    }
-  }
-
   async function spawnStage(task, provider, stage, cwd, prompt, selectionOverride = null) {
     const stageStartedAt = Date.now();
     task._currentStageUsage = null;
@@ -398,6 +308,19 @@ export function createTaskStageRunner({
     const outputPath = resolve(task.storagePath, `${stage}.md`);
     await fs.rm(outputPath, { force: true }).catch(() => {});
 
+    const subagentExec = subagentCatalogService
+      ? await subagentCatalogService.resolveStageSubagentExecution({
+          task,
+          provider,
+          workspaceId: task.workspaceId,
+          usesSharedWorkspaceCheckout: usesSharedCheckout(task),
+        }).catch(() => null)
+      : null;
+    if (subagentExec?.selectedProfiles?.length) {
+      task.subagentProfilesUsed = subagentExec.selectedProfiles;
+    }
+    const effectivePrompt = subagentExec?.promptAppendix ? `${prompt}${subagentExec.promptAppendix}` : prompt;
+
     const { codexExe, agyExe, claudeCommand, claudeExe } = getCliExecutables();
     let exe;
     let args;
@@ -409,7 +332,9 @@ export function createTaskStageRunner({
         : ["--sandbox", task.permissionPreset === "read-only" || !(stage === "build" || stage.startsWith("chat-") || stage === "chat-initial") ? "read-only" : "workspace-write"];
       args = [
         ...(task.permissionPreset !== "full-access" && process.platform === "win32" ? ["--config", 'windows.sandbox="unelevated"'] : []),
-        "--disable", "unified_exec", "--ask-for-approval", "never", "exec", "--json", "--ephemeral", "--skip-git-repo-check", ...sandboxArgs, "-C", cwd, "--model", selection.model, "--config", `model_reasoning_effort=${JSON.stringify(selection.effort)}`, "--output-last-message", outputPath, ...projectDirs.flatMap((directory) => ["--add-dir", directory]), "-",
+        "--disable", "unified_exec",
+        ...(subagentExec?.codexArgs || []),
+        "--ask-for-approval", "never", "exec", "--json", "--ephemeral", "--skip-git-repo-check", ...sandboxArgs, "-C", cwd, "--model", selection.model, "--config", `model_reasoning_effort=${JSON.stringify(selection.effort)}`, "--output-last-message", outputPath, ...projectDirs.flatMap((directory) => ["--add-dir", directory]), "-",
       ];
     } else if (provider === "antigravity") {
       exe = agyExe;
@@ -419,10 +344,46 @@ export function createTaskStageRunner({
     } else if (provider === "claude") {
       exe = claudeExe;
       const additionalDirs = additionalWritableProjectDirs(task, cwd);
-      args = [...claudeCommand.prefixArgs, "-p", "--model", selection.model, "--output-format", "json", "--permission-mode", task.permissionPreset === "full-access" ? "bypassPermissions" : task.permissionPreset === "read-only" || stage === "plan" || stage === "review" ? "plan" : "acceptEdits", "--max-turns", "20", ...additionalDirs.flatMap((directory) => ["--add-dir", directory])];
+      const claudeEffortArgs = selection.effort && ["low", "medium", "high"].includes(selection.effort) ? ["--effort", selection.effort] : [];
+      args = [
+        ...claudeCommand.prefixArgs,
+        "-p",
+        "--model", selection.model,
+        "--output-format", "stream-json",
+        "--verbose",
+        ...claudeEffortArgs,
+        "--permission-mode", task.permissionPreset === "full-access" ? "bypassPermissions" : task.permissionPreset === "read-only" || stage === "plan" || stage === "review" ? "plan" : "acceptEdits",
+        "--max-turns", "20",
+        ...(subagentExec?.claudeArgs || []),
+        ...additionalDirs.flatMap((directory) => ["--add-dir", directory]),
+      ];
     } else {
       throw new Error(`Provider ${provider} không có bộ chạy cục bộ.`);
     }
+
+    const tracker = createStageSubagentTracker({
+      task,
+      harness: provider,
+      stage,
+      round: task.currentRound || 1,
+      record,
+      addTaskUsage,
+      schedulePersist,
+      schedulePublish,
+    });
+    const outputParts = [];
+    const streamCtx = provider === "codex"
+      ? createCodexStreamContext(task, outputParts, tracker)
+      : provider === "claude"
+        ? createClaudeStreamContext(task, outputParts, tracker)
+        : createAgyStreamContext(task, outputParts, tracker);
+
+    const dispatchStreamLine = (line) => {
+      if (provider === "codex") parseCodexStreamLine(line, streamCtx);
+      else if (provider === "claude") parseClaudeStreamLine(line, streamCtx);
+      else parseAgyStreamLine(line, streamCtx);
+    };
+
     return new Promise((resolvePromise, rejectPromise) => {
       const childEnv = { ...process.env, NO_COLOR: "1", ...(exe === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {}) };
       if (exe !== process.execPath) delete childEnv.ELECTRON_RUN_AS_NODE;
@@ -437,6 +398,7 @@ export function createTaskStageRunner({
         idleTimer = setTimeout(() => {
           idleTimedOut = true;
           if (runInfo) runInfo.stopped = false;
+          tracker.finalizeStageSubagents("failed", "Tiến trình CLI quá thời gian chờ (timeout)");
           killTree(child);
           child.stdout?.destroy();
           child.stderr?.destroy();
@@ -446,17 +408,15 @@ export function createTaskStageRunner({
       };
       resetIdleTimer();
       let pending = "";
-      let stdoutRaw = "";
-      const outputParts = [];
+      let stdoutFallback = "";
       let stderrTail = "";
       child.stdout.on("error", () => {});
       child.stderr.on("error", () => {});
       const onStdout = (chunk) => {
         resetIdleTimer();
         const text = chunk.toString();
-        if (provider === "claude") {
-          if (stdoutRaw.length < 10_000_000) stdoutRaw += text;
-          return;
+        if (provider === "claude" && stdoutFallback.length < 256_000) {
+          stdoutFallback += text;
         }
         pending += text;
         let index;
@@ -464,7 +424,7 @@ export function createTaskStageRunner({
           const line = pending.slice(0, index).trim();
           pending = pending.slice(index + 1);
           if (!line) continue;
-          if (provider === "codex") parseCodexEvent(line, task, outputParts); else parseAgyEvent(line, task, outputParts);
+          dispatchStreamLine(line);
         }
       };
       child.stdout.on("data", onStdout);
@@ -474,39 +434,59 @@ export function createTaskStageRunner({
       });
       child.on("error", (error) => {
         if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+        tracker.finalizeStageSubagents("failed", error?.message || "Lỗi tiến trình CLI");
         if (!idleTimedOut) rejectPromise(error);
       });
       child.on("close", async (code) => {
         if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
         if (idleTimedOut) return;
-        if (pending.trim()) { if (provider === "codex") parseCodexEvent(pending.trim(), task, outputParts); else parseAgyEvent(pending.trim(), task, outputParts); }
-        if (running.get(task.id)?.stopped) return rejectPromise(new Error("Stopped by user"));
-        let output = "";
-        if (provider === "claude" && stdoutRaw.trim()) {
-          try {
-            const data = JSON.parse(stdoutRaw.trim());
-            if (data?.session_id && typeof data.session_id === "string") {
-              task.cliSessions ||= {};
-              task.cliSessions.claude = data.session_id;
-            }
-            output = String(data.result || data.message || "").trim();
-            if (data.usage) { addTaskUsage(task, "claude", data.usage); task._currentStageUsage = data.usage; }
-            if (data?.is_error) {
-              task.stageFailure = String(data.result || data.error || "Claude CLI báo lỗi thực thi.").trim();
-            }
-          } catch { output = stdoutRaw.trim(); }
+        if (pending.trim()) dispatchStreamLine(pending.trim());
+
+        if (provider === "codex" && streamCtx.rootThreadId && (streamCtx.sawCollabActivity || (task.subagents || []).some((s) => s.harness === "codex"))) {
+          await enrichCodexSubagentsFromRollouts({
+            rootThreadId: streamCtx.rootThreadId,
+            stageStartedAt,
+            tracker,
+          });
         }
-        if (code !== 0) return rejectPromise(new Error(task.stageFailure || stderrTail.trim() || `${publicProviderName(provider)} exited with code ${code}`));
-        if (task.stageFailure) return rejectPromise(new Error(task.stageFailure.slice(0, 8000)));
+
+        if (running.get(task.id)?.stopped) {
+          tracker.finalizeStageSubagents("cancelled", "Đã dừng bởi người dùng");
+          return rejectPromise(new Error("Stopped by user"));
+        }
+
+        let output = "";
+        if (provider === "claude") {
+          output = streamCtx.finalResultText || outputParts.join("").trim();
+          if (!output && !streamCtx.resultReceived && stdoutFallback.trim()) {
+            output = stdoutFallback.trim();
+          }
+        }
+        if (code !== 0) {
+          tracker.finalizeStageSubagents("failed", task.stageFailure || stderrTail.trim() || `Mã thoát ${code}`);
+          return rejectPromise(new Error(task.stageFailure || stderrTail.trim() || `${publicProviderName(provider)} exited with code ${code}`));
+        }
+        if (task.stageFailure) {
+          tracker.finalizeStageSubagents("failed", task.stageFailure.slice(0, 240));
+          return rejectPromise(new Error(task.stageFailure.slice(0, 8000)));
+        }
+        tracker.finalizeStageSubagents("completed");
         if (!output) { try { output = (await fs.readFile(outputPath, "utf8")).trim(); } catch { } }
         if (!output) output = outputParts.join("").trim();
         task.stageMetrics ||= [];
-        task.stageMetrics.push({ provider, stage, durationMs: Date.now() - stageStartedAt, usage: task._currentStageUsage || null, completedAt: new Date().toISOString() });
+        task.stageMetrics.push({
+          provider,
+          stage,
+          durationMs: Date.now() - stageStartedAt,
+          usage: task._currentStageUsage || null,
+          subagentCount: (task.subagents || []).filter((s) => s.stage === stage).length,
+          completedAt: new Date().toISOString(),
+        });
         task.stageMetrics = task.stageMetrics.slice(-500);
         resolvePromise(output);
       });
       child.stdin.on("error", () => {});
-      child.stdin.end(prompt);
+      child.stdin.end(effectivePrompt);
     });
   }
 

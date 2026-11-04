@@ -15,6 +15,7 @@ import {
   validateAgentSelection,
 } from "../task-prompts.mjs";
 import { failQueuedChatTurns, finishStageRerun, recordTaskCycle } from "../task-stage-runner.mjs";
+import { getTaskSubagentsWithDetails, normalizeSubagentPolicy } from "../subagent-tracker.mjs";
 
 function parseSafeAttachments(attachments) {
   const list = Array.isArray(attachments) ? attachments : [];
@@ -153,6 +154,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
       prompt, attachments: safeAttachments, workspaceId: workspace.id, workspacePath: info.path, status: "queued", phase: "queued",
       isolated, config, permissionPreset, presetRef, goal: String(body.goal || "").trim().slice(0, 2000), goalChecklist: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), events: [],
       skillSelectionMode: "auto", skillSelectionCompleted: false, skillIds: [], skills: [],
+      subagentPolicy: normalizeSubagentPolicy(body.subagentPolicy), subagents: [],
       memoryUsed: [], storagePath: resolve(taskDir, id),
     };
     state.tasks.unshift(task); persist(); record(task, `Task ${code} được tạo từ giao diện và đưa vào hàng đợi thật.${dependsOn.length ? ` Phụ thuộc: ${dependsOn.join(", ")}.` : ""}`, "success"); pump();
@@ -221,7 +223,9 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
         config, permissionPreset, goal: String(body.goal || "").trim().slice(0, 2000), goalChecklist: [],
         createdAt: now, updatedAt: now,
         events: [{ at: now, kind: "success", text: `Khởi tạo trong Đa luồng Song song (${fanoutId} · Nhánh #${idx + 1}) trên Git worktree riêng.` }],
-        skillSelectionMode: "auto", skillSelectionCompleted: false, skillIds: [], skills: [], memoryUsed: [],
+        skillSelectionMode: "auto", skillSelectionCompleted: false, skillIds: [], skills: [],
+        subagentPolicy: normalizeSubagentPolicy(body.subagentPolicy), subagents: [],
+        memoryUsed: [],
         storagePath: resolve(taskDir, id),
       };
       createdTasks.push(task);
@@ -318,7 +322,9 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
         config, permissionPreset: "workspace-write", goal: campaignGoal.slice(0, 2000), goalChecklist: [],
         createdAt: now, updatedAt: now,
         events: [{ at: now, kind: "success", text: `Khởi tạo trong chiến dịch Wave DAG (${code} · Wave ${Number(item.waveIndex) || idx + 1}).` }],
-        skillSelectionMode: "auto", skillSelectionCompleted: false, skillIds: [], skills: [], memoryUsed: [],
+        skillSelectionMode: "auto", skillSelectionCompleted: false, skillIds: [], skills: [],
+        subagentPolicy: normalizeSubagentPolicy(body.subagentPolicy), subagents: [],
+        memoryUsed: [],
         storagePath: resolve(taskDir, id),
       };
       createdTasks.push(task);
@@ -329,7 +335,118 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     return true;
   }
 
-  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist|plan-gate|qa|exec|git-commit|github-pr|distill-skill|distill-memory|compact|apply-worktree|discard-worktree|worktree\/apply|worktree\/discard))?$/);
+  const promoteMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/subagents\/([^/]+)\/promote$/);
+  if (promoteMatch && request.method === "POST") {
+    const parentId = decodeURIComponent(promoteMatch[1]);
+    const subId = decodeURIComponent(promoteMatch[2]);
+    const parentTask = state.tasks.find((t) => t.id === parentId);
+    if (!parentTask) { json(response, 404, { error: "Task cha không tồn tại." }); return true; }
+    const sub = getTaskSubagentsWithDetails(parentTask).find((item) => item.id === subId);
+    if (!sub) { json(response, 404, { error: "Không tìm thấy phiên subagent cần tách." }); return true; }
+    const workspace = state.workspaces.find((w) => w.id === parentTask.workspaceId);
+    if (!workspace) { json(response, 404, { error: "Workspace của task cha không còn tồn tại." }); return true; }
+    const body = await readBody(request).catch(() => ({}));
+    const info = await inspectWorkspace(workspace.path);
+    const canIsolate = Boolean(info.isGit && info.head);
+    const isolated = body.isolated !== undefined ? Boolean(body.isolated) : canIsolate;
+    if (isolated && !canIsolate) {
+      json(response, 400, { error: "Tách Git worktree cần Git repository có ít nhất 1 commit." });
+      return true;
+    }
+    const connectors = await loadModels();
+    const workflow = ["chat-only", "plan-only", "codex-antigravity"].includes(body.workflow) ? body.workflow : "chat-only";
+    const permissionPreset = ["read-only", "workspace-write", "full-access"].includes(body.permissionPreset)
+      ? body.permissionPreset
+      : (parentTask.permissionPreset === "read-only" && workflow === "codex-antigravity" ? "workspace-write" : (parentTask.permissionPreset || "workspace-write"));
+    const clonedConfig = structuredClone(parentTask.config || {});
+    clonedConfig.workflow = workflow;
+    if (body.provider && connectors[body.provider]?.available) {
+      const conn = connectors[body.provider];
+      const chosenModel = String(body.model || conn.models?.[0]?.id || "");
+      const modelInfo = conn.models?.find((m) => m.id === chosenModel) || conn.models?.[0];
+      clonedConfig.chatProvider = body.provider;
+      clonedConfig.chatModel = modelInfo?.id || chosenModel;
+      clonedConfig.chatEffort = String(body.effort || modelInfo?.efforts?.[0] || "medium");
+    } else if (!clonedConfig.chatProvider) {
+      const fallbackProvider = sub.harness && connectors[sub.harness]?.available ? sub.harness : "codex";
+      const conn = connectors[fallbackProvider];
+      clonedConfig.chatProvider = fallbackProvider;
+      clonedConfig.chatModel = conn?.models?.[0]?.id || "";
+      clonedConfig.chatEffort = conn?.models?.[0]?.efforts?.[0] || "medium";
+    }
+
+    const subRoleLabel = String(sub.role || sub.agentType || sub.id).trim();
+    const extraInstructions = String(body.instructions || "").trim().slice(0, 4000);
+    const promotedPromptParts = [
+      `Tiếp tục và hoàn thiện độc lập nhánh công việc được tách từ Subagent "${subRoleLabel}" của task "${parentTask.title}" (${parentTask.code || parentTask.id}).`,
+      sub.prompt ? `\n## Nhiệm vụ gốc đã giao cho Subagent\n${String(sub.prompt).slice(0, 12000)}` : `\n## Bối cảnh Task cha\n${String(parentTask.prompt || "").slice(0, 4000)}`,
+      sub.result ? `\n## Kết quả / trạng thái Subagent trước khi tách (${sub.status})\n${String(sub.result).slice(0, 12000)}` : "",
+      sub.error ? `\n## Lỗi ghi nhận ở Subagent\n${String(sub.error).slice(0, 2000)}` : "",
+      extraInstructions ? `\n## Chỉ dẫn bổ sung\n${extraInstructions}` : "",
+    ].filter(Boolean);
+    const promotedPrompt = promotedPromptParts.join("\n").slice(0, 50000);
+    const newId = `task-${randomUUID().slice(0, 8)}`;
+    const nextSeq = state.tasks.length + 1;
+    const code = `SUB-${String(nextSeq).padStart(2, "0")}`;
+    const now = new Date().toISOString();
+    const promotedTask = {
+      id: newId,
+      code,
+      riskLevel: parentTask.riskLevel || "S",
+      milestone: parentTask.milestone || "Subagent Worktree",
+      dependsOn: [],
+      planGate: false,
+      planGateApprovedAt: null,
+      planGateFeedback: "",
+      maxRounds: workflow === "codex-antigravity" ? 2 : 1,
+      currentRound: 1,
+      qaCommand: parentTask.qaCommand || "",
+      cycles: [],
+      title: String(body.title || `[Subagent · ${subRoleLabel}] ${parentTask.title}`).trim().slice(0, 120),
+      prompt: promotedPrompt,
+      attachments: [],
+      workspaceId: workspace.id,
+      workspacePath: info.path,
+      status: "queued",
+      phase: "queued",
+      isolated,
+      config: clonedConfig,
+      permissionPreset,
+      promotedFromSubagent: {
+        taskId: parentTask.id,
+        taskTitle: parentTask.title,
+        subagentId: sub.id,
+        role: subRoleLabel,
+        harness: sub.harness || "",
+      },
+      goal: String(body.goal || `Hoàn thành nhánh công việc của subagent ${subRoleLabel}`).trim().slice(0, 2000),
+      goalChecklist: [],
+      createdAt: now,
+      updatedAt: now,
+      events: [{
+        at: now,
+        kind: "success",
+        text: `Đã tách từ Subagent "${subRoleLabel}" (${parentTask.code || parentTask.id}) sang ${isolated ? "Git worktree cô lập" : "task độc lập"}.`,
+      }],
+      skillSelectionMode: "auto",
+      skillSelectionCompleted: false,
+      skillIds: [...(parentTask.skillIds || [])],
+      skills: [],
+      subagentPolicy: normalizeSubagentPolicy(body.subagentPolicy || parentTask.subagentPolicy),
+      subagents: [],
+      memoryUsed: [],
+      storagePath: resolve(taskDir, newId),
+    };
+    state.tasks.unshift(promotedTask);
+    record(parentTask, `Đã tách Subagent "${subRoleLabel}" thành task độc lập ${code} (${promotedTask.id})${isolated ? " trên Git worktree riêng" : ""}.`, "info");
+    persist();
+    publish("tasks");
+    pump();
+    json(response, 201, { ok: true, task: promotedTask });
+    return true;
+  }
+
+  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist|plan-gate|qa|exec|git-commit|github-pr|distill-skill|distill-memory|compact|subagents|apply-worktree|discard-worktree|worktree\/apply|worktree\/discard))?$/);
   if (!match) return false;
 
   const id = decodeURIComponent(match[1]);
@@ -374,6 +491,9 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     if (body.qaCommand !== undefined) task.qaCommand = String(body.qaCommand || "").trim().slice(0, 80);
     if (Array.isArray(body.dependsOn)) {
       task.dependsOn = [...new Set(body.dependsOn.map((d) => String(d || "").trim()).filter((d) => d && d !== task.id))].slice(0, 16);
+    }
+    if (body.subagentPolicy !== undefined) {
+      task.subagentPolicy = normalizeSubagentPolicy(body.subagentPolicy);
     }
     task.updatedAt = new Date().toISOString();
     persist(); publish("tasks"); pump();
@@ -754,11 +874,32 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     return true;
   }
 
+  if (request.method === "GET" && action === "subagents") {
+    json(response, 200, {
+      taskId: task.id,
+      subagentPolicy: normalizeSubagentPolicy(task.subagentPolicy),
+      subagents: getTaskSubagentsWithDetails(task),
+    });
+    return true;
+  }
+
   if (request.method === "POST" && action === "stop") {
     const active = running.get(task.id);
+    const cancelActiveSubagents = () => {
+      if (!Array.isArray(task.subagents)) return;
+      const stoppedAt = new Date().toISOString();
+      for (const sub of task.subagents) {
+        if (sub && ["spawning", "running", "waiting"].includes(sub.status)) {
+          sub.status = "cancelled";
+          sub.completedAt = stoppedAt;
+          sub.lastActivity = "Đã dừng theo yêu cầu người dùng";
+        }
+      }
+    };
     if (task.status === "queued" && !active) {
       task.failedPhase = task.phase;
       task.status = "cancelled"; task.phase = "cancelled";
+      cancelActiveSubagents();
       finishStageRerun(task, "cancelled", "Đã hủy khi task còn trong hàng đợi.");
       const abandoned = failQueuedChatTurns(task, true);
       record(task, `Đã hủy khi task còn trong hàng đợi.${abandoned ? ` Đã hủy ${abandoned} tin nhắn đang chờ.` : ""}`, "warning");
@@ -770,6 +911,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     active.stopped = true;
     if (active.child) killTree(active.child);
     if (active.abortController) active.abortController.abort(new Error("Stopped by user"));
+    cancelActiveSubagents();
     const abandoned = failQueuedChatTurns(task, true);
     if (active.isChat && task.preChatStatus === "done") {
       task.status = "done";

@@ -18,6 +18,7 @@ import {
   syncMarkdownMemories,
 } from "./src/server/memory-bm25.mjs";
 import { createSkillCatalogService } from "./src/server/skill-catalog.mjs";
+import { createSubagentCatalogService } from "./src/server/subagent-catalog.mjs";
 import { createTaskStoreService, spawnScheduledTask } from "./src/server/task-store.mjs";
 import { discoverLanAddresses, generateStrongAccessPassword } from "./src/server/network-pairing.mjs";
 import { createCliDiscoveryService } from "./src/server/cli-discovery.mjs";
@@ -179,6 +180,16 @@ for (const task of state.tasks) {
       const interruptedAt = new Date().toISOString();
       task.events = [...(task.events || []), { at: interruptedAt, kind: "warning", text: "Tin nhắn chat chưa hoàn tất khi OpenSybau dừng; hãy gửi lại nếu vẫn cần." }].slice(-250);
       task.updatedAt = interruptedAt;
+    }
+    if (Array.isArray(task.subagents)) {
+      const stoppedAt = task.updatedAt || new Date().toISOString();
+      for (const sub of task.subagents) {
+        if (sub && ["spawning", "running", "waiting"].includes(sub.status)) {
+          sub.status = "failed";
+          sub.completedAt ||= stoppedAt;
+          sub.error ||= "Tiến trình cha đã dừng khi OpenSybau khởi động lại.";
+        }
+      }
     }
   }
 }
@@ -414,7 +425,7 @@ function publicState() {
     settings: state.settings,
     workspaces: state.workspaces.map((w) => ({ ...w, status: w.runtime || null })),
     tasks: state.tasks.map((task) => {
-      const { _currentStageUsage, ...publicTask } = task;
+      const { _currentStageUsage, _subagentDetails, ...publicTask } = task;
       return {
         ...publicTask,
         attachments: task.attachments?.length ? task.attachments.map(({ name }) => ({ name })) : task.attachments,
@@ -458,6 +469,11 @@ const skillCatalogService = createSkillCatalogService({
   workflowRoles,
 });
 
+const subagentCatalogService = createSubagentCatalogService({
+  runtime,
+  getWorkspaces: () => state.workspaces,
+});
+
 const promptService = createTaskPromptService({
   getState: () => state,
   getMemories: () => memories,
@@ -483,6 +499,7 @@ const stageRunner = createTaskStageRunner({
   getApiProviderRuntime: (provider) => cliDiscovery.getApiProviderRuntime(provider),
   additionalWritableProjectDirs: (task, cwd) => promptService.additionalWritableProjectDirs(task, cwd),
   externalWorkspaceContext: (task, stage) => promptService.externalWorkspaceContext(task, stage),
+  subagentCatalogService,
 });
 
 const taskRunner = createTaskRunnerService({
@@ -665,6 +682,7 @@ const routeContext = {
   cliDiscovery,
   providerQuotaService,
   skillCatalogService,
+  subagentCatalogService,
   promptService,
   stageRunner,
   taskRunner,
@@ -916,6 +934,15 @@ export async function stopWorkbench() {
     task.completedAt = at;
     task.updatedAt = at;
     failQueuedChatTurns(task, true);
+    if (Array.isArray(task.subagents)) {
+      for (const sub of task.subagents) {
+        if (sub && ["spawning", "running", "waiting"].includes(sub.status)) {
+          sub.status = "failed";
+          sub.completedAt = at;
+          sub.error ||= task.error;
+        }
+      }
+    }
     task.events = [...(task.events || []), { at, kind: "warning", text: task.error }].slice(-250);
     interrupted = true;
   }

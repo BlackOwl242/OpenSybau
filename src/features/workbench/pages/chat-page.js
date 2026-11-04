@@ -15,6 +15,7 @@ import {
   composerAddMenu,
   composerAttachmentsMarkup,
   composerPermissionMenuMarkup,
+  composerSubagentMenuMarkup,
 } from "../composer.js";
 import { taskConversationPage } from "./chat-conversation.js";
 
@@ -257,6 +258,7 @@ export function chatPage() {
             <div class="composer-add-wrap">
               ${composerAddMenu("prompt")}
               ${composerPermissionMenuMarkup(homePermissionPreset, "home")}
+              ${composerSubagentMenuMarkup(view.homeSubagentPolicy, { scope: "home", workspaceId: activeWorkspaceId, isolated: homeIsolated })}
             </div>
             <div class="home-composer-actions">
               ${!isArena && quickAgentItems.length ? `<div class="codex-inline-model-bar">

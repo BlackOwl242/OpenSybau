@@ -1,6 +1,8 @@
 import { esc, fmtDate, formatNumber, icon, statuses, tokenCount, view } from "../../shared/state.js";
+import { providerTitle } from "../../domain/agent-roles.js";
 import { pipelineStepperData } from "../../domain/task-flow.js";
-import { extractMarkdownOutline } from "./markdown.js";
+import { extractMarkdownOutline, renderMarkdown } from "./markdown.js";
+import { ensureSubagentProfiles, ensureTaskSubagentsDetail } from "./runtime.js";
 import { buildDockFileTree, dockFileIconName, renderDockTreeLevel } from "./stage-viewer.js";
 
 const utf8Decoder = typeof TextDecoder !== "undefined" ? new TextDecoder("utf-8") : null;
@@ -47,9 +49,10 @@ export function getRightDockTabsForPage(page = view.page, selectedTask = null) {
     return tabs;
   }
   if (page === "skills") {
+    const isSubagents = view.skillsSection === "subagents";
     return [
-      { id: "files", icon: "files", title: "Danh mục Kỹ năng" },
-      { id: "search", icon: "search", title: "Tìm kiếm kỹ năng" },
+      { id: "files", icon: isSubagents ? "waypoints" : "files", title: isSubagents ? "Danh mục Hồ sơ Subagent" : "Danh mục Kỹ năng" },
+      { id: "search", icon: "search", title: isSubagents ? "Tìm hồ sơ Subagent" : "Tìm kiếm kỹ năng" },
     ];
   }
   if (page === "workspaces") {
@@ -62,6 +65,7 @@ export function getRightDockTabsForPage(page = view.page, selectedTask = null) {
     return [
       { id: "files", icon: "files", title: "Cây thư mục & Thay đổi" },
       { id: "git", icon: "git-branch", title: "Commit, PR & Worktree" },
+      { id: "subagents", icon: "waypoints", title: "Subagents & Cây thực thi" },
       { id: "docs", icon: "book-open-text", title: "Tài liệu giai đoạn (Kế hoạch / Triển khai / Đánh giá / QA)" },
       { id: "terminal", icon: "square-terminal", title: "Kiểm thử QA, Terminal & Xem trực tiếp" },
       { id: "tasks", icon: "list-checks", title: "Mục tiêu & Công cụ phiên" },
@@ -116,10 +120,17 @@ export function renderOrcaRightDockMarkup({
       </div>
     </details>`;
   } else if (page === "skills") {
-    subTitle = `Kỹ năng (${(view.skills || []).length})`;
-    subTooltip = "Thư viện Kỹ năng Agent";
-    refreshAction = "scan-skills";
-    moreMenuHtml = `<button type="button" class="icon-button orca-sub-btn" data-action="new-skill" title="Tạo skill mới">${icon("plus", 14)}</button>`;
+    if (view.skillsSection === "subagents") {
+      subTitle = `Hồ sơ Subagent (${(view.subagentProfiles || []).length})`;
+      subTooltip = "Danh mục Hồ sơ Subagent";
+      refreshAction = "scan-subagent-profiles";
+      moreMenuHtml = `<button type="button" class="icon-button orca-sub-btn" data-action="new-subagent-profile" title="Tạo hồ sơ Subagent mới">${icon("plus", 14)}</button>`;
+    } else {
+      subTitle = `Kỹ năng (${(view.skills || []).length})`;
+      subTooltip = "Thư viện Kỹ năng Agent";
+      refreshAction = "scan-skills";
+      moreMenuHtml = `<button type="button" class="icon-button orca-sub-btn" data-action="new-skill" title="Tạo skill mới">${icon("plus", 14)}</button>`;
+    }
   } else if (activeWs) {
     subTitle = activeWs.name;
     subTooltip = activeWs.path;
@@ -178,31 +189,64 @@ export function renderOrcaRightDockMarkup({
         bodyHtml = `<ul class="orca-tree-list">${rows || `<li class="orca-dock-empty">Chưa có ghi chú Markdown.</li>`}</ul>`;
       }
     } else if (page === "skills") {
-      const allSkills = view.skills || [];
-      const groups = [
-        ["personal", "Cá nhân", allSkills.filter((s) => s.editable)],
-        ["codex", "Codex CLI", allSkills.filter((s) => !s.editable && (s.providers?.includes("codex") || (s.sources || []).join(" ").toLowerCase().includes("codex")))],
-        ["antigravity", "Antigravity", allSkills.filter((s) => !s.editable && (s.providers?.includes("antigravity") || (s.sources || []).join(" ").toLowerCase().includes("antigravity")))],
-        ["claude", "Claude Code", allSkills.filter((s) => !s.editable && (s.providers?.includes("claude") || (s.sources || []).join(" ").toLowerCase().includes("claude")))],
-      ];
-      const collapsedSet = new Set(view.collapsedDockFolders || []);
-      bodyHtml = `<ul class="orca-tree-list">${groups.map(([key, label, items]) => {
-        const folderKey = `skill:${key}`;
-        const isCollapsed = collapsedSet.has(folderKey);
-        return `<li class="orca-tree-item is-folder">
-          <button type="button" class="orca-tree-row" style="padding-left:10px" data-action="toggle-dock-folder" data-folder="${esc(folderKey)}">
-            <span class="orca-tree-caret ${isCollapsed ? "" : "is-open"}">${icon("chevron-right", 12)}</span>
-            <span class="orca-tree-icon">${icon("folder", 14)}</span>
-            <span class="orca-tree-label">${esc(label)}</span>
-            <small class="orca-tree-badge">${items.length}</small>
-          </button>
-        </li>${isCollapsed ? "" : items.map((s) => `<li class="orca-tree-item is-file ${s.id === view.selectedSkillId ? "is-selected" : ""}">
-          <button type="button" class="orca-tree-row ${s.id === view.selectedSkillId ? "is-selected" : ""}" style="padding-left:38px" data-action="select-skill" data-id="${esc(s.id)}" title="${esc(s.description || s.name)}">
-            <span class="orca-tree-icon">${icon("file-text", 14)}</span>
-            <span class="orca-tree-label">${esc(s.name)}</span>
-          </button>
-        </li>`).join("")}`;
-      }).join("")}</ul>`;
+      if (view.skillsSection === "subagents") {
+        if (!view.subagentProfilesLoaded) {
+          void ensureSubagentProfiles(activeWsId);
+        }
+        const allProfiles = view.subagentProfiles || [];
+        const groups = [
+          ["managed", "Cá nhân · Quản lý", allProfiles.filter((p) => p.editable && !p.workspaceScoped)],
+          ["workspace", "Dự án hiện tại", allProfiles.filter((p) => p.workspaceScoped)],
+          ["codex", "Codex CLI", allProfiles.filter((p) => !p.editable && !p.workspaceScoped && (p.harnesses || []).includes("codex"))],
+          ["claude", "Claude Code", allProfiles.filter((p) => !p.editable && !p.workspaceScoped && !(p.harnesses || []).includes("codex") && (p.harnesses || []).includes("claude"))],
+          ["antigravity", "Antigravity", allProfiles.filter((p) => !p.editable && !p.workspaceScoped && !(p.harnesses || []).includes("codex") && !(p.harnesses || []).includes("claude") && (p.harnesses || []).includes("antigravity"))],
+        ].filter(([key, , items]) => key === "managed" || key === "workspace" || items.length > 0);
+        const collapsedSet = new Set(view.collapsedDockFolders || []);
+        bodyHtml = `<ul class="orca-tree-list">${groups.map(([key, label, items]) => {
+          const folderKey = `subprof:${key}`;
+          const isCollapsed = collapsedSet.has(folderKey);
+          return `<li class="orca-tree-item is-folder">
+            <button type="button" class="orca-tree-row" style="padding-left:10px" data-action="toggle-dock-folder" data-folder="${esc(folderKey)}">
+              <span class="orca-tree-caret ${isCollapsed ? "" : "is-open"}">${icon("chevron-right", 12)}</span>
+              <span class="orca-tree-icon">${icon("folder", 14)}</span>
+              <span class="orca-tree-label">${esc(label)}</span>
+              <small class="orca-tree-badge">${items.length}</small>
+            </button>
+          </li>${isCollapsed ? "" : items.map((p) => `<li class="orca-tree-item is-file ${p.id === view.selectedSubagentProfileId ? "is-selected" : ""}">
+            <button type="button" class="orca-tree-row ${p.id === view.selectedSubagentProfileId ? "is-selected" : ""}" style="padding-left:38px" data-action="select-subagent-profile" data-id="${esc(p.id)}" title="${esc(p.description || p.name)}">
+              <span class="orca-tree-icon">${icon("waypoints", 14)}</span>
+              <span class="orca-tree-label" data-localize-skip="true">${esc(p.name)}</span>
+              ${!p.trusted ? `<small class="orca-tree-badge">Chặn</small>` : p.readOnly ? `<small class="orca-tree-badge">RO</small>` : ""}
+            </button>
+          </li>`).join("")}`;
+        }).join("")}</ul>`;
+      } else {
+        const allSkills = view.skills || [];
+        const groups = [
+          ["personal", "Cá nhân", allSkills.filter((s) => s.editable)],
+          ["codex", "Codex CLI", allSkills.filter((s) => !s.editable && (s.providers?.includes("codex") || (s.sources || []).join(" ").toLowerCase().includes("codex")))],
+          ["antigravity", "Antigravity", allSkills.filter((s) => !s.editable && (s.providers?.includes("antigravity") || (s.sources || []).join(" ").toLowerCase().includes("antigravity")))],
+          ["claude", "Claude Code", allSkills.filter((s) => !s.editable && (s.providers?.includes("claude") || (s.sources || []).join(" ").toLowerCase().includes("claude")))],
+        ];
+        const collapsedSet = new Set(view.collapsedDockFolders || []);
+        bodyHtml = `<ul class="orca-tree-list">${groups.map(([key, label, items]) => {
+          const folderKey = `skill:${key}`;
+          const isCollapsed = collapsedSet.has(folderKey);
+          return `<li class="orca-tree-item is-folder">
+            <button type="button" class="orca-tree-row" style="padding-left:10px" data-action="toggle-dock-folder" data-folder="${esc(folderKey)}">
+              <span class="orca-tree-caret ${isCollapsed ? "" : "is-open"}">${icon("chevron-right", 12)}</span>
+              <span class="orca-tree-icon">${icon("folder", 14)}</span>
+              <span class="orca-tree-label">${esc(label)}</span>
+              <small class="orca-tree-badge">${items.length}</small>
+            </button>
+          </li>${isCollapsed ? "" : items.map((s) => `<li class="orca-tree-item is-file ${s.id === view.selectedSkillId ? "is-selected" : ""}">
+            <button type="button" class="orca-tree-row ${s.id === view.selectedSkillId ? "is-selected" : ""}" style="padding-left:38px" data-action="select-skill" data-id="${esc(s.id)}" title="${esc(s.description || s.name)}">
+              <span class="orca-tree-icon">${icon("file-text", 14)}</span>
+              <span class="orca-tree-label">${esc(s.name)}</span>
+            </button>
+          </li>`).join("")}`;
+        }).join("")}</ul>`;
+      }
     } else if (activeWs) {
       const allFiles = view.workspaceFileIndex?.[activeWs.id] || [];
       if (!view.workspaceFileIndex?.[activeWs.id] && typeof ensureWorkspaceFileIndex === "function") {
@@ -332,10 +376,17 @@ export function renderOrcaRightDockMarkup({
         ? matches.map((n) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="vault-select-graph-node" data-path="${esc(n.path)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(n.title || n.name)}</span></button></li>`).join("")
         : `<li class="orca-dock-empty">Không có ghi chú khớp từ khóa.</li>`;
     } else if (page === "skills") {
-      const matches = (view.skills || []).filter((s) => !filter || `${s.name} ${s.description}`.toLowerCase().includes(filter)).slice(0, 80);
-      resultsHtml = matches.length
-        ? matches.map((s) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="select-skill" data-id="${esc(s.id)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(s.name)}</span></button></li>`).join("")
-        : `<li class="orca-dock-empty">Không có kỹ năng phù hợp.</li>`;
+      if (view.skillsSection === "subagents") {
+        const matches = (view.subagentProfiles || []).filter((p) => !filter || `${p.name} ${p.description} ${(p.harnesses || []).join(" ")}`.toLowerCase().includes(filter)).slice(0, 80);
+        resultsHtml = matches.length
+          ? matches.map((p) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="select-subagent-profile" data-id="${esc(p.id)}"><span class="orca-tree-icon">${icon("waypoints", 14)}</span><span class="orca-tree-label" data-localize-skip="true">${esc(p.name)}</span></button></li>`).join("")
+          : `<li class="orca-dock-empty">Không có hồ sơ Subagent phù hợp.</li>`;
+      } else {
+        const matches = (view.skills || []).filter((s) => !filter || `${s.name} ${s.description}`.toLowerCase().includes(filter)).slice(0, 80);
+        resultsHtml = matches.length
+          ? matches.map((s) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:12px" data-action="select-skill" data-id="${esc(s.id)}"><span class="orca-tree-icon">${icon("file-text", 14)}</span><span class="orca-tree-label">${esc(s.name)}</span></button></li>`).join("")
+          : `<li class="orca-dock-empty">Không có kỹ năng phù hợp.</li>`;
+      }
     } else {
       const allFiles = (activeWs && view.workspaceFileIndex?.[activeWs.id]) || [];
       const matches = allFiles.filter((f) => !filter || f.toLowerCase().includes(filter)).slice(0, 100);
@@ -413,6 +464,114 @@ export function renderOrcaRightDockMarkup({
           : `<p class="orca-muted-note">${selectedTask ? "Chưa có tệp thay đổi nào trong phiên này." : "Chọn một cuộc trò chuyện để xem danh sách tệp thay đổi."}</p>`}
         ${isolatedTasks.length ? `<div class="orca-section-label" style="margin-top:14px">WORKTREE CÔ LẬP (${isolatedTasks.length})</div>
         <ul class="orca-tree-list">${isolatedTasks.slice(0, 10).map((t) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" style="padding-left:10px" data-task="${esc(t.id)}"><span class="orca-tree-icon">${icon("git-branch", 14)}</span><span class="orca-tree-label">${esc(t.title)}</span><small class="orca-tree-badge">${(t.artifacts || []).length}</small></button></li>`).join("")}</ul>` : ""}
+      </div>`;
+    }
+  } else if (tab === "subagents" && selectedTask) {
+    const rawSummaries = Array.isArray(selectedTask.subagents) ? selectedTask.subagents : [];
+    const cachedEntry = view.taskSubagentDetailCache?.[selectedTask.id] || null;
+    if (rawSummaries.length > 0 && (!cachedEntry || cachedEntry.updatedAt !== selectedTask.updatedAt)) {
+      void ensureTaskSubagentsDetail(selectedTask.id);
+    }
+    const detailMap = new Map((cachedEntry?.subagents || []).map((d) => [d.id, d]));
+    const mergedSubs = rawSummaries.map((s) => ({ ...s, ...(detailMap.get(s.id) || {}) }));
+    const subFilter = view.dockSubagentFilter || "all";
+    const filteredSubs = mergedSubs.filter((s) => {
+      if (subFilter === "running") return ["spawning", "running", "waiting"].includes(s.status);
+      if (subFilter === "done") return s.status === "completed" || s.status === "done";
+      if (subFilter === "failed") return s.status === "failed" || s.status === "cancelled";
+      return true;
+    });
+    const activeCount = mergedSubs.filter((s) => ["spawning", "running", "waiting"].includes(s.status)).length;
+    const statusTextMap = {
+      spawning: "Khởi tạo",
+      running: "Đang chạy",
+      waiting: "Đang chờ",
+      completed: "Hoàn tất",
+      done: "Hoàn tất",
+      failed: "Lỗi",
+      cancelled: "Đã dừng",
+    };
+
+    if (!mergedSubs.length) {
+      bodyHtml = `<div class="orca-dock-pad">
+        <div class="orca-dock-empty dock-subagent-empty">
+          ${icon("waypoints", 20)}
+          <strong>Chưa có Subagent nào hoạt động</strong>
+          <p>Khi Codex (<code>spawn_agent</code>), Claude Code (<code>Task</code>) hoặc Antigravity (<code>invoke_subagent</code>) khởi tạo tiến trình con, cây thực thi và nhật ký công cụ trực tiếp sẽ hiển thị tại đây.</p>
+          <button type="button" class="button quiet small" data-action="open-subagent-profiles">${icon("settings-2", 12)}<span>Hồ sơ Subagent</span></button>
+        </div>
+      </div>`;
+    } else {
+      bodyHtml = `<div class="orca-dock-pad">
+        <div class="orca-section-head">
+          <span class="orca-section-label">CÂY THỰC THI SUBAGENT (${mergedSubs.length})</span>
+          ${activeCount > 0 ? `<small class="orca-tree-badge is-ready">${activeCount} đang chạy</small>` : `<button type="button" class="subagent-manage-link" data-action="refresh-task-subagents" data-id="${esc(selectedTask.id)}">${icon("refresh-cw", 11)}<span>Tải lại</span></button>`}
+        </div>
+        <div class="orca-quick-pills dock-subagent-filters" style="margin-top:6px">
+          ${[
+            ["all", `Tất cả (${mergedSubs.length})`],
+            ["running", "Đang chạy"],
+            ["done", "Hoàn tất"],
+            ["failed", "Lỗi"],
+          ].map(([fid, flabel]) => `<button type="button" class="kb-tag-chip ${subFilter === fid ? "is-active" : ""}" data-action="dock-subagent-filter" data-sub-filter="${fid}">${esc(flabel)}</button>`).join("")}
+        </div>
+        <div class="dock-subagent-list">
+          ${filteredSubs.length ? filteredSubs.map((sub) => {
+            const isSelected = view.selectedDockSubagentId === sub.id;
+            const isLive = ["spawning", "running", "waiting"].includes(sub.status);
+            const dotCls = isLive ? "running" : sub.status === "failed" ? "failed" : sub.status === "cancelled" ? "cancelled" : "done";
+            const harnessLabel = providerTitle(view.connectors, sub.harness || "codex");
+            const tok = tokenCount(sub.usage);
+            const durSec = sub.durationMs ? Math.max(1, Math.round(Number(sub.durationMs) / 1000)) : 0;
+            const filesTouched = Array.isArray(sub.filesTouched) ? sub.filesTouched : [];
+            const eventsList = Array.isArray(sub.events) ? sub.events.slice(-30) : [];
+            const roleLabel = sub.role || sub.agentType || sub.id;
+            return `<details class="dock-subagent-card is-${esc(sub.status || "running")} ${(sub.parentId || sub.parentSubagentId) ? "is-nested" : ""}" data-key="dock-sub-${esc(selectedTask.id)}-${esc(sub.id)}" ${isSelected || isLive ? "open" : ""}>
+              <summary class="dock-subagent-summary">
+                <span class="wb-task-dot is-${dotCls}"></span>
+                <div class="dock-subagent-head-main">
+                  <strong data-localize-skip="true">${esc(roleLabel)}</strong>
+                  <small>
+                    <span data-localize-skip="true">${esc(harnessLabel)}${sub.model && sub.model !== "inherit" ? ` · ${esc(sub.model)}` : ""}</span>
+                    · <span>${esc(statusTextMap[sub.status] || sub.status)}</span>
+                    ${durSec ? ` · <span data-localize-skip="true">${durSec}s</span>` : ""}
+                    ${tok ? ` · <span data-localize-skip="true">${formatNumber(tok)} tok</span>` : ""}
+                  </small>
+                </div>
+                <span class="orca-tree-caret">${icon("chevron-right", 12)}</span>
+              </summary>
+              <div class="dock-subagent-body">
+                ${sub.prompt ? `<div class="dock-subagent-block">
+                  <span class="dock-subagent-label">Nhiệm vụ được giao</span>
+                  <pre class="dock-subagent-pre" data-localize-skip="true">${esc(String(sub.prompt).slice(0, 4000))}</pre>
+                </div>` : ""}
+                ${eventsList.length ? `<div class="dock-subagent-block">
+                  <span class="dock-subagent-label">Nhật ký công cụ (${eventsList.length})</span>
+                  <div class="subagent-log-scroll" data-key="dock-sub-log-${esc(sub.id)}">
+                    ${eventsList.map((ev) => `<div class="dock-subagent-ev ${ev.status === "failed" ? "is-err" : ""}">
+                      <strong data-localize-skip="true">${esc(ev.toolName || ev.kind || "step")}</strong>
+                      <code data-localize-skip="true">${esc(String(ev.text || "").slice(0, 220))}</code>
+                    </div>`).join("")}
+                  </div>
+                </div>` : sub.lastActivity ? `<div class="dock-subagent-block"><code class="dock-subagent-activity" data-localize-skip="true">${esc(sub.lastActivity)}</code></div>` : ""}
+                ${filesTouched.length ? `<div class="dock-subagent-block">
+                  <span class="dock-subagent-label">Tệp chạm tới (${filesTouched.length})</span>
+                  <div class="orca-quick-pills">
+                    ${filesTouched.slice(0, 12).map((fp) => `<button type="button" class="kb-tag-chip" data-action="preview-drawer-file" data-id="${esc(selectedTask.id)}" data-workspace-id="${esc(selectedTask.workspaceId)}" data-path="${esc(fp)}" data-localize-skip="true">${esc(String(fp).split(/[\\/]/).at(-1) || fp)}</button>`).join("")}
+                  </div>
+                </div>` : ""}
+                ${sub.error ? `<p class="subagent-error-note" data-localize-skip="true">${esc(sub.error)}</p>` : ""}
+                ${sub.result ? `<div class="dock-subagent-block">
+                  <span class="dock-subagent-label">Kết quả trả về</span>
+                  <div class="markdown-preview dock-subagent-result">${renderMarkdown(String(sub.result).slice(0, 12000))}</div>
+                </div>` : (sub.summary || sub.resultPreview) ? `<p class="orca-muted-note" data-localize-skip="true">${esc(sub.summary || sub.resultPreview)}</p>` : ""}
+                <div class="dock-subagent-actions">
+                  <button type="button" class="button primary small" data-action="promote-subagent" data-id="${esc(selectedTask.id)}" data-sub-id="${esc(sub.id)}">${icon("git-branch", 12)}<span>Tách thành Worktree Task</span></button>
+                </div>
+              </div>
+            </details>`;
+          }).join("") : `<p class="orca-muted-note" style="margin-top:10px">Không có subagent khớp bộ lọc hiện tại.</p>`}
+        </div>
       </div>`;
     }
   } else if (tab === "docs" && selectedTask) {

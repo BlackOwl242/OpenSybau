@@ -1,7 +1,7 @@
 import { esc, formatNumber, icon, view } from "../../../shared/state.js";
 import { renderKnowledgeMarkdown, renderMarkdown } from "../markdown.js";
 import { mountKnowledgeGraphCanvas as mountVaultKnowledgeGraphCanvas } from "../knowledge-graph.js";
-import { api, markReplaceBrowserRoute, render } from "../runtime.js";
+import { api, ensureSubagentProfiles, markReplaceBrowserRoute, render } from "../runtime.js";
 
 export function vaultNoteOptionsMenu(filePath, { showRead = false, showGraph = false, direction = "down" } = {}) {
   return `<details class="codex-pop-menu is-right is-${direction} vault-action-menu">
@@ -185,8 +185,183 @@ export async function ensureSkillDetail(id) {
   }
 }
 
+export async function ensureSubagentProfileDetail(id) {
+  if (!id) return null;
+  view.subagentProfileDetailsCache ||= {};
+  if (view.subagentProfileDetailsCache[id]) return view.subagentProfileDetailsCache[id];
+  if (view.subagentProfileLoadingId === id) return null;
+  view.subagentProfileLoadingId = id;
+  const activeWsId = view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+  const qs = activeWsId ? `?workspaceId=${encodeURIComponent(activeWsId)}` : "";
+  try {
+    const { profile } = await api(`/api/subagent-profiles/${encodeURIComponent(id)}${qs}`);
+    if (profile) {
+      view.subagentProfileDetailsCache[id] = profile;
+      if (view.page === "skills") render();
+    }
+    return profile;
+  } catch {
+    return null;
+  } finally {
+    if (view.subagentProfileLoadingId === id) view.subagentProfileLoadingId = "";
+  }
+}
+
+function subagentSectionPage(allSkills, sectionTabsHtml) {
+  const activeWs = (view.state?.workspaces || []).find((w) => w.id === view.homeWorkspaceId)
+    || view.state?.workspaces?.[0]
+    || null;
+  const activeWsId = activeWs?.id || "";
+  if (!view.subagentProfilesLoaded || view.subagentProfilesWorkspaceId !== activeWsId) {
+    void ensureSubagentProfiles(activeWsId);
+  }
+  const allProfiles = view.subagentProfiles || [];
+  const summary = allProfiles.find((p) => p.id === view.selectedSubagentProfileId) || allProfiles[0] || null;
+  if (summary && view.selectedSubagentProfileId !== summary.id) {
+    view.selectedSubagentProfileId = summary.id;
+  }
+  const detail = summary ? (view.subagentProfileDetailsCache?.[summary.id] || null) : null;
+  if (summary && !detail) {
+    void ensureSubagentProfileDetail(summary.id);
+  }
+  const activeProfile = detail || summary;
+  const isEditing = Boolean(activeProfile?.editable && view.subagentProfileEditing && view.subagentProfileEditingId === activeProfile.id);
+  const wsTrustBanner = activeWs && activeWs.trustedSkills === false
+    ? `<div class="subagent-trust-callout">
+        <div class="subagent-trust-copy">
+          ${icon("shield-alert", 15)}
+          <div>
+            <strong>Hồ sơ cục bộ của dự án đang ở chế độ chưa tin cậy</strong>
+            <small>Các hồ sơ trong <code>.agents/agents</code>, <code>.claude/agents</code> hoặc <code>.codex/config.toml</code> của dự án <span data-localize-skip="true">${esc(activeWs.name)}</span> sẽ không tự động biên dịch vào CLI cho tới khi bạn xác nhận tin cậy.</small>
+          </div>
+        </div>
+        <button type="button" class="button quiet small" data-action="toggle-workspace-trust" data-id="${esc(activeWs.id)}">${icon("shield-check", 13)}<span>Tin cậy hồ sơ dự án</span></button>
+      </div>`
+    : "";
+
+  const harnessLabels = { claude: "Claude Code", codex: "Codex CLI", antigravity: "Antigravity CLI" };
+  let centerBodyHtml = "";
+
+  if (isEditing && activeProfile) {
+    centerBodyHtml = `<div class="vault-editor-wrap kb-editor-wrap">
+      <textarea class="vault-editor-textarea" data-subagent-inline-editor spellcheck="false" placeholder="Nội dung Markdown hồ sơ Subagent…">${esc(view.subagentProfileDraft ?? detail?.content ?? "")}</textarea>
+      <div class="vault-editor-foot">
+        <small>Chỉnh sửa trực tiếp tệp Markdown của hồ sơ <strong data-localize-skip="true">${esc(activeProfile.name)}</strong>.</small>
+        <div class="kb-editor-foot-actions">
+          <button type="button" class="button quiet small" data-action="cancel-inline-subagent-edit">Hủy</button>
+          <button type="button" class="button primary small" data-action="save-inline-subagent" data-id="${esc(activeProfile.id)}">${icon("check", 13)}<span>Lưu hồ sơ</span></button>
+        </div>
+      </div>
+    </div>`;
+  } else if (activeProfile) {
+    const rawContent = detail?.content || "";
+    const promptBody = detail?.prompt || "";
+    const isCodexToml = activeProfile.format === "codex-toml";
+    const harnesses = (activeProfile.harnesses || []).map((h) => harnessLabels[h] || h);
+    const toolsList = Array.isArray(activeProfile.tools) ? activeProfile.tools : [];
+    const disallowedList = Array.isArray(activeProfile.disallowedTools) ? activeProfile.disallowedTools : [];
+
+    centerBodyHtml = `<div class="kb-doc-scroll">
+      <div class="kb-doc-container is-full-stage">
+        ${wsTrustBanner}
+        <section class="minimal-stage-hero skill-stage-hero is-subagent-hero">
+          <div class="minimal-stage-title">
+            <span class="minimal-stage-icon">${icon("waypoints", 18)}</span>
+            <div class="skill-hero-copy">
+              <div class="skill-hero-title-row">
+                <h1 data-localize-skip="true">${esc(activeProfile.name)}</h1>
+                <span class="kb-tag-chip is-inline-badge">${activeProfile.editable ? "Quản lý cục bộ · Có thể sửa" : "Cấu hình CLI · Chỉ đọc"}</span>
+                ${activeProfile.readOnly ? `<span class="kb-tag-chip is-inline-badge">${icon("shield-check", 11)}<span>Chỉ đọc mã nguồn</span></span>` : ""}
+                ${activeProfile.workspaceScoped && !activeProfile.trusted ? `<span class="kb-tag-chip is-inline-badge">${icon("shield-alert", 11)}<span>Chưa tin cậy</span></span>` : ""}
+              </div>
+              <p data-localize-skip="true">${esc(activeProfile.description || activeProfile.source || "")}</p>
+              <div class="subagent-meta-chips">
+                <span class="kb-tag-chip">Model: <code data-localize-skip="true">${esc(activeProfile.model || "inherit")}</code></span>
+                ${harnesses.map((label) => `<span class="kb-tag-chip" data-localize-skip="true">${esc(label)}</span>`).join("")}
+                ${toolsList.length ? `<span class="kb-tag-chip">Công cụ: <code data-localize-skip="true">${esc(toolsList.join(", "))}</code></span>` : ""}
+                ${disallowedList.length ? `<span class="kb-tag-chip">Chặn: <code data-localize-skip="true">${esc(disallowedList.join(", "))}</code></span>` : ""}
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="settings-card skill-doc-card is-subagent-card">
+          <header class="skill-doc-card-head">
+            <div class="skill-doc-card-title">
+              ${icon("file-text", 14)}
+              <strong>${isCodexToml ? "config.toml" : `${esc(activeProfile.name)}.md`}</strong>
+              ${activeProfile.source ? `<small data-localize-skip="true">${esc(activeProfile.source)}</small>` : ""}
+            </div>
+            <div class="skill-doc-card-actions">
+              ${activeProfile.workspaceScoped && activeWs && activeWs.trustedSkills !== false
+                ? `<button type="button" class="button quiet small" data-action="toggle-workspace-trust" data-id="${esc(activeWs.id)}">${icon("shield-alert", 13)}<span>Thu hồi tin cậy dự án</span></button>`
+                : ""}
+              ${activeProfile.editable
+                ? `<button type="button" class="button quiet small" data-action="start-inline-subagent-edit" data-id="${esc(activeProfile.id)}">${icon("square-pen", 13)}<span>Sửa</span></button>
+                   <button type="button" class="button quiet small" data-action="delete-subagent-profile" data-id="${esc(activeProfile.id)}">${icon("delete", 13)}<span>Xóa</span></button>`
+                : `<button type="button" class="button quiet small" data-action="copy-subagent-profile" data-id="${esc(activeProfile.id)}">${icon("copy", 13)}<span>Sao chép thành Markdown</span></button>`}
+            </div>
+          </header>
+          <div class="skill-doc-body">
+            ${isCodexToml
+              ? (rawContent ? `<pre class="subagent-toml-preview"><code data-localize-skip="true">${esc(rawContent)}</code></pre>` : `<p class="neural-muted">Đang tải cấu hình vai trò Codex…</p>`)
+              : (rawContent || promptBody
+                ? `<article class="markdown-preview kb-markdown-doc">${renderMarkdown(promptBody || rawContent)}</article>`
+                : `<p class="neural-muted">Đang tải nội dung hồ sơ Subagent…</p>`)}
+          </div>
+        </section>
+      </div>
+    </div>`;
+  } else {
+    centerBodyHtml = `<div class="file-preview-empty kb-empty-stage">
+      ${wsTrustBanner}
+      ${icon("waypoints", 20)}
+      <strong>Chưa có hồ sơ Subagent tùy chỉnh</strong>
+      <p>Tạo hồ sơ vai trò chuyên biệt (ví dụ: <code>code-reviewer</code>, <code>security-auditor</code>, <code>test-runner</code>) để biên dịch vào Claude Code, Codex CLI và Antigravity CLI.</p>
+      <div class="kb-empty-actions">
+        <button type="button" class="button quiet small" data-action="scan-subagent-profiles">${icon("refresh-cw", 13)}<span>Quét lại danh mục</span></button>
+        <button type="button" class="button primary small" data-action="new-subagent-profile">${icon("plus", 13)}<span>Tạo hồ sơ Subagent</span></button>
+      </div>
+    </div>`;
+  }
+
+  return `<section class="minimal-center-stage" aria-label="Không gian Hồ sơ Subagent">
+    <header class="kb-stage-topbar is-skill-topbar">
+      <div class="kb-topbar-left">
+        <button type="button" class="button quiet small kb-mobile-drawer-btn" data-action="toggle-chat-drawer">${icon("waypoints", 13)}<span>Hồ sơ (${allProfiles.length})</span></button>
+        <div class="kb-active-doc-info">
+          <strong ${activeProfile ? 'data-localize-skip="true"' : ""}>${esc(activeProfile ? activeProfile.name : "Hồ sơ Subagent")}</strong>
+          <small ${activeProfile ? 'data-localize-skip="true"' : ""}>${activeProfile ? esc(activeProfile.source || "Hồ sơ Subagent") : `${allProfiles.length} hồ sơ đã quét`}</small>
+          ${activeProfile ? `<span class="kb-tag-chip is-inline-badge">${activeProfile.editable ? "Có thể sửa" : "Chỉ đọc"}</span>` : ""}
+        </div>
+      </div>
+      <div class="kb-topbar-right">
+        ${sectionTabsHtml}
+        ${isEditing && activeProfile
+          ? `<button type="button" class="button quiet small" data-action="cancel-inline-subagent-edit">Hủy</button>
+             <button type="button" class="button primary small" data-action="save-inline-subagent" data-id="${esc(activeProfile.id)}">${icon("check", 13)}<span>Lưu</span></button>`
+          : `<button type="button" class="button quiet small" data-action="scan-subagent-profiles" title="Quét lại danh mục hồ sơ Subagent">${icon("refresh-cw", 13)}<span>Quét lại</span></button>
+             <button type="button" class="button primary small" data-action="new-subagent-profile">${icon("plus", 13)}<span>Tạo hồ sơ Subagent</span></button>`}
+      </div>
+    </header>
+    <div class="kb-stage-body">
+      ${centerBodyHtml}
+    </div>
+  </section>`;
+}
+
 export function skillPage() {
   const allSkills = view.skills || [];
+  const allProfiles = view.subagentProfiles || [];
+  const section = view.skillsSection === "subagents" ? "subagents" : "skills";
+  const sectionTabsHtml = `<div class="vault-mode-tabs" role="tablist" aria-label="Chế độ xem Kỹ năng và Hồ sơ Subagent">
+    <button type="button" class="vault-mode-tab ${section === "skills" ? "is-active" : ""}" data-action="skills-section" data-section="skills">${icon("notebook-tabs", 13)}<span>Kỹ năng (${allSkills.length})</span></button>
+    <button type="button" class="vault-mode-tab ${section === "subagents" ? "is-active" : ""}" data-action="skills-section" data-section="subagents">${icon("waypoints", 13)}<span>Hồ sơ Subagent${view.subagentProfilesLoaded ? ` (${allProfiles.length})` : ""}</span></button>
+  </div>`;
+
+  if (section === "subagents") {
+    return subagentSectionPage(allSkills, sectionTabsHtml);
+  }
+
   const activeSkillSummary = allSkills.find((s) => s.id === view.selectedSkillId) || allSkills[0] || null;
   if (activeSkillSummary && view.selectedSkillId !== activeSkillSummary.id) {
     view.selectedSkillId = activeSkillSummary.id;
@@ -270,6 +445,7 @@ export function skillPage() {
         </div>
       </div>
       <div class="kb-topbar-right">
+        ${sectionTabsHtml}
         ${isEditing && activeSkill
           ? `<button type="button" class="button quiet small" data-action="cancel-inline-skill-edit">Hủy</button>
              <button type="button" class="button primary small" data-action="save-inline-skill" data-id="${esc(activeSkill.id)}">${icon("check", 13)}<span>Lưu</span></button>`

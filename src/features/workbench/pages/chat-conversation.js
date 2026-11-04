@@ -4,7 +4,7 @@ import { renderMarkdown } from "../markdown.js";
 import { dockFileIconName } from "../stage-viewer.js";
 import { ensureWorkspaceFileIndex, render } from "../runtime.js";
 import { formatEffortLabel, taskProgress } from "../ui-controls.js";
-import { composerAddMenu, composerAttachmentsMarkup, composerPermissionMenuMarkup } from "../composer.js";
+import { composerAddMenu, composerAttachmentsMarkup, composerPermissionMenuMarkup, composerSubagentMenuMarkup } from "../composer.js";
 import { missionControlStepperMarkup } from "./flows-memory-page.js";
 
 export function orderedConversationMessages(messages) {
@@ -31,9 +31,17 @@ export function taskConversationPipelineStrip(task, busy) {
     return missionControlStepperMarkup(task, { compact: true });
   }
   const lastEvent = (task.events || []).filter((e) => e.kind !== "output").at(-1) || (task.events || []).at(-1);
-  if (workflow === "chat-only" && !busy && !artifactsCount && !task.isolated && !task.fanoutId) return "";
+  const hasSubagents = (task.subagents || []).length > 0;
+  if (workflow === "chat-only" && !busy && !artifactsCount && !task.isolated && !task.fanoutId && !task.promotedFromSubagent && !hasSubagents) return "";
   const worktreeChip = task.isolated
     ? `<span class="chat-worktree-chip ${task.worktreeAppliedAt ? "is-merged" : ""}" title="${esc(task.worktreePath || task.executionPath || "")}">${icon(task.worktreeAppliedAt ? "check" : "git-branch", 12)} ${task.worktreeAppliedAt ? "Đã gộp vào dự án" : task.worktreeCleaned ? "Worktree đã dọn" : esc(task.worktreeBranch || "Worktree cô lập")}</span>`
+    : "";
+  const originChip = task.promotedFromSubagent
+    ? `<button type="button" class="chat-worktree-chip is-origin-chip" data-task="${esc(task.promotedFromSubagent.taskId)}" title="Xem task cha gốc">${icon("waypoints", 11)}<span>Từ Subagent: <b data-localize-skip="true">${esc(task.promotedFromSubagent.role || "subagent")}</b></span></button>`
+    : "";
+  const activeSubCount = (task.subagents || []).filter((s) => ["spawning", "running", "waiting"].includes(s.status)).length;
+  const subChip = hasSubagents
+    ? `<button type="button" class="chat-worktree-chip is-subagent-chip" data-action="open-dock-subagents" data-id="${esc(task.id)}" title="Mở bảng giám sát Subagents">${icon("waypoints", 12)}<span>${activeSubCount > 0 ? `${activeSubCount} subagent đang chạy` : `${task.subagents.length} subagent`}</span></button>`
     : "";
   const activityText = busy && lastEvent?.text ? `<span class="chat-live-event" title="${esc(lastEvent.text)}"><i class="pulse-dot"></i>${esc(String(lastEvent.text).slice(0, 110))}</span>` : "";
   const canManageWorktree = Boolean(task.isolated && !busy && !task.worktreeCleaned && !task.worktreeAppliedAt);
@@ -45,7 +53,7 @@ export function taskConversationPipelineStrip(task, busy) {
     : "";
   const diffBtn = task.status !== "queued" ? `<button type="button" class="button quiet small" data-action="show-diff" data-id="${esc(task.id)}">${icon("file", 13)}<span>Diff & Review${artifactsCount ? ` (${artifactsCount})` : ""}</span></button>` : "";
   const flowBtn = `<button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(task.id)}">${icon("workflow", 13)}<span>Luồng</span></button>`;
-  return `<div class="chat-pipeline-strip ${busy ? "is-running" : ""}"><div class="chat-pipeline-stages">${worktreeChip}${activityText}</div><div class="chat-pipeline-actions">${applyWtBtn}${discardWtBtn}${diffBtn}${flowBtn}</div></div>`;
+  return `<div class="chat-pipeline-strip ${busy ? "is-running" : ""}"><div class="chat-pipeline-stages">${worktreeChip}${originChip}${subChip}${activityText}</div><div class="chat-pipeline-actions">${applyWtBtn}${discardWtBtn}${diffBtn}${flowBtn}</div></div>`;
 }
 
 export function taskArenaBanner(task) {
@@ -88,6 +96,100 @@ export function cleanToolCommandText(raw) {
     text = text.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\").trim();
   }
   return text.replace(/\s+/g, " ");
+}
+
+export function subagentStatusLabel(status) {
+  return ({
+    spawning: "Đang khởi tạo",
+    running: "Đang chạy",
+    waiting: "Đang chờ",
+    completed: "Hoàn tất",
+    done: "Hoàn tất",
+    failed: "Lỗi",
+    cancelled: "Đã dừng",
+  })[status] || status || "Đang chạy";
+}
+
+export function subagentDotClass(status) {
+  if (["spawning", "running", "waiting"].includes(status)) return "running";
+  if (status === "failed") return "failed";
+  if (status === "cancelled") return "cancelled";
+  return "done";
+}
+
+export function taskSubagentStreamMarkup(task) {
+  const subs = Array.isArray(task.subagents) ? task.subagents : [];
+  if (!subs.length) return "";
+  const activeCount = subs.filter((s) => ["spawning", "running", "waiting"].includes(s.status)).length;
+  const doneCount = subs.filter((s) => s.status === "completed" || s.status === "done").length;
+
+  const byParent = new Map();
+  const roots = [];
+  const knownIds = new Set(subs.map((s) => s.id));
+  for (const sub of subs) {
+    const parentId = sub.parentId || sub.parentSubagentId || "";
+    if (parentId && knownIds.has(parentId) && parentId !== sub.id) {
+      if (!byParent.has(parentId)) byParent.set(parentId, []);
+      byParent.get(parentId).push(sub);
+    } else {
+      roots.push(sub);
+    }
+  }
+  const ordered = [];
+  const walk = (item, depth) => {
+    ordered.push({ sub: item, depth });
+    for (const child of byParent.get(item.id) || []) {
+      walk(child, Math.min(3, depth + 1));
+    }
+  };
+  for (const r of roots) walk(r, 0);
+
+  return `<section class="chat-subagent-stream" data-key="subagent-stream-${esc(task.id)}" aria-label="Subagents hoạt động">
+    <header class="chat-subagent-stream-head">
+      <span class="chat-tool-stream-title">
+        ${icon("waypoints", 14)}
+        <strong>Subagents</strong>
+        <span class="chat-tool-stream-meta">${activeCount > 0 ? `${activeCount} đang chạy · ` : ""}${doneCount}/${subs.length} hoàn tất</span>
+      </span>
+      <button type="button" class="subagent-head-btn" data-action="open-dock-subagents" data-id="${esc(task.id)}">
+        <span>Cây thực thi</span>
+        ${icon("sidebar-right", 12)}
+      </button>
+    </header>
+    <div class="chat-subagent-list">
+      ${ordered.map(({ sub, depth }) => {
+        const isLive = ["spawning", "running", "waiting"].includes(sub.status);
+        const harnessName = providerTitle(view.connectors, sub.harness || "codex");
+        const tok = tokenCount(sub.usage);
+        const durMs = Number(sub.durationMs || 0) || (sub.startedAt && isLive ? Math.max(0, Date.now() - Date.parse(sub.startedAt)) : 0);
+        const durLabel = durMs > 0 ? chatDurationLabel(durMs) : "";
+        const roleLabel = sub.role || sub.agentType || sub.id;
+        return `<details class="subagent-live-card is-${esc(sub.status || "running")} ${depth > 0 ? "is-nested" : ""}" style="${depth > 0 ? `--sub-depth:${depth}` : ""}" data-key="sub-${esc(task.id)}-${esc(sub.id)}" ${isLive ? "open" : ""}>
+          <summary class="subagent-live-summary">
+            <span class="wb-task-dot is-${subagentDotClass(sub.status)}"></span>
+            <strong class="subagent-role-name" data-localize-skip="true">${esc(roleLabel)}</strong>
+            <span class="subagent-harness-pill" data-localize-skip="true">${esc(harnessName)}${sub.model && sub.model !== "inherit" ? ` · ${esc(sub.model)}` : ""}</span>
+            <span class="subagent-metrics">
+              ${sub.toolCount ? `<span>${sub.toolCount} công cụ</span>` : ""}
+              ${durLabel ? `<span data-localize-skip="true">${esc(durLabel)}</span>` : ""}
+              ${tok ? `<span data-localize-skip="true">${formatNumber(tok)} tok</span>` : ""}
+            </span>
+            <span class="subagent-status-tag is-${esc(sub.status || "running")}">${esc(subagentStatusLabel(sub.status))}</span>
+            <span class="chat-tool-stream-chevron">${icon("chevron-right", 13)}</span>
+          </summary>
+          <div class="subagent-live-body">
+            ${sub.lastActivity ? `<div class="subagent-activity-line">${icon("square-terminal", 12)}<code data-localize-skip="true">${esc(sub.lastActivity)}</code></div>` : ""}
+            ${sub.error ? `<p class="subagent-error-note" data-localize-skip="true">${esc(sub.error)}</p>` : ""}
+            ${(sub.summary || sub.resultPreview) ? `<p class="subagent-summary-text" data-localize-skip="true">${esc(sub.summary || sub.resultPreview)}</p>` : ""}
+            <div class="subagent-card-actions">
+              <button type="button" class="button quiet small" data-action="inspect-subagent" data-id="${esc(task.id)}" data-sub-id="${esc(sub.id)}">${icon("eye", 12)}<span>Chi tiết & Nhật ký</span></button>
+              <button type="button" class="button quiet small" data-action="promote-subagent" data-id="${esc(task.id)}" data-sub-id="${esc(sub.id)}" title="Tách nhánh công việc của subagent này thành một Git Worktree Task độc lập">${icon("git-branch", 12)}<span>Tách Worktree Task</span></button>
+            </div>
+          </div>
+        </details>`;
+      }).join("")}
+    </div>
+  </section>`;
 }
 
 export function taskInlineToolStream(task) {
@@ -504,13 +606,14 @@ export function taskConversationPage(taskId = view.selected, options = {}) {
   const threadId = options.splitPane ? `chat-thread-${esc(task.id)}` : "chat-thread";
   const composerMarkup = options.locked
     ? `<div class="multi-chat-locked">Chat này chưa có worktree riêng để chạy song song an toàn. Tạo chat mới với “Tách Git worktree riêng”.</div>`
-    : `<form class="chat-composer" data-modal data-form="task-chat" data-id="${esc(task.id)}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(options.draft ?? view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model-${esc(task.id)}"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort-${esc(task.id)}"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(formatEffortLabel(effort))}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-id="${esc(task.id)}" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(formatEffortLabel(ef))}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div>${busy ? `<button class="button primary chat-send-button chat-stop-button" type="button" data-action="stop-task" data-id="${esc(task.id)}" aria-label="${view.language === "en" ? "Stop" : "Dừng"}" title="${view.language === "en" ? "Stop task" : "Dừng tác vụ"}">${icon("square", 13)}</button>` : `<button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>`}</div></footer></form>`;
+    : `<form class="chat-composer" data-modal data-form="task-chat" data-id="${esc(task.id)}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(options.draft ?? view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}${composerSubagentMenuMarkup(task.subagentPolicy, { scope: "task", taskId: task.id, workspaceId: task.workspaceId, isolated: Boolean(task.isolated) })}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model-${esc(task.id)}"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort-${esc(task.id)}"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(formatEffortLabel(effort))}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-id="${esc(task.id)}" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(formatEffortLabel(ef))}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div>${busy ? `<button class="button primary chat-send-button chat-stop-button" type="button" data-action="stop-task" data-id="${esc(task.id)}" aria-label="${view.language === "en" ? "Stop" : "Dừng"}" title="${view.language === "en" ? "Stop task" : "Dừng tác vụ"}">${icon("square", 13)}</button>` : `<button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>`}</div></footer></form>`;
   return `<section class="task-conversation-page is-unified-chat ${options.splitPane ? "is-split-pane" : ""}" aria-label="Cuộc trò chuyện">
       <section class="task-chat-pane conversation-chat-pane">
         ${outlineMarkup}
         <div class="chat-thread" id="${threadId}" data-task-id="${esc(task.id)}" aria-live="polite">
           <div class="chat-thread-stream">
             ${transcriptHtml}
+            ${taskSubagentStreamMarkup(task)}
             ${taskInlineToolStream(task)}
             ${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}
           </div>

@@ -227,7 +227,20 @@ export async function loadWorkspacePreview(workspaceId, path) {
 export function orchestrationNodeHtml(node, index, count) {
   const stateLabel = { complete: "Hoàn tất", active: "Đang chạy", queued: "Đang chờ", pending: "Chưa chạy", failed: "Lỗi", cancelled: "Đã dừng" }[node.state] || "Chưa ghi nhận";
   const stateIcon = node.state === "complete" ? "check" : node.state === "active" ? "refresh-cw" : node.state === "failed" || node.state === "cancelled" ? "x" : node.icon;
-  const extra = node.events?.length ? `<details class="orchestration-node-details"><summary>${node.events.length} sự kiện công cụ quan sát được</summary><div>${node.events.map((event) => `<p><time>${fmtDate(event.at)}</time>${esc(event.text)}</p>`).join("")}</div></details>` : node.output ? `<details class="orchestration-node-details"><summary>Xem đầu ra stage</summary><pre>${esc(node.output)}</pre></details>` : node.files?.length ? `<details class="orchestration-node-details"><summary>Xem ${node.files.length} tệp thay đổi</summary><div>${node.files.map((file) => `<code>${esc(file)}</code>`).join("")}</div></details>` : "";
+  const subStatusLabel = { spawning: "Đang khởi tạo", running: "Đang chạy", waiting: "Đang chờ", completed: "Hoàn tất", done: "Hoàn tất", failed: "Lỗi", cancelled: "Đã dừng" };
+  const extra = node.subagents?.length
+    ? `<details class="orchestration-node-details"><summary>Xem ${node.subagents.length} phiên Subagent đã ghi nhận</summary><div class="orchestration-subagent-list">${node.subagents.map((sub) => {
+      const tCount = sub.toolCount || sub.toolCallsCount || 0;
+      const preview = sub.summary || sub.resultPreview || "";
+      return `<p><strong data-localize-skip="true">${esc(sub.role || sub.agentType || "Subagent")}</strong> · <span>${subStatusLabel[sub.status] || esc(sub.status)}</span>${tCount ? ` · ${tCount} công cụ` : ""}${preview ? ` — <span data-localize-skip="true">${esc(String(preview).slice(0, 140))}</span>` : ""}</p>`;
+    }).join("")}</div></details>`
+    : node.events?.length
+      ? `<details class="orchestration-node-details"><summary>${node.events.length} sự kiện công cụ quan sát được</summary><div>${node.events.map((event) => `<p><time>${fmtDate(event.at)}</time>${esc(event.text)}</p>`).join("")}</div></details>`
+      : node.output
+        ? `<details class="orchestration-node-details"><summary>Xem đầu ra stage</summary><pre>${esc(node.output)}</pre></details>`
+        : node.files?.length
+          ? `<details class="orchestration-node-details"><summary>Xem ${node.files.length} tệp thay đổi</summary><div>${node.files.map((file) => `<code>${esc(file)}</code>`).join("")}</div></details>`
+          : "";
   return `<article class="orchestration-node state-${esc(node.state)}" data-node="${esc(node.id)}"><div class="orchestration-rail"><span>${icon(stateIcon, 16)}</span>${index < count - 1 ? "<i></i>" : ""}</div><div class="orchestration-node-card"><header><small>${esc(node.group)}</small><span>${stateLabel}</span></header><div class="orchestration-node-main"><span class="orchestration-node-icon">${icon(node.icon, 17)}</span><div><h3>${esc(node.title)}</h3><p>${esc(node.detail)}</p></div></div>${extra}</div></article>`;
 }
 

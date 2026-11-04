@@ -1,7 +1,7 @@
 import morphdom from "morphdom";
 import { localizeDom } from "./i18n.js";
 
-const SCROLL_SELECTOR = ".chat-thread, .codex-pop-scroll, .multi-chat-picker-list, .orca-dock-body, .orca-code-scroll, .orca-doc-scroll, .orca-diff-scroll, .orca-table-scroll, .kb-doc-scroll, .kb-file-list, .kb-inspector-scroll, .chat-tool-stream-body, .orchestration-event-list, .wb-side-scroll, .diff-hunk-list, .diff-file-list";
+const SCROLL_SELECTOR = ".chat-thread, .codex-pop-scroll, .multi-chat-picker-list, .orca-dock-body, .orca-code-scroll, .orca-doc-scroll, .orca-diff-scroll, .orca-table-scroll, .kb-doc-scroll, .kb-file-list, .kb-inspector-scroll, .chat-tool-stream-body, .subagent-log-scroll, .orchestration-event-list, .wb-side-scroll, .diff-hunk-list, .diff-file-list";
 
 const scrollKey = (el, idx) => {
   const pane = el.closest(".multi-chat-pane")?.dataset?.taskId || "";

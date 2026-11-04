@@ -11,6 +11,7 @@ import {
   api,
   closeOverlay,
   connectEventStream,
+  ensureSubagentProfiles,
   refresh,
   refreshQuotas,
   render,
@@ -26,6 +27,7 @@ import {
   showNewVaultNoteModal,
   showProjectSectionModal,
   showSkillCreateModal,
+  showSubagentProfileCreateModal,
   showVaultModal,
   showWorkspaceModal,
   sourceFolderRow,
@@ -34,6 +36,7 @@ import { clearSidebarSearch } from "../pages/chat-page.js";
 import { loadWorkspaceDir, loadWorkspacePreview } from "../pages/tasks-workspaces-page.js";
 import {
   ensureSkillDetail,
+  ensureSubagentProfileDetail,
   loadVaultDir,
   loadVaultGraph,
   loadVaultPreview,
@@ -741,6 +744,135 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
   if (action === "open-obsidian") {
     await api("/api/vault/open-obsidian", { method: "POST", body: JSON.stringify({ path: button.dataset.path || view.vaultPreview?.path || "" }) });
     showToast("Đang mở trong ứng dụng Obsidian…");
+    return true;
+  }
+  if (action === "skills-section") {
+    view.skillsSection = button.dataset.section === "subagents" ? "subagents" : "skills";
+    view.skillEditing = false;
+    view.subagentProfileEditing = false;
+    render();
+    if (view.skillsSection === "subagents") {
+      await ensureSubagentProfiles("", { force: false });
+      render();
+    }
+    return true;
+  }
+  if (action === "scan-subagent-profiles") {
+    view.subagentProfileDetailsCache = {};
+    await ensureSubagentProfiles("", { force: true });
+    render();
+    showToast(`Đã quét danh mục: ${(view.subagentProfiles || []).length} hồ sơ Subagent.`);
+    return true;
+  }
+  if (action === "new-subagent-profile") {
+    showSubagentProfileCreateModal();
+    return true;
+  }
+  if (action === "select-subagent-profile") {
+    view.selectedSubagentProfileId = id || "";
+    view.subagentProfileEditing = false;
+    view.subagentProfileEditingId = "";
+    if (view.selectedSubagentProfileId) void ensureSubagentProfileDetail(view.selectedSubagentProfileId);
+    render();
+    return true;
+  }
+  if (action === "start-inline-subagent-edit") {
+    const detail = await ensureSubagentProfileDetail(id);
+    if (detail) {
+      view.selectedSubagentProfileId = id;
+      view.subagentProfileEditing = true;
+      view.subagentProfileEditingId = id;
+      view.subagentProfileDraft = detail.content || "";
+      render();
+    }
+    return true;
+  }
+  if (action === "cancel-inline-subagent-edit") {
+    view.subagentProfileEditing = false;
+    view.subagentProfileEditingId = "";
+    view.subagentProfileDraft = "";
+    render();
+    return true;
+  }
+  if (action === "save-inline-subagent") {
+    const editorEl = document.querySelector("[data-subagent-inline-editor]");
+    const content = editorEl ? editorEl.value : (view.subagentProfileDraft ?? "");
+    const activeWsId = view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+    if (id && content.trim()) {
+      const res = await api(`/api/subagent-profiles/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ content, workspaceId: activeWsId }),
+      });
+      if (view.subagentProfileDetailsCache) delete view.subagentProfileDetailsCache[id];
+      view.subagentProfileEditing = false;
+      view.subagentProfileEditingId = "";
+      if (res?.profile?.id) {
+        view.selectedSubagentProfileId = res.profile.id;
+        view.subagentProfileDetailsCache[res.profile.id] = res.profile;
+      }
+      await ensureSubagentProfiles(activeWsId, { force: true });
+      render();
+      showToast("Đã lưu thay đổi hồ sơ Subagent.");
+    }
+    return true;
+  }
+  if (action === "copy-subagent-profile") {
+    const detail = (await ensureSubagentProfileDetail(id)) || (view.subagentProfiles || []).find((p) => p.id === id);
+    if (detail) {
+      const baseSlug = `${detail.name}-custom`.slice(0, 64);
+      const res = await api("/api/subagent-profiles", {
+        method: "POST",
+        body: JSON.stringify({
+          name: baseSlug,
+          description: detail.description || `Bản sao tùy chỉnh từ ${detail.name}`,
+          model: detail.model || "inherit",
+          scopeId: "global",
+          tools: detail.tools || [],
+          disallowedTools: detail.disallowedTools || [],
+          readOnly: Boolean(detail.readOnly),
+          prompt: detail.prompt || detail.description || `Thực hiện vai trò ${detail.name}.`,
+        }),
+      });
+      view.subagentProfileDetailsCache = {};
+      await ensureSubagentProfiles("", { force: true });
+      if (res?.profile?.id) {
+        view.selectedSubagentProfileId = res.profile.id;
+        view.subagentProfileDetailsCache[res.profile.id] = res.profile;
+      }
+      render();
+      showToast("Đã sao chép thành hồ sơ Markdown cục bộ để tùy chỉnh.");
+    }
+    return true;
+  }
+  if (action === "delete-subagent-profile") {
+    const prof = (view.subagentProfiles || []).find((item) => item.id === id);
+    const activeWsId = view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
+    const qs = activeWsId ? `?workspaceId=${encodeURIComponent(activeWsId)}` : "";
+    if (confirm(`Xóa hồ sơ Subagent “${prof?.name || id}” khỏi máy cục bộ?`)) {
+      await api(`/api/subagent-profiles/${encodeURIComponent(id)}${qs}`, { method: "DELETE" });
+      if (view.subagentProfileDetailsCache) delete view.subagentProfileDetailsCache[id];
+      if (view.selectedSubagentProfileId === id) view.selectedSubagentProfileId = "";
+      await ensureSubagentProfiles(activeWsId, { force: true });
+      render();
+      showToast("Đã xóa hồ sơ Subagent.");
+    }
+    return true;
+  }
+  if (action === "toggle-workspace-trust") {
+    const ws = (view.state?.workspaces || []).find((w) => w.id === id);
+    if (!ws) return true;
+    const nextTrusted = ws.trustedSkills === false;
+    await api(`/api/workspaces/${encodeURIComponent(ws.id)}/trust-skills`, {
+      method: "POST",
+      body: JSON.stringify({ trusted: nextTrusted }),
+    });
+    view.skillsLoaded = false;
+    view.subagentProfilesLoaded = false;
+    view.subagentProfileDetailsCache = {};
+    await refresh();
+    await ensureSubagentProfiles(ws.id, { force: true });
+    render();
+    showToast(nextTrusted ? `Đã bật tin cậy kỹ năng & hồ sơ Subagent cho dự án ${ws.name}.` : `Đã thu hồi tin cậy hồ sơ cục bộ của dự án ${ws.name}.`);
     return true;
   }
   if (action === "copy-skill") {

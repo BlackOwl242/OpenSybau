@@ -267,9 +267,9 @@ export function createCliDiscoveryService({
     const claudeAuthenticated = claudeAuth.code === 0 || Boolean(process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_CODE_OAUTH_TOKEN);
     const claudeAvailable = claude.code === 0 && claudeAuthenticated;
     const claudeModels = claude.code === 0 ? [
-      { id: "sonnet", name: "Claude Sonnet · latest", efforts: ["standard"] },
-      { id: "opus", name: "Claude Opus · latest", efforts: ["standard"] },
-      { id: "haiku", name: "Claude Haiku · latest", efforts: ["standard"] },
+      { id: "sonnet", name: "Claude Sonnet · latest", efforts: ["standard", "low", "medium", "high"] },
+      { id: "opus", name: "Claude Opus · latest", efforts: ["standard", "low", "medium", "high"] },
+      { id: "haiku", name: "Claude Haiku · latest", efforts: ["standard", "low", "medium", "high"] },
     ] : [];
     const apiDefinitions = [];
     let apiConfigurationError = null;

@@ -1,6 +1,6 @@
 import { $, view } from "../../../shared/state.js";
 import { providerTitle, workflowRoles } from "../../../domain/agent-roles.js";
-import { api, refresh, render, showToast } from "../runtime.js";
+import { api, ensureSubagentProfiles, refresh, render, showToast } from "../runtime.js";
 import { normalizedChatSelection } from "../ui-controls.js";
 import {
   clearComposerAttachments,
@@ -146,6 +146,7 @@ export async function handleSubmit(event) {
             permissionPreset,
             workflow: "codex-antigravity",
             competitors,
+            subagentPolicy: view.homeSubagentPolicy,
           }),
         });
         const firstTask = result.tasks?.[0];
@@ -180,6 +181,7 @@ export async function handleSubmit(event) {
           permissionPreset: view.homePermissionPreset || object.permissionPreset || "workspace-write",
           planGate: Boolean(view.homePlanGate),
           maxRounds: Number(view.homeMaxRounds) || 2,
+          subagentPolicy: view.homeSubagentPolicy,
         };
         const task = await api("/api/tasks", { method: "POST", body: JSON.stringify(payload) });
         const splitWorkspaceId = view.chatSplitReturnWorkspaceId;
@@ -274,6 +276,30 @@ export async function handleSubmit(event) {
       view.skillsLoaded = false;
       view.page = "skills";
       showToast("Đã tạo skill trên máy.");
+    } else if (form.dataset.form === "subagent-profile-create") {
+      const created = await api("/api/subagent-profiles", {
+        method: "POST",
+        body: JSON.stringify({
+          name: object.name,
+          description: object.description,
+          model: object.model || "inherit",
+          scopeId: object.scopeId || "global",
+          workspaceId: object.workspaceId || "",
+          tools: object.tools || "",
+          readOnly: data.has("readOnly"),
+          prompt: object.prompt,
+        }),
+      });
+      view.subagentProfilesLoaded = false;
+      view.subagentProfileDetailsCache = {};
+      view.page = "skills";
+      view.skillsSection = "subagents";
+      if (created?.profile?.id) {
+        view.selectedSubagentProfileId = created.profile.id;
+        view.subagentProfileDetailsCache[created.profile.id] = created.profile;
+      }
+      await ensureSubagentProfiles(object.workspaceId || "", { force: true });
+      showToast("Đã tạo hồ sơ Subagent mới.");
     } else if (form.dataset.form === "vault") {
       await api("/api/settings", { method: "POST", body: JSON.stringify({ vaultPath: object.vaultPath }) });
       view.page = "knowledge";

@@ -52,6 +52,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     cliDiscovery,
     providerQuotaService,
     skillCatalogService,
+    subagentCatalogService,
     promptService,
     taskRunner,
   } = ctx;
@@ -496,6 +497,135 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       invalidateSkillCatalogCache();
       publish("skills");
       json(response, 200, { ok: true, removedSources: editableFiles.length, readonlySourcesRemain: skill.files.some((file) => !file.managed) });
+      return true;
+    }
+  }
+
+  function publicSubagentProfile(item, includeRaw = false) {
+    if (!item) return null;
+    const base = {
+      id: item.id,
+      name: item.name,
+      title: item.title || item.name,
+      description: item.description || "",
+      model: item.model || "inherit",
+      tools: Array.isArray(item.tools) ? item.tools : [],
+      disallowedTools: Array.isArray(item.disallowedTools) ? item.disallowedTools : [],
+      readOnly: Boolean(item.readOnly),
+      harnesses: Array.isArray(item.harnesses) ? item.harnesses : [],
+      scopeId: item.scopeId || "global",
+      source: item.source || "",
+      editable: Boolean(item.managed && item.format === "markdown"),
+      managed: Boolean(item.managed),
+      workspaceScoped: Boolean(item.workspaceScoped),
+      workspaceId: item.workspaceId || "",
+      trusted: Boolean(item.trusted !== false),
+      format: item.format || "markdown",
+    };
+    if (includeRaw) {
+      base.prompt = item.prompt || "";
+      base.content = item.rawContent || "";
+    }
+    return base;
+  }
+
+  function composeSubagentMarkdown(body = {}) {
+    if (typeof body.content === "string" && body.content.trim()) {
+      return body.content;
+    }
+    const name = String(body.name || "").trim();
+    const description = String(body.description || "").trim().replace(/\r?\n/g, " ");
+    const model = String(body.model || "inherit").trim() || "inherit";
+    const prompt = String(body.prompt || body.instructions || "").trim();
+    const tools = Array.isArray(body.tools)
+      ? body.tools.map((t) => String(t || "").trim()).filter(Boolean)
+      : String(body.tools || "").split(",").map((t) => t.trim()).filter(Boolean);
+    const disallowedTools = Array.isArray(body.disallowedTools)
+      ? body.disallowedTools.map((t) => String(t || "").trim()).filter(Boolean)
+      : String(body.disallowedTools || "").split(",").map((t) => t.trim()).filter(Boolean);
+    const harnesses = Array.isArray(body.harnesses)
+      ? body.harnesses.map((h) => String(h || "").trim().toLowerCase()).filter(Boolean)
+      : [];
+    const fmLines = [
+      "---",
+      `name: ${name}`,
+      `description: ${description}`,
+      `model: ${model}`,
+      ...(tools.length ? [`tools: [${tools.join(", ")}]`] : []),
+      ...(disallowedTools.length ? [`disallowedTools: [${disallowedTools.join(", ")}]`] : []),
+      ...(harnesses.length ? [`harnesses: [${harnesses.join(", ")}]`] : []),
+      ...(body.readOnly ? ["readonly: true"] : []),
+      "---",
+      "",
+      prompt,
+      "",
+    ];
+    return fmLines.join("\n");
+  }
+
+  if (subagentCatalogService && request.method === "GET" && pathname === "/api/subagent-profiles") {
+    const params = new URL(request.url, `http://${host}:${port}`).searchParams;
+    const profiles = await subagentCatalogService.loadSubagentCatalog(params.get("workspaceId") || "", params.has("refresh"));
+    json(response, 200, {
+      profiles: profiles.map((item) => publicSubagentProfile(item, false)),
+    });
+    return true;
+  }
+
+  if (subagentCatalogService && request.method === "POST" && pathname === "/api/subagent-profiles") {
+    const body = await readBody(request);
+    try {
+      const content = composeSubagentMarkdown(body);
+      const saved = await subagentCatalogService.saveSubagentProfile({
+        id: String(body.id || "").trim(),
+        scopeId: String(body.scopeId || body.scope || "global").trim(),
+        workspaceId: String(body.workspaceId || "").trim(),
+        content,
+      });
+      publish("subagents");
+      json(response, body.id ? 200 : 201, { profile: publicSubagentProfile(saved, true) });
+    } catch (error) {
+      json(response, 400, { error: safeError(error) });
+    }
+    return true;
+  }
+
+  const subagentProfileMatch = subagentCatalogService ? pathname.match(/^\/api\/subagent-profiles\/([a-f\d]{16})$/i) : null;
+  if (subagentProfileMatch) {
+    const id = subagentProfileMatch[1];
+    const params = new URL(request.url, `http://${host}:${port}`).searchParams;
+    const workspaceId = String(params.get("workspaceId") || "").trim();
+    if (request.method === "GET") {
+      const profiles = await subagentCatalogService.loadSubagentCatalog(workspaceId);
+      const found = profiles.find((item) => item.id === id);
+      if (!found) { json(response, 404, { error: "Hồ sơ subagent không tồn tại. Hãy quét lại danh mục." }); return true; }
+      json(response, 200, { profile: publicSubagentProfile(found, true) });
+      return true;
+    }
+    if (request.method === "PATCH") {
+      const body = await readBody(request);
+      try {
+        const content = composeSubagentMarkdown(body);
+        const saved = await subagentCatalogService.saveSubagentProfile({
+          id,
+          workspaceId: String(body.workspaceId || workspaceId).trim(),
+          content,
+        });
+        publish("subagents");
+        json(response, 200, { profile: publicSubagentProfile(saved, true) });
+      } catch (error) {
+        json(response, 400, { error: safeError(error) });
+      }
+      return true;
+    }
+    if (request.method === "DELETE") {
+      try {
+        await subagentCatalogService.deleteSubagentProfile({ id, workspaceId });
+        publish("subagents");
+        json(response, 200, { ok: true, id });
+      } catch (error) {
+        json(response, 400, { error: safeError(error) });
+      }
       return true;
     }
   }

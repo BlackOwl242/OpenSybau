@@ -509,9 +509,11 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
       const body = await readBody(request).catch(() => ({}));
       workspace.trustedSkills = body.trusted !== undefined ? Boolean(body.trusted) : true;
       skillCatalogService?.invalidateSkillCatalogCache();
+      ctx.subagentCatalogService?.invalidateSubagentCatalogCache();
       persist();
       publish("workspace");
       publish("skills");
+      publish("subagents");
       json(response, 200, { ok: true, workspace });
       return true;
     }
