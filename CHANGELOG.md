@@ -5,6 +5,38 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.5] - 2026-11-06
+
+### English
+- **Multi-Harness Subagent Management & Unified Catalog (`src/server/subagent-catalog.mjs`, `src/server/subagent-tracker.mjs`, `src/features/workbench/right-dock.js`, `src/features/workbench/composer.js`, `src/styles/modules/11-subagents.css`)**:
+  - Registered 60+ specialized subagent profiles categorized by domain (coordinators, architecture, development, QA/testing, performance, memory, releases, and swarms) with customizable model harness selection, role instructions, and tool capability tiers.
+  - Interactive Subagent dock in Right Dock with real-time status badges, multi-agent hierarchy tree, and seamless `@subagent` invocation in composer.
+- **Live Event Stream Tracking & Real-Time Telemetry (`src/server/subagent-tracker.mjs`, `src/server/routes/task-routes.mjs`, `src/features/workbench/pages/chat-conversation.js`)**:
+  - Full lifecycle tracking of subagents with active process streaming, token usage metrics, latency tracking, and event journaling.
+  - Real-time terminal log viewer and message exchange inspection between primary agents and spawned subagents.
+- **Subagent Worktree Promotion & Isolation Integration (`src/server/task-stage-runner.mjs`, `src/features/workbench/actions/chat-task-actions.js`, `src/features/workbench/actions/workspace-vault-actions.js`)**:
+  - Seamless promotion of subagent worktree changes to the parent workspace with conflict checking and rollback protection.
+  - Dedicated subagent actions in chat conversation view and workspace manager.
+- **Bilingual Interface & Subagent UI Styling (`src/shared/i18n.js`, `src/styles/modules/11-subagents.css`, `src/styles/preset-theme.css`)**:
+  - Complete Vietnamese & English translation coverage for all subagent states, dispatch actions, stream inspector badges, and role summaries.
+  - Responsive subagent cards, animated status indicators, and dark/light theme native styling.
+
+### Tiếng Việt
+- **Quản lý Subagent Đa nền tảng & Danh mục Tập trung (`src/server/subagent-catalog.mjs`, `src/server/subagent-tracker.mjs`, `src/features/workbench/right-dock.js`, `src/features/workbench/composer.js`, `src/styles/modules/11-subagents.css`)**:
+  - Tích hợp danh mục hơn 60 hồ sơ subagent chuyên biệt phân theo lĩnh vực (điều phối swarm, kiến trúc, phát triển, kiểm thử chất lượng, tối ưu hiệu năng, bộ nhớ và release) hỗ trợ tùy biến harness model, chỉ dẫn vai trò và phân quyền công cụ.
+  - Thanh quản trị Subagent tương tác tại Right Dock hiển thị huy hiệu trạng thái thời gian thực, sơ đồ cây phân cấp multi-agent và gọi `@subagent` trực tiếp trong composer.
+- **Theo dõi Luồng Sự kiện Trực tiếp & Đo đạc Viễn trắc Thời gian thực (`src/server/subagent-tracker.mjs`, `src/server/routes/task-routes.mjs`, `src/features/workbench/pages/chat-conversation.js`)**:
+  - Giám sát toàn diện vòng đời subagent với cơ chế stream tiến trình trực tiếp, thống kê lượng token tiêu thụ, độ trễ và nhật ký sự kiện nguyên tử.
+  - Trình xem log terminal trực tiếp và kiểm tra tương tác trao đổi thông điệp giữa agent cha và subagent được sinh ra.
+- **Áp dụng Nâng nhánh Worktree của Subagent & Kiểm soát Cô lập (`src/server/task-stage-runner.mjs`, `src/features/workbench/actions/chat-task-actions.js`, `src/features/workbench/actions/workspace-vault-actions.js`)**:
+  - Hỗ trợ promote (áp dụng) an toàn các thay đổi mã nguồn từ Git worktree của subagent vào workspace chính kèm cơ chế kiểm tra xung đột và bảo vệ hoàn tác.
+  - Bổ sung các thao tác điều khiển subagent ngay trong hội thoại chat và trang quản lý workspace.
+- **Giao diện Song ngữ & Phong cách UI Subagent (`src/shared/i18n.js`, `src/styles/modules/11-subagents.css`, `src/styles/preset-theme.css`)**:
+  - Bản dịch hoàn chỉnh tiếng Việt & tiếng Anh cho toàn bộ trạng thái subagent, nút hành động, nhãn thanh tra stream và mô tả vai trò.
+  - Giao diện thẻ subagent thích ứng responsive, hiệu ứng chỉ báo trạng thái động và hòa hợp theo hệ token màu dark/light theme.
+
+---
+
 ## [0.3.4] - 2026-10-29
 
 ### English
