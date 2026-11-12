@@ -1,13 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { rustRankBm25Sync } from "./rust-accelerator.mjs";
 
 export const USER_MEMORY_MAX_CHARS = 1375;
 export const WORKSPACE_MEMORY_MAX_CHARS = 2200;
 
+export const STOP_WORDS = new Set([
+  "the", "and", "for", "with", "this", "that", "cua", "codex", "task",
+  "hãy", "của", "với", "cho", "một", "các", "trong", "được", "thực", "hiện",
+  "và", "là", "có", "để", "từ", "ra", "về", "do", "bị", "sẽ", "đã", "vì", "nó", "ta", "ấy", "đó",
+]);
+
 export function tokenizeTerms(text) {
-  return (String(text || "").toLowerCase().match(/[\p{L}\p{N}_-]{3,}/gu) || []).filter(
-    (word) => !["the", "and", "for", "with", "this", "that", "cua", "codex", "task", "hãy", "của", "với", "cho", "một", "các", "trong", "được", "thực", "hiện"].includes(word)
+  return (String(text || "").normalize("NFC").toLowerCase().match(/[\p{L}\p{N}_-]{2,}/gu) || []).filter(
+    (word) => !STOP_WORDS.has(word)
   );
 }
 
@@ -18,7 +25,7 @@ export function tokenize(text) {
 export function userProfileMemorySnapshot(memories = []) {
   if (!Array.isArray(memories) || !memories.length) return "";
   const profileItems = memories.filter(
-    (item) => item && (item.kind === "user-profile" || item.category === "user" || (item.workspaceId === "all" && item.pinned))
+    (item) => item && (item.kind === "user-profile" || item.category === "user" || item.category === "user-profile" || (item.workspaceId === "all" && item.pinned))
   );
   if (!profileItems.length) return "";
   const lines = [];
@@ -37,8 +44,20 @@ export function userProfileMemorySnapshot(memories = []) {
 }
 
 export function relevantMemory(task, workspace, memories) {
-  const queryTerms = tokenize(`${task.title || ""} ${task.prompt || ""} ${task.goal || ""}`);
+  const queryText = `${task.title || ""} ${task.prompt || ""} ${task.goal || ""}`;
+  const queryTerms = tokenize(queryText);
   if (!queryTerms.length || !memories?.length) return [];
+  if (memories.length >= 24) {
+    const rustRanked = rustRankBm25Sync({
+      query: queryText,
+      workspaceId: workspace?.id || "",
+      memories,
+      limit: 4,
+    });
+    if (Array.isArray(rustRanked?.indices)) {
+      return rustRanked.indices.map((idx) => memories[idx]).filter(Boolean);
+    }
+  }
   const scopedDocs = memories
     .filter((item) => item && (item.workspaceId === "all" || item.workspaceId === workspace?.id))
     .map((item) => {
@@ -175,7 +194,7 @@ export function syncMarkdownMemories(runtimeDir, memories = [], workspaces = [])
     const memDir = resolve(runtimeDir, "memories");
     mkdirSync(memDir, { recursive: true });
     const userItems = (memories || []).filter(
-      (item) => item && (item.kind === "user-profile" || item.category === "user" || (item.workspaceId === "all" && item.pinned))
+      (item) => item && (item.kind === "user-profile" || item.category === "user" || item.category === "user-profile" || (item.workspaceId === "all" && item.pinned))
     );
     const userHeader = [
       "# USER.md — OpenSybau User Profile & Global Preferences",
@@ -245,7 +264,8 @@ export function readMarkdownMemories(runtimeDir, memories = [], workspaces = [])
 
 export function autoDistillTaskMemory(task, workspace, memories, persistMemoryFn, options = {}) {
   try {
-    const distilled = distillTaskMemoryRecord(task, workspace, options);
+    const resolvedOptions = persistMemoryFn && typeof persistMemoryFn === "object" ? persistMemoryFn : options;
+    const distilled = distillTaskMemoryRecord(task, workspace, resolvedOptions);
     if (!distilled) return null;
     const now = new Date().toISOString();
     const existing = memories.find((item) => item.sourceTaskId === task.id);
@@ -266,7 +286,13 @@ export function autoDistillTaskMemory(task, workspace, memories, persistMemoryFn
         createdAt: now,
       };
       memories.unshift(recordItem);
-      if (memories.length > 200) memories.length = 200;
+      while (memories.length > 200) {
+        const idx = memories.findLastIndex(
+          (m) => !m?.pinned && m?.category !== "user-profile" && m?.category !== "user" && m?.kind !== "user-profile"
+        );
+        if (idx < 0) break;
+        memories.splice(idx, 1);
+      }
     }
     if (typeof persistMemoryFn === "function") persistMemoryFn();
     return recordItem;

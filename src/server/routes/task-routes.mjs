@@ -35,6 +35,46 @@ function parseSafeAttachments(attachments) {
   return { safeAttachments };
 }
 
+function hasDependencyCycle(tasks, targetTask, candidateDeps) {
+  const list = Array.isArray(tasks) ? tasks : [];
+  const targetId = String(targetTask?.id || "").trim();
+  const targetCode = targetTask?.code ? String(targetTask.code).trim().toUpperCase() : "";
+
+  const resolveTask = (ref) => {
+    const clean = String(ref || "").trim();
+    if (!clean) return null;
+    return list.find(
+      (item) => item.id === clean || (item.code && String(item.code).trim().toUpperCase() === clean.toUpperCase())
+    ) || null;
+  };
+
+  const visited = new Set();
+  function dfs(currentRef) {
+    const clean = String(currentRef || "").trim();
+    if (!clean) return false;
+    if (clean === targetId || (targetCode && clean.toUpperCase() === targetCode)) {
+      return true;
+    }
+    const node = resolveTask(clean);
+    if (!node) return false;
+    if (node.id === targetId) return true;
+    if (visited.has(node.id)) return false;
+    visited.add(node.id);
+    const nextDeps = node.id === targetId
+      ? candidateDeps
+      : (Array.isArray(node.dependsOnTaskIds) ? node.dependsOnTaskIds : (Array.isArray(node.dependsOn) ? node.dependsOn : []));
+    for (const nextRef of nextDeps) {
+      if (dfs(nextRef)) return true;
+    }
+    return false;
+  }
+
+  for (const depRef of candidateDeps) {
+    if (dfs(depRef)) return true;
+  }
+  return false;
+}
+
 export async function handleTaskRoutes(request, response, pathname, ctx) {
   const {
     taskDir,
@@ -104,7 +144,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
       codexEffort: roles.plan.provider === "codex" ? roles.plan.effort : String(state.settings.defaults?.codexEffort || "medium"),
       agyModel: roles.build.provider === "antigravity" ? roles.build.model : String(state.settings.defaults?.agyModel || ""),
       agyEffort: roles.build.provider === "antigravity" ? roles.build.effort : String(state.settings.defaults?.agyEffort || "medium"),
-      chatProvider, chatModel, chatEffort, workflow,
+      chatProvider, chatModel, chatEffort, workflow, codexTransport: body.codexTransport === "app-server" ? "app-server" : "exec",
     };
     if (workflow === "chat-only") {
       const error = validateAgentSelection({ provider: chatProvider, model: chatModel, effort: chatEffort }, "chat", connectors);
@@ -446,7 +486,66 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     return true;
   }
 
-  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|stop|diff|open|chat|pin|archive|fork|goal|checklist|plan-gate|qa|exec|git-commit|github-pr|distill-skill|distill-memory|compact|subagents|apply-worktree|discard-worktree|worktree\/apply|worktree\/discard))?$/);
+  const cancelChatMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/chat-queue\/([^/]+)$/);
+  const terminalStopMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/terminal\/([^/]+)\/stop$/);
+  if (request.method === "POST" && terminalStopMatch) {
+    const task = state.tasks.find((item) => item.id === decodeURIComponent(terminalStopMatch[1]));
+    if (!task || !stageRunner.cancelManagedCommand?.(task.id, decodeURIComponent(terminalStopMatch[2]))) { json(response, 409, { error: "Lệnh không còn chạy hoặc không do OpenSybau quản lý." }); return true; }
+    persist(); publish("task"); json(response, 202, { ok: true }); return true;
+  }
+  const liveMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/(steer|approval)$/);
+  if (request.method === "POST" && liveMatch) {
+    const task = state.tasks.find((item) => item.id === decodeURIComponent(liveMatch[1]));
+    if (!task) { json(response, 404, { error: "Task không tồn tại." }); return true; }
+    const body = await readBody(request);
+    const text = String(body.message || "").trim(), key = String(body.requestId || "");
+    if (liveMatch[2] === "steer") {
+      const previous = (task.chatMessages || []).find((item) => item.id === key);
+      if (previous) {
+        const accepted = previous.delivery === "steer" && previous.turnId === body.turnId && previous.content === text && previous.status === "done";
+        json(response, accepted ? 200 : 409, accepted ? { ok: true, duplicate: true } : { error: "Request ID đã được dùng. Tin chưa xác nhận sẽ không được tự gửi lại." }); return true;
+      }
+    }
+    const client = task && running.get(task.id)?.appClient;
+    if (!client || client.failure || (liveMatch[2] === "steer" && !client.turnId)) { json(response, 409, { error: "Không có phiên Codex hỗ trợ điều khiển trực tiếp." }); return true; }
+    if (liveMatch[2] === "steer" && body.turnId !== client.turnId) { json(response, 409, { error: "Lượt chạy đã thay đổi." }); return true; }
+    if (liveMatch[2] === "steer") {
+      if (!text || text.length > 50000 || !/^[a-zA-Z0-9-]{8,100}$/.test(key)) { json(response, 400, { error: "Tin nhắn hoặc request ID không hợp lệ." }); return true; }
+      task.chatMessages ||= [];
+      const message = { id: key, role: "user", content: text, provider: "codex", turnId: body.turnId, threadId: client.threadId, status: "sending", delivery: "steer", createdAt: new Date().toISOString() };
+      task.chatMessages.push(message); task.updatedAt = message.createdAt; persist(); publish("task");
+      try { await client.steer(text, body.turnId, key); message.status = "done"; }
+      catch (error) {
+        message.status = "unknown"; message.error = String(error.message || error);
+        task.updatedAt = new Date().toISOString(); persist(); publish("task");
+        json(response, 409, { error: "Chưa xác nhận được việc gửi chỉ dẫn; hệ thống giữ lịch sử và không tự gửi lại.", delivery: "unknown" }); return true;
+      }
+    } else {
+      if (!client.approvals?.resolve(body.id, body.turnId, body.decision)) { json(response, 409, { error: "Yêu cầu duyệt đã hết hạn hoặc không hợp lệ." }); return true; }
+      record(task, `Codex approval: ${body.decision}`, "info", { source: "codex-app-server", approvalId: body.id, decision: body.decision, turnId: body.turnId });
+    }
+    task.updatedAt = new Date().toISOString(); persist(); publish("task"); json(response, 200, { ok: true }); return true;
+  }
+  if (request.method === "DELETE" && cancelChatMatch) {
+    const task = state.tasks.find((item) => item.id === decodeURIComponent(cancelChatMatch[1]));
+    if (!task) { json(response, 404, { error: "Task không tồn tại." }); return true; }
+    const messageId = decodeURIComponent(cancelChatMatch[2]);
+    const index = (task.chatQueue || []).findIndex((turn) => turn.messageId === messageId);
+    const message = (task.chatMessages || []).find((item) => item.id === messageId);
+    if (index < 0 || !message || message.status !== "queued") {
+      json(response, 409, { error: "Tin nhắn không còn trong hàng đợi; có thể agent đã bắt đầu xử lý." }); return true;
+    }
+    task.chatQueue.splice(index, 1);
+    message.status = "cancelled";
+    message.cancelledAt = new Date().toISOString();
+    task.updatedAt = message.cancelledAt;
+    record(task, "Đã hủy tin nhắn đang chờ. Nội dung đã chuyển vào stage trước đó không thể thu hồi.", "chat");
+    persist(); publish("task");
+    json(response, 200, { cancelled: true, task });
+    return true;
+  }
+
+  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|rerun|stop|diff|open|chat|pin|archive|fork|goal|checklist|plan-gate|qa|exec|git-commit|github-pr|distill-skill|distill-memory|compact|subagents|apply-worktree|discard-worktree|worktree\/apply|worktree\/discard))?$/);
   if (!match) return false;
 
   const id = decodeURIComponent(match[1]);
@@ -457,20 +556,37 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
   if (request.method === "DELETE" && !action) {
     if (!task.archived) { json(response, 409, { error: "Chỉ có thể xóa chat sau khi đã lưu trữ." }); return true; }
     if (running.has(task.id) || ["queued", "running"].includes(task.status)) { json(response, 409, { error: "Không thể xóa chat đang chạy hoặc đang chờ." }); return true; }
-    const storagePath = resolve(String(task.storagePath || resolve(taskDir, task.id)));
-    if (!within(taskDir, storagePath) || storagePath === taskDir) { json(response, 400, { error: "Đường dẫn dữ liệu task không hợp lệ; không thể xóa chat an toàn." }); return true; }
+    const runtimeDir = ctx.runtimeDir || ctx.runtime || resolve(taskDir, "..");
+    const detailDir = resolve(runtimeDir, "tasks", task.id);
+    const storagePath = resolve(String(task.storagePath || detailDir));
+    if ((!within(taskDir, storagePath) || storagePath === taskDir) && (!within(taskDir, detailDir) || detailDir === taskDir)) {
+      json(response, 400, { error: "Đường dẫn dữ liệu task không hợp lệ; không thể xóa chat an toàn." });
+      return true;
+    }
     try {
       await cleanupTaskWorktrees(task);
-      await fs.rm(storagePath, { recursive: true, force: true });
+      if (within(taskDir, storagePath) && storagePath !== taskDir) {
+        await fs.rm(storagePath, { recursive: true, force: true });
+      }
+      if (within(taskDir, detailDir) && detailDir !== taskDir) {
+        await fs.rm(detailDir, { recursive: true, force: true });
+      }
     } catch (error) { json(response, 500, { error: `Không thể xóa dữ liệu chat: ${safeError(error)}` }); return true; }
     state.tasks = state.tasks.filter((item) => item.id !== task.id);
-    persist(); publish("tasks");
+    persist();
+    if (within(taskDir, detailDir) && detailDir !== taskDir) {
+      await fs.rm(detailDir, { recursive: true, force: true }).catch(() => {});
+    }
+    publish("tasks");
     json(response, 200, { deleted: true, id: task.id });
     return true;
   }
 
   if (request.method === "PATCH" && !action) {
     const body = await readBody(request);
+    if (body.codexTransport !== undefined) {
+      if (running.has(task.id) || ["queued", "running"].includes(task.status) || !["exec", "app-server"].includes(body.codexTransport)) { json(response, 409, { error: "Chỉ đổi bộ chạy khi task đang nghỉ." }); return true; }
+    }
     if (body.permissionPreset !== undefined) {
       if (!["read-only", "workspace-write", "full-access"].includes(body.permissionPreset)) { json(response, 400, { error: "Preset quyền không hợp lệ." }); return true; }
       if (["queued", "running"].includes(task.status)) { json(response, 409, { error: "Hãy đợi task kết thúc trước khi đổi quyền." }); return true; }
@@ -489,12 +605,22 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     if (body.planGate !== undefined) task.planGate = Boolean(body.planGate);
     if (body.maxRounds !== undefined) task.maxRounds = Math.max(1, Math.min(3, Number(body.maxRounds) || 1));
     if (body.qaCommand !== undefined) task.qaCommand = String(body.qaCommand || "").trim().slice(0, 80);
-    if (Array.isArray(body.dependsOn)) {
-      task.dependsOn = [...new Set(body.dependsOn.map((d) => String(d || "").trim()).filter((d) => d && d !== task.id))].slice(0, 16);
+    const incomingDeps = Array.isArray(body.dependsOnTaskIds)
+      ? body.dependsOnTaskIds
+      : (Array.isArray(body.dependsOn) ? body.dependsOn : null);
+    if (incomingDeps !== null) {
+      const candidateDeps = [...new Set(incomingDeps.map((d) => String(d || "").trim()).filter(Boolean))].slice(0, 16);
+      if (hasDependencyCycle(state.tasks, task, candidateDeps)) {
+        json(response, 400, { error: "Phát hiện vòng lặp phụ thuộc (dependency cycle); không thể cập nhật phụ thuộc." });
+        return true;
+      }
+      task.dependsOn = candidateDeps;
+      if (body.dependsOnTaskIds !== undefined) task.dependsOnTaskIds = candidateDeps;
     }
     if (body.subagentPolicy !== undefined) {
       task.subagentPolicy = normalizeSubagentPolicy(body.subagentPolicy);
     }
+    if (body.codexTransport !== undefined) { task.config ||= {}; task.config.codexTransport = body.codexTransport; }
     task.updatedAt = new Date().toISOString();
     persist(); publish("tasks"); pump();
     json(response, 200, { task });
@@ -511,6 +637,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
       task.plan = "";
       task.planGateApprovedAt = null;
       task.resumeFrom = "plan";
+      task.currentRound = 1;
       task.status = "queued";
       task.phase = "plan";
       task.updatedAt = new Date().toISOString();
@@ -538,6 +665,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
       return true;
     }
     task.resumeFrom = "build";
+    task.currentRound = 1;
     task.status = "queued";
     task.phase = "build";
     task.updatedAt = task.planGateApprovedAt;
@@ -548,9 +676,27 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
   }
 
   if (request.method === "POST" && (action === "qa" || action === "exec")) {
+    if (running.has(task.id)) {
+      json(response, 409, { error: "Task đang chạy tiến trình; vui lòng đợi hoàn tất trước khi chạy kiểm thử." });
+      return true;
+    }
+    const workspace = state.workspaces.find((w) => w.id === task.workspaceId);
+    const sharedCheckout = usesSharedCheckout(task);
+    const lockKey = workspaceLockKey(
+      sharedCheckout
+        ? (workspace?.runtime?.gitRoot || workspace?.path || task.workspacePath)
+        : (task.executionPath || task.worktreePath || workspace?.path || task.workspacePath)
+    );
+    if (sharedCheckout && lockKey && busyWorkspaces.has(lockKey)) {
+      json(response, 409, { error: "Workspace đang bận chạy tiến trình khác; hãy đợi hoàn tất trước khi chạy kiểm thử." });
+      return true;
+    }
     const body = await readBody(request);
     const cwd = task.executionPath || task.workspacePath;
+    if (running.has(task.id) || (sharedCheckout && lockKey && busyWorkspaces.has(lockKey))) { json(response, 409, { error: "Task hoặc workspace vừa bắt đầu một tiến trình khác." }); return true; }
     if (!cwd || !existsSync(cwd)) { json(response, 404, { error: "Không tìm thấy thư mục thực thi của task." }); return true; }
+    if (sharedCheckout && lockKey) busyWorkspaces.add(lockKey);
+    running.set(task.id, { child: null, stopped: false, workspacePath: lockKey, isolated: !sharedCheckout, managedOnly: true });
     try {
       const result = await runTaskQaCheck(task, cwd, body.command);
       recordTaskCycle(task, {
@@ -560,7 +706,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
         title: `QA · ${result.status === "passed" ? "specs passed" : "specs failed"}`,
         provider: "QA Runner",
         model: result.command,
-        status: result.status === "passed" ? "clean" : "blocking",
+        status: result.status === "cancelled" ? "cancelled" : result.status === "passed" ? "clean" : "blocking",
         badge: result.summary,
         blocking: result.status === "failed" ? 1 : 0,
         advisory: 0,
@@ -572,6 +718,10 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
       json(response, 200, { ok: true, result, qaResult: result, task });
     } catch (error) {
       json(response, 400, { error: safeError(error) });
+    } finally {
+      if (running.get(task.id)?.managedOnly) running.delete(task.id);
+      if (sharedCheckout && lockKey) busyWorkspaces.delete(lockKey);
+      taskRunner.drainQueuedChats?.(); pump?.();
     }
     return true;
   }
@@ -629,6 +779,21 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
   }
 
   if (request.method === "POST" && action === "git-commit") {
+    if (running.has(task.id)) {
+      json(response, 409, { error: "Task đang chạy tiến trình; vui lòng đợi hoàn tất trước khi tạo Git commit." });
+      return true;
+    }
+    const workspace = state.workspaces.find((w) => w.id === task.workspaceId);
+    const sharedCheckout = usesSharedCheckout(task);
+    const lockKey = workspaceLockKey(
+      sharedCheckout
+        ? (workspace?.runtime?.gitRoot || workspace?.path || task.workspacePath)
+        : (task.executionPath || task.worktreePath || workspace?.path || task.workspacePath)
+    );
+    if (sharedCheckout && lockKey && busyWorkspaces.has(lockKey)) {
+      json(response, 409, { error: "Workspace đang bận chạy tiến trình khác; hãy đợi hoàn tất trước khi tạo Git commit." });
+      return true;
+    }
     const body = await readBody(request);
     const cwd = task.executionPath || task.workspacePath;
     if (!cwd || !existsSync(cwd)) { json(response, 404, { error: "Không tìm thấy thư mục workspace để commit." }); return true; }
@@ -637,6 +802,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     const message = String(body.message || `${task.code ? `${task.code}: ` : ""}${task.title || "Update from OpenSybau"}`).trim().slice(0, 200);
     if (!message) { json(response, 400, { error: "Nhập nội dung commit message." }); return true; }
     const repoRoot = info.gitRoot || cwd;
+    if (sharedCheckout && lockKey) busyWorkspaces.add(lockKey);
     try {
       const commitInfo = await withGitRepoLock(repoRoot, async () => {
         await git(cwd, ["add", "-A"]);
@@ -647,14 +813,20 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
         const headRes = await git(cwd, ["rev-parse", "--short", "HEAD"]);
         return { hash: (headRes.stdout || "").trim(), output: (commitRes.stdout || "").trim() };
       });
-      task.commitHash = commitInfo.hash;
+      if (task.isolated && task.worktreePath && !task.worktreeApplied) {
+        task.worktreeCommitHash = commitInfo.hash;
+      } else {
+        task.commitHash = commitInfo.hash;
+      }
       task.lastCommitMessage = message;
       task.committedAt = new Date().toISOString();
       record(task, `Đã tạo Git commit ${commitInfo.hash} ("${message}").`, "success");
       persist(); publish("tasks");
-      json(response, 200, { ok: true, commitHash: commitInfo.hash, output: commitInfo.output, task });
+      json(response, 200, { ok: true, commitHash: commitInfo.hash, worktreeCommitHash: task.worktreeCommitHash || undefined, output: commitInfo.output, task });
     } catch (error) {
       json(response, 409, { error: safeError(error) });
+    } finally {
+      if (sharedCheckout && lockKey) busyWorkspaces.delete(lockKey);
     }
     return true;
   }
@@ -794,7 +966,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     const currentRun = running.get(task.id);
     if (task.status === "cancelled" && currentRun?.stopped) { json(response, 409, { error: "Task đang dừng. Hãy gửi tin nhắn lại sau khi tiến trình đã kết thúc." }); return true; }
     const sharedLock = usesSharedCheckout(task);
-    const lockKey = workspaceLockKey(sharedLock ? workspace.path : (task.executionPath || task.worktreePath || workspace.path));
+    const lockKey = workspaceLockKey(sharedLock ? (workspace.runtime?.gitRoot || workspace.path) : (task.executionPath || task.worktreePath || workspace.path));
     const workspaceBusy = !currentRun && sharedLock && busyWorkspaces.has(lockKey);
     const message = { id: randomUUID(), role: "user", provider, model: model.id, effort, content, attachments: safeAttachments.map(({ name }) => ({ name })), status: "queued", createdAt: new Date().toISOString() };
     task.config ||= {};
@@ -814,7 +986,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     return true;
   }
 
-  if (request.method === "POST" && action === "run") {
+  if (request.method === "POST" && (action === "run" || action === "rerun")) {
     const body = await readBody(request);
     const canReplayCompleted = task.config?.workflow !== "chat-only";
     if (!(["failed", "cancelled"].includes(task.status) || canReplayCompleted && task.status === "done")) {
@@ -861,13 +1033,17 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     task.stageRunHistory = [...(task.stageRunHistory || []), attempt].slice(-5);
     task.activeStageRunId = attempt.id;
     task.resumeFrom = stage;
+    task.currentRound = 1;
     const stageOrder = task.config?.workflow === "plan-only" ? ["plan"] : ["plan", "build", "review"];
     const affected = stage === "chat" ? [] : stageOrder.slice(stageOrder.indexOf(stage));
     if (affected.includes("plan")) task.plan = "";
     if (affected.includes("build")) task.implementation = "";
     if (affected.includes("review")) task.review = "";
     if (affected.includes("plan") || affected.includes("build")) task.artifacts = [];
-    if (stage === "chat" || affected.includes("plan") || affected.includes("build")) task.worktreeAppliedAt = null;
+    if (stage === "chat" || affected.includes("plan") || affected.includes("build")) {
+      task.worktreeApplied = false;
+      task.worktreeAppliedAt = null;
+    }
     task.status = "queued"; task.phase = "queued"; task.error = null; task.failedPhase = null; task.stageFailure = null; task.completedAt = null;
     persist(); record(task, `Đưa task vào hàng đợi chạy lại từ stage ${stage}; giữ các đầu ra trước đó trong lịch sử.${task.retryNotice ? ` ${task.retryNotice}` : ""}`, "success"); pump();
     json(response, 202, { task });
@@ -908,7 +1084,11 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
       return true;
     }
     if (!active) { json(response, 409, { error: "Task không chạy." }); return true; }
+    if (active.managedOnly) {
+      stageRunner.cancelManagedCommands?.(task.id); persist(); publish("task"); json(response, 202, { task }); return true;
+    }
     active.stopped = true;
+    stageRunner.cancelManagedCommands?.(task.id);
     if (active.child) killTree(active.child);
     if (active.abortController) active.abortController.abort(new Error("Stopped by user"));
     cancelActiveSubagents();

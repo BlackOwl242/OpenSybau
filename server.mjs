@@ -29,6 +29,7 @@ import { createTaskRunnerService } from "./src/server/task-runner.mjs";
 import { handleProviderSkillRoutes } from "./src/server/routes/provider-skill-routes.mjs";
 import { handleWorkspaceVaultRoutes } from "./src/server/routes/workspace-vault-routes.mjs";
 import { handleTaskRoutes } from "./src/server/routes/task-routes.mjs";
+import { getRustAcceleratorStatus } from "./src/server/rust-accelerator.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const host = process.env.WORKBENCH_HOST || "127.0.0.1";
@@ -51,10 +52,10 @@ const contentTypes = { ".html": "text/html; charset=utf-8", ".css": "text/css; c
 const accessUsername = process.env.WORKBENCH_ACCESS_USERNAME || "opensybau";
 const accessPassword = process.env.WORKBENCH_ACCESS_PASSWORD || "";
 const isLoopbackBind = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(host.toLowerCase());
-const allowedHosts = new Set([
-  ...(isLoopbackBind ? [`${host}:${port}`, `localhost:${port}`, `127.0.0.1:${port}`, `[::1]:${port}`] : []),
-  ...String(process.env.WORKBENCH_ALLOWED_HOSTS || "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean),
-]);
+const allowNetwork = process.env.WORKBENCH_ALLOW_NETWORK === "true" || !isLoopbackBind;
+const allowedHosts = new Set(
+  String(process.env.WORKBENCH_ALLOWED_HOSTS || "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean),
+);
 const tlsCert = process.env.WORKBENCH_TLS_CERT || "";
 const tlsKey = process.env.WORKBENCH_TLS_KEY || "";
 const secureTransport = Boolean(tlsCert && tlsKey);
@@ -125,11 +126,12 @@ function persistJsonFile(filePath, value, options = { encoding: "utf8", mode: 0o
 
 let connectionConfig = loadJson(connectionConfigFile, {});
 if (!connectionConfig || typeof connectionConfig !== "object" || Array.isArray(connectionConfig)) connectionConfig = {};
+for (const value of (Array.isArray(connectionConfig.allowedHosts) ? connectionConfig.allowedHosts : [])) if (typeof value === "string" && value.trim()) allowedHosts.add(value.trim().toLowerCase());
 if (!connectionConfig.password && connectionConfig.remoteEnabled !== false) {
   connectionConfig = {
     username: String(connectionConfig.username || "opensybau").trim() || "opensybau",
     password: generateStrongAccessPassword(),
-    remoteEnabled: true,
+    remoteEnabled: process.env.WORKBENCH_ALLOW_NETWORK === "true",
     updatedAt: new Date().toISOString(),
   };
   try { persistJsonFile(connectionConfigFile, connectionConfig); } catch {}
@@ -159,7 +161,7 @@ state.tasks ||= [];
 taskStore.hydrateTasksFromDetailStore(state.tasks);
 for (const workspace of state.workspaces) {
   workspace.pinned = Boolean(workspace.pinned);
-  workspace.trustedSkills = workspace.trustedSkills !== false;
+  workspace.trustedSkills = Boolean(workspace.trustedSkills);
   workspace.section ||= "Projects";
   workspace.sourceFolders = Array.isArray(workspace.sourceFolders) && workspace.sourceFolders.length ? workspace.sourceFolders : [workspace.path];
   if (!workspace.sourceFolders.some((path) => String(path).toLowerCase() === String(workspace.path).toLowerCase())) workspace.sourceFolders.unshift(workspace.path);
@@ -167,6 +169,16 @@ for (const workspace of state.workspaces) {
 for (const task of state.tasks) {
   task.pinned = Boolean(task.pinned);
   task.archived = Boolean(task.archived);
+  delete task.liveControl;
+  task.pendingApprovals = [];
+  for (const message of task.chatMessages || []) if (message.delivery === "steer" && message.status === "sending") message.status = "unknown";
+  for (const command of (Array.isArray(task.commandActivities) ? task.commandActivities : [])) if (command.status === "running") command.status = "unknown";
+  for (const entry of (Array.isArray(task.terminalHistory) ? task.terminalHistory : [])) {
+    if (entry.status === "running") {
+      entry.status = "unknown";
+      entry.summary = "OpenSybau đã khởi động lại; chưa xác nhận được kết quả lệnh.";
+    }
+  }
   if (task.status === "running") {
     task.status = "failed";
     task.phase = "failed";
@@ -185,7 +197,7 @@ for (const task of state.tasks) {
       const stoppedAt = task.updatedAt || new Date().toISOString();
       for (const sub of task.subagents) {
         if (sub && ["spawning", "running", "waiting"].includes(sub.status)) {
-          sub.status = "failed";
+          sub.status = "unknown";
           sub.completedAt ||= stoppedAt;
           sub.error ||= "Tiến trình cha đã dừng khi OpenSybau khởi động lại.";
         }
@@ -202,7 +214,7 @@ function persist() {
     clearTimeout(persistTimer);
     persistTimer = null;
   }
-  persistJsonFile(stateFile, state, "utf8");
+  persistJsonFile(stateFile, state);
   taskStore.syncTaskDetailFiles(state.tasks);
 }
 
@@ -218,7 +230,7 @@ function schedulePersist(delayMs = 750) {
 
 function persistMemory() {
   stateSnapshot.invalidate();
-  persistJsonFile(memoryFile, memories, "utf8");
+  persistJsonFile(memoryFile, memories);
   syncMarkdownMemories(runtime, memories, state.workspaces);
 }
 
@@ -308,7 +320,9 @@ function killTree(child) {
   if (process.platform === "win32") {
     const killer = spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
     killer.unref();
-  } else child.kill("SIGTERM");
+  } else {
+    try { process.kill(-child.pid, "SIGTERM"); } catch { child.kill("SIGTERM"); }
+  }
   try {
     child.stdout?.destroy();
     child.stderr?.destroy();
@@ -346,6 +360,7 @@ function run(exe, args, options = {}) {
     const childEnv = { ...process.env, NO_COLOR: "1", ...(exe === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {}) };
     if (exe !== process.execPath) delete childEnv.ELECTRON_RUN_AS_NODE;
     const child = spawn(exe, args, { cwd: options.cwd || homedir(), windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: childEnv });
+    options.onSpawn?.(child);
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -367,8 +382,12 @@ function run(exe, args, options = {}) {
   });
 }
 
-async function git(cwd, args) {
-  return run(process.platform === "win32" ? "git.exe" : "git", ["-c", "core.quotepath=false", ...args], { cwd, timeout: 10000, maxBuffer: 500000 });
+async function git(cwd, args, timeoutMs = 10000) {
+  return run(
+    process.platform === "win32" ? "git.exe" : "git",
+    ["-c", "core.hooksPath=__opensybau_disabled_hooks__", "-c", "core.quotepath=false", ...args],
+    { cwd, timeout: timeoutMs, maxBuffer: 500000 },
+  );
 }
 
 function openFolder(path) {
@@ -384,27 +403,88 @@ function openFolder(path) {
   });
 }
 
-function matchesCredential(input, expected) {
-  const inputHash = createHash("sha256").update(input).digest();
-  const expectedHash = createHash("sha256").update(expected).digest();
+const authFailuresByIp = new Map();
+const AUTH_RATE_LIMIT_WINDOW_MS = 60_000;
+const AUTH_RATE_LIMIT_MAX_FAILURES = 20;
+
+function safeEqualText(input, expected) {
+  const inputHash = createHash("sha256").update(String(input ?? "")).digest();
+  const expectedHash = createHash("sha256").update(String(expected ?? "")).digest();
   return timingSafeEqual(inputHash, expectedHash);
 }
 
+function matchesCredential(input, expected) {
+  return safeEqualText(input, expected);
+}
+
+function recordAuthFailure(clientIp) {
+  const now = Date.now();
+  const entry = authFailuresByIp.get(clientIp);
+  if (!entry || now - entry.windowStart > AUTH_RATE_LIMIT_WINDOW_MS) {
+    authFailuresByIp.set(clientIp, { count: 1, windowStart: now });
+  } else {
+    entry.count += 1;
+  }
+}
+
 function hasValidAccess(request) {
-  const requestHost = String(request.headers.host || "").toLowerCase();
-  const localHost = /^(?:localhost|127\.0\.0\.1|\[::1\]|::1)(?::\d{1,5})?$/.test(requestHost);
-  if (isLoopbackClient(request) && (!accessPassword || process.env.WORKBENCH_MODE !== "production" || process.env.OPENSYBAU_DESKTOP === "1" || (!isLoopbackBind && localHost))) return true;
-  const activePassword = getEffectiveAccessPassword();
-  if (!activePassword) return isLoopbackBind && isLoopbackClient(request);
+  const clientIp = String(request.socket?.remoteAddress || "unknown").toLowerCase().replace(/^::ffff:/, "");
+  const now = Date.now();
+  const failureEntry = authFailuresByIp.get(clientIp);
+  if (failureEntry) {
+    if (now - failureEntry.windowStart > AUTH_RATE_LIMIT_WINDOW_MS) {
+      authFailuresByIp.delete(clientIp);
+    } else if (failureEntry.count >= AUTH_RATE_LIMIT_MAX_FAILURES) {
+      return false;
+    }
+  }
+  if (isLoopbackClient(request) && isLoopbackBind && (!accessPassword || process.env.OPENSYBAU_DESKTOP === "1")) return true;
+  const effectivePassword = getEffectiveAccessPassword();
+  if (!effectivePassword) return !allowNetwork && !connectionConfig.remoteEnabled;
+  if (request.method === "GET" || request.method === "HEAD") {
+    try {
+      const parsedUrl = new URL(request.url || "/", "http://localhost");
+      const urlToken = parsedUrl.searchParams.get("access_token");
+      if (
+        urlToken
+        && (
+          parsedUrl.pathname === "/__events"
+          || parsedUrl.pathname === "/api/events"
+          || /^\/api\/workspaces\/[^/]+\/raw(?:\/|$)/.test(parsedUrl.pathname)
+        )
+      ) {
+        if (safeEqualText(urlToken, effectivePassword)) {
+          authFailuresByIp.delete(clientIp);
+          return true;
+        }
+        recordAuthFailure(clientIp);
+        return false;
+      }
+    } catch {}
+  }
   const match = String(request.headers.authorization || "").match(/^Basic\s+([A-Za-z0-9+/]+=*)$/i);
-  if (!match) return false;
+  if (!match) {
+    recordAuthFailure(clientIp);
+    return false;
+  }
   let value;
-  try { value = Buffer.from(match[1], "base64").toString("utf8"); } catch { return false; }
+  try { value = Buffer.from(match[1], "base64").toString("utf8"); } catch {
+    recordAuthFailure(clientIp);
+    return false;
+  }
   const separator = value.indexOf(":");
-  if (separator < 0) return false;
-  const userOk = matchesCredential(value.slice(0, separator), getEffectiveAccessUsername());
-  const passOk = matchesCredential(value.slice(separator + 1), activePassword);
-  return userOk && passOk;
+  if (separator < 0) {
+    recordAuthFailure(clientIp);
+    return false;
+  }
+  const userOk = safeEqualText(value.slice(0, separator), getEffectiveAccessUsername());
+  const passOk = safeEqualText(value.slice(separator + 1), effectivePassword);
+  if (userOk && passOk) {
+    authFailuresByIp.delete(clientIp);
+    return true;
+  }
+  recordAuthFailure(clientIp);
+  return false;
 }
 
 function isForbiddenSystemPath(targetPath) {
@@ -438,6 +518,7 @@ function publicState() {
     memories,
     memoryCount: memories.length,
     telemetry: computeTelemetrySummary(state.tasks, running.size),
+    rustEngine: getRustAcceleratorStatus(),
     serverTime: new Date().toISOString(),
   };
 }
@@ -550,7 +631,7 @@ async function syncLanCompanionServers() {
   await closeLanCompanionServers();
   if (shuttingDown || !server?.listening || !isLoopbackBind) return;
   const activePass = getEffectiveAccessPassword();
-  if (!activePass || activePass.length < 6 || connectionConfig?.remoteEnabled === false) return;
+  if (!productionMode || !allowedHosts.size || !activePass || activePass.length < 16 || !connectionConfig?.remoteEnabled) return;
   const mainPort = server.address()?.port || port || 4173;
   const preferredPort = process.env.OPENSYBAU_DESKTOP === "1" ? 4173 : mainPort;
   const lanList = discoverLanAddresses(preferredPort, secureTransport ? "https" : "http");
@@ -566,9 +647,6 @@ async function syncLanCompanionServers() {
       });
       const actualPort = wildcardSrv.address()?.port || preferredPort;
       activeLanPort = actualPort;
-      for (const item of lanList) {
-        allowedHosts.add(`${item.address}:${actualPort}`.toLowerCase());
-      }
       lanCompanionServers.push(wildcardSrv);
       return;
     } catch {
@@ -589,7 +667,6 @@ async function syncLanCompanionServers() {
         });
         const actualPort = srv.address()?.port || candidatePort;
         if (!activeLanPort) activeLanPort = actualPort;
-        allowedHosts.add(`${item.address}:${actualPort}`.toLowerCase());
         lanCompanionServers.push(srv);
         break;
       } catch {
@@ -649,11 +726,15 @@ const routeContext = {
   getMemories: () => memories,
   setMemories: (next) => { memories = next; },
   getConnectionConfig: () => connectionConfig,
-  setConnectionConfig: (next) => { connectionConfig = next; },
+  setConnectionConfig: (next) => {
+    connectionConfig = next;
+    allowedHosts.clear();
+    for (const value of [...String(process.env.WORKBENCH_ALLOWED_HOSTS || "").split(","), ...(next.allowedHosts || [])]) if (value.trim()) allowedHosts.add(value.trim().toLowerCase());
+  },
   getEffectiveAccessUsername,
   getEffectiveAccessPassword,
   isLoopbackClient,
-  getBoundPort: () => activeLanPort || server?.address?.()?.port || port,
+  getBoundPort: () => activeLanPort || (process.env.OPENSYBAU_DESKTOP === "1" ? 4173 : server?.address?.()?.port || port),
   isLanActive: () => lanCompanionServers.length > 0,
   syncLanCompanionServers,
   stateSnapshot,
@@ -701,6 +782,7 @@ const securityHeaders = {
   "Referrer-Policy": "no-referrer",
 };
 const htmlCspHeader = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+const devHtmlCspHeader = "default-src 'self' 'unsafe-inline' 'unsafe-eval' ws: wss: http: https: data: blob:; frame-ancestors 'self'; base-uri 'self'; form-action 'self'";
 
 function isPrivateOrLocalHostName(hostnameValue) {
   const hostOnly = String(hostnameValue || "").trim().toLowerCase().replace(/:\d+$/, "");
@@ -711,40 +793,21 @@ function isPrivateOrLocalHostName(hostnameValue) {
   return /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|100\.(6[4-9]|[7-9]\d|1[0-1]\d|12[0-7])\.\d{1,3}\.\d{1,3})$/.test(hostOnly);
 }
 
+function isLoopbackHostHeader(hostHeader) {
+  return /^(?:localhost|127\.0\.0\.1|\[::1\]|::1)(?::\d{1,5})?$/.test(hostHeader);
+}
+
 function isAllowedRequestHost(requestHost) {
   const clean = String(requestHost || "").trim().toLowerCase();
   if (!clean) return false;
   if (allowedHosts.has(clean)) return true;
-  if (isPrivateOrLocalHostName(clean)) return true;
-  const hostOnly = clean.replace(/:\d+$/, "");
-  const currentLan = discoverLanAddresses(4173);
-  if (currentLan.some((item) => String(item.address || "").toLowerCase() === hostOnly)) {
-    return true;
-  }
+  if (isLoopbackBind && isLoopbackHostHeader(clean)) return true;
   return false;
 }
 
-function isTrustedAndroidApkOrigin(origin, requestHost) {
-  if (!origin) return true;
-  const lower = String(origin).toLowerCase();
-  if (
-    lower === "capacitor://localhost"
-    || lower === "https://appassets.androidplatform.net"
-    || lower === "http://appassets.androidplatform.net"
-    || lower === "http://localhost"
-    || lower === "https://localhost"
-    || lower === "null"
-  ) {
-    return true;
-  }
-  try {
-    const parsed = new URL(origin);
-    if (!["http:", "https:"].includes(parsed.protocol)) return false;
-    if (parsed.host.toLowerCase() === requestHost) return true;
-    return isPrivateOrLocalHostName(parsed.hostname);
-  } catch {
-    return false;
-  }
+function isTrustedAndroidApkOrigin(origin) {
+  const raw = String(origin || "").trim();
+  return /^(capacitor:\/\/localhost|https:\/\/appassets\.androidplatform\.net)$/i.test(raw);
 }
 
 function createWorkbenchServer() {
@@ -754,7 +817,7 @@ function createWorkbenchServer() {
     const requestHost = (request.headers.host || "").toLowerCase();
     if (!isAllowedRequestHost(requestHost)) return json(response, 403, { error: "Host not allowed" });
     const origin = request.headers.origin;
-    if (request.method === "OPTIONS" && isTrustedAndroidApkOrigin(origin, requestHost)) {
+    if (request.method === "OPTIONS" && isTrustedAndroidApkOrigin(origin)) {
       response.writeHead(204, {
         ...(origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : { "Access-Control-Allow-Origin": "*" }),
         "Access-Control-Allow-Private-Network": "true",
@@ -766,15 +829,12 @@ function createWorkbenchServer() {
       response.end();
       return;
     }
-    const isAndroidApkClient = (
-      String(request.headers["x-opensybau-client"] || "").toLowerCase() === "android-apk"
-      || Boolean(origin && /^(capacitor:\/\/localhost|https?:\/\/appassets\.androidplatform\.net|https?:\/\/localhost(?::\d+)?)$/i.test(String(origin)))
-    ) && isTrustedAndroidApkOrigin(origin, requestHost);
+    const isAndroidApkClient = isTrustedAndroidApkOrigin(origin);
     if (isAndroidApkClient) {
-      response.setHeader("Access-Control-Allow-Origin", origin || "*");
+      response.setHeader("Access-Control-Allow-Origin", origin);
       response.setHeader("Access-Control-Allow-Private-Network", "true");
       response.setHeader("Access-Control-Expose-Headers", "ETag");
-      if (origin) response.setHeader("Vary", "Origin");
+      response.setHeader("Vary", "Origin");
     }
     let pathname;
     try { pathname = new URL(request.url || "/", `${secureTransport ? "https" : "http"}://${requestHost}`).pathname; }
@@ -784,7 +844,7 @@ function createWorkbenchServer() {
       response.writeHead(401, {
         "WWW-Authenticate": 'Basic realm="OpenSybau", charset="UTF-8"',
         "Cache-Control": "no-store",
-        ...(isAndroidApkClient ? { "Access-Control-Allow-Origin": origin || "*", "Access-Control-Allow-Private-Network": "true", ...(origin ? { Vary: "Origin" } : {}) } : {}),
+        ...(isAndroidApkClient ? { "Access-Control-Allow-Origin": origin, "Access-Control-Allow-Private-Network": "true", Vary: "Origin" } : {}),
         ...securityHeaders,
       });
       response.end("Authentication required");
@@ -802,7 +862,7 @@ function createWorkbenchServer() {
       }
     }
     if (shuttingDown) return json(response, 503, { error: "OpenSybau đang tắt; hãy thử lại khi mở app." });
-    if (pathname === "/__events") {
+    if (pathname === "/__events" || pathname === "/api/events") {
       response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "X-Accel-Buffering": "no", ...securityHeaders });
       response.write("retry: 3000\nevent: connected\ndata: ready\n\n");
       clients.add(response);
@@ -824,7 +884,7 @@ function createWorkbenchServer() {
         try {
           const html = await fs.readFile(resolve(root, "index.html"), "utf8");
           const transformed = await vite.transformIndexHtml(request.url || "/", html);
-          response.writeHead(200, { "Content-Type": contentTypes[".html"], "Cache-Control": "no-store", ...securityHeaders });
+          response.writeHead(200, { "Content-Type": contentTypes[".html"], "Cache-Control": "no-store", "Content-Security-Policy": devHtmlCspHeader, ...securityHeaders });
           response.end(request.method === "HEAD" ? undefined : transformed);
         } catch (error) { response.writeHead(500, { "Content-Type": "text/plain; charset=utf-8", ...securityHeaders }).end(safeError(error)); }
         return;
@@ -891,9 +951,6 @@ export async function startWorkbench() {
     throw error;
   }
   const boundPort = server.address().port;
-  if (isLoopbackBind) {
-    for (const name of [host, "localhost", "127.0.0.1", "[::1]"]) allowedHosts.add(`${name}:${boundPort}`.toLowerCase());
-  }
   await syncLanCompanionServers();
   const { codexExe, agyExe } = cliDiscovery.getCliExecutables();
   console.log(`OpenSybau ready at ${secureTransport ? "https" : "http"}://${host}:${boundPort}`);
@@ -937,7 +994,7 @@ export async function stopWorkbench() {
     if (Array.isArray(task.subagents)) {
       for (const sub of task.subagents) {
         if (sub && ["spawning", "running", "waiting"].includes(sub.status)) {
-          sub.status = "failed";
+          sub.status = "unknown";
           sub.completedAt = at;
           sub.error ||= task.error;
         }

@@ -1,4 +1,4 @@
-import { $, esc, view } from "../../../shared/state.js";
+import { $, esc, setBoundedCache, view } from "../../../shared/state.js";
 import { roleConfig } from "../../../domain/agent-roles.js";
 import { setLanguage } from "../../../shared/i18n.js";
 import { setSavedThemeId } from "../../../shared/themes.js";
@@ -7,6 +7,7 @@ import {
   closeOverlay,
   ensureSubagentProfiles,
   ensureTaskSubagentsDetail,
+  ensureCustomizationInventory,
   ensureWorkspaceFileIndex,
   refresh,
   render,
@@ -37,7 +38,72 @@ import { loadWorkspaceDir } from "../pages/tasks-workspaces-page.js";
 import { loadVaultDir } from "../pages/knowledge-skills-page.js";
 import { openWaveDecomposeModal } from "../pages/flows-memory-page.js";
 
+function syncTaskChatDraft(nextId) {
+  view.chatDraftsByTask ||= {};
+  const currentKey = view.selectedTaskId || view.selected || "__new__";
+  view.chatDraftsByTask[currentKey] = view.chatDraft;
+  setBoundedCache(view.chatDraftsByTask, currentKey, view.chatDraft);
+  view.chatDraft = view.chatDraftsByTask[nextId || "__new__"] || "";
+  view.mpSessionTab = "chat";
+}
+
 export async function handleChatAndTaskAction(action, id, button) {
+  if (action === "stop-managed-command") {
+    await api(`/api/tasks/${encodeURIComponent(id)}/terminal/${encodeURIComponent(button.dataset.commandId)}/stop`, { method: "POST" });
+    await refresh(); showToast("Đã gửi yêu cầu dừng lệnh."); return true;
+  }
+  if (action === "set-codex-transport") {
+    await api(`/api/tasks/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ codexTransport: button.dataset.transport }) });
+    await refresh(); return true;
+  }
+  if (action === "steer-active-turn" || action === "resolve-cli-approval") {
+    const task = view.state.tasks.find((item) => item.id === id);
+    const turnId = action === "resolve-cli-approval" ? task?.pendingApprovals?.find((item) => String(item.id) === String(button.dataset.approvalId))?.turnId : task?.liveControl?.turnId;
+    if (!turnId) { showToast("Lượt chạy đã kết thúc."); return true; }
+    let body;
+    if (action === "steer-active-turn") {
+      showModal("Gửi vào lượt đang chạy", `<label>Chỉ dẫn bổ sung<textarea name="message" required maxlength="50000" rows="4" autofocus></textarea></label><p class="form-note">Tin nhắn được gửi trực tiếp vào lượt Codex hiện tại. Nếu lượt đã kết thúc, hãy dùng ô chat để gửi lượt tiếp theo.</p>`, "Gửi", "task-steer");
+      const form = $("#overlay [data-form=task-steer]");
+      form.dataset.id = id; form.dataset.turnId = turnId; form.dataset.requestId = crypto.randomUUID();
+      return true;
+    } else body = { turnId, id: button.dataset.approvalId, decision: button.dataset.decision };
+    await api(`/api/tasks/${encodeURIComponent(id)}/${action === "steer-active-turn" ? "steer" : "approval"}`, { method: "POST", body: JSON.stringify(body) });
+    await refresh(); return true;
+  }
+  if (action === "refresh-customizations") { await ensureCustomizationInventory(id, true); return true; }
+  if (action === "cancel-queued-chat") {
+    button.disabled = true;
+    try {
+      await api(`/api/tasks/${encodeURIComponent(id)}/chat-queue/${encodeURIComponent(button.dataset.messageId || "")}`, { method: "DELETE" });
+      await refresh();
+      showToast("Đã hủy tin nhắn đang chờ; nội dung đã chuyển vào stage trước không thể thu hồi.");
+    } finally {
+      if (button.isConnected) button.disabled = false;
+    }
+    return true;
+  }
+  if (action === "select-task") {
+    const nextId = button?.dataset?.task || button?.dataset?.taskId || id || "";
+    const selectedTask = view.state?.tasks?.find((item) => item.id === nextId);
+    syncTaskChatDraft(nextId);
+    clearSidebarSearch();
+    view.selected = nextId;
+    view.selectedTaskId = nextId;
+    view.page = "chat";
+    view.mobileScreen = "session";
+    view.mpSessionTab = "chat";
+    view.projectMenuId = "";
+    view.taskMenuId = "";
+    if (!view.stageSplit) view.activeStageTabId = "chat";
+    if (selectedTask) {
+      view.homeWorkspaceId = selectedTask.workspaceId || view.homeWorkspaceId;
+      view.chatProvider = selectedTask.config?.workflow === "chat-only" ? selectedTask.config.chatProvider || "codex" : selectedTask.config?.chatProvider || roleConfig(selectedTask.config, "plan").provider || "codex";
+      view.chatModel = selectedTask.config?.workflow === "chat-only" ? selectedTask.config.chatModel || "" : selectedTask.config?.chatModel || roleConfig(selectedTask.config, "plan").model || "";
+      view.chatEffort = selectedTask.config?.workflow === "chat-only" ? selectedTask.config.chatEffort || "" : selectedTask.config?.chatEffort || roleConfig(selectedTask.config, "plan").effort || "";
+    }
+    render();
+    return true;
+  }
   if (action === "fill-home-prompt") {
     const promptText = String(button.dataset.prompt || "").trim();
     if (promptText) {
@@ -56,9 +122,11 @@ export async function handleChatAndTaskAction(action, id, button) {
   }
   if (action === "mp-go-home") {
     closeOverlay();
+    syncTaskChatDraft(null);
     view.mobileScreen = "home";
     view.page = "chat";
     view.selected = null;
+    view.selectedTaskId = "";
     view.chatDrawerOpen = false;
     render();
     return true;
@@ -76,10 +144,12 @@ export async function handleChatAndTaskAction(action, id, button) {
     const selectedTask = view.state?.tasks?.find((item) => item.id === taskId);
     closeOverlay();
     clearSidebarSearch();
+    syncTaskChatDraft(taskId);
     view.mobileScreen = "session";
     view.mpSessionTab = "chat";
     view.page = "chat";
     view.selected = taskId;
+    view.selectedTaskId = taskId;
     view.activeStageTabId = "chat";
     view.chatDrawerOpen = false;
     view.projectMenuId = "";
@@ -90,7 +160,6 @@ export async function handleChatAndTaskAction(action, id, button) {
       view.chatModel = selectedTask.config?.workflow === "chat-only" ? selectedTask.config.chatModel || "" : selectedTask.config?.chatModel || roleConfig(selectedTask.config, "plan").model || "";
       view.chatEffort = selectedTask.config?.workflow === "chat-only" ? selectedTask.config.chatEffort || "" : selectedTask.config?.chatEffort || roleConfig(selectedTask.config, "plan").effort || "";
     }
-    view.chatDraft = "";
     render();
     return true;
   }
@@ -99,13 +168,14 @@ export async function handleChatAndTaskAction(action, id, button) {
     clearSidebarSearch();
     if (button.dataset.workspaceId) view.homeWorkspaceId = button.dataset.workspaceId;
     else if (!view.homeWorkspaceId && view.state?.workspaces?.[0]?.id) view.homeWorkspaceId = view.state.workspaces[0].id;
+    syncTaskChatDraft(null);
     view.mobileScreen = "session";
     view.mpSessionTab = "chat";
     view.page = "chat";
     view.selected = null;
+    view.selectedTaskId = "";
     view.activeStageTabId = "chat";
     view.stageSplit = false;
-    view.chatDraft = "";
     view.chatDrawerOpen = false;
     view.homeConfigOpen = false;
     render();
@@ -501,13 +571,14 @@ export async function handleChatAndTaskAction(action, id, button) {
   if (action === "close-chat-picker") { view.chatSplitPickerOpen = false; render(); return true; }
   if (action === "add-chat-pane") { if (!view.chatSplitTaskIds.includes(id) && view.chatSplitTaskIds.length < 4) view.chatSplitTaskIds.push(id); view.chatSplitPickerOpen = false; render(); return true; }
   if (action === "remove-chat-pane") { view.chatSplitTaskIds = view.chatSplitTaskIds.filter((taskId) => taskId !== id); if (view.chatSplitActiveTaskId === id) view.chatSplitActiveTaskId = view.chatSplitTaskIds[0] || ""; render(); return true; }
-  if (action === "new-chat") { view.chatSplitWorkspaceId = ""; view.chatSplitCreateOpen = false; view.chatSplitReturnWorkspaceId = ""; view.page = "chat"; view.selected = null; view.activeStageTabId = "chat"; view.stageSplit = false; view.chatDraft = ""; view.homeWorkspaceId = button.dataset.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || ""; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; clearSidebarSearch(); view.homeConfigOpen = false; closeOverlay(); render(); return true; }
+  if (action === "new-chat") { syncTaskChatDraft(null); view.chatSplitWorkspaceId = ""; view.chatSplitCreateOpen = false; view.chatSplitReturnWorkspaceId = ""; view.page = "chat"; view.selected = null; view.selectedTaskId = ""; view.mpSessionTab = "chat"; view.activeStageTabId = "chat"; view.stageSplit = false; view.homeWorkspaceId = button?.dataset?.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || ""; view.homeMode = "chat"; view.homeWorkflow = "chat-only"; clearSidebarSearch(); view.homeConfigOpen = false; closeOverlay(); render(); return true; }
   if (action === "refresh") { await scanCliProviders(button); return true; }
   if (action === "new-task") { await openTaskModal(); return true; }
   if (action === "project-quick-mode") {
     const wsId = button.dataset.workspaceId || view.selected || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
     const mode = button.dataset.mode || "chat";
-    view.chatSplitWorkspaceId = ""; view.chatSplitCreateOpen = false; view.chatSplitReturnWorkspaceId = ""; view.page = "chat"; view.selected = null; view.activeStageTabId = "chat"; view.stageSplit = false; view.chatDraft = "";
+    syncTaskChatDraft(null);
+    view.chatSplitWorkspaceId = ""; view.chatSplitCreateOpen = false; view.chatSplitReturnWorkspaceId = ""; view.page = "chat"; view.selected = null; view.selectedTaskId = ""; view.mpSessionTab = "chat"; view.activeStageTabId = "chat"; view.stageSplit = false;
     if (wsId) view.homeWorkspaceId = wsId;
     view.homeMode = mode;
     view.homeWorkflow = mode === "chat" ? "chat-only" : mode === "plan" ? "plan-only" : "codex-antigravity";
@@ -744,6 +815,6 @@ export async function handleChatAndTaskAction(action, id, button) {
   if (action === "task-instruction") { const task = view.state.tasks.find((item) => item.id === id); if (task) openTaskInstructionModal(task); return true; }
   if (action === "inspect-task" || action === "open-task-flow") { view.selected = id; view.page = "flows"; render(); return true; }
   if (action === "back-flows") { view.selected = null; view.page = "flows"; render(); return true; }
-  if (action === "back-chat") { view.selected = id; view.page = "chat"; render(); return true; }
+  if (action === "back-chat") { syncTaskChatDraft(id); view.selected = id; view.selectedTaskId = id; view.mpSessionTab = "chat"; view.page = "chat"; render(); return true; }
   return false;
 }

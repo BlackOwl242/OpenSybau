@@ -1,11 +1,15 @@
 import { esc, fmtDate, formatNumber, icon, statuses, tokenCount, view } from "../../shared/state.js";
 import { providerTitle } from "../../domain/agent-roles.js";
 import { pipelineStepperData } from "../../domain/task-flow.js";
+import { taskArtifactCatalog } from "../../domain/artifact-catalog.js";
 import { extractMarkdownOutline, renderMarkdown } from "./markdown.js";
-import { ensureSubagentProfiles, ensureTaskSubagentsDetail } from "./runtime.js";
+import { ensureSubagentProfiles, ensureTaskSubagentsDetail, ensureCustomizationInventory } from "./runtime.js";
 import { buildDockFileTree, dockFileIconName, renderDockTreeLevel } from "./stage-viewer.js";
+import { mergeSubagentDetail, subagentEventTime } from "./subagent-observability.js";
 
 const utf8Decoder = typeof TextDecoder !== "undefined" ? new TextDecoder("utf-8") : null;
+const dockFetchCooldowns = new Map();
+const DOCK_FETCH_COOLDOWN_MS = 10_000;
 
 export function normalizeFrontendGitPath(raw = "", workspacePath = "") {
   let str = String(raw || "").trim();
@@ -58,11 +62,14 @@ export function getRightDockTabsForPage(page = view.page, selectedTask = null) {
   if (page === "workspaces") {
     return [
       { id: "files", icon: "files", title: "Cây thư mục & Thay đổi" },
+      { id: "customizations", icon: "settings-2", title: "Rules, Skills, Agents & MCP" },
     ];
   }
   // page === "chat"
   if (selectedTask) {
     return [
+      { id: "overview", icon: "list-checks", title: "Tổng quan phiên" },
+      { id: "customizations", icon: "settings-2", title: "Rules, Skills, Agents & MCP" },
       { id: "files", icon: "files", title: "Cây thư mục & Thay đổi" },
       { id: "git", icon: "git-branch", title: "Commit, PR & Worktree" },
       { id: "subagents", icon: "waypoints", title: "Subagents & Cây thực thi" },
@@ -160,7 +167,38 @@ export function renderOrcaRightDockMarkup({
 
   let bodyHtml = "";
 
-  if (tab === "files") {
+  if (tab === "customizations" && activeWs) {
+    const inventory = view.customizationInventory?.[activeWs.id];
+    if (!inventory) void ensureCustomizationInventory(activeWs.id);
+    bodyHtml = `<div class="orca-dock-pad"><div class="orca-section-head"><span class="orca-section-label">CUSTOMIZATIONS</span><button type="button" class="subagent-manage-link" data-action="refresh-customizations" data-id="${esc(activeWs.id)}">Tải lại</button></div>
+      <p class="orca-muted-note">Danh sách chỉ đọc. Token là ước tính theo ký tự, không phải số token CLI đã nạp.</p>
+      ${!inventory ? `<p class="orca-muted-note">Đang quét…</p>` : inventory.error ? `<p class="orca-muted-note">Không đọc được danh sách. Hãy tải lại.</p>` : `${inventory.truncated ? `<p class="orca-muted-note">Danh sách đã đạt giới hạn quét; có thể còn mục chưa hiển thị.</p>` : ""}${["rules", "skills", "agents", "mcp"].map((kind) => {
+        const items = inventory.entries.filter((item) => item.kind === kind);
+        return `<details open><summary>${esc(kind)} (${items.length})</summary>${items.length ? items.map((item) => `<div class="dock-subagent-block" style="padding:8px 0"><strong data-localize-skip="true">${esc(item.name)}</strong><small data-localize-skip="true">${esc(item.scope)} · ${esc(item.providers.join(", "))} · ${esc(item.source)}</small><small>${item.tokenEstimate == null ? "Chưa ước tính token" : `~${item.tokenEstimate} token`}${item.serverCount != null ? ` · ${item.serverCount} MCP` : ""} · ${item.trusted ? "Nguồn đã tin cậy" : "Chưa tin cậy"} · CLI chưa báo trạng thái nạp</small></div>`).join("") : `<p class="orca-muted-note">Không tìm thấy mục nào.</p>`}</details>`;
+      }).join("")}`}</div>`;
+  } else if (tab === "overview" && selectedTask) {
+    const subagents = Array.isArray(selectedTask.subagents) ? selectedTask.subagents : [];
+    const active = subagents.filter((sub) => ["spawning", "running", "waiting"].includes(sub.status)).length;
+    const files = Array.isArray(selectedTask.artifacts) ? selectedTask.artifacts.length : 0;
+    const docs = pipelineStepperData(selectedTask).stageDocuments.filter((doc) => doc.available).length;
+    const terminalJobs = Array.isArray(selectedTask.terminalHistory) ? selectedTask.terminalHistory : [];
+    const usesCodex = selectedTask.config?.chatProvider === "codex" || Object.values(selectedTask.config?.roles || {}).some((role) => role?.provider === "codex");
+    bodyHtml = `<div class="orca-dock-pad dock-overview">
+      <div class="orca-section-head"><span class="orca-section-label">TỔNG QUAN PHIÊN</span></div>
+      ${selectedTask.liveControl?.turnId ? `<button type="button" class="dock-overview-row" data-action="steer-active-turn" data-id="${esc(selectedTask.id)}">${icon("message-square", 14)}<span>Gửi vào lượt đang chạy</span></button>` : usesCodex && !selectedTask.processRunning && !["queued", "running"].includes(selectedTask.status) ? `<button type="button" class="dock-overview-row" data-action="set-codex-transport" data-id="${esc(selectedTask.id)}" data-transport="${selectedTask.config?.codexTransport === "app-server" ? "exec" : "app-server"}"><span>Codex: ${selectedTask.config?.codexTransport === "app-server" ? "App Server · chuyển về exec" : "exec · bật App Server"}</span></button>` : ""}
+      ${(selectedTask.pendingApprovals || []).map((approval) => `<div class="dock-subagent-block"><strong>Codex đang chờ duyệt</strong><code data-localize-skip="true">${esc(approval.command || approval.reason || approval.method)}</code>${approval.cwd || approval.grantRoot ? `<small data-localize-skip="true">${approval.grantRoot ? "Thư mục xin quyền: " : "Thư mục thực thi: "}${esc(approval.grantRoot || approval.cwd)}</small>` : ""}${(approval.files || []).map((file) => `<details><summary data-localize-skip="true">${esc(file.path)}</summary><pre class="dock-subagent-pre" data-localize-skip="true">${esc(file.diff || "CLI chưa cung cấp diff.")}</pre></details>`).join("")}<div class="orca-quick-pills">${[ ["accept", "Cho phép"], ["decline", "Từ chối"] ].map(([decision,label]) => `<button type="button" class="button quiet small" data-action="resolve-cli-approval" data-id="${esc(selectedTask.id)}" data-approval-id="${esc(approval.id)}" data-decision="${decision}">${label}</button>`).join("")}</div></div>`).join("")}
+      <button type="button" class="dock-overview-row" data-action="show-diff" data-id="${esc(selectedTask.id)}">${icon("file-text", 15)}<span>Review & thay đổi</span><small>${files} tệp</small></button>
+      <button type="button" class="dock-overview-row" data-action="right-dock-tab" data-tab="files">${icon("files", 15)}<span>Tệp dự án</span></button>
+      <button type="button" class="dock-overview-row" data-action="right-dock-tab" data-tab="subagents">${icon("waypoints", 15)}<span>Subagents</span><small>${subagents.length}${active ? ` · ${active} đang chạy` : ""}</small></button>
+      <button type="button" class="dock-overview-row" data-action="right-dock-tab" data-tab="docs">${icon("book-open-text", 15)}<span>Tài liệu giai đoạn</span><small>${docs}</small></button>
+      <button type="button" class="dock-overview-row" data-action="right-dock-tab" data-tab="terminal">${icon("square-terminal", 15)}<span>QA & terminal</span></button>
+      <div class="orca-section-label" style="margin-top:12px">LỆNH DO OPENSYBAU QUẢN LÝ (${terminalJobs.length})</div>
+      ${terminalJobs.length ? terminalJobs.slice(0, 8).map((job) => `<div class="dock-overview-job"><button type="button" class="dock-overview-row" data-action="right-dock-tab" data-tab="terminal" title="${esc(job.command || "")}">${icon("square-terminal", 14)}<span data-localize-skip="true">${esc(job.command || "Lệnh")}</span><small>${esc(({running:"Đang chạy",stopping:"Đang dừng",cancelled:"Đã dừng",passed:"Hoàn tất",failed:"Lỗi",skipped:"Bỏ qua",unknown:"Chưa xác nhận"})[job.status] || job.status || "Chưa rõ")}</small></button>${job.cancellable && job.status === "running" ? `<button type="button" class="button quiet small" data-action="stop-managed-command" data-id="${esc(selectedTask.id)}" data-command-id="${esc(job.id)}">Dừng</button>` : ""}</div>`).join("") : `<p class="orca-muted-note">Chưa có lệnh QA hoặc terminal.</p>`}
+      <div class="orca-section-label" style="margin-top:12px">LỆNH DO CLI BÁO CÁO (${(selectedTask.commandActivities || []).length})</div>
+      ${(selectedTask.commandActivities || []).slice(-30).reverse().map((command) => `<details class="dock-subagent-card"><summary class="dock-subagent-summary"><span class="orca-tree-label" data-localize-skip="true">${esc(command.command || command.id)}</span><small>${esc(({running:"Đang chạy",completed:"Hoàn tất",failed:"Lỗi",unknown:"Chưa xác nhận"})[command.status] || command.status)}</small></summary><div class="dock-subagent-body"><small data-localize-skip="true">${esc(command.source)}${command.parentId ? ` · subagent ${esc(command.parentId)}` : ""}</small>${command.output ? `<pre class="dock-subagent-pre" data-localize-skip="true">${esc(command.output)}</pre>` : `<p class="orca-muted-note">Chưa có đầu ra.</p>`}</div></details>`).join("")}
+      <p class="orca-muted-note">Chỉ hiển thị lệnh có ID do CLI cung cấp. Trạng thái chưa xác nhận không đồng nghĩa với thành công.</p>
+    </div>`;
+  } else if (tab === "files") {
     if (page === "knowledge") {
       const vaultPath = view.state?.settings?.vaultPath || "";
       if (!vaultPath) {
@@ -248,13 +286,20 @@ export function renderOrcaRightDockMarkup({
         }).join("")}</ul>`;
       }
     } else if (activeWs) {
-      const allFiles = view.workspaceFileIndex?.[activeWs.id] || [];
-      if (!view.workspaceFileIndex?.[activeWs.id] && typeof ensureWorkspaceFileIndex === "function") {
+      const hasFileIndex = Array.isArray(view.workspaceFileIndex?.[activeWs.id]);
+      const allFiles = hasFileIndex ? view.workspaceFileIndex[activeWs.id] : [];
+      const fileCooldownKey = `file-index:${activeWs.id}`;
+      const lastFileAttempt = dockFetchCooldowns.get(fileCooldownKey) || view.workspaceFileIndexErrorAt?.[activeWs.id] || 0;
+      if (!hasFileIndex && typeof ensureWorkspaceFileIndex === "function" && Date.now() - lastFileAttempt > DOCK_FETCH_COOLDOWN_MS) {
+        dockFetchCooldowns.set(fileCooldownKey, Date.now());
         void ensureWorkspaceFileIndex(activeWs.id).then(() => render?.());
       }
       const gitCacheKey = `${activeWs.id}::${selectedTask?.id || ""}`;
       const gitStatus = view.workspaceGitStatus?.[gitCacheKey] || null;
-      if (!gitStatus && typeof ensureWorkspaceGitStatus === "function") {
+      const gitCooldownKey = `git-status:${gitCacheKey}`;
+      const lastGitAttempt = dockFetchCooldowns.get(gitCooldownKey) || (gitStatus?.error ? (gitStatus.fetchedAt || 0) : 0);
+      if (!gitStatus && typeof ensureWorkspaceGitStatus === "function" && Date.now() - lastGitAttempt > DOCK_FETCH_COOLDOWN_MS) {
+        dockFetchCooldowns.set(gitCooldownKey, Date.now());
         void ensureWorkspaceGitStatus(activeWs.id, selectedTask?.id || "").then(() => render?.());
       }
 
@@ -473,7 +518,7 @@ export function renderOrcaRightDockMarkup({
       void ensureTaskSubagentsDetail(selectedTask.id);
     }
     const detailMap = new Map((cachedEntry?.subagents || []).map((d) => [d.id, d]));
-    const mergedSubs = rawSummaries.map((s) => ({ ...s, ...(detailMap.get(s.id) || {}) }));
+    const mergedSubs = rawSummaries.map((s) => mergeSubagentDetail(s, detailMap.get(s.id)));
     const subFilter = view.dockSubagentFilter || "all";
     const filteredSubs = mergedSubs.filter((s) => {
       if (subFilter === "running") return ["spawning", "running", "waiting"].includes(s.status);
@@ -490,6 +535,7 @@ export function renderOrcaRightDockMarkup({
       done: "Hoàn tất",
       failed: "Lỗi",
       cancelled: "Đã dừng",
+      unknown: "Chưa xác nhận",
     };
 
     if (!mergedSubs.length) {
@@ -515,18 +561,19 @@ export function renderOrcaRightDockMarkup({
             ["failed", "Lỗi"],
           ].map(([fid, flabel]) => `<button type="button" class="kb-tag-chip ${subFilter === fid ? "is-active" : ""}" data-action="dock-subagent-filter" data-sub-filter="${fid}">${esc(flabel)}</button>`).join("")}
         </div>
+        ${cachedEntry?.error ? `<p class="orca-muted-note">Không tải được nhật ký mới. <button type="button" class="subagent-manage-link" data-action="refresh-task-subagents" data-id="${esc(selectedTask.id)}">Thử lại</button></p>` : ""}
         <div class="dock-subagent-list">
           ${filteredSubs.length ? filteredSubs.map((sub) => {
             const isSelected = view.selectedDockSubagentId === sub.id;
             const isLive = ["spawning", "running", "waiting"].includes(sub.status);
-            const dotCls = isLive ? "running" : sub.status === "failed" ? "failed" : sub.status === "cancelled" ? "cancelled" : "done";
+            const dotCls = isLive ? "running" : sub.status === "failed" ? "failed" : sub.status === "cancelled" ? "cancelled" : sub.status === "completed" || sub.status === "done" ? "done" : "queued";
             const harnessLabel = providerTitle(view.connectors, sub.harness || "codex");
             const tok = tokenCount(sub.usage);
             const durSec = sub.durationMs ? Math.max(1, Math.round(Number(sub.durationMs) / 1000)) : 0;
             const filesTouched = Array.isArray(sub.filesTouched) ? sub.filesTouched : [];
-            const eventsList = Array.isArray(sub.events) ? sub.events.slice(-30) : [];
+            const eventsList = Array.isArray(sub.events) ? sub.events : [];
             const roleLabel = sub.role || sub.agentType || sub.id;
-            return `<details class="dock-subagent-card is-${esc(sub.status || "running")} ${(sub.parentId || sub.parentSubagentId) ? "is-nested" : ""}" data-key="dock-sub-${esc(selectedTask.id)}-${esc(sub.id)}" ${isSelected || isLive ? "open" : ""}>
+            return `<details class="dock-subagent-card is-${esc(sub.status || "running")} ${(sub.parentId || sub.parentSubagentId) ? "is-nested" : ""}" data-key="dock-sub-${esc(selectedTask.id)}-${esc(sub.id)}" ${isSelected || (!view.selectedDockSubagentId && isLive && sub.id === filteredSubs.find((item) => ["spawning", "running", "waiting"].includes(item.status))?.id) ? "open" : ""}>
               <summary class="dock-subagent-summary">
                 <span class="wb-task-dot is-${dotCls}"></span>
                 <div class="dock-subagent-head-main">
@@ -545,15 +592,16 @@ export function renderOrcaRightDockMarkup({
                   <span class="dock-subagent-label">Nhiệm vụ được giao</span>
                   <pre class="dock-subagent-pre" data-localize-skip="true">${esc(String(sub.prompt).slice(0, 4000))}</pre>
                 </div>` : ""}
+                ${sub.lastActivity ? `<div class="dock-subagent-block"><span class="dock-subagent-label">Hoạt động gần nhất</span><code class="dock-subagent-activity" data-localize-skip="true">${esc(sub.lastActivity)}</code></div>` : ""}
                 ${eventsList.length ? `<div class="dock-subagent-block">
-                  <span class="dock-subagent-label">Nhật ký công cụ (${eventsList.length})</span>
+                  <span class="dock-subagent-label">Hoạt động do CLI ghi nhận (${eventsList.length})</span>
                   <div class="subagent-log-scroll" data-key="dock-sub-log-${esc(sub.id)}">
                     ${eventsList.map((ev) => `<div class="dock-subagent-ev ${ev.status === "failed" ? "is-err" : ""}">
-                      <strong data-localize-skip="true">${esc(ev.toolName || ev.kind || "step")}</strong>
-                      <code data-localize-skip="true">${esc(String(ev.text || "").slice(0, 220))}</code>
+                      <strong data-localize-skip="true">${esc(ev.toolName || ev.kind || "step")}${subagentEventTime(ev.at, view.language) ? ` · ${esc(subagentEventTime(ev.at, view.language))}` : ""}</strong>
+                      <code data-localize-skip="true">${esc(String(ev.text || "").slice(0, 1000))}</code>
                     </div>`).join("")}
                   </div>
-                </div>` : sub.lastActivity ? `<div class="dock-subagent-block"><code class="dock-subagent-activity" data-localize-skip="true">${esc(sub.lastActivity)}</code></div>` : ""}
+                </div>` : `<p class="orca-muted-note">${cachedEntry?.error ? "Không tải được nhật ký chi tiết." : cachedEntry ? "CLI chưa cung cấp nhật ký chi tiết cho subagent này." : "Đang tải nhật ký subagent…"}</p>`}
                 ${filesTouched.length ? `<div class="dock-subagent-block">
                   <span class="dock-subagent-label">Tệp chạm tới (${filesTouched.length})</span>
                   <div class="orca-quick-pills">
@@ -566,7 +614,7 @@ export function renderOrcaRightDockMarkup({
                   <div class="markdown-preview dock-subagent-result">${renderMarkdown(String(sub.result).slice(0, 12000))}</div>
                 </div>` : (sub.summary || sub.resultPreview) ? `<p class="orca-muted-note" data-localize-skip="true">${esc(sub.summary || sub.resultPreview)}</p>` : ""}
                 <div class="dock-subagent-actions">
-                  <button type="button" class="button primary small" data-action="promote-subagent" data-id="${esc(selectedTask.id)}" data-sub-id="${esc(sub.id)}">${icon("git-branch", 12)}<span>Tách thành Worktree Task</span></button>
+                  <button type="button" class="button quiet small" data-action="promote-subagent" data-id="${esc(selectedTask.id)}" data-sub-id="${esc(sub.id)}">${icon("git-branch", 12)}<span>Tách thành Worktree Task</span></button>
                 </div>
               </div>
             </details>`;
@@ -577,13 +625,17 @@ export function renderOrcaRightDockMarkup({
   } else if (tab === "docs" && selectedTask) {
     const stepper = pipelineStepperData(selectedTask);
     const docs = stepper.stageDocuments || [];
+    const catalog = taskArtifactCatalog(selectedTask);
     const activeStageTab = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId);
     bodyHtml = `<div class="orca-dock-pad">
       <div class="orca-section-head">
         <span class="orca-section-label">TÀI LIỆU GIAI ĐOẠN (${docs.length})</span>
         <small class="orca-tree-badge">${esc(selectedTask.code || "TASK")} · Vòng ${stepper.currentRound}/${stepper.maxRounds}</small>
       </div>
-      <p class="orca-muted-note">Nhấn vào bất kỳ tài liệu giai đoạn nào để mở ở khung bên trái (hỗ trợ xem Markdown, mã nguồn và gắn nhận xét theo dòng).</p>
+      <p class="orca-muted-note">Artifact của phiên · ${esc(activeWs?.name || selectedTask.workspaceId || "")} · ${esc(selectedTask.origin || "local")}. Tệp thay đổi không đồng nghĩa là tệp do AI tạo mới.</p>
+      <div class="orca-section-label" style="margin-top:12px">ARTIFACT (${catalog.length})</div>
+      ${catalog.length ? `<ul class="orca-tree-list">${catalog.map((entry) => `<li class="orca-tree-item is-file"><button type="button" class="orca-tree-row" data-action="${entry.kind === "document" ? "open-stage-doc" : entry.kind === "diff" ? "show-diff" : "preview-drawer-file"}" data-id="${esc(selectedTask.id)}" data-doc-id="${esc(entry.docId || "")}" data-workspace-id="${esc(entry.workspaceId)}" data-path="${esc(entry.path || "")}" ${entry.safe === false ? "disabled" : ""} title="${esc(entry.workspace || activeWs?.path || "")} · ${esc(entry.source)}">${icon("file-text", 14)}<span class="orca-tree-label" data-localize-skip="true">${esc(entry.title)}</span><small class="orca-tree-badge" data-localize-skip="true">${esc(entry.source)}${entry.safe === false ? " · bị chặn" : ""}</small></button></li>`).join("")}</ul>` : `<p class="orca-muted-note">Chưa có artifact được ghi nhận.</p>`}
+      <details style="margin-top:12px"><summary class="orca-section-label">CÁC GIAI ĐOẠN</summary>
       <ul class="orca-tree-list" style="margin-top:8px">
         ${docs.map((doc) => {
           const tabId = `doc::${selectedTask.id}::${doc.id}`;
@@ -597,6 +649,7 @@ export function renderOrcaRightDockMarkup({
           </li>`;
         }).join("")}
       </ul>
+      </details>
       ${stepper.findings.blocking > 0 || stepper.findings.advisory > 0 ? `<div class="orca-section-label" style="margin-top:14px">KẾT QUẢ ĐÁNH GIÁ</div>
       <div class="mc-findings-summary">
         <span class="mc-badge is-blocking">${stepper.findings.blocking} lỗi chặn</span>
@@ -607,6 +660,7 @@ export function renderOrcaRightDockMarkup({
   } else if (tab === "terminal") {
     const qaRes = selectedTask?.qaResult || null;
     const termHistory = selectedTask?.terminalHistory || [];
+    const activeTerminalJobs = termHistory.filter((job) => ["running", "stopping"].includes(job.status));
     const defaultCmd = selectedTask?.qaCommand || "npm test";
     const presetCommands = ["npm test", "npm run build", "npm run lint", "npm run check", "git status", "git diff --stat"];
     bodyHtml = `<div class="orca-dock-pad">
@@ -622,7 +676,7 @@ export function renderOrcaRightDockMarkup({
       ${selectedTask ? `
         <div class="orca-section-head" style="margin-top:16px">
           <span class="orca-section-label">CHẠY KIỂM THỬ QA & LỆNH TERMINAL (${selectedTask.isolated && !selectedTask.worktreeCleaned ? "WORKTREE" : "DỰ ÁN"})</span>
-          ${qaRes ? `<span class="mc-badge is-${qaRes.status === "passed" ? "passed" : "blocking"}">${qaRes.status === "passed" ? "ĐẠT" : `MÃ LỖI ${qaRes.code ?? 1}`}</span>` : ""}
+          ${activeTerminalJobs.length ? `<span class="mc-badge">ĐANG CHẠY</span>` : qaRes ? `<span class="mc-badge ${qaRes.status === "passed" ? "is-passed" : qaRes.status === "failed" ? "is-blocking" : ""}">${qaRes.status === "passed" ? "ĐẠT" : qaRes.status === "cancelled" ? "ĐÃ DỪNG" : qaRes.status === "skipped" ? "BỎ QUA" : `MÃ LỖI ${qaRes.code ?? 1}`}</span>` : ""}
         </div>
         <div class="orca-inline-input-row" style="margin-top:6px">
           <input type="text" data-task-qa-cmd value="${esc(defaultCmd)}" placeholder="npm test, pytest, cargo test…" autocomplete="off" spellcheck="false">
@@ -631,8 +685,9 @@ export function renderOrcaRightDockMarkup({
         <div class="orca-quick-pills" style="margin-top:6px">
           ${presetCommands.map((cmd) => `<button type="button" class="kb-tag-chip" data-action="run-task-qa" data-id="${esc(selectedTask.id)}" data-command="${esc(cmd)}">${esc(cmd)}</button>`).join("")}
         </div>
-        ${qaRes ? `<div class="orca-terminal-box" style="margin-top:10px">
-          <header><code>$ ${esc(qaRes.command)}</code><small>${qaRes.durationSec}s · ${qaRes.status === "passed" ? "Thành công" : "Thất bại"}</small></header>
+        ${activeTerminalJobs.map((job) => `<div class="dock-overview-job" style="margin-top:10px"><code data-localize-skip="true">${esc(job.command)}</code>${job.cancellable && job.status === "running" ? `<button type="button" class="button quiet small" data-action="stop-managed-command" data-id="${esc(selectedTask.id)}" data-command-id="${esc(job.id)}">Dừng lệnh</button>` : `<small>Đang dừng…</small>`}</div>`).join("")}
+        ${qaRes && !activeTerminalJobs.length ? `<div class="orca-terminal-box" style="margin-top:10px">
+          <header><code>$ ${esc(qaRes.command)}</code><small>${qaRes.durationSec}s · ${esc(({passed:"Thành công",failed:"Thất bại",cancelled:"Đã dừng",skipped:"Bỏ qua"})[qaRes.status] || "Chưa xác nhận")}</small></header>
           <pre>${esc(String(qaRes.output || "(Không có đầu ra)").slice(-3500))}</pre>
           <footer style="margin-top:6px;display:flex;justify-content:flex-end">
             <button type="button" class="button quiet small" data-action="open-stage-doc" data-id="${esc(selectedTask.id)}" data-doc-id="qa">${icon("book-open-text", 12)}<span>Mở báo cáo QA</span></button>
@@ -683,7 +738,7 @@ export function renderOrcaRightDockMarkup({
   return `<div class="orca-dock-resizer" data-right-dock-resizer title="Kéo để thay đổi độ rộng thanh bên phải"></div>
   <header class="orca-dock-topbar">
     <div class="orca-dock-tabs" role="tablist" aria-label="Công cụ thanh bên phải">
-      ${availableTabs.map((item) => `<button type="button" class="orca-dock-tab ${tab === item.id ? "is-active" : ""}" data-action="right-dock-tab" data-tab="${esc(item.id)}" title="${esc(item.title)}">${icon(item.icon, 16)}</button>`).join("")}
+      ${availableTabs.map((item) => `<button type="button" role="tab" aria-selected="${tab === item.id}" aria-label="${esc(item.title)}" class="orca-dock-tab ${tab === item.id ? "is-active" : ""}" data-action="right-dock-tab" data-tab="${esc(item.id)}" title="${esc(item.title)}">${icon(item.icon, 16)}</button>`).join("")}
     </div>
     <button type="button" class="icon-button orca-dock-toggle" data-action="toggle-chat-drawer" title="Đóng thanh bên phải">${icon("sidebar-right", 16)}</button>
   </header>

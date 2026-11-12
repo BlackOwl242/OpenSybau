@@ -43,7 +43,10 @@ export async function handleSubmit(event) {
       if (typedText.length < 6 && !attachments.length) throw new Error("Nhập ít nhất 6 ký tự hoặc đính kèm tệp trước khi gửi.");
       object.attachments = await readComposerAttachments(form);
     }
-    if (form.dataset.form === "workspace") {
+    if (form.dataset.form === "task-steer") {
+      await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}/steer`, { method: "POST", body: JSON.stringify({ turnId: form.dataset.turnId, requestId: form.dataset.requestId, message: object.message }) });
+      showToast("Đã gửi chỉ dẫn vào lượt Codex đang chạy.");
+    } else if (form.dataset.form === "workspace") {
       const created = await api("/api/workspaces", { method: "POST", body: JSON.stringify({ path: object.path }) });
       if (created?.workspace?.id) {
         view.homeWorkspaceId = created.workspace.id;
@@ -249,14 +252,24 @@ export async function handleSubmit(event) {
         targetTask.config.chatModel = model;
         targetTask.config.chatEffort = effort;
       }
-      const result = await api(`/api/tasks/${encodeURIComponent(taskId)}/chat`, { method: "POST", body: JSON.stringify({ message: object.message, attachments: object.attachments, provider, model, effort }) });
-      view.chatDraft = "";
-      if (view.chatSplitDrafts) delete view.chatSplitDrafts[taskId];
+      const sentMessage = object.message;
       const liveInput = form.querySelector("textarea[name=message], textarea[name=prompt], input[name=message]");
+      view.chatDraft = "";
+      if (view.chatDraftsByTask) delete view.chatDraftsByTask[taskId];
+      if (view.chatSplitDrafts) delete view.chatSplitDrafts[taskId];
       if (liveInput) { liveInput.value = ""; if (liveInput.tagName === "TEXTAREA") resizeComposerTextarea(liveInput); }
       clearComposerAttachments(form);
+      let result;
+      try {
+        result = await api(`/api/tasks/${encodeURIComponent(taskId)}/chat`, { method: "POST", body: JSON.stringify({ message: sentMessage, attachments: object.attachments, provider, model, effort }) });
+      } catch (err) {
+        view.chatDraft = sentMessage || "";
+        if (liveInput && !liveInput.value) { liveInput.value = sentMessage || ""; if (liveInput.tagName === "TEXTAREA") resizeComposerTextarea(liveInput); }
+        throw err;
+      }
       showToast(view.language === "en" ? `Added to chat queue · position ${result.queuedPosition || 1}.` : `Đã thêm vào hàng đợi chat · vị trí ${result.queuedPosition || 1}.`);
     } else if (form.dataset.form === "task-chat-config") {
+      if (object.codexTransport) await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}`, { method: "PATCH", body: JSON.stringify({ codexTransport: object.codexTransport }) });
       view.chatProvider = object.provider;
       view.chatModel = object.model;
       view.chatEffort = object.effort;

@@ -4,6 +4,7 @@ const { spawn } = require("node:child_process");
 const { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, promises: fs } = require("node:fs");
 const path = require("node:path");
 const { findDesktopAntigravityPath } = require("./antigravity-path.cjs");
+const { installerEnvironment } = require("./installer-env.cjs");
 
 nativeTheme.themeSource = "dark";
 
@@ -85,7 +86,7 @@ function initializeUserConfig() {
   process.env.WORKBENCH_DATA_DIR = userData;
   process.env.WORKBENCH_ACCESS_USERNAME = "";
   process.env.WORKBENCH_ACCESS_PASSWORD = "";
-  process.env.WORKBENCH_ALLOWED_HOSTS = "";
+  process.env.WORKBENCH_ALLOWED_HOSTS ||= "";
   process.env.WORKBENCH_TLS_CERT = "";
   process.env.WORKBENCH_TLS_KEY = "";
   try {
@@ -178,7 +179,7 @@ function runCliInstaller(command, args, cwd) {
       shell: false,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, NO_COLOR: "1", CODEX_NON_INTERACTIVE: "1" },
+      env: installerEnvironment(process.env),
     });
     let stderr = "";
     child.stdout?.on("data", () => {});

@@ -297,11 +297,13 @@ export async function handleStageAndDiffAction(action, id, button, event) {
     return true;
   }
   if (action === "open-stage-line-comment") {
+    const rowEl = button.closest(".stage-code-line, .stage-diff-line, .orca-diff-row, tr");
+    const domCode = rowEl?.querySelector(".stage-code-text, .stage-diff-code, .orca-diff-code, .orca-file-code, code")?.textContent || "";
     view.stageLineCommentTarget = {
       key: button.dataset.key || "",
       path: button.dataset.path || "",
       line: button.dataset.line || "1",
-      code: button.dataset.code || "",
+      code: button.dataset.code || domCode,
     };
     render();
     $("[data-stage-line-comment-input]")?.focus();
@@ -457,7 +459,9 @@ export async function handleStageAndDiffAction(action, id, button, event) {
   }
   if (action === "select-diff-file") { view.diffSelectedFile = button.dataset.path || ""; view.diffAnnotationTarget = null; renderDiffStudioModal(); return true; }
   if (action === "open-diff-comment") {
-    view.diffAnnotationTarget = { key: button.dataset.key, path: button.dataset.path, line: button.dataset.line, side: button.dataset.side || "", code: button.dataset.code || "" };
+    const rowEl = button.closest(".diff-studio-line, .stage-diff-line, .orca-diff-row, tr");
+    const domCode = rowEl?.querySelector(".diff-line-text, .stage-diff-code, .orca-diff-code, code")?.textContent || "";
+    view.diffAnnotationTarget = { key: button.dataset.key, path: button.dataset.path, line: button.dataset.line, side: button.dataset.side || "", code: button.dataset.code || domCode };
     renderDiffStudioModal();
     return true;
   }

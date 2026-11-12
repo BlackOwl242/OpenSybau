@@ -3,6 +3,7 @@ import { Icon } from "../../shared/ui/Icon.jsx";
 import { chatNumber, compactChatTitle } from "../../shared/chat-labels.js";
 import { formatNumber } from "../../shared/i18n.js";
 import { getActiveRemoteHost, getSavedRemoteHosts, isAndroidApkRuntime } from "../../shared/remote-host.js";
+import { findQuotaPeriod } from "../../shared/quota-windows.js";
 
 const REPO_COLORS = ["blue", "green", "orange", "violet"];
 
@@ -440,12 +441,9 @@ export function MobileOrcaOverlay({ snapshot }) {
             const tok7d = Number(pUsage.tokens7d || 0);
             const quota = snapshot.quotas?.[row.id] || snapshot.quotas?.providers?.[row.id];
             const wins = quota?.groups?.[0]?.windows || quota?.windows || [];
-            const firstWin = wins[0];
-            const secondWin = wins[1];
+            const firstWin = findQuotaPeriod(wins, "5h");
+            const secondWin = findQuotaPeriod(wins, "7d");
             const pctLeft = typeof firstWin?.remainingPercent === "number" ? firstWin.remainingPercent : null;
-            const pctUsed = typeof firstWin?.usedPercent === "number"
-              ? firstWin.usedPercent
-              : pctLeft !== null ? Math.max(0, 100 - pctLeft) : null;
             const weekLeft = typeof secondWin?.remainingPercent === "number" ? secondWin.remainingPercent : null;
             const barTone = pctLeft !== null && pctLeft <= 10 ? "is-danger" : pctLeft !== null && pctLeft <= 20 ? "is-warn" : "";
             return <button
@@ -461,8 +459,8 @@ export function MobileOrcaOverlay({ snapshot }) {
               </div>
               <small data-localize-skip="true">
                 {avail
-                  ? (pctLeft !== null
-                    ? `${pctLeft}% 5h${weekLeft !== null ? ` · ${weekLeft}% 7d` : ""}`
+                  ? (pctLeft !== null || weekLeft !== null
+                    ? `${pctLeft === null ? "—" : `${pctLeft}%`} 5h · ${weekLeft === null ? "—" : `${weekLeft}%`} 7d`
                     : (tok7d > 0 ? `${formatNumber(tok7d)} tok` : `${count} model`))
                   : "Chưa kết nối"}
               </small>

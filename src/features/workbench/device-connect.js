@@ -34,7 +34,7 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
       <div class="device-password-head">
         <div>
           <strong>1. Mật khẩu kết nối cho điện thoại</strong>
-          <small>${hasSavedPassword ? `Đang mở kết nối mạng LAN (Cổng ${esc(String(info?.port || 4173))}). Điện thoại dùng mật khẩu này hoặc mã kết nối nhanh bên dưới để ghép nối.` : "Nhập mật khẩu bạn muốn dùng hoặc bấm Tạo tự động rồi bấm Lưu để mở kết nối cho điện thoại."}</small>
+          <small>${info?.lanActive ? `Đang mở kết nối mạng LAN (Cổng ${esc(String(info?.port || 4173))}). Điện thoại dùng mật khẩu này hoặc mã kết nối nhanh bên dưới để ghép nối.` : "Nhập mật khẩu và các địa chỉ máy chủ được phép, sau đó lưu để mở kết nối LAN trong bản production."}</small>
         </div>
       </div>
       <div class="device-input-action-row">
@@ -42,7 +42,7 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
           type="text"
           data-connection-password-input
           value="${esc(currentPassword)}"
-          placeholder="Nhập mật khẩu (tối thiểu 6 ký tự)…"
+          placeholder="Nhập mật khẩu (tối thiểu 16 ký tự)…"
           autocomplete="off"
           spellcheck="false"
         >
@@ -56,9 +56,11 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
           ${icon("check", 13)} Lưu mật khẩu
         </button>
       </div>
+      <label class="form-note" style="display:grid;gap:6px;margin-top:12px">Địa chỉ máy chủ được phép (ngăn cách bằng dấu phẩy)<input type="text" data-connection-allowed-hosts value="${esc((info?.allowedHosts || []).join(", "))}" placeholder="192.168.1.5:4173" autocomplete="off" spellcheck="false"></label>
+      ${!info?.lanActive && lanList.length ? `<p class="form-note">Địa chỉ trên máy này: ${lanList.map((item) => `<code>${esc(item.hostPort || "")}</code>`).join(", ")}</p>` : ""}
     </div>
 
-    <div class="device-qr-panel">
+    <div class="device-qr-panel" ${info?.lanActive ? "" : "hidden"}>
       <div class="device-qr-thumb">
         ${info?.qrSvg || `<div class="device-qr-placeholder">${icon("qr-code", 28)}</div>`}
       </div>
@@ -70,7 +72,7 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
         <label>Mã kết nối nhanh (đã kèm địa chỉ IP & mật khẩu)
           <div class="device-input-action-row">
             <input type="text" readonly value="${esc(info?.pairingUri || "")}" data-pairing-uri-input spellcheck="false" placeholder="opensybau://connect?...">
-            <button type="button" class="button primary" data-action="copy-pairing-uri" data-uri="${esc(info?.pairingUri || "")}">${icon("copy", 13)} Sao chép mã</button>
+            <button type="button" class="button quiet" data-action="copy-pairing-uri" data-uri="${esc(info?.pairingUri || "")}">${icon("copy", 13)} Sao chép mã</button>
             <button type="button" class="button quiet" data-action="refresh-connection-info" title="Làm mới địa chỉ mạng">${icon("refresh-cw", 13)}</button>
           </div>
         </label>
@@ -187,7 +189,7 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
         <h2>${isMobile ? "Kết nối với Máy tính (PC)" : "Kết nối điện thoại"}</h2>
         <p>${isMobile
           ? "Ghép nối điện thoại với OpenSybau đang chạy trên máy tính qua cùng mạng Wi-Fi hoặc Tailscale."
-          : "Mật khẩu và mã kết nối mạng LAN đã bật sẵn trên máy tính này. Quét mã hoặc nhập IP trên điện thoại để điều khiển từ xa."}</p>
+          : info?.lanActive ? "Kết nối LAN đã bật. Quét mã hoặc nhập IP trên điện thoại để điều khiển từ xa." : "Mặc định chỉ kết nối trên máy này. Thiết lập mật khẩu và địa chỉ máy chủ để dùng điện thoại."}</p>
       </div>
       ${isMobile ? "" : `<div class="device-card-head-right">
         <div class="device-mode-switch" role="tablist" aria-label="Chế độ kết nối thiết bị">

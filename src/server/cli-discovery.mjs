@@ -150,6 +150,15 @@ export function createCliDiscoveryService({
   }
 
   function openCliLoginTerminal(executable, args, title) {
+    const cleanExe = String(executable || "").trim();
+    if (!cleanExe || /[&|<>^;\r\n\0`"$]/.test(cleanExe)) {
+      throw new Error("Đường dẫn tệp thực thi CLI chứa ký tự không an toàn.");
+    }
+    for (const arg of args || []) {
+      if (/[&|<>^;\r\n\0`"$]/.test(String(arg || ""))) {
+        throw new Error("Tham số đăng nhập CLI chứa ký tự không an toàn.");
+      }
+    }
     if (process.platform === "linux") {
       const candidates = [
         { names: ["x-terminal-emulator", "xterm"], args: (command) => ["-e", ...command] },
@@ -189,15 +198,25 @@ export function createCliDiscoveryService({
       "Write-Host 'Hoàn tất! OpenSybau sẽ tự động nhận diện hoặc bạn có thể bấm Quét lại.' -ForegroundColor Cyan",
     ].filter(Boolean).join("; ");
     const encoded = Buffer.from(script, "utf16le").toString("base64");
-    const launchCmd = `Start-Process -FilePath ${powershellLiteral(powershell)} -ArgumentList @('-NoProfile', '-NoExit', '-EncodedCommand', ${powershellLiteral(encoded)}) -WorkingDirectory ${powershellLiteral(homedir())} -WindowStyle Normal`;
+    const launchCmd = `$ErrorActionPreference = 'Stop'; $p = Start-Process -FilePath ${powershellLiteral(powershell)} -ArgumentList @('-NoProfile', '-NoExit', '-EncodedCommand', ${powershellLiteral(encoded)}) -WorkingDirectory ${powershellLiteral(homedir())} -WindowStyle Normal -PassThru; $p.Id`;
     return new Promise((resolvePromise, rejectPromise) => {
-      const child = spawn(powershell, ["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", launchCmd], {
-        cwd: homedir(), detached: true, stdio: "ignore", windowsHide: true, env: process.env,
+      const child = spawn(powershell, ["-NoProfile", "-NonInteractive", "-Command", launchCmd], {
+        cwd: homedir(), stdio: ["ignore", "pipe", "pipe"], windowsHide: false, env: process.env,
       });
+      let output = "";
+      let errorOutput = "";
+      child.stdout.on("data", (chunk) => { output += chunk.toString(); });
+      child.stderr.on("data", (chunk) => { errorOutput += chunk.toString(); });
       child.once("error", rejectPromise);
-      child.once("close", (code) => {
-        if (code === 0) resolvePromise();
-        else rejectPromise(new Error(`Không thể mở cửa sổ PowerShell đăng nhập (mã ${code ?? "unknown"}).`));
+      child.once("close", async (code) => {
+        const pid = Number(output.trim());
+        if (code !== 0 || !Number.isInteger(pid) || pid <= 0) {
+          rejectPromise(new Error(`Không thể mở cửa sổ PowerShell đăng nhập (mã ${code ?? "unknown"}). ${errorOutput.trim().slice(0, 300)}`));
+          return;
+        }
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 500));
+        try { process.kill(pid, 0); resolvePromise(); }
+        catch { rejectPromise(new Error("Cửa sổ terminal đã đóng ngay sau khi mở. Hãy thử lại hoặc mở CLI trong terminal thủ công.")); }
       });
     });
   }
@@ -306,6 +325,9 @@ export function createCliDiscoveryService({
   }
 
   async function validateCustomCliPath(executablePath) {
+    if (/[&|<>^;\r\n\0`"$]/.test(String(executablePath || ""))) {
+      return "Đường dẫn tệp thực thi CLI chứa ký tự đặc biệt không hợp lệ.";
+    }
     const resolvedPath = await fs.realpath(resolve(executablePath)).catch(() => resolve(executablePath));
     for (const ws of getWorkspaces() || []) {
       if (!ws?.path) continue;
@@ -329,6 +351,7 @@ export function createCliDiscoveryService({
     getApiProviderRuntime: (provider) => apiProviderRuntime.get(provider),
     refreshCliExecutables,
     openCliLoginTerminal,
+    launchCliLogin: openCliLoginTerminal,
     normalizeDirectoryInput,
     inspectWorkspace,
     savedApiProviders,

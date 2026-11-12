@@ -5,6 +5,18 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.6] - 2026-11-12
+
+### Tiếng Việt
+- Theo dõi subagent, tiến trình, artifact và cấu hình; bổ sung Codex App Server, duyệt quyền và gửi chỉ dẫn trực tiếp.
+- Cải thiện quota, đăng nhập, giao diện và tương phản; kiểm thử khôi phục, worktree và giới hạn kết nối mạng.
+
+### English
+- Add agent observability, Codex App Server live control, approval handling, artifact inventory and managed command cancellation.
+- Improve quota, provider authentication, accessibility, recovery and workspace safety.
+
+---
+
 ## [0.3.5] - 2026-11-06
 
 ### English

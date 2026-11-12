@@ -101,9 +101,19 @@ export function highlightSourceLine(rawLine = "", ext = "") {
   return esc(line);
 }
 
+const diffModelCache = new Map();
+const DIFF_MODEL_CACHE_MAX = 16;
+
 export function buildFullFileDiffModel(newContent = "", diffText = "") {
-  const newLines = String(newContent ?? "").split(/\r?\n/);
+  const newStr = String(newContent ?? "");
   const rawDiff = String(diffText ?? "");
+  const cacheKey = newStr.length + rawDiff.length <= 524_288
+    ? `${newStr.length}:${rawDiff.length}:${newStr.slice(0, 64)}:${rawDiff.slice(0, 128)}:${rawDiff.slice(-64)}`
+    : "";
+  if (cacheKey && diffModelCache.has(cacheKey)) {
+    return diffModelCache.get(cacheKey);
+  }
+  const newLines = newStr.split(/\r?\n/);
   if (!rawDiff.trim()) {
     const unified = newLines.map((text, idx) => ({
       type: "ctx",
@@ -248,7 +258,15 @@ export function buildFullFileDiffModel(newContent = "", diffText = "") {
     oldCursor++;
   }
 
-  return { unified, split, changeBlocks };
+  const result = { unified, split, changeBlocks };
+  if (cacheKey) {
+    if (diffModelCache.size >= DIFF_MODEL_CACHE_MAX) {
+      const oldestKey = diffModelCache.keys().next().value;
+      if (oldestKey !== undefined) diffModelCache.delete(oldestKey);
+    }
+    diffModelCache.set(cacheKey, result);
+  }
+  return result;
 }
 
 function renderBreadcrumbPillMarkup(tab, activeWs) {
@@ -449,7 +467,7 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
     if (isLiveUrl || ext === ".html" || ext === ".htm") {
       const hasPopover = Boolean(view.stageHtmlInspectActive && view.stageHtmlSelectedElement);
       bodyHtml = `<div class="orca-live-frame-wrap">
-        <iframe class="orca-live-frame" src="${esc(rawUrl)}" title="Xem trực tiếp ${esc(tab.name)}" sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"></iframe>
+        <iframe class="orca-live-frame" src="${esc(rawUrl)}" title="Xem trực tiếp ${esc(tab.name)}" sandbox="allow-scripts allow-forms allow-popups"></iframe>
         <div class="orca-element-comment-layer" data-html-comment-layer ${hasPopover ? "" : "hidden"}>
           ${hasPopover ? renderHtmlElementCommentPopoverMarkup({ formatEffortLabel }) : ""}
         </div>
@@ -496,8 +514,10 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
     }
   } else if (isShowingChanges && diffModel) {
     const isMobileViewport = typeof window !== "undefined" && Boolean(window.matchMedia?.("(max-width: 740px)")?.matches);
+    const commentTarget = view.stageLineCommentTarget;
+    const diffMemoKey = `diff:${tab.id}:${tab.diffSplit ? "split" : "uni"}:${tab.diffBase || "unstaged"}:${tab.loadedAt || 0}:${(tab.diffData?.diff || "").length}:${commentTarget?.key || ""}`;
     if (tab.diffSplit && !isMobileViewport) {
-      bodyHtml = `<div class="orca-code-scroll codex-split-diff-scroll">
+      bodyHtml = `<div class="orca-code-scroll codex-split-diff-scroll" data-memo-key="${esc(diffMemoKey)}">
         <button type="button" class="codex-doc-copy-btn" data-action="copy-stage-file-content" data-tab-id="${esc(tab.id)}" title="Sao chép toàn bộ nội dung">${icon("copy", 14)}</button>
         <div class="codex-split-diff-grid">
           ${diffModel.split.map((row) => {
@@ -522,8 +542,7 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
         </div>
       </div>`;
     } else {
-      const commentTarget = view.stageLineCommentTarget;
-      bodyHtml = `<div class="orca-code-scroll">
+      bodyHtml = `<div class="orca-code-scroll" data-memo-key="${esc(diffMemoKey)}">
         <button type="button" class="codex-doc-copy-btn" data-action="copy-stage-file-content" data-tab-id="${esc(tab.id)}" title="Sao chép toàn bộ nội dung">${icon("copy", 14)}</button>
         <div class="orca-code-lines is-codex-diff">
           ${diffModel.unified.map((row) => {
@@ -532,9 +551,9 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
             const rowCls = row.type === "add" ? "is-add" : row.type === "del" ? "is-del" : "";
             const lineKey = `code:${tab.id}:${lineNum}:${row.type}`;
             const isCommenting = commentTarget?.key === lineKey;
-            return `<div class="orca-code-row ${rowCls} ${isCommenting ? "is-commenting" : ""}" ${anchorAttr} data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}" data-code="${esc(row.text)}">
+            return `<div class="orca-code-row ${rowCls} ${isCommenting ? "is-commenting" : ""}" ${anchorAttr} data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}">
               <span class="orca-code-ln">${lineNum}</span>
-              <code class="orca-code-text" data-localize-skip="true">${highlightSourceLine(row.text, ext)}</code>
+              <code class="orca-code-text orca-diff-code" data-localize-skip="true">${highlightSourceLine(row.text, ext)}</code>
               <span class="diff-comment-trigger">+ Nhận xét</span>
             </div>
             ${isCommenting ? `<div class="diff-comment-editor">
@@ -547,18 +566,20 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
       </div>`;
     }
   } else {
-    const lines = String(file?.content || "").split(/\r?\n/);
+    const rawFileText = String(file?.content || "");
+    const lines = rawFileText.split(/\r?\n/);
     const commentTarget = view.stageLineCommentTarget;
-    bodyHtml = `<div class="orca-code-scroll">
+    const codeMemoKey = `code:${tab.id}:${tab.loadedAt || 0}:${rawFileText.length}:${commentTarget?.key || ""}`;
+    bodyHtml = `<div class="orca-code-scroll" data-memo-key="${esc(codeMemoKey)}">
       <button type="button" class="codex-doc-copy-btn" data-action="copy-stage-file-content" data-tab-id="${esc(tab.id)}" title="Sao chép toàn bộ nội dung">${icon("copy", 14)}</button>
       <div class="orca-code-lines">
         ${lines.map((line, idx) => {
           const lineNum = idx + 1;
           const lineKey = `code:${tab.id}:${lineNum}`;
           const isCommenting = commentTarget?.key === lineKey;
-          return `<div class="orca-code-row ${isCommenting ? "is-commenting" : ""}" data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}" data-code="${esc(line)}">
+          return `<div class="orca-code-row ${isCommenting ? "is-commenting" : ""}" data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}">
             <span class="orca-code-ln">${lineNum}</span>
-            <code class="orca-code-text" data-localize-skip="true">${highlightSourceLine(line, ext)}</code>
+            <code class="orca-code-text orca-file-code" data-localize-skip="true">${highlightSourceLine(line, ext)}</code>
             <span class="diff-comment-trigger">+ Nhận xét</span>
           </div>
           ${isCommenting ? `<div class="diff-comment-editor">

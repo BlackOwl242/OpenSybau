@@ -1,0 +1,16 @@
+[package]
+name = "opensybau-core"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance native Rust accelerator for OpenSybau (Diff Parser, Vault Knowledge Graph, Okapi BM25, Workspace File Scanner)"
+
+[[bin]]
+name = "opensybau-core"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

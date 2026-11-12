@@ -612,7 +612,7 @@ button:disabled { cursor: not-allowed; }
 .desktop-setup-dialog .button:hover { border-color: var(--wb-border-strong); background: var(--wb-hover); }
 .desktop-setup-dialog .button.primary { border-color: var(--wb-primary-bg); color: var(--wb-primary-fg); background: var(--wb-primary-bg); }
 .desktop-setup-dialog .button.primary:hover { border-color: var(--wb-primary-bg); background: color-mix(in srgb, var(--wb-primary-bg) 88%, var(--wb-ink-strong)); }
-.desktop-setup-footnote { margin: 12px 0 0; text-align: right; }
+.desktop-setup-footnote { margin: 12px 0 0; text-align: left; }
 @media (max-width: 560px) {
   .desktop-setup-backdrop { padding: 10px; }
   .desktop-setup-dialog { max-height: calc(100vh - 20px); padding: 18px; border-radius: 13px; }

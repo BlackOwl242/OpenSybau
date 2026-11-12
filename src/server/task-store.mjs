@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { workflowRoles } from "../domain/agent-roles.js";
 import { within } from "./fs-security.mjs";
 import { tokenize, tokenizeTerms } from "./memory-bm25.mjs";
@@ -14,10 +14,28 @@ async function getSqliteModule() {
   return sqliteModulePromise;
 }
 
+export function deleteTaskDetailStore(runtimeDir, taskId) {
+  if (!runtimeDir || !taskId) return false;
+  const safeId = String(taskId).trim();
+  if (!safeId || /[\\/]/.test(safeId) || safeId === "." || safeId === "..") return false;
+  const tasksRoot = resolve(String(runtimeDir), "tasks");
+  const target = resolve(tasksRoot, safeId);
+  if (!within(tasksRoot, target) || target === tasksRoot) return false;
+  try {
+    rmSync(target, { recursive: true, force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function createTaskStoreService({ taskDir }) {
   const syncedTaskTimestamps = new Map();
   let ftsDb = null;
   let ftsAvailable = false;
+  let lastFtsCorpusStamp = "";
+  let lastFtsDocMap = new Map();
+  let ftsDocStamps = new Map();
 
   async function initFtsEngine() {
     if (ftsDb !== null) return ftsAvailable;
@@ -28,7 +46,21 @@ export function createTaskStoreService({ taskDir }) {
       return false;
     }
     try {
-      const db = new mod.DatabaseSync(":memory:");
+      let db = null;
+      if (taskDir) {
+        try {
+          const runtimeRoot = dirname(resolve(String(taskDir)));
+          mkdirSync(runtimeRoot, { recursive: true });
+          const sqlitePath = resolve(runtimeRoot, "search.sqlite");
+          db = new mod.DatabaseSync(sqlitePath);
+          db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY;");
+        } catch {
+          db = null;
+        }
+      }
+      if (!db) {
+        db = new mod.DatabaseSync(":memory:");
+      }
       db.exec("CREATE VIRTUAL TABLE IF NOT EXISTS workbench_fts USING fts5(doc_id UNINDEXED, doc_type UNINDEXED, task_id UNINDEXED, workspace_id UNINDEXED, title, body, tokenize='unicode61');");
       ftsDb = db;
       ftsAvailable = true;
@@ -68,6 +100,11 @@ export function createTaskStoreService({ taskDir }) {
           id: task.id,
           code: task.code || "",
           title: task.title || "",
+          workspaceId: task.workspaceId || "",
+          workspacePath: task.workspacePath || "",
+          executionPath: task.executionPath || "",
+          origin: task.origin || "local",
+          config: task.config || {},
           prompt: task.prompt || "",
           goal: task.goal || "",
           goalChecklist: task.goalChecklist || [],
@@ -77,8 +114,12 @@ export function createTaskStoreService({ taskDir }) {
           distilledSkillId: task.distilledSkillId || "",
           distilledSkillName: task.distilledSkillName || "",
           cliSessions: task.cliSessions || {},
+          cliStreamSources: task.cliStreamSources || {},
           subagentPolicy: task.subagentPolicy || null,
           subagents: task.subagents || [],
+          commandActivities: task.commandActivities || [],
+          terminalHistory: task.terminalHistory || [],
+          qaResult: task.qaResult || null,
           subagentDetails: serializeTaskSubagentDetails(task),
           chatCompactedSummary: task.chatCompactedSummary || "",
           chatCompactedCount: task.chatCompactedCount || 0,
@@ -125,6 +166,7 @@ export function createTaskStoreService({ taskDir }) {
           task.subagentPolicy = detail.subagentPolicy;
         }
         hydrateTaskSubagentDetails(task, detail);
+        if (!task.commandActivities?.length && Array.isArray(detail.commandActivities)) task.commandActivities = detail.commandActivities;
       } catch {}
     }
   }
@@ -256,49 +298,101 @@ export function createTaskStoreService({ taskDir }) {
 
   async function searchWorkbench({ query = "", tasks = [], memories = [], skills = [], workspaceId = "", scope = "all", limit = 25 }) {
     const rawQuery = String(query || "").trim();
-    const queryTerms = tokenize(rawQuery);
-    if (!queryTerms.length && rawQuery.length >= 2) queryTerms.push(rawQuery.toLowerCase());
+    const baseTerms = tokenize(rawQuery);
+    if (!baseTerms.length && rawQuery.length >= 2) baseTerms.push(rawQuery.normalize("NFC").toLowerCase());
+    const queryTerms = baseTerms.filter((token) => /[\p{L}\p{N}]/u.test(token));
     if (!queryTerms.length) return { query: rawQuery, engine: "none", total: 0, results: [] };
 
-    const docs = buildSearchCorpus({ tasks, memories, skills, workspaceId, scope });
-    if (!docs.length) return { query: rawQuery, engine: "bm25", total: 0, results: [] };
+    let maxTaskUpdatedAt = "";
+    for (const t of tasks) {
+      const stamp = String(t?.updatedAt || t?.createdAt || "");
+      if (stamp > maxTaskUpdatedAt) maxTaskUpdatedAt = stamp;
+    }
+    let maxMemoryUpdatedAt = "";
+    for (const m of memories) {
+      const stamp = String(m?.updatedAt || m?.createdAt || "");
+      if (stamp > maxMemoryUpdatedAt) maxMemoryUpdatedAt = stamp;
+    }
+    const corpusStamp = `${workspaceId || ""}::${scope || "all"}::${tasks.length}::${maxTaskUpdatedAt}::${memories.length}::${maxMemoryUpdatedAt}::${skills.length}`;
+
+    let docs = null;
+    const ensureDocs = () => {
+      if (!docs) docs = buildSearchCorpus({ tasks, memories, skills, workspaceId, scope });
+      return docs;
+    };
 
     const hasSqlite = await initFtsEngine();
     if (hasSqlite && ftsDb) {
       try {
-        ftsDb.exec("DELETE FROM workbench_fts;");
-        const insert = ftsDb.prepare("INSERT INTO workbench_fts (doc_id, doc_type, task_id, workspace_id, title, body) VALUES (?, ?, ?, ?, ?, ?);");
-        const docMap = new Map();
-        for (const doc of docs) {
-          docMap.set(doc.docId, doc);
-          insert.run(doc.docId, doc.type, doc.taskId, doc.workspaceId, doc.title, doc.body);
+        if (corpusStamp !== lastFtsCorpusStamp) {
+          const currentDocs = ensureDocs();
+          const nextDocMap = new Map();
+          const nextDocStamps = new Map();
+          ftsDb.exec("BEGIN IMMEDIATE;");
+          try {
+            if (ftsDocStamps.size === 0) {
+              ftsDb.exec("DELETE FROM workbench_fts;");
+            }
+            const delStmt = ftsDb.prepare("DELETE FROM workbench_fts WHERE doc_id = ?;");
+            const insert = ftsDb.prepare("INSERT INTO workbench_fts (doc_id, doc_type, task_id, workspace_id, title, body) VALUES (?, ?, ?, ?, ?, ?);");
+            for (const doc of currentDocs) {
+              const docStamp = `${doc.updatedAt || ""}::${doc.title.length}::${doc.body.length}`;
+              nextDocMap.set(doc.docId, doc);
+              nextDocStamps.set(doc.docId, docStamp);
+              if (ftsDocStamps.get(doc.docId) !== docStamp) {
+                if (ftsDocStamps.has(doc.docId)) delStmt.run(doc.docId);
+                insert.run(doc.docId, doc.type, doc.taskId, doc.workspaceId, doc.title, doc.body);
+              }
+            }
+            for (const oldDocId of ftsDocStamps.keys()) {
+              if (!nextDocStamps.has(oldDocId)) {
+                delStmt.run(oldDocId);
+              }
+            }
+            ftsDb.exec("COMMIT;");
+            lastFtsDocMap = nextDocMap;
+            ftsDocStamps = nextDocStamps;
+            lastFtsCorpusStamp = corpusStamp;
+          } catch (err) {
+            try { ftsDb.exec("ROLLBACK;"); } catch {}
+            throw err;
+          }
         }
+        if (!lastFtsDocMap.size) return { query: rawQuery, engine: "bm25", total: 0, results: [] };
         const ftsMatchExpr = queryTerms
-          .map((t) => `"${t.replace(/"/g, "")}"*`)
+          .map((t) => `"${String(t).replace(/"/g, "")}"*`)
+          .filter((t) => t !== '""*')
           .join(" OR ");
+        if (!ftsMatchExpr) return { query: rawQuery, engine: "none", total: 0, results: [] };
         const stmt = ftsDb.prepare(
           "SELECT doc_id, bm25(workbench_fts, 0.0, 0.0, 0.0, 0.0, 5.0, 1.0) AS rank_score FROM workbench_fts WHERE workbench_fts MATCH ? ORDER BY rank_score LIMIT ?;"
         );
         const rows = stmt.all(ftsMatchExpr, Math.max(1, Math.min(100, Number(limit) || 25)));
-        const results = rows.map((row) => {
-          const doc = docMap.get(row.doc_id);
-          return {
-            type: doc.type,
-            id: doc.id,
-            taskId: doc.taskId,
-            workspaceId: doc.workspaceId,
-            title: doc.title,
-            snippet: makeSnippet(`${doc.title} — ${doc.body}`, queryTerms),
-            score: Math.round(Math.abs(Number(row.rank_score) || 1) * 100) / 100,
-            updatedAt: doc.updatedAt,
-          };
-        });
+        const results = rows
+          .map((row) => {
+            const doc = lastFtsDocMap.get(row.doc_id);
+            if (!doc) return null;
+            return {
+              type: doc.type,
+              id: doc.id,
+              taskId: doc.taskId,
+              workspaceId: doc.workspaceId,
+              title: doc.title,
+              snippet: makeSnippet(`${doc.title} — ${doc.body}`, queryTerms),
+              score: Math.round(Math.abs(Number(row.rank_score) || 1) * 100) / 100,
+              updatedAt: doc.updatedAt,
+            };
+          })
+          .filter(Boolean);
         return { query: rawQuery, engine: "sqlite-fts5", total: results.length, results };
       } catch {}
     }
 
+    const fallbackDocs = ensureDocs();
+    if (!fallbackDocs.length) return { query: rawQuery, engine: "bm25", total: 0, results: [] };
+
     // Fallback BM25 search
-    const indexed = docs.map((doc) => {
+    const indexed = fallbackDocs.map((doc) => {
       const terms = tokenizeTerms(`${doc.title} ${doc.title} ${doc.body}`);
       const tf = new Map();
       for (const t of terms) tf.set(t, (tf.get(t) || 0) + 1);
@@ -347,6 +441,16 @@ export function createTaskStoreService({ taskDir }) {
   return {
     syncTaskDetailFiles,
     hydrateTasksFromDetailStore,
+    deleteTaskDetailStore: (runtimeOrTaskId, maybeTaskId) => {
+      if (maybeTaskId !== undefined) {
+        syncedTaskTimestamps.delete(String(maybeTaskId));
+        return deleteTaskDetailStore(runtimeOrTaskId, maybeTaskId);
+      }
+      const id = String(runtimeOrTaskId || "").trim();
+      syncedTaskTimestamps.delete(id);
+      if (!taskDir) return false;
+      return deleteTaskDetailStore(resolve(taskDir, ".."), id);
+    },
     searchWorkbench,
   };
 }
@@ -419,7 +523,86 @@ export function normalizeScheduleProfile(body = {}, stateOrWorkspaces = {}, conn
   };
 }
 
-export async function spawnScheduledTask(schedule, { state, taskDir, workspaceInfo, inspectWorkspace }) {
+export const MAX_CRON_HISTORY_PER_SCHEDULE = 10;
+
+export async function pruneCompletedCronTasks(state, {
+  scheduleId = "",
+  taskDir = "",
+  runtimeDir = "",
+  cleanupTaskWorktrees = null,
+  maxHistoryPerSchedule = MAX_CRON_HISTORY_PER_SCHEDULE,
+} = {}) {
+  if (!state || !Array.isArray(state.tasks)) return [];
+  const cap = Math.max(1, Number(maxHistoryPerSchedule) || MAX_CRON_HISTORY_PER_SCHEDULE);
+  const isCronTask = (t) => Boolean(t) && (t.origin === "schedule" || Boolean(t.scheduleId) || String(t.code || "").startsWith("CRON-"));
+  const isTerminal = (t) => ["done", "failed", "cancelled"].includes(t?.status) && !t?.pinned;
+
+  const bySchedule = new Map();
+  for (const t of state.tasks) {
+    if (!isCronTask(t)) continue;
+    if (scheduleId && t.scheduleId && t.scheduleId !== scheduleId) continue;
+    const key = t.scheduleId || "__cron__";
+    if (!bySchedule.has(key)) bySchedule.set(key, []);
+    bySchedule.get(key).push(t);
+  }
+
+  const evictedIds = new Set();
+  const evictedTasks = [];
+  for (const group of bySchedule.values()) {
+    const completed = group.filter(isTerminal);
+    // Clean up stale isolated worktrees for older completed cron runs beyond the 2 most recent
+    for (const staleTask of completed.slice(2)) {
+      if (staleTask.isolated && staleTask.worktreePath && !staleTask.worktreeCleaned && !staleTask.worktreeAppliedAt) {
+        if (typeof cleanupTaskWorktrees === "function") {
+          try { await cleanupTaskWorktrees(staleTask); } catch {}
+        } else {
+          try { rmSync(resolve(staleTask.worktreePath), { recursive: true, force: true }); } catch {}
+        }
+        staleTask.worktreeCleaned = true;
+      }
+    }
+    if (completed.length > cap) {
+      for (const oldTask of completed.slice(cap)) {
+        evictedIds.add(oldTask.id);
+        evictedTasks.push(oldTask);
+      }
+    }
+  }
+
+  if (evictedTasks.length) {
+    const resolvedRuntime = runtimeDir || (taskDir ? resolve(taskDir, "..") : "");
+    for (const oldTask of evictedTasks) {
+      if (oldTask.worktreePath && !oldTask.worktreeCleaned) {
+        if (typeof cleanupTaskWorktrees === "function") {
+          try { await cleanupTaskWorktrees(oldTask); } catch {}
+        } else {
+          try { rmSync(resolve(oldTask.worktreePath), { recursive: true, force: true }); } catch {}
+        }
+        oldTask.worktreeCleaned = true;
+      }
+      if (resolvedRuntime) {
+        deleteTaskDetailStore(resolvedRuntime, oldTask.id);
+      } else if (taskDir && oldTask.id) {
+        const target = resolve(taskDir, String(oldTask.id));
+        if (within(taskDir, target) && target !== taskDir) {
+          try { rmSync(target, { recursive: true, force: true }); } catch {}
+        }
+      }
+    }
+    state.tasks = state.tasks.filter((t) => !evictedIds.has(t?.id));
+  }
+  return evictedTasks;
+}
+
+export async function spawnScheduledTask(schedule, {
+  state,
+  taskDir,
+  runtimeDir = "",
+  workspaceInfo,
+  inspectWorkspace,
+  cleanupTaskWorktrees = null,
+  maxHistoryPerSchedule = MAX_CRON_HISTORY_PER_SCHEDULE,
+}) {
   const workspace = (state.workspaces || []).find((w) => w.id === schedule.workspaceId);
   if (!workspace) throw new Error("Workspace của lịch chạy không còn tồn tại.");
   const resolvedInfo = workspaceInfo || (typeof inspectWorkspace === "function" ? await inspectWorkspace(workspace.path).catch(() => null) : null);
@@ -479,7 +662,7 @@ export async function spawnScheduledTask(schedule, { state, taskDir, workspaceIn
     skillIds: [],
     skills: [],
     memoryUsed: [],
-    storagePath: resolve(taskDir, id),
+    storagePath: taskDir ? resolve(taskDir, id) : "",
   };
   schedule.lastRunAt = now;
   schedule.lastTaskId = id;
@@ -488,5 +671,64 @@ export async function spawnScheduledTask(schedule, { state, taskDir, workspaceIn
     ? new Date(Date.now() + (Number(schedule.intervalMinutes) || 60) * 60_000).toISOString()
     : null;
   state.tasks.unshift(task);
+  await pruneCompletedCronTasks(state, {
+    scheduleId: schedule.id,
+    taskDir,
+    runtimeDir,
+    cleanupTaskWorktrees,
+    maxHistoryPerSchedule,
+  });
+  schedule.recentTaskIds = state.tasks
+    .filter((t) => t?.scheduleId === schedule.id)
+    .map((t) => t.id)
+    .slice(0, Math.max(1, Number(maxHistoryPerSchedule) || MAX_CRON_HISTORY_PER_SCHEDULE));
   return task;
+}
+
+export async function tickSchedules(stateOrCtx = {}, maybeOptions = {}) {
+  const isCtx = stateOrCtx && typeof stateOrCtx === "object" && !Array.isArray(stateOrCtx) && ("state" in stateOrCtx || ("schedules" in stateOrCtx && !("settings" in stateOrCtx)));
+  const ctx = isCtx ? stateOrCtx : { ...maybeOptions, state: stateOrCtx };
+  const state = ctx.state || stateOrCtx || {};
+  state.tasks ||= [];
+  const schedules = Array.isArray(state.settings?.schedules)
+    ? state.settings.schedules
+    : (Array.isArray(ctx.schedules) ? ctx.schedules : []);
+  const nowMs = Number.isFinite(Number(ctx.nowMs)) ? Number(ctx.nowMs) : Date.now();
+  const spawned = [];
+
+  await pruneCompletedCronTasks(state, {
+    taskDir: ctx.taskDir || "",
+    runtimeDir: ctx.runtimeDir || "",
+    cleanupTaskWorktrees: ctx.cleanupTaskWorktrees || null,
+    maxHistoryPerSchedule: ctx.maxHistoryPerSchedule || MAX_CRON_HISTORY_PER_SCHEDULE,
+  });
+
+  if (!schedules.length) return spawned;
+  let connectors = ctx.connectors || null;
+
+  for (const sched of schedules) {
+    if (!sched?.enabled) continue;
+    const dueMs = sched.nextRunAt ? Date.parse(sched.nextRunAt) : 0;
+    if (Number.isFinite(dueMs) && dueMs > nowMs) continue;
+    const activeForSchedule = state.tasks.some((t) => t?.scheduleId === sched.id && ["queued", "running"].includes(t.status));
+    if (activeForSchedule) continue;
+    try {
+      if (!connectors && typeof ctx.loadModels === "function") {
+        connectors = await ctx.loadModels().catch(() => ({}));
+      }
+      const task = await spawnScheduledTask(sched, {
+        state,
+        taskDir: ctx.taskDir || "",
+        runtimeDir: ctx.runtimeDir || "",
+        workspaceInfo: ctx.workspaceInfo,
+        inspectWorkspace: ctx.inspectWorkspace,
+        requestedRole: ctx.requestedRole,
+        connectors: connectors || {},
+        cleanupTaskWorktrees: ctx.cleanupTaskWorktrees || null,
+        maxHistoryPerSchedule: ctx.maxHistoryPerSchedule || MAX_CRON_HISTORY_PER_SCHEDULE,
+      });
+      spawned.push(task);
+    } catch {}
+  }
+  return spawned;
 }

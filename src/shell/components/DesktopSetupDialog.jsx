@@ -36,12 +36,12 @@ export function DesktopSetupDialog({ connectors, installingProvider = "" }) {
             </div>
             <div class="desktop-setup-agent-actions">
               {status.tone === "ready"
-                ? <span class="desktop-setup-status">Sẵn sàng</span>
+                ? <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-switch-account" data-id={agent.id}>Đổi tài khoản</button>
                 : status.tone === "missing"
                   ? supportsInstall
                     ? <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-install" data-id={agent.id} disabled={Boolean(installingProvider)}>{installingProvider === agent.id ? "Đang cài đặt…" : "Cài CLI"}</button>
                     : <a class="button quiet desktop-setup-install" href={agent.url} target="_blank" rel="noreferrer">Hướng dẫn cài</a>
-                  : <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-login" data-id={agent.id}>Mở terminal đăng nhập</button>}
+                  : <button class="button quiet desktop-setup-install" type="button" data-action="provider-cli-login" data-id={agent.id}>Đăng nhập</button>}
             </div>
           </article>;
         })}

@@ -1,6 +1,7 @@
 import { $, efforts, esc, icon, view } from "../../shared/state.js";
 import { connectorSupports, providersForRole, roleConfig, workflowRoles } from "../../domain/agent-roles.js";
 import { isMobileCompanionMode } from "../../shared/remote-host.js";
+import { effectiveCliPermissions } from "../../domain/cli-permissions.js";
 import {
   openArenaCompareModal as openFanoutCompareModal,
   renderDiffStudioModal as renderDiffModalContent,
@@ -104,7 +105,7 @@ export function openTaskInstructionModal(task) {
   const providerOptions = providers.length ? providers.map(([id, connector]) => ({ value: id, label: `${connector.name || id}${connector.kind === "api" ? " · API" : " · CLI"}` })) : [{ value: "", label: "Chưa có agent khả dụng" }];
   const modelOptions = models.length ? models.map((item) => ({ value: item.id, label: item.name || item.id })) : [{ value: "", label: "Chưa có model khả dụng" }];
   const effortOptions = (model?.efforts || efforts).map((effort) => ({ value: effort, label: formatEffortLabel(effort) }));
-  const body = `<div class="task-instruction-models">${homeSelectField("Agent", "provider", "data-chat-provider", providerOptions, provider, !providers.length)}${homeSelectField("Model", "model", "data-chat-model", modelOptions, model?.id || "", !model)}${homeSelectField("Mức suy nghĩ", "effort", "data-chat-effort", effortOptions, view.chatEffort, !effortOptions.length)}</div>`;
+  const body = `<div class="task-instruction-models">${homeSelectField("Agent", "provider", "data-chat-provider", providerOptions, provider, !providers.length)}${homeSelectField("Model", "model", "data-chat-model", modelOptions, model?.id || "", !model)}${homeSelectField("Mức suy nghĩ", "effort", "data-chat-effort", effortOptions, view.chatEffort, !effortOptions.length)}</div>${homeSelectField("Bộ chạy Codex", "codexTransport", "", [{value:"exec",label:"CLI exec · hàng đợi"},{value:"app-server",label:"App Server · gửi trực tiếp và duyệt lệnh"}], task.config?.codexTransport || "exec", Boolean(task.processRunning || ["queued", "running"].includes(task.status)))}<p class="form-note">Chỉ áp dụng khi dùng Codex. Claude và Antigravity tiếp tục nhận tin nhắn qua hàng đợi.</p>`;
   showModal("Cấu hình lượt chat", body, "Áp dụng", "task-chat-config");
   $(".modal").dataset.id = task.id;
   $(".modal").classList.add("task-chat-config-modal");
@@ -125,7 +126,8 @@ export function openTaskPermissionsModal(task) {
     { value: "workspace-write", label: "Đọc và sửa workspace" },
     { value: "full-access", label: "Toàn quyền trên máy" },
   ];
-  const body = `${homeSelectField("Quyền truy cập", "permissionPreset", "", permOptions, current)}<p class="form-note">Toàn quyền tắt sandbox và bước duyệt của CLI cục bộ (Codex, Antigravity hoặc Claude Code), cho phép agent chạy lệnh và truy cập tệp ngoài workspace theo quyền tài khoản Windows của bạn. Chỉ chọn khi bạn tin cậy yêu cầu và nội dung trong workspace. Provider API vẫn không có quyền chạy lệnh trên máy.</p>`;
+  const matrix = ["codex", "claude", "antigravity"].map((provider) => `<tr><th>${esc(provider)}</th>${permOptions.map(({value}) => { const policy = effectiveCliPermissions(provider, value, "chat-initial", task.config?.codexTransport); return `<td>${esc(policy.supported ? policy.mode || `${policy.sandbox} · ${policy.approval}` : "Không hỗ trợ")}</td>`; }).join("")}</tr>`).join("");
+  const body = `${homeSelectField("Quyền truy cập", "permissionPreset", "", permOptions, current)}<p class="form-note">Toàn quyền cho phép truy cập theo quyền tài khoản hệ điều hành. Provider API không chạy lệnh trên máy.</p><div class="form-note"><strong>Quyền thực tế theo bộ chạy</strong><div style="overflow-x:auto"><table><thead><tr><th>Provider</th><th>Chỉ đọc</th><th>Ghi workspace</th><th>Toàn quyền</th></tr></thead><tbody>${matrix}</tbody></table></div><p>Codex ${task.config?.codexTransport === "app-server" ? "App Server: on-request cho phép bạn duyệt yêu cầu lệnh hoặc tệp; khi toàn quyền sẽ không hỏi." : "exec: không hỏi duyệt từng lệnh; yêu cầu vượt sandbox sẽ bị từ chối."} Giai đoạn plan/review luôn dùng read-only, trừ khi bạn chọn toàn quyền.</p><p>Claude Code dùng permission mode, không khẳng định có sandbox hệ điều hành. Plan/review dùng plan. Ở chế độ nền hiện tại, yêu cầu cần tương tác không được tự cấp quyền.</p><p>Antigravity không hỗ trợ chỉ đọc trong bộ chạy hiện tại. Chưa bật điều khiển lượt chạy hoặc phê duyệt trực tiếp.</p><p>Phê duyệt kế hoạch của OpenSybau là bước riêng với phê duyệt từng lệnh của CLI.</p></div>`;
   showModal("Quyền của task", body, "Lưu quyền", "task-permissions");
   $(".modal").dataset.id = task.id;
 }

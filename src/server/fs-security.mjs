@@ -2,6 +2,7 @@ import { existsSync, promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, parse, relative, resolve, sep } from "node:path";
 import { inflateRawSync } from "node:zlib";
+import { rustScanWorkspaceFilesAsync } from "./rust-accelerator.mjs";
 
 export const ignoredFileDirectories = new Set([
   ".git", ".obsidian", ".trash", "node_modules", ".runtime", "dist", "build",
@@ -57,12 +58,15 @@ export function isForbiddenSystemPath(targetPath, runtimeDir = "") {
   const home = resolve(homedir());
   const homeNorm = process.platform === "win32" ? home.toLowerCase() : home;
   if (norm === homeNorm) return true;
-  for (const sensitive of [".ssh", ".gnupg", ".aws", ".kube"]) {
+  for (const sensitive of [".ssh", ".gnupg", ".aws", ".kube", ".claude", ".codex", ".gemini", "AppData", "AppData/Local", "AppData/Roaming"]) {
     if (within(resolve(home, sensitive), resolved)) return true;
   }
   if (process.platform === "win32") {
     const sysRoot = process.env.SystemRoot || process.env.WINDIR || "C:\\Windows";
     if (within(sysRoot, resolved)) return true;
+    for (const envDir of [process.env.APPDATA, process.env.LOCALAPPDATA].filter(Boolean)) {
+      if (within(resolve(envDir), resolved)) return true;
+    }
   } else {
     for (const sysDir of ["/etc", "/proc", "/sys", "/dev", "/boot", "/root"]) {
       if (within(sysDir, resolved)) return true;
@@ -71,6 +75,19 @@ export function isForbiddenSystemPath(targetPath, runtimeDir = "") {
   if (runtimeDir && process.env.WORKBENCH_ALLOW_TEMP_DATA_WORKSPACE !== "1" && within(runtimeDir, resolved)) {
     return true;
   }
+  return false;
+}
+
+export function isSensitiveWorkspaceSubpath(relPath = "") {
+  const normalized = String(relPath || "").trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  if (!normalized) return false;
+  const segments = normalized.split("/").filter(Boolean);
+  if (segments.some((seg) => seg.toLowerCase() === ".git")) return true;
+  const base = (segments.at(-1) || "").toLowerCase();
+  if (/^\.env(?:\.|$)/i.test(base) || base.startsWith(".env")) return true;
+  if ([".npmrc", ".pypirc", ".netrc", ".git-credentials", "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"].includes(base)) return true;
+  if (/^id_(?:rsa|ed25519|ecdsa|dsa)(?:\.|$)/i.test(base) && !base.endsWith(".pub")) return true;
+  if (/\.(?:pem|key|p12|pfx|kdbx|jks|keystore)$/i.test(base)) return true;
   return false;
 }
 
@@ -165,8 +182,8 @@ export function extractZipEntryText(buf, targetEntry = "word/document.xml") {
     const dataStart = nameStart + nameLen + extraLen;
     const entryName = buf.subarray(nameStart, nameStart + nameLen).toString("utf8");
     if (entryName === targetEntry && compSize > 0 && dataStart + compSize <= buf.length) {
-      const slice = buf.subarray(dataStart, dataStart + compSize);
-      const raw = method === 8 ? inflateRawSync(slice) : method === 0 ? slice : null;
+      const compData = buf.subarray(dataStart, dataStart + compSize);
+      const raw = method === 8 ? inflateRawSync(compData, { maxOutputLength: 10 * 1024 * 1024 }) : method === 0 && compData.byteLength <= 10 * 1024 * 1024 ? compData : null;
       return raw ? raw.toString("utf8") : "";
     }
     offset = dataStart + Math.max(1, compSize);
@@ -321,6 +338,12 @@ export async function listRemoteContextFiles(cwd, maxFiles = 180, gitFn = null) 
       if (paths.length) return paths.slice(0, maxFiles);
     }
   }
+  try {
+    const rustFiles = await rustScanWorkspaceFilesAsync(cwd, maxFiles);
+    if (Array.isArray(rustFiles) && rustFiles.length > 0) {
+      return rustFiles.slice(0, maxFiles);
+    }
+  } catch {}
   const paths = [];
   const ignored = new Set([".git", ".runtime", "node_modules", "dist", "build", "release", "out", "target", "coverage", ".next", ".venv", "venv", ".cache", ".turbo"]);
   async function walk(directory, relativeDir = "", depth = 0) {

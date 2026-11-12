@@ -69,12 +69,84 @@ export function validateSkillContent(content) {
 
 export function formatProgressiveSkillsIndex(progressiveSkills = []) {
   if (!Array.isArray(progressiveSkills) || !progressiveSkills.length) return "";
-  const rows = progressiveSkills.slice(0, 8).map((item) => {
+  const trustedItems = progressiveSkills.filter((item) => item && !(item.workspaceScoped && item.trusted === false));
+  if (!trustedItems.length) return "";
+  const rows = trustedItems.slice(0, 8).map((item) => {
     const desc = String(item.description || "").replace(/\s+/g, " ").trim().slice(0, 180);
     const loc = item.filePath ? ` (path: ${item.filePath})` : "";
     return `- ${item.name}${loc}: ${desc}`;
   });
   return `\n\n<available_skills_index note="Progressive disclosure: read the SKILL.md path on demand only if your task specifically requires that procedure">\n${rows.join("\n")}\n</available_skills_index>`;
+}
+
+const SKILL_ALIAS_GROUPS = [
+  ["ui", "ux", "frontend", "front-end", "css", "design", "giao diện", "thiết kế", "website", "web"],
+  ["backend", "back-end", "api", "server", "endpoint", "database", "cơ sở dữ liệu", "xác thực", "auth"],
+  ["bug", "fix", "debug", "error", "lỗi", "sửa lỗi", "sự cố"],
+  ["test", "testing", "kiểm thử", "quality", "verify", "coverage"],
+  ["review", "audit", "security", "bảo mật", "vulnerability", "lỗ hổng", "diff"],
+  ["deploy", "deployment", "devops", "pipeline", "ci", "release", "vận hành", "phát hành"],
+  ["docs", "documentation", "document", "tài liệu", "hướng dẫn"],
+  ["performance", "optimize", "optimization", "hiệu năng", "tối ưu", "speed"],
+  ["architecture", "kiến trúc", "scalable", "hệ thống", "refactor"],
+  ["memory", "knowledge", "recall", "ghi nhớ", "tri thức", "knowledge-base"],
+  ["research", "investigate", "nghiên cứu", "tìm hiểu", "phân tích", "web search"],
+  ["mobile", "ios", "android", "flutter", "react-native", "điện thoại"],
+];
+
+export function expandQueryTerms(rawText, initialTokens = null) {
+  const rawLower = String(rawText || "").normalize("NFC").toLocaleLowerCase();
+  const baseTokens = new Set(initialTokens ? [...initialTokens] : tokenize(rawLower));
+  for (const shortTerm of ["ui", "ux", "db", "ci", "ai"]) {
+    if (new RegExp(`(?:^|[^\\p{L}\\p{N}])${shortTerm}(?:$|[^\\p{L}\\p{N}])`, "u").test(rawLower)) {
+      baseTokens.add(shortTerm);
+    }
+  }
+  const expanded = new Set(baseTokens);
+  for (const group of SKILL_ALIAS_GROUPS) {
+    const multiWordAliases = group
+      .filter((alias) => alias.includes(" "))
+      .map((alias) => alias.normalize("NFC").toLocaleLowerCase());
+    const singleWordTokens = group
+      .filter((alias) => !alias.includes(" "))
+      .flatMap((alias) => {
+        const norm = alias.normalize("NFC").toLocaleLowerCase();
+        const toks = tokenize(norm);
+        return toks.length ? toks : [norm];
+      });
+    const matchedMulti = multiWordAliases.some((alias) => rawLower.includes(alias));
+    const matchedSingle = singleWordTokens.some((token) => baseTokens.has(token));
+    if (matchedMulti || matchedSingle) {
+      for (const token of singleWordTokens) expanded.add(token);
+      for (const phrase of multiWordAliases) expanded.add(phrase);
+    }
+  }
+  Object.defineProperty(expanded, "includes", {
+    value: (item) => expanded.has(item),
+    enumerable: false,
+    configurable: true,
+  });
+  return expanded;
+}
+
+export function scoreSkill(skill, wordsInput, expandedInput = null) {
+  if (!skill || (skill.workspaceScoped && skill.trusted === false)) return 0;
+  const words = typeof wordsInput === "string"
+    ? new Set(tokenize(wordsInput))
+    : (wordsInput instanceof Set ? wordsInput : new Set(Array.isArray(wordsInput) ? wordsInput : []));
+  const expanded = expandedInput instanceof Set
+    ? expandedInput
+    : Array.isArray(expandedInput)
+      ? new Set(expandedInput)
+      : (typeof wordsInput === "string" ? expandQueryTerms(wordsInput, words) : words);
+  const titleWords = tokenize(skill.name);
+  const descriptionWords = tokenize(skill.description);
+  const titleScore = titleWords.reduce((sum, word) => sum + (expanded.has(word) ? 5 : 0), 0);
+  const descriptionScore = descriptionWords.reduce((sum, word) => sum + (expanded.has(word) ? 1 : 0), 0);
+  const skillNameLower = String(skill.name || "").normalize("NFC").toLocaleLowerCase();
+  const phraseScore = words.size && [...words].some((word) => titleWords.includes(word) || (word.length >= 5 && skillNameLower.includes(word))) ? 8 : 0;
+  const workspaceBoost = skill.workspaceScoped && skill.trusted !== false && (titleScore > 0 || descriptionScore > 0 || phraseScore > 0) ? 4 : 0;
+  return titleScore + descriptionScore + phraseScore + workspaceBoost;
 }
 
 export function createSkillCatalogService({
@@ -192,7 +264,7 @@ export function createSkillCatalogService({
     const available = catalog || await loadSkillCatalog(workspaceId);
     const skills = selected.map((id) => available.find((item) => item.id === id));
     if (skills.some((item) => !item)) throw new Error("Có skill không còn tồn tại trong thư viện đã quét. Hãy tải lại trang và chọn lại.");
-    return skills;
+    return skills.filter((skill) => !(skill.workspaceScoped && skill.trusted === false));
   }
 
   function skillProviderCompatible(provider, supported = []) {
@@ -203,30 +275,13 @@ export function createSkillCatalogService({
   }
 
   function rankSkillCandidatesScored(task, catalog) {
-    const words = new Set(tokenize(`${task.title || ""} ${task.prompt || ""}`));
-    const queryText = `${task.title || ""} ${task.prompt || ""}`.toLocaleLowerCase();
+    const rawQuery = `${task.title || ""} ${task.prompt || ""}`;
+    const queryText = rawQuery.normalize("NFC").toLocaleLowerCase();
+    const words = new Set(tokenize(queryText));
     for (const shortTerm of ["ui", "ux", "db", "ci", "ai"]) {
       if (new RegExp(`(?:^|[^\\p{L}\\p{N}])${shortTerm}(?:$|[^\\p{L}\\p{N}])`, "u").test(queryText)) words.add(shortTerm);
     }
-    const aliasGroups = [
-      ["ui", "ux", "frontend", "front-end", "css", "design", "giao diện", "thiết kế", "website", "web"],
-      ["backend", "back-end", "api", "server", "endpoint", "database", "cơ sở dữ liệu", "xác thực", "auth"],
-      ["bug", "fix", "debug", "error", "lỗi", "sửa lỗi", "sự cố"],
-      ["test", "testing", "kiểm thử", "quality", "verify", "coverage"],
-      ["review", "audit", "security", "bảo mật", "vulnerability", "lỗ hổng", "diff"],
-      ["deploy", "deployment", "devops", "pipeline", "ci", "release", "vận hành", "phát hành"],
-      ["docs", "documentation", "document", "tài liệu", "hướng dẫn"],
-      ["performance", "optimize", "optimization", "hiệu năng", "tối ưu", "speed"],
-      ["architecture", "kiến trúc", "scalable", "hệ thống", "refactor"],
-      ["memory", "knowledge", "recall", "ghi nhớ", "tri thức", "knowledge-base"],
-      ["research", "investigate", "nghiên cứu", "tìm hiểu", "phân tích", "web search"],
-      ["mobile", "ios", "android", "flutter", "react-native", "điện thoại"],
-    ];
-    const expanded = new Set(words);
-    for (const group of aliasGroups) {
-      const terms = group.flatMap((term) => tokenize(term).length ? tokenize(term) : [term.toLocaleLowerCase()]);
-      if (terms.some((term) => words.has(term))) for (const term of terms) expanded.add(term);
-    }
+    const expanded = expandQueryTerms(rawQuery, words);
     const activeProviders = task.config?.workflow === "chat-only"
       ? [task.config.chatProvider || "codex"]
       : task.config?.workflow === "plan-only"
@@ -237,13 +292,7 @@ export function createSkillCatalogService({
       if (skill.workspaceScoped && skill.trusted === false) return null;
       const providers = skill.providers || [];
       if (!activeProviders.some((prov) => skillProviderCompatible(prov, providers))) return null;
-      const titleWords = tokenize(skill.name);
-      const descriptionWords = tokenize(skill.description);
-      const titleScore = titleWords.reduce((sum, word) => sum + (expanded.has(word) ? 5 : 0), 0);
-      const descriptionScore = descriptionWords.reduce((sum, word) => sum + (expanded.has(word) ? 1 : 0), 0);
-      const phraseScore = words.size && [...words].some((word) => word.length > 4 && skill.name.toLocaleLowerCase().includes(word)) ? 8 : 0;
-      const workspaceBoost = skill.workspaceScoped && skill.trusted !== false && (titleScore > 0 || descriptionScore > 0 || phraseScore > 0) ? 4 : 0;
-      const score = titleScore + descriptionScore + phraseScore + workspaceBoost;
+      const score = scoreSkill(skill, words, expanded);
       return score ? { skill, score } : null;
     }).filter(Boolean).sort((a, b) => b.score - a.score || a.skill.name.localeCompare(b.skill.name, "vi")).slice(0, 36);
   }
@@ -292,7 +341,7 @@ export function createSkillCatalogService({
   }
 
   async function stageAntigravitySkillBundles(task, skills) {
-    const selected = skills.filter((skill) => (skill.providers || []).some((provider) => provider === "antigravity" || provider === "*"));
+    const selected = skills.filter((skill) => !(skill.workspaceScoped && skill.trusted === false) && (skill.providers || []).some((provider) => provider === "antigravity" || provider === "*"));
     if (!selected.length) return [];
     const base = resolve(task.storagePath, "antigravity-skills");
     const copied = [];
@@ -488,17 +537,23 @@ export function createSkillCatalogService({
     const wsTrustFlag = ws ? (ws.trustedSkills !== false ? "trusted" : "untrusted") : "global";
     const cacheKey = ws ? `${resolve(ws.path).toLowerCase()}::${wsTrustFlag}` : "__global__";
     const cachedCatalog = skillCatalogCache.get(cacheKey)?.items || [];
+    const isTrustedSkill = (skill) => Boolean(skill) && !(skill.workspaceScoped && (skill.trusted === false || ws?.trustedSkills === false));
     const taskSkillIds = new Set([...(task.skillIds || []), ...(task.skills || []).map((s) => s.id)].filter(Boolean));
-    const fullSkills = cachedCatalog.filter((s) => taskSkillIds.has(s.id));
+    const fullSkills = cachedCatalog.filter((s) => taskSkillIds.has(s.id) && isTrustedSkill(s));
     const provider = providerOverride || task.config?.chatProvider || "codex";
-    const applicableSkills = (fullSkills.length ? fullSkills : (task.skills || [])).filter((skill) =>
-      skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"])
+    const fallbackSkills = (task.skills || []).filter((s) => {
+      const catalogEntry = cachedCatalog.find((c) => c.id === s?.id);
+      if (catalogEntry) return isTrustedSkill(catalogEntry);
+      return isTrustedSkill(s);
+    });
+    const applicableSkills = (fullSkills.length ? fullSkills : fallbackSkills).filter((skill) =>
+      isTrustedSkill(skill) && skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"])
     );
     const activeBlock = applicableSkills.length
       ? `\n\nSelected local skills:\n${applicableSkills.map((skill) => `- ${skill.name}: ${String(skill.instruction || skill.description || "").slice(0, 5000)}`).join("\n\n").slice(0, 7000)}`
       : "";
     const progressiveBlock = formatProgressiveSkillsIndex(
-      (task.progressiveSkills || []).filter((skill) => skillProviderCompatible(provider, skill.providers || ["*"]))
+      (task.progressiveSkills || []).filter((skill) => isTrustedSkill(skill) && skillProviderCompatible(provider, skill.providers || ["*"]))
     );
     return `${activeBlock}${progressiveBlock}`;
   }
@@ -507,6 +562,8 @@ export function createSkillCatalogService({
     invalidateSkillCatalogCache,
     loadSkillCatalog,
     resolveSelectedSkills,
+    expandQueryTerms,
+    scoreSkill,
     rankSkillCandidatesScored,
     rankSkillCandidates,
     selectTaskSkillsProgressive,

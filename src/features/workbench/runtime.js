@@ -17,12 +17,15 @@ let replaceBrowserRoute = false;
 let routeNeedsHydration = view.page === "knowledge" || (view.page === "workspaces" && Boolean(view.selected));
 let refreshPromise = null;
 let refreshInFlight = null;
+let inFlightRefreshPromise = null;
+let inFlightStateLoadPromise = null;
 let refreshPending = false;
 let refreshAgain = false;
 let refreshConfiguration = false;
 let refreshForeground = false;
 let refreshTimer = null;
 let lastSnapshotRefresh = 0;
+const MIN_BACKGROUND_REFRESH_INTERVAL_MS = 600;
 const loadState = createStateLoader();
 let lastConfigurationRefresh = 0;
 let cliScanPromise = null;
@@ -132,7 +135,12 @@ async function refreshSnapshot(includeConfiguration, background) {
     render({ background });
     return;
   }
-  const statePromise = loadState();
+  if (!inFlightStateLoadPromise) {
+    inFlightStateLoadPromise = loadState().finally(() => {
+      inFlightStateLoadPromise = null;
+    });
+  }
+  const statePromise = inFlightStateLoadPromise;
   const configurationPromise = includeConfiguration
     ? Promise.all([
         api("/api/connectors"),
@@ -183,14 +191,21 @@ async function refreshSnapshot(includeConfiguration, background) {
 }
 
 export function refresh({ configuration = false, background = false } = {}) {
-  refreshAgain = true;
-  refreshForeground ||= !background;
-  refreshConfiguration ||= configuration || !view.connectors;
-  if (refreshInFlight) {
-    refreshPending = true;
-    return refreshInFlight;
+  const needsConfig = Boolean(configuration || !view.connectors);
+  if (inFlightRefreshPromise) {
+    if (!background || needsConfig) {
+      refreshAgain = true;
+      refreshForeground ||= !background;
+      refreshConfiguration ||= needsConfig;
+    } else {
+      refreshPending = true;
+    }
+    return inFlightRefreshPromise;
   }
-  refreshInFlight = refreshPromise = (async () => {
+  refreshAgain = true;
+  refreshForeground = !background;
+  refreshConfiguration = needsConfig;
+  inFlightRefreshPromise = refreshInFlight = refreshPromise = (async () => {
     try {
       while (refreshAgain) {
         refreshAgain = false;
@@ -199,7 +214,7 @@ export function refresh({ configuration = false, background = false } = {}) {
         refreshConfiguration = false;
         refreshForeground = false;
         if (!foreground) {
-          const wait = 600 - (Date.now() - lastSnapshotRefresh);
+          const wait = MIN_BACKGROUND_REFRESH_INTERVAL_MS - (Date.now() - lastSnapshotRefresh);
           if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
         }
         await refreshSnapshot(includeConfiguration, !foreground);
@@ -217,23 +232,33 @@ export function refresh({ configuration = false, background = false } = {}) {
       }
     }
   })().finally(() => {
+    inFlightRefreshPromise = null;
     refreshInFlight = null;
     refreshPromise = null;
     if (refreshPending) {
       refreshPending = false;
-      scheduleRefresh(80);
+      const elapsed = Date.now() - lastSnapshotRefresh;
+      scheduleRefresh(Math.max(120, MIN_BACKGROUND_REFRESH_INTERVAL_MS - elapsed));
     }
   });
-  return refreshInFlight;
+  return inFlightRefreshPromise;
 }
 
+export const refreshState = refresh;
+
 export function scheduleRefresh(delay = 160) {
-  if (document.hidden) return;
+  if (typeof document !== "undefined" && document.hidden) return;
+  if (inFlightRefreshPromise) {
+    refreshPending = true;
+    return;
+  }
   if (refreshTimer) return;
+  const elapsed = Date.now() - lastSnapshotRefresh;
+  const effectiveDelay = Math.max(delay, MIN_BACKGROUND_REFRESH_INTERVAL_MS - elapsed);
   refreshTimer = setTimeout(() => {
     refreshTimer = null;
     void refresh({ background: true });
-  }, delay);
+  }, effectiveDelay);
 }
 
 const subagentProfilesInFlight = new Map();
@@ -267,6 +292,22 @@ export async function ensureSubagentProfiles(workspaceId = "", { force = false }
   return promise;
 }
 
+const inventoryInFlight = new Map();
+export async function ensureCustomizationInventory(workspaceId, force = false) {
+  if (!workspaceId) return null;
+  view.customizationInventory ||= {};
+  if (!force && view.customizationInventory[workspaceId]) return view.customizationInventory[workspaceId];
+  if (inventoryInFlight.has(workspaceId)) return inventoryInFlight.get(workspaceId);
+  const pending = (async () => {
+    try { view.customizationInventory[workspaceId] = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/customizations`); }
+    catch { view.customizationInventory[workspaceId] = { error: true }; }
+    finally { inventoryInFlight.delete(workspaceId); render({ background: true }); }
+    return view.customizationInventory[workspaceId];
+  })();
+  inventoryInFlight.set(workspaceId, pending);
+  return pending;
+}
+
 export async function ensureTaskSubagentsDetail(taskId, { force = false } = {}) {
   if (!taskId) return null;
   view.taskSubagentDetailCache ||= {};
@@ -289,7 +330,10 @@ export async function ensureTaskSubagentsDetail(taskId, { force = false } = {}) 
       render({ background: true });
       return entry;
     } catch {
-      return existing || null;
+      const entry = { ...(existing || { subagents: [] }), updatedAt: task?.updatedAt || "", error: true };
+      view.taskSubagentDetailCache[taskId] = entry;
+      render({ background: true });
+      return entry;
     } finally {
       taskSubagentDetailInFlight.delete(taskId);
     }
@@ -298,23 +342,36 @@ export async function ensureTaskSubagentsDetail(taskId, { force = false } = {}) 
   return promise;
 }
 
+const fileIndexInFlight = new Map();
+
 export async function ensureWorkspaceFileIndex(workspaceId) {
   if (!workspaceId) return [];
   if (Array.isArray(view.workspaceFileIndex?.[workspaceId])) return view.workspaceFileIndex[workspaceId];
-  try {
-    const res = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/file-index`);
-    view.workspaceFileIndex ||= {};
-    view.workspaceFileIndex[workspaceId] = res.files || [];
-    return view.workspaceFileIndex[workspaceId];
-  } catch {
-    return [];
-  }
+  if (fileIndexInFlight.has(workspaceId)) return fileIndexInFlight.get(workspaceId);
+  const promise = (async () => {
+    try {
+      const res = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/file-index`);
+      view.workspaceFileIndex ||= {};
+      view.workspaceFileIndex[workspaceId] = res.files || [];
+      return view.workspaceFileIndex[workspaceId];
+    } catch {
+      view.workspaceFileIndex ||= {};
+      view.workspaceFileIndex[workspaceId] = [];
+      view.workspaceFileIndexErrorAt ||= {};
+      view.workspaceFileIndexErrorAt[workspaceId] = Date.now();
+      return [];
+    } finally {
+      fileIndexInFlight.delete(workspaceId);
+    }
+  })();
+  fileIndexInFlight.set(workspaceId, promise);
+  return promise;
 }
 
 const gitStatusInFlight = new Map();
 
 export async function ensureWorkspaceGitStatus(workspaceId, taskId = "", { force = false } = {}) {
-  if (!workspaceId) return { currentBranch: "main", branches: ["main"], changedFiles: [] };
+  if (!workspaceId) return { currentBranch: "main", branches: ["main"], changedFiles: [], clean: true, entries: [] };
   const cacheKey = `${workspaceId}::${taskId || ""}`;
   view.workspaceGitStatus ||= {};
   const existing = view.workspaceGitStatus[cacheKey];
@@ -328,16 +385,28 @@ export async function ensureWorkspaceGitStatus(workspaceId, taskId = "", { force
     try {
       const q = taskId ? `?taskId=${encodeURIComponent(taskId)}` : "";
       const res = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/git-status${q}`);
+      const changedFiles = Array.isArray(res.changedFiles) ? res.changedFiles : [];
       const record = {
         currentBranch: res.currentBranch || "main",
         branches: Array.isArray(res.branches) && res.branches.length ? res.branches : ["main"],
-        changedFiles: Array.isArray(res.changedFiles) ? res.changedFiles : [],
+        changedFiles,
+        entries: changedFiles,
+        clean: changedFiles.length === 0,
+        error: false,
         fetchedAt: Date.now(),
       };
       view.workspaceGitStatus[cacheKey] = record;
       return record;
     } catch {
-      const fallback = existing || { currentBranch: "main", branches: ["main"], changedFiles: [], fetchedAt: Date.now() };
+      const fallback = existing || {
+        currentBranch: "main",
+        branches: ["main"],
+        changedFiles: [],
+        clean: true,
+        entries: [],
+        error: true,
+        fetchedAt: Date.now(),
+      };
       view.workspaceGitStatus[cacheKey] = fallback;
       return fallback;
     } finally {
@@ -369,6 +438,7 @@ export function closeOverlay() {
 
 export function showToast(message) {
   const toast = $("#toast");
+  if (!toast) return;
   toast.textContent = translateText(message, view.language);
   toast.classList.add("visible");
   clearTimeout(view.toastTimer);
@@ -449,30 +519,32 @@ export function connectEventStream() {
     view.streamConnected = false;
     return;
   }
-  if (activeHost?.url && activeHost.password) {
-    view.streamConnected = true;
-    remotePollTimer = setInterval(() => {
-      if (!document.hidden) scheduleRefresh(0);
-    }, 2500);
-    return;
-  }
   try {
-    events = new EventSource(resolveRemoteUrl("/__events"));
+    events = new EventSource(resolveRemoteUrl("/api/events"));
     events.addEventListener("update", (ev) => {
       try {
         const payload = JSON.parse(ev.data || "{}");
         if (payload.type === "subagents") view.subagentProfilesLoaded = false;
         if (payload.type === "skills") view.skillsLoaded = false;
       } catch {}
-      scheduleRefresh(220);
+      scheduleRefresh(250);
     });
     events.addEventListener("open", () => {
+      if (remotePollTimer) {
+        clearInterval(remotePollTimer);
+        remotePollTimer = null;
+      }
       const changed = !view.streamConnected;
       view.streamConnected = true;
       if (changed && ["tasks", "chat"].includes(view.page)) render({ background: true });
       if (view.state) scheduleRefresh(0);
     });
     events.addEventListener("error", () => {
+      if (activeHost?.url && !remotePollTimer) {
+        remotePollTimer = setInterval(() => {
+          if (typeof document === "undefined" || !document.hidden) scheduleRefresh(0);
+        }, 2500);
+      }
       if (!view.streamConnected) return;
       view.streamConnected = false;
       if (["tasks", "chat"].includes(view.page)) render({ background: true });

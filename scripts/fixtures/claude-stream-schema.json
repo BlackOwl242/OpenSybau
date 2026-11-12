@@ -1,0 +1,17 @@
+{
+  "versionInspected": "2.1.322",
+  "provenance": "schema-derived-not-live",
+  "source": "https://raw.githubusercontent.com/anthropics/claude-agent-sdk-python/main/src/claude_agent_sdk/types.py",
+  "limitation": "No authenticated Claude Code account was available. These events test parsing, not a live provider run.",
+  "events": [
+    {"type":"assistant","session_id":"redacted","message":{"content":[{"type":"tool_use","id":"agent-call","name":"Agent","input":{"description":"Read test source","run_in_background":true}}]}},
+    {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"agent-call","content":"started"}]},"tool_use_result":{"isAsync":true,"agentId":"agent-1"}},
+    {"type":"system","subtype":"task_started","task_id":"background-agent","tool_use_id":"agent-call","task_type":"subagent","description":"Read test source"},
+    {"type":"system","subtype":"task_progress","task_id":"background-agent","tool_use_id":"agent-call","description":"Reading file","last_tool_name":"Read"},
+    {"type":"assistant","parent_tool_use_id":"agent-call","message":{"content":[{"type":"tool_use","id":"command-call","name":"Bash","input":{"command":"test","run_in_background":true}}]}},
+    {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"command-call","content":"started"}]}},
+    {"type":"system","subtype":"task_started","task_id":"background-command","tool_use_id":"command-call","description":"test"},
+    {"type":"system","subtype":"task_updated","task_id":"background-command","patch":{"status":"completed"}},
+    {"type":"system","subtype":"task_notification","task_id":"background-agent","tool_use_id":"agent-call","status":"completed","summary":"Verified test source","output_file":"redacted"}
+  ]
+}

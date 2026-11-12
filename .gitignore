@@ -12,3 +12,4 @@ android/build/
 android/app/build/
 android/app/src/main/assets/public/
 android/build-manifest.json
+native/opensybau-core/target/

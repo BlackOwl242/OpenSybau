@@ -2,6 +2,7 @@ package com.opensybau.mobile;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -105,10 +106,12 @@ public class MainActivity extends AppCompatActivity {
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.3.5 Capacitor");
+        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.3.4 Capacitor");
 
         webView.clearCache(true);
-        WebView.setWebContentsDebuggingEnabled(true);
+        if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            WebView.setWebContentsDebuggingEnabled(true);
+        }
         webView.addJavascriptInterface(new OpenSybauNativeBridge(), "opensybauAndroid");
 
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
@@ -215,9 +218,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public class OpenSybauNativeBridge {
+        private final ExecutorService httpPool = Executors.newCachedThreadPool();
+
         @JavascriptInterface
         public String getAppVersion() {
-            return "0.3.5";
+            return "0.3.4";
         }
 
         @JavascriptInterface
@@ -373,10 +378,27 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @JavascriptInterface
+        public void httpRequestAsync(final String reqId, final String method, final String urlStr, final String headersJson, final String body) {
+            httpPool.execute(() -> {
+                final String res = httpRequest(method, urlStr, headersJson, body);
+                if (webView != null) {
+                    webView.post(() -> webView.evaluateJavascript(
+                        "window.__opensybauOnHttpResult && window.__opensybauOnHttpResult(" + JSONObject.quote(reqId) + "," + JSONObject.quote(res) + ")",
+                        null
+                    ));
+                }
+            });
+        }
+
+        @JavascriptInterface
         public String httpRequest(String method, String urlString, String headersJson, String body) {
             HttpURLConnection conn = null;
             try {
                 URL url = new URL(urlString);
+                String protocol = url.getProtocol();
+                if (!"http".equalsIgnoreCase(protocol) && !"https".equalsIgnoreCase(protocol)) {
+                    return "{\"ok\":false,\"status\":0,\"error\":\"Unsupported URL protocol\"}";
+                }
                 conn = (HttpURLConnection) url.openConnection();
                 String cleanMethod = (method == null || method.isEmpty()) ? "GET" : method.toUpperCase();
                 conn.setRequestMethod(cleanMethod);

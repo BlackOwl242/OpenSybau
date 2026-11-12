@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { promises as fs } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { completeWithApi } from "./provider-registry.mjs";
 import { workflowRoles } from "../domain/agent-roles.js";
@@ -19,6 +19,11 @@ import {
   parseCodexStreamLine,
 } from "./subagent-tracker.mjs";
 import { addTaskUsage, publicProviderName, roleLabel, stageSelection } from "./task-prompts.mjs";
+import { CodexAppServer } from "./codex-app-server.mjs";
+import { trackCodexAppEvent } from "./codex-app-events.mjs";
+import { effectiveCliPermissions } from "../domain/cli-permissions.js";
+import { CliApprovalQueue } from "./cli-approval-queue.mjs";
+import { interruptCommandActivities } from "./tool-activity.mjs";
 
 export function finishStageRerun(task, status, error = "") {
   const attempt = (task.stageRunHistory || []).find((item) => item.id === task.activeStageRunId);
@@ -75,27 +80,54 @@ export function recordTaskCycle(task, cycleInput) {
   task.cycles = task.cycles.slice(-24);
 }
 
+function buildNpmCommandSpec(args, label) {
+  if (process.platform === "win32") {
+    const npmCliJs = resolve(dirname(process.execPath), "node_modules/npm/bin/npm-cli.js");
+    if (existsSync(npmCliJs)) {
+      return { executable: process.execPath, args: [npmCliJs, ...args], label, shell: false };
+    }
+  }
+  const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
+  return { executable: npmBin, args, label, shell: false };
+}
+
+function buildNpxCommandSpec(args, label) {
+  if (process.platform === "win32") {
+    const npxCliJs = resolve(dirname(process.execPath), "node_modules/npm/bin/npx-cli.js");
+    if (existsSync(npxCliJs)) {
+      return { executable: process.execPath, args: [npxCliJs, ...args], label, shell: false };
+    }
+  }
+  const npxBin = process.platform === "win32" ? "npx.cmd" : "npx";
+  return { executable: npxBin, args, label, shell: false };
+}
+
 export async function resolveSafeExecCommand(rawCommand, cwd) {
   const cmd = String(rawCommand || "npm test").trim();
-  const npmBin = process.platform === "win32" ? "npm.cmd" : "npm";
-  const npxBin = process.platform === "win32" ? "npx.cmd" : "npx";
   const presets = {
-    "npm test": { executable: npmBin, args: ["test"], label: "npm test" },
-    "npm run build": { executable: npmBin, args: ["run", "build"], label: "npm run build" },
-    "npm run lint": { executable: npmBin, args: ["run", "lint"], label: "npm run lint" },
-    "npm run check": { executable: npmBin, args: ["run", "check"], label: "npm run check" },
-    "npm run typecheck": { executable: npmBin, args: ["run", "typecheck"], label: "npm run typecheck" },
-    "node --test": { executable: process.execPath, args: ["--test"], label: "node --test" },
-    "pytest": { executable: process.platform === "win32" ? "pytest.exe" : "pytest", args: ["-q"], label: "pytest -q" },
-    "cargo test": { executable: process.platform === "win32" ? "cargo.exe" : "cargo", args: ["test"], label: "cargo test" },
-    "go test ./...": { executable: process.platform === "win32" ? "go.exe" : "go", args: ["test", "./..."], label: "go test ./..." },
-    "git status": { executable: "git", args: ["status", "--short", "--branch"], label: "git status --short --branch" },
-    "git status --short": { executable: "git", args: ["status", "--short"], label: "git status --short" },
-    "git log": { executable: "git", args: ["log", "-n", "8", "--oneline", "--decorate"], label: "git log -n 8 --oneline" },
-    "git diff --stat": { executable: "git", args: ["diff", "--stat"], label: "git diff --stat" },
-    "vitest run": { executable: npxBin, args: ["--no-install", "vitest", "run"], label: "npx vitest run" },
+    "npm test": buildNpmCommandSpec(["test"], "npm test"),
+    "npm run build": buildNpmCommandSpec(["run", "build"], "npm run build"),
+    "npm run lint": buildNpmCommandSpec(["run", "lint"], "npm run lint"),
+    "npm run check": buildNpmCommandSpec(["run", "check"], "npm run check"),
+    "npm run typecheck": buildNpmCommandSpec(["run", "typecheck"], "npm run typecheck"),
+    "node --test": { executable: process.execPath, args: ["--test"], label: "node --test", shell: false },
+    "pytest": { executable: process.platform === "win32" ? "pytest.exe" : "pytest", args: ["-q"], label: "pytest -q", shell: false },
+    "cargo test": { executable: process.platform === "win32" ? "cargo.exe" : "cargo", args: ["test"], label: "cargo test", shell: false },
+    "go test ./...": { executable: process.platform === "win32" ? "go.exe" : "go", args: ["test", "./..."], label: "go test ./...", shell: false },
+    "git status": { executable: "git", args: ["status", "--short", "--branch"], label: "git status --short --branch", shell: false },
+    "git status --short": { executable: "git", args: ["status", "--short"], label: "git status --short", shell: false },
+    "git log": { executable: "git", args: ["log", "-n", "8", "--oneline", "--decorate"], label: "git log -n 8 --oneline", shell: false },
+    "git diff --stat": { executable: "git", args: ["diff", "--stat"], label: "git diff --stat", shell: false },
+    "vitest run": buildNpxCommandSpec(["--no-install", "vitest", "run"], "npx vitest run"),
   };
   if (presets[cmd]) return presets[cmd];
+  const nodeCheckMatch = cmd.match(/^node\s+--check(?:\s+([\w./-]+))?$/);
+  if (nodeCheckMatch) {
+    const relTarget = nodeCheckMatch[1] ? nodeCheckMatch[1].trim() : "server.mjs";
+    if (!relTarget.includes("..") && !relTarget.startsWith("/")) {
+      return { executable: process.execPath, args: ["--check", relTarget], label: `node --check ${relTarget}`, shell: false };
+    }
+  }
   const npmRunMatch = cmd.match(/^npm\s+run\s+([\w:.-]{1,64})$/);
   if (npmRunMatch) {
     const scriptName = npmRunMatch[1];
@@ -103,7 +135,7 @@ export async function resolveSafeExecCommand(rawCommand, cwd) {
       const pkgRaw = await fs.readFile(resolve(cwd, "package.json"), "utf8");
       const pkg = JSON.parse(pkgRaw);
       if (pkg?.scripts && Object.prototype.hasOwnProperty.call(pkg.scripts, scriptName)) {
-        return { executable: npmBin, args: ["run", scriptName], label: `npm run ${scriptName}` };
+        return buildNpmCommandSpec(["run", scriptName], `npm run ${scriptName}`);
       }
     } catch { }
     throw new Error(`Script "${scriptName}" không tồn tại trong package.json của workspace.`);
@@ -113,10 +145,11 @@ export async function resolveSafeExecCommand(rawCommand, cwd) {
 
 export async function changedFilesSince(cwd, startTime) {
   const changed = [];
-  const cutoff = Number.isFinite(startTime) ? startTime : Date.now();
+  const startedAtMs = Number.isFinite(startTime) ? startTime : Date.now();
+  const cutoff = startedAtMs - 1000;
   const ignored = new Set([".git", ".runtime", "node_modules", "dist", "build", "release", "out", "target", ".next", "coverage", "vendor", ".venv", "venv", ".cache", ".turbo", ".parcel-cache", "__pycache__", ".gradle"]);
   async function visit(directory, relativePath = "", depth = 0) {
-    if (depth > 12 || changed.length >= 100) return;
+    if (depth > 12) return;
     let entries;
     try { entries = await fs.readdir(directory, { withFileTypes: true }); } catch { return; }
     const subdirs = [];
@@ -130,20 +163,36 @@ export async function changedFilesSince(cwd, startTime) {
     }
     if (files.length) {
       await Promise.all(files.map(async ([absolute, rel]) => {
-        if (changed.length >= 100) return;
         try {
           const stat = await fs.stat(absolute);
-          if (stat.mtimeMs >= cutoff && changed.length < 100) changed.push(rel);
+          if (stat.mtimeMs >= cutoff) changed.push({ rel, mtimeMs: stat.mtimeMs });
         } catch { }
       }));
     }
     for (const [absolute, rel] of subdirs) {
-      if (changed.length >= 100) break;
       await visit(absolute, rel, depth + 1);
     }
   }
   await visit(cwd);
-  return changed.sort();
+  changed.sort((a, b) => (b.mtimeMs - a.mtimeMs) || a.rel.localeCompare(b.rel));
+  return changed.slice(0, 100).map((item) => item.rel);
+}
+
+export function hasFailedTaskDependency(state, task) {
+  const deps = Array.isArray(task?.dependsOn) ? task.dependsOn : [];
+  if (!deps.length) return false;
+  const tasks = Array.isArray(state) ? state : (Array.isArray(state?.tasks) ? state.tasks : []);
+  for (const depRef of deps) {
+    const ref = String(depRef || "").trim();
+    if (!ref) continue;
+    const parent = tasks.find(
+      (item) => item.id === ref || (item.code && String(item.code).toUpperCase() === ref.toUpperCase())
+    );
+    if (parent && parent.id !== task.id && (parent.status === "failed" || parent.status === "cancelled")) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function createTaskStageRunner({
@@ -162,6 +211,16 @@ export function createTaskStageRunner({
   externalWorkspaceContext,
   subagentCatalogService = null,
 }) {
+  const managedCommands = new Map();
+  function cancelManagedCommand(taskId, commandId) {
+    const entry = managedCommands.get(commandId);
+    if (!entry || entry.task.id !== taskId || entry.cancelled) return false;
+    entry.cancelled = true; entry.history.status = "stopping";
+    if (entry.child) killTree(entry.child);
+    record(entry.task, "Đã gửi yêu cầu dừng lệnh do OpenSybau quản lý.", "warning", { source: "opensybau", commandId });
+    schedulePersist?.(); schedulePublish?.("task"); return true;
+  }
+  function cancelManagedCommands(taskId) { for (const [id, entry] of managedCommands) if (entry.task.id === taskId) cancelManagedCommand(taskId, id); }
   function assertTaskActive(task) {
     const runInfo = running.get(task.id);
     if (isShuttingDown() || runInfo?.stopped) throw new Error(isShuttingDown() ? "OpenSybau is shutting down." : "Stopped by user");
@@ -170,14 +229,16 @@ export function createTaskStageRunner({
   function areTaskDependenciesMet(task) {
     const deps = Array.isArray(task?.dependsOn) ? task.dependsOn : [];
     if (!deps.length) return true;
-    const tasks = getState().tasks;
+    const state = getState();
+    if (hasFailedTaskDependency(state, task)) return false;
+    const tasks = state.tasks;
     for (const depRef of deps) {
       const ref = String(depRef || "").trim();
       if (!ref) continue;
       const parent = tasks.find(
         (item) => item.id === ref || (item.code && String(item.code).toUpperCase() === ref.toUpperCase())
       );
-      if (parent && parent.id !== task.id && parent.status !== "done") {
+      if (parent && parent.id !== task.id && (parent.status === "failed" || parent.status === "cancelled" || parent.status !== "done")) {
         return false;
       }
     }
@@ -185,6 +246,7 @@ export function createTaskStageRunner({
   }
 
   async function runTaskQaCheck(task, cwd, rawCommand = "") {
+    if ([...managedCommands.values()].some((entry) => entry.task.id === task.id)) throw new Error("Task đang có lệnh QA/terminal chạy.");
     const targetCwd = cwd || task.executionPath || task.workspacePath;
     if (!targetCwd || !existsSync(targetCwd)) throw new Error("Thư mục thực thi của task không tồn tại.");
     let commandToRun = String(rawCommand || task.qaCommand || "").trim();
@@ -197,35 +259,87 @@ export function createTaskStageRunner({
       } catch { }
     }
     if (!commandToRun) commandToRun = "git status";
+    if (task.permissionPreset === "read-only" && /^npm\s+(?:test|t|run\b)/i.test(commandToRun)) {
+      const blockedMsg = `Đã bỏ qua "${commandToRun}": package.json scripts bị chặn trong chế độ read-only (chỉ cho phép kiểm tra cú pháp node --check hoặc lệnh đọc an toàn).`;
+      const qaResult = {
+        command: commandToRun,
+        status: "skipped",
+        skipped: true,
+        code: 0,
+        exitCode: 0,
+        durationMs: 0,
+        durationSec: 0,
+        summary: `${commandToRun} · SKIPPED (package.json scripts blocked in read-only mode)`,
+        output: blockedMsg,
+        completedAt: new Date().toISOString(),
+      };
+      task.qaResult = qaResult;
+      task.terminalHistory ||= [];
+      task.terminalHistory.unshift({
+        id: `term-${randomUUID().slice(0, 8)}`,
+        source: "opensybau",
+        ...qaResult,
+      });
+      task.terminalHistory = task.terminalHistory.slice(0, 20);
+      record(task, blockedMsg, "warning", {
+        toolName: "qa-runner",
+        command: commandToRun,
+        exitCode: 0,
+        detail: blockedMsg,
+        status: "done",
+      });
+      return qaResult;
+    }
     const resolved = await resolveSafeExecCommand(commandToRun, targetCwd);
     const startedAt = Date.now();
+    const historyEntry = { id: `term-${randomUUID()}`, source: "opensybau", command: resolved.label, status: "running", startedAt: new Date(startedAt).toISOString() };
+    task.terminalHistory ||= [];
+    task.terminalHistory.unshift(historyEntry);
+    task.terminalHistory = task.terminalHistory.slice(0, 20);
+    task.updatedAt = historyEntry.startedAt;
+    schedulePersist?.();
+    schedulePublish?.("task");
     record(task, `Đang chạy kiểm tra QA / Terminal · ${resolved.label}`, "tool", {
       toolName: "qa-runner",
       command: resolved.label,
       status: "running",
     });
-    const res = await run(resolved.executable, resolved.args, { cwd: targetCwd, timeout: 90_000, maxBuffer: 500_000 });
+    let res;
+    const managed = { task, history: historyEntry, child: null, cancelled: false };
+    managedCommands.set(historyEntry.id, managed);
+    try {
+      res = await run(resolved.executable, resolved.args, { cwd: targetCwd, timeout: 90_000, maxBuffer: 4_000_000, shell: false, onSpawn(child) {
+        managed.child = child; historyEntry.cancellable = true;
+        const owner = running.get(task.id); if (owner) owner.child = child;
+        if (managed.cancelled) killTree(child);
+        schedulePersist?.(); schedulePublish?.("task");
+      } });
+    } catch (error) {
+      Object.assign(historyEntry, { status: "failed", completedAt: new Date().toISOString(), output: String(error?.message || error).slice(0, 16000) });
+      task.updatedAt = historyEntry.completedAt;
+      schedulePersist?.(); schedulePublish?.("task");
+      throw error;
+    } finally {
+      managedCommands.delete(historyEntry.id); historyEntry.cancellable = false;
+    }
     const durationMs = Date.now() - startedAt;
     const combinedOutput = `${res.stdout || ""}${res.stderr ? `\n${res.stderr}` : ""}`.trim().slice(-16_000);
-    const passed = res.code === 0;
+    const passed = !managed.cancelled && res.code === 0;
     const qaResult = {
       command: resolved.label,
-      status: passed ? "passed" : "failed",
+      status: managed.cancelled ? "cancelled" : passed ? "passed" : "failed",
       code: res.code,
       exitCode: res.code,
       durationMs,
       durationSec: Math.max(1, Math.round(durationMs / 1000)),
-      summary: passed ? `${resolved.label} · PASS (${(durationMs / 1000).toFixed(1)}s)` : `${resolved.label} · FAIL (mã ${res.code})`,
-      output: combinedOutput || (passed ? "Hoàn tất thành công (mã thoát 0)." : `Lệnh trả về mã lỗi ${res.code}.`),
+      summary: managed.cancelled ? `${resolved.label} · Đã dừng` : passed ? `${resolved.label} · PASS (${(durationMs / 1000).toFixed(1)}s)` : `${resolved.label} · FAIL (mã ${res.code})`,
+      output: combinedOutput || (managed.cancelled ? "Đã dừng theo yêu cầu." : passed ? "Hoàn tất thành công (mã thoát 0)." : `Lệnh trả về mã lỗi ${res.code}.`),
       completedAt: new Date().toISOString(),
     };
     task.qaResult = qaResult;
-    task.terminalHistory ||= [];
-    task.terminalHistory.unshift({
-      id: `term-${randomUUID().slice(0, 8)}`,
-      ...qaResult,
-    });
-    task.terminalHistory = task.terminalHistory.slice(0, 20);
+    Object.assign(historyEntry, qaResult);
+    task.updatedAt = qaResult.completedAt;
+    schedulePersist?.(); schedulePublish?.("task");
     record(task, `Hoàn tất ${resolved.label} · ${passed ? "PASSED" : `FAILED (code ${res.code})`}`, passed ? "success" : "warning", {
       toolName: "qa-runner",
       command: resolved.label,
@@ -257,10 +371,10 @@ export function createTaskStageRunner({
     if (connector.kind === "api") {
       const providerRuntime = getApiProviderRuntime(provider);
       if (!providerRuntime) throw new Error(`${publicProviderName(provider)} chưa được cấu hình đầy đủ.`);
-      const controller = new AbortController();
+      const userController = new AbortController();
       const runInfo = running.get(task.id);
-      if (runInfo) runInfo.abortController = controller;
-      const timeout = setTimeout(() => controller.abort(new Error("API provider timeout after 120 seconds.")), 120_000);
+      if (runInfo) runInfo.abortController = userController;
+      const turnTimeoutMs = 120_000;
       try {
         const isChatStage = stage === "chat-initial" || String(stage).startsWith("chat-");
         const remoteContext = ["plan", "build", "review"].includes(stage) || isChatStage ? await externalWorkspaceContext(task, isChatStage ? "plan" : stage) : null;
@@ -271,7 +385,19 @@ export function createTaskStageRunner({
         let finalContent = "";
         const maxToolTurns = 4;
         for (let toolTurn = 0; toolTurn <= maxToolTurns; toolTurn += 1) {
-          const result = await completeWithApi(providerRuntime, selection.model, activePrompt, controller.signal);
+          const turnController = new AbortController();
+          const onUserAbort = () => turnController.abort(userController.signal.reason || new Error("Stopped by user"));
+          if (userController.signal.aborted) onUserAbort();
+          else userController.signal.addEventListener("abort", onUserAbort, { once: true });
+          const turnTimeout = setTimeout(() => turnController.abort(new Error("API provider timeout after 120 seconds.")), turnTimeoutMs);
+          turnTimeout.unref?.();
+          let result;
+          try {
+            result = await completeWithApi(providerRuntime, selection.model, activePrompt, turnController.signal);
+          } finally {
+            clearTimeout(turnTimeout);
+            userController.signal.removeEventListener("abort", onUserAbort);
+          }
           if (result.usage) addTaskUsage(task, provider, result.usage);
           task._currentStageUsage = result.usage || task._currentStageUsage || null;
           finalContent = String(result.content || "").trim();
@@ -300,8 +426,7 @@ export function createTaskStageRunner({
         task.stageMetrics = task.stageMetrics.slice(-500);
         return output;
       } finally {
-        clearTimeout(timeout);
-        if (runInfo?.abortController === controller) runInfo.abortController = null;
+        if (runInfo?.abortController === userController) runInfo.abortController = null;
       }
     }
 
@@ -320,16 +445,19 @@ export function createTaskStageRunner({
       task.subagentProfilesUsed = subagentExec.selectedProfiles;
     }
     const effectivePrompt = subagentExec?.promptAppendix ? `${prompt}${subagentExec.promptAppendix}` : prompt;
+    task.cliStreamSources ||= {};
+    task.cliStreamSources[provider] = { version: connector.version || null, transport: provider === "codex" && task.config?.codexTransport === "app-server" ? "app-server-v2" : "stream-json", stage, observedAt: new Date().toISOString() };
 
     const { codexExe, agyExe, claudeCommand, claudeExe } = getCliExecutables();
     let exe;
     let args;
+    const permissions = effectiveCliPermissions(provider, task.permissionPreset, stage, task.config?.codexTransport);
     if (provider === "codex") {
       exe = codexExe;
       const projectDirs = additionalWritableProjectDirs(task, cwd);
       const sandboxArgs = task.permissionPreset === "full-access"
         ? ["--dangerously-bypass-approvals-and-sandbox"]
-        : ["--sandbox", task.permissionPreset === "read-only" || !(stage === "build" || stage.startsWith("chat-") || stage === "chat-initial") ? "read-only" : "workspace-write"];
+        : ["--sandbox", permissions.sandbox];
       args = [
         ...(task.permissionPreset !== "full-access" && process.platform === "win32" ? ["--config", 'windows.sandbox="unelevated"'] : []),
         "--disable", "unified_exec",
@@ -352,7 +480,7 @@ export function createTaskStageRunner({
         "--output-format", "stream-json",
         "--verbose",
         ...claudeEffortArgs,
-        "--permission-mode", task.permissionPreset === "full-access" ? "bypassPermissions" : task.permissionPreset === "read-only" || stage === "plan" || stage === "review" ? "plan" : "acceptEdits",
+        "--permission-mode", permissions.mode,
         "--max-turns", "20",
         ...(subagentExec?.claudeArgs || []),
         ...additionalDirs.flatMap((directory) => ["--add-dir", directory]),
@@ -384,6 +512,84 @@ export function createTaskStageRunner({
       else parseAgyStreamLine(line, streamCtx);
     };
 
+    if (provider === "codex" && task.config?.codexTransport === "app-server") {
+      let output = "", finalOutput = "";
+      const subscribedChildren = new Map();
+      let complete, fail;
+      const completion = new Promise((resolve, reject) => { complete = resolve; fail = reject; });
+      // Register a rejection handler before asynchronous initialization.
+      completion.catch(() => {});
+      const runInfo = running.get(task.id);
+      const client = new CodexAppServer(exe, { cwd, args: subagentExec?.codexArgs || [],
+        onEvent(message) {
+          const params = message.params || {};
+          trackCodexAppEvent(message, streamCtx, client.threadId);
+          if (params.item?.type === "fileChange" && (params.threadId === client.threadId || streamCtx.appThreads?.has(params.threadId))) client.fileProposals.set(params.item.id, params.item.changes || []);
+          for (const threadId of streamCtx.appThreads || []) {
+            if (subscribedChildren.has(threadId)) continue;
+            client.childThreads.add(threadId);
+            // Resume attaches this client to a child stream; it does not start a turn.
+            const subscription = client.request("thread/resume", { threadId }, 5000).then(({ thread }) => {
+              for (const turn of thread?.turns || []) {
+                if (turn.status === "inProgress") client.activeTurns.set(threadId, turn.id);
+                for (const item of turn.items || []) trackCodexAppEvent({ method: item.status === "inProgress" ? "item/started" : "item/completed", params: { threadId, turnId: turn.id, item }, snapshot: true }, streamCtx, client.threadId);
+              }
+            }).catch(() => {}); // Keep the observed lifecycle when details are unavailable.
+            subscribedChildren.set(threadId, subscription);
+          }
+          if (message.method === "serverRequest/resolved") client.approvals?.remove(params.requestId);
+          if (params.threadId && params.threadId !== client.threadId) return;
+          if (message.method === "item/agentMessage/delta") { output += params.delta || ""; if (output.length > 8000000) throw new Error("Codex stage output exceeded limit"); record(task, params.delta || "", "output"); }
+          if (message.method === "turn/started") { task.liveControl = { provider: "codex", threadId: client.threadId, turnId: params.turn?.id }; schedulePublish?.("task"); }
+          if (message.method === "turn/completed") {
+            client.turnId = null;
+            client.stageEnded = true; delete task.liveControl; client.approvals.close();
+            schedulePersist?.(); schedulePublish?.("task");
+            params.turn?.status === "completed" ? complete(finalOutput || output) : fail(new Error(params.turn?.error?.message || `Codex turn ${params.turn?.status || "failed"}`));
+          }
+          if (message.method === "item/started" || message.method === "item/completed") {
+            const item = params.item || {};
+            if (message.method === "item/completed" && item.type === "agentMessage" && item.phase === "final_answer") finalOutput = item.text || finalOutput;
+            if (item.type === "commandExecution") {
+              record(task, item.command || "Codex command", "tool", { toolName: "terminal", command: item.command, status: message.method === "item/started" ? "running" : item.status, source: "codex-app-server", itemId: item.id });
+            }
+          }
+        },
+        onRequest(message) {
+          const allowed = ["item/commandExecution/requestApproval", "item/fileChange/requestApproval"];
+          if (client.stageEnded || !allowed.includes(message.method) || !client.isActiveTurn(message.params?.threadId, message.params?.turnId)) { client.child.stdin.write(`${JSON.stringify({ id: message.id, error: { code: -32601, message: "Request not supported or active turn changed" } })}\n`); return; }
+          client.approvals.add(message);
+        },
+      });
+      client.fileProposals = new Map();
+      client.approvals = new CliApprovalQueue(task, client, { record, changed() { task.updatedAt = new Date().toISOString(); schedulePersist?.(); schedulePublish?.("task"); } });
+      if (runInfo) { runInfo.child = client.child; runInfo.appClient = client; }
+      client.onDisconnect = fail;
+      const timeout = setTimeout(() => client.close(new Error("Codex App Server stage timed out")), Number(process.env.WORKBENCH_STAGE_TIMEOUT_MS) || 900000);
+      try {
+        await client.initialize();
+        const sandbox = permissions.sandbox;
+        const writableRoots = additionalWritableProjectDirs(task, cwd);
+        const thread = await client.request("thread/start", { cwd, model: selection.model, sandbox, approvalPolicy: permissions.approval, ephemeral: true, config: { ...(process.platform === "win32" ? { "windows.sandbox": "unelevated" } : {}), ...(writableRoots.length ? { "sandbox_workspace_write.writable_roots": writableRoots } : {}) } });
+        client.threadId = thread.thread.id;
+        task.cliSessions ||= {}; task.cliSessions.codex = client.threadId;
+        await client.request("turn/start", { threadId: client.threadId, input: [{ type: "text", text: effectivePrompt }], effort: selection.effort });
+        const result = await completion;
+        await Promise.allSettled(subscribedChildren.values());
+        task.stageMetrics ||= []; task.stageMetrics.push({ provider, stage, durationMs: Date.now() - stageStartedAt, usage: task._currentStageUsage, transport: "app-server", completedAt: new Date().toISOString() });
+        task.stageMetrics = task.stageMetrics.slice(-500);
+        await fs.writeFile(outputPath, result, "utf8");
+        return result;
+      } finally {
+        clearTimeout(timeout); client.onDisconnect = null; await client.close();
+        client.approvals.close();
+        interruptCommandActivities(task);
+        tracker.finalizeStageSubagents("completed");
+        if (runInfo) delete runInfo.appClient;
+        delete task.liveControl; task.pendingApprovals = []; schedulePersist?.(); schedulePublish?.("task");
+      }
+    }
+
     return new Promise((resolvePromise, rejectPromise) => {
       const childEnv = { ...process.env, NO_COLOR: "1", ...(exe === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {}) };
       if (exe !== process.execPath) delete childEnv.ELECTRON_RUN_AS_NODE;
@@ -411,6 +617,7 @@ export function createTaskStageRunner({
       let stdoutFallback = "";
       let stderrTail = "";
       child.stdout.on("error", () => {});
+      child.stdout.setEncoding("utf8");
       child.stderr.on("error", () => {});
       const onStdout = (chunk) => {
         resetIdleTimer();
@@ -419,6 +626,11 @@ export function createTaskStageRunner({
           stdoutFallback += text;
         }
         pending += text;
+        if (pending.length > 8000000) {
+          idleTimedOut = true; if (idleTimer) clearTimeout(idleTimer); killTree(child);
+          tracker.finalizeStageSubagents("failed", "CLI stream vượt giới hạn bộ đệm.");
+          rejectPromise(new Error("CLI stream vượt giới hạn bộ đệm.")); return;
+        }
         let index;
         while ((index = pending.indexOf("\n")) >= 0) {
           const line = pending.slice(0, index).trim();
@@ -438,6 +650,7 @@ export function createTaskStageRunner({
         if (!idleTimedOut) rejectPromise(error);
       });
       child.on("close", async (code) => {
+        interruptCommandActivities(task);
         if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
         if (idleTimedOut) return;
         if (pending.trim()) dispatchStreamLine(pending.trim());
@@ -493,7 +706,10 @@ export function createTaskStageRunner({
   return {
     assertTaskActive,
     areTaskDependenciesMet,
+    hasFailedTaskDependency: (task) => hasFailedTaskDependency(getState(), task),
     runTaskQaCheck,
+    cancelManagedCommand,
+    cancelManagedCommands,
     spawnStage,
   };
 }

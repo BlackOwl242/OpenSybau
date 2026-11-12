@@ -1,0 +1,21 @@
+{
+  "version": "2.1.322 (Claude Code)",
+  "provenance": "captured-live-unauthenticated-redacted",
+  "exitCode": 1,
+  "events": [
+    {
+      "type": "system",
+      "subtype": "ui_invalidate"
+    },
+    {
+      "type": "system",
+      "subtype": "init"
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "is_error": true,
+      "result": "Not logged in · Please run /login"
+    }
+  ]
+}

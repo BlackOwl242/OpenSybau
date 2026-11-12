@@ -108,11 +108,9 @@
 }
 .device-connect-pane {
   display: grid;
-  gap: 12px;
+  gap: 20px;
 }
 .device-password-box {
-  padding-top: 12px;
-  border-top: 1px solid var(--wb-line);
   display: grid;
   gap: 8px;
 }
@@ -138,8 +136,6 @@
   grid-template-columns: 124px minmax(0, 1fr);
   gap: 14px;
   align-items: center;
-  padding-top: 12px;
-  border-top: 1px solid var(--wb-line);
 }
 .device-qr-thumb {
   width: 124px;
@@ -180,7 +176,8 @@
 .device-password-box .device-input-action-row {
   grid-template-columns: minmax(0, 1fr) auto auto auto;
 }
-.device-qr-body .device-input-action-row {
+.device-qr-body .device-input-action-row,
+.device-quick-pair-box .device-input-action-row {
   grid-template-columns: minmax(0, 1fr) auto auto;
 }
 @media (max-width: 680px) {
@@ -205,16 +202,12 @@
   font-size: 11px;
 }
 .device-quick-pair-box {
-  padding-top: 12px;
-  border-top: 1px solid var(--wb-line);
   display: grid;
   gap: 6px;
 }
 .device-host-form {
   display: grid;
   gap: 10px;
-  padding-top: 12px;
-  border-top: 1px solid var(--wb-line);
 }
 .device-form-head {
   font-size: 12px;
@@ -222,7 +215,6 @@
   color: var(--wb-ink-strong);
 }
 .device-advanced-details {
-  border-top: 1px dashed var(--wb-line);
   padding-top: 8px;
   display: grid;
   gap: 10px;
@@ -880,9 +872,12 @@ details.composer-add:not([open]) > .composer-add-menu {
   align-items: center !important;
   justify-content: space-between !important;
   gap: 14px !important;
-  padding-bottom: 14px !important;
-  margin-bottom: 16px !important;
-  border-bottom: 1px solid var(--wb-line) !important;
+  padding-bottom: 0 !important;
+  margin-bottom: 20px !important;
+  border-bottom: 0 !important;
+}
+.wb-page-content .settings-card .settings-actions {
+  border-top: 0;
 }
 .wb-page-content .settings-card > header h2 {
   margin: 0 !important;
@@ -905,7 +900,6 @@ details.composer-add:not([open]) > .composer-add-menu {
   gap: 8px !important;
   margin: 0 !important;
 }
-.wb-page-content .cli-guide-row,
 .wb-page-content .provider-setup-row {
   display: grid !important;
   grid-template-columns: 10px minmax(0, 1fr) auto !important;

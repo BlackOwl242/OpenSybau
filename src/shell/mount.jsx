@@ -36,7 +36,10 @@ let rootElement;
 export function mountWorkbench() {
   rootElement = document.querySelector("#root");
   render(<AppShell snapshot={snapshot} pageMarkup={pageMarkup} />, rootElement);
-  observeLocalization(rootElement);
+  observeLocalization(rootElement, {
+    ignoreSelector: "#viewRoot, #content, .orca-right-dock, .wb-page-sidebar, [data-stable-html]",
+    debounce: true,
+  });
 }
 
 export function updateWorkbenchShell(nextSnapshot, nextMarkup) {

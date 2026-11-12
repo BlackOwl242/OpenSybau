@@ -773,7 +773,7 @@ body.launch-home #content.home-launch-content{background:#fff}
 .provider-connect-callout strong,.provider-empty-state strong{display:block;color:var(--wb-ink-strong);font-size:13px;font-weight:650}
 .provider-connect-callout p,.provider-empty-state p{margin:4px 0 0;color:var(--wb-muted);font-size:12px;line-height:1.5}
 .provider-connect-callout>div:last-child{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}
-.provider-empty-state{display:grid;justify-items:start;gap:8px;padding:14px 0;border-top:1px solid var(--wb-line)}
+.provider-empty-state{display:grid;justify-items:start;gap:8px;padding:0}
 .provider-empty-state p{max-width:680px;margin:0}
 .cli-setup-card{margin-top:14px}
 .cli-guide-list{display:grid}

@@ -9,7 +9,7 @@
   },
   "private": true,
   "license": "MIT",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -18,6 +18,14 @@
   "scripts": {
     "dev": "node scripts/run.mjs dev",
     "build": "vite build",
+    "rust:build": "node scripts/build-rust-core.mjs",
+    "rust:test": "node scripts/test-rust-core.mjs",
+    "test:long-task": "node scripts/test-long-task-e2e.mjs",
+    "test:inventory": "node scripts/test-customization-inventory.mjs",
+    "test:app-server": "node scripts/test-codex-app-server.mjs",
+    "test:live": "node scripts/test-app-server-live.mjs && node scripts/test-codex-live-control.mjs && node scripts/test-codex-live-approval.mjs && node scripts/test-observability-http.mjs",
+    "test:ui": "npm run build && node scripts/test-observability-ui.mjs",
+    "test": "node scripts/test-200-subagents.mjs && node scripts/test-quota-windows.mjs && node scripts/test-installer-env.cjs && node scripts/test-switch-account.mjs && node scripts/test-subagent-observability.mjs && node scripts/test-chat-queue.mjs && node scripts/test-managed-terminal.mjs && node scripts/test-codex-app-server.mjs && node scripts/test-customization-inventory.mjs && node scripts/test-agent-control.mjs && node scripts/test-workspace-scheduler.mjs",
     "start": "node scripts/run.mjs production",
     "desktop:dev": "npm run build && electron .",
     "desktop:dist": "npm run build && electron-builder --win nsis --publish never",

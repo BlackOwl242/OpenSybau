@@ -1,0 +1,374 @@
+{
+  "version": "codex-cli 0.166.0-alpha.6",
+  "model": "gpt-6.1-sol",
+  "provenance": "captured-live-redacted",
+  "events": [
+    {
+      "method": "turn/started",
+      "params": {
+        "threadId": "<SESSION_ID>",
+        "turn": {
+          "id": "<SESSION_ID>",
+          "rootTurnId": "<SESSION_ID>",
+          "items": [],
+          "itemsView": "notLoaded",
+          "status": "inProgress",
+          "error": null,
+          "startedAt": 1794436609,
+          "completedAt": null,
+          "durationMs": null
+        }
+      },
+      "emittedAtMs": 1794436609373
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "<SESSION_ID>",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "You are a protocol integration test. Use exactly one terminal tool to read marker.txt in the current directory. Then reply ORIGINAL. Do not delegate, edit files or inspect other paths.",
+              "text_elements": []
+            }
+          ],
+          "startedAtMs": 1794436611239,
+          "completedAtMs": null
+        },
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "startedAtMs": 1794436611239
+      },
+      "emittedAtMs": 1794436611239
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "<SESSION_ID>",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "You are a protocol integration test. Use exactly one terminal tool to read marker.txt in the current directory. Then reply ORIGINAL. Do not delegate, edit files or inspect other paths.",
+              "text_elements": []
+            }
+          ],
+          "startedAtMs": 1794436611239,
+          "completedAtMs": 1794436611239
+        },
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "completedAtMs": 1794436611239
+      },
+      "emittedAtMs": 1794436611239
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0454ca5f7b9cd194016af4ee05b11087d0ba8b7140f069f580",
+          "text": "",
+          "phase": "commentary",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null,
+          "startedAtMs": 1794436612881,
+          "completedAtMs": null
+        },
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "startedAtMs": 1794436612881
+      },
+      "emittedAtMs": 1794436612881
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0454ca5f7b9cd194016af4ee05b11087d0ba8b7140f069f580",
+          "text": "I’ll read `marker.txt` in the current directory.",
+          "phase": "commentary",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null,
+          "startedAtMs": 1794436612881,
+          "completedAtMs": 1794436613300
+        },
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "completedAtMs": 1794436613300
+      },
+      "emittedAtMs": 1794436613300
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "exec-<SESSION_ID>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "\"C:\\\\Users\\\\legen\\\\.cache\\\\codex-runtimes\\\\codex-primary-runtime\\\\dependencies\\\\native\\\\powershell\\\\pwsh.exe\" -Command \"Get-Content -LiteralPath .\\\\marker.txt\"",
+          "cwd": "<WORKSPACE>",
+          "processId": "33569",
+          "source": "unifiedExecStartup",
+          "status": "inProgress",
+          "commandActions": [
+            {
+              "type": "read",
+              "command": "Get-Content -LiteralPath .\\marker.txt",
+              "name": "marker.txt",
+              "path": "<WORKSPACE>\\marker.txt"
+            }
+          ],
+          "aggregatedOutput": null,
+          "exitCode": null,
+          "durationMs": null,
+          "startedAtMs": 1794436614096,
+          "completedAtMs": null
+        },
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "startedAtMs": 1794436614096
+      },
+      "emittedAtMs": 1794436614098
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 17084,
+            "inputTokens": 17030,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 54,
+            "reasoningOutputTokens": 0
+          },
+          "last": {
+            "totalTokens": 17084,
+            "inputTokens": 17030,
+            "cachedInputTokens": 0,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 54,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 475000
+        }
+      },
+      "emittedAtMs": 1794436614106
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "<SESSION_ID>",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "After the command, reply STEER_OK only instead of ORIGINAL.",
+              "text_elements": []
+            }
+          ],
+          "startedAtMs": 1794436614106,
+          "completedAtMs": null
+        },
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "startedAtMs": 1794436614106
+      },
+      "emittedAtMs": 1794436614106
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "<SESSION_ID>",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "After the command, reply STEER_OK only instead of ORIGINAL.",
+              "text_elements": []
+            }
+          ],
+          "startedAtMs": 1794436614106,
+          "completedAtMs": 1794436614106
+        },
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "completedAtMs": 1794436614106
+      },
+      "emittedAtMs": 1794436614106
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "commandExecution",
+          "id": "exec-<SESSION_ID>",
+          "pluginId": null,
+          "scriptPath": null,
+          "command": "\"C:\\\\Users\\\\legen\\\\.cache\\\\codex-runtimes\\\\codex-primary-runtime\\\\dependencies\\\\native\\\\powershell\\\\pwsh.exe\" -Command \"Get-Content -LiteralPath .\\\\marker.txt\"",
+          "cwd": "<WORKSPACE>",
+          "processId": "33569",
+          "source": "unifiedExecStartup",
+          "status": "completed",
+          "commandActions": [
+            {
+              "type": "read",
+              "command": "Get-Content -LiteralPath .\\marker.txt",
+              "name": "marker.txt",
+              "path": "<WORKSPACE>\\marker.txt"
+            }
+          ],
+          "aggregatedOutput": "OBSERVABILITY_MARKER\r\n",
+          "exitCode": 0,
+          "durationMs": 239,
+          "startedAtMs": 1794436614096,
+          "completedAtMs": 1794436614335
+        },
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "completedAtMs": 1794436614335
+      },
+      "emittedAtMs": 1794436614336
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 34244,
+            "inputTokens": 34159,
+            "cachedInputTokens": 16896,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 85,
+            "reasoningOutputTokens": 0
+          },
+          "last": {
+            "totalTokens": 17160,
+            "inputTokens": 17129,
+            "cachedInputTokens": 16896,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 31,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 475000
+        }
+      },
+      "emittedAtMs": 1794436616302
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0454ca5f7b9cd194016af4ee0af93487d0aa461da60082d90a",
+          "text": "",
+          "phase": "final_answer",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null,
+          "startedAtMs": 1794436618155,
+          "completedAtMs": null
+        },
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "startedAtMs": 1794436618155
+      },
+      "emittedAtMs": 1794436618155
+    },
+    {
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "agentMessage",
+          "id": "msg_0454ca5f7b9cd194016af4ee0af93487d0aa461da60082d90a",
+          "text": "STEER_OK",
+          "phase": "final_answer",
+          "memoryCitation": null,
+          "delivery": null,
+          "questions": null,
+          "startedAtMs": 1794436618155,
+          "completedAtMs": 1794436618212
+        },
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "completedAtMs": 1794436618212
+      },
+      "emittedAtMs": 1794436618212
+    },
+    {
+      "method": "thread/tokenUsage/updated",
+      "params": {
+        "threadId": "<SESSION_ID>",
+        "turnId": "<SESSION_ID>",
+        "tokenUsage": {
+          "total": {
+            "totalTokens": 51434,
+            "inputTokens": 51342,
+            "cachedInputTokens": 33920,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 92,
+            "reasoningOutputTokens": 0
+          },
+          "last": {
+            "totalTokens": 17190,
+            "inputTokens": 17183,
+            "cachedInputTokens": 17024,
+            "cacheWriteInputTokens": 0,
+            "outputTokens": 7,
+            "reasoningOutputTokens": 0
+          },
+          "modelContextWindow": 475000
+        }
+      },
+      "emittedAtMs": 1794436618272
+    },
+    {
+      "method": "turn/completed",
+      "params": {
+        "threadId": "<SESSION_ID>",
+        "turn": {
+          "id": "<SESSION_ID>",
+          "rootTurnId": "<SESSION_ID>",
+          "items": [
+            {
+              "type": "agentMessage",
+              "id": "msg_0454ca5f7b9cd194016af4ee0af93487d0aa461da60082d90a",
+              "text": "STEER_OK",
+              "phase": "final_answer",
+              "memoryCitation": null,
+              "delivery": null,
+              "questions": null,
+              "startedAtMs": 1794436618155,
+              "completedAtMs": 1794436618212
+            }
+          ],
+          "itemsView": "summary",
+          "status": "completed",
+          "error": null,
+          "startedAt": 1794436609,
+          "completedAt": 1794436618,
+          "durationMs": 8918
+        }
+      },
+      "emittedAtMs": 1794436618281
+    }
+  ]
+}

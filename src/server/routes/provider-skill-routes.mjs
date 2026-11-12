@@ -11,6 +11,19 @@ import { normalizeDirectoryInput } from "../cli-discovery.mjs";
 import { normalizeTaskPresetProfile, validateAgentSelection } from "../task-prompts.mjs";
 import { normalizeScheduleProfile, spawnScheduledTask } from "../task-store.mjs";
 
+function normalizeBaseUrl(rawUrl, protocol = "") {
+  try {
+    const url = new URL(String(rawUrl || "").trim());
+    const basePath = url.pathname.replace(/\/+$/, "");
+    if (protocol === "anthropic" && !basePath.endsWith("/v1")) url.pathname = `${basePath}/v1`;
+    else if (protocol === "gemini" && !basePath.endsWith("/v1beta")) url.pathname = `${basePath}/v1beta`;
+    else url.pathname = basePath;
+    return url.toString().replace(/\/+$/, "").toLowerCase();
+  } catch {
+    return String(rawUrl || "").trim().replace(/\/+$/, "").toLowerCase();
+  }
+}
+
 export async function handleProviderSkillRoutes(request, response, pathname, ctx) {
   const {
     host,
@@ -87,7 +100,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       platform: process.platform,
       port: getBoundPort(),
       authRequired: Boolean(getEffectiveAccessPassword()),
-      version: "0.3.5",
+      version: "0.3.6",
       mode: (!isLoopbackBind || isLanActive()) ? "network" : "loopback",
       ts: Date.now(),
     });
@@ -112,7 +125,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       includePassword: isLoopbackClient(request),
       hasAccessPassword: Boolean(activePass),
       allowedHosts,
-      version: "0.3.5",
+      version: "0.3.6",
       connectors,
       activeWorktreesCount,
       runningTasksCount,
@@ -135,18 +148,25 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     const nextPassword = generateNew
       ? generateStrongAccessPassword()
       : String(body.password ?? "").trim();
-    if (nextPassword && nextPassword.length < 6) {
-      json(response, 400, { error: "Mật khẩu cần tối thiểu 6 ký tự." });
+    if (nextPassword && nextPassword.length < 16) {
+      json(response, 400, { error: "Mật khẩu cần tối thiểu 16 ký tự." });
       return true;
     }
     if (nextPassword.length > 256) {
       json(response, 400, { error: "Mật khẩu tối đa 256 ký tự." });
       return true;
     }
+    const requestedHosts = body.allowedHosts === undefined ? [...(allowedHosts || [])] : Array.isArray(body.allowedHosts) ? body.allowedHosts : String(body.allowedHosts).split(",");
+    const nextHosts = [...new Set(requestedHosts.map((value) => String(value).trim().toLowerCase()).filter(Boolean))];
+    if (nextHosts.length > 32 || nextHosts.some((value) => !/^(?:[a-z0-9.-]+|\[[a-f0-9:]+\]):\d{1,5}$/.test(value) || Number(value.slice(value.lastIndexOf(":") + 1)) > 65535 || Number(value.slice(value.lastIndexOf(":") + 1)) < 1)) {
+      json(response, 400, { error: "Danh sách host cần có dạng địa-chỉ:cổng, tối đa 32 mục." }); return true;
+    }
+    if (nextPassword && nextHosts.length && !productionMode) { json(response, 400, { error: "Chỉ mở mạng LAN ở chế độ production." }); return true; }
     const nextConfig = {
       username: nextUsername,
       password: nextPassword,
-      remoteEnabled: Boolean(nextPassword),
+      remoteEnabled: Boolean(nextPassword && nextHosts.length),
+      allowedHosts: nextHosts,
       userConfigured: true,
       updatedAt: new Date().toISOString(),
     };
@@ -170,7 +190,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       includePassword: true,
       hasAccessPassword: Boolean(activePass),
       allowedHosts,
-      version: "0.3.5",
+      version: "0.3.6",
       connectors,
       activeWorktreesCount,
       runningTasksCount,
@@ -266,11 +286,12 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     return true;
   }
 
-  const cliLoginMatch = pathname.match(/^\/api\/connectors\/(codex|antigravity|claude)\/login$/);
+  const cliLoginMatch = pathname.match(/^\/api\/connectors\/(codex|antigravity|claude)\/(login|switch-account)$/);
   if (request.method === "POST" && cliLoginMatch) {
     refreshCliExecutables(true);
     const { codexExe, agyExe, claudeCommand } = getCliExecutables();
     const id = cliLoginMatch[1];
+    const switching = cliLoginMatch[2] === "switch-account";
     const login = id === "codex"
       ? { executable: codexExe, args: ["login"], versionArgs: ["--version"], label: "Codex CLI" }
       : id === "antigravity"
@@ -280,9 +301,19 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     const installed = await run(login.executable, login.versionArgs, { timeout: 10000, maxBuffer: 10000 });
     if (installed.code !== 0) { json(response, 409, { error: `${login.label} chưa khởi chạy được. Hãy cài CLI hoặc kiểm tra PATH rồi quét lại.` }); return true; }
     try {
+      if (switching && id !== "antigravity") {
+        const logoutArgs = id === "codex" ? ["logout"] : [...claudeCommand.prefixArgs, "auth", "logout"];
+        const logout = await run(login.executable, logoutArgs, { timeout: 15000, maxBuffer: 10000 });
+        if (logout.code !== 0) throw new Error(`Không thể đăng xuất ${login.label}: ${(logout.stderr || logout.stdout || "CLI trả về lỗi").trim().slice(0, 300)}`);
+        invalidateModelCache();
+        providerQuotaService?.invalidateQuotaCache();
+      }
       await openCliLoginTerminal(login.executable, login.args, login.label);
       expireModelCache();
-      json(response, 200, { ok: true, message: `Đã mở terminal ${login.label} trên máy chạy OpenSybau. Hoàn tất đăng nhập ở đó, sau đó quay lại và bấm Quét lại.` });
+      const message = switching && id === "antigravity"
+        ? "Trong terminal Antigravity, nhập /logout, rồi khởi động lại CLI và đăng nhập tài khoản khác."
+        : `Đã mở terminal ${login.label} trên máy chạy OpenSybau. Hoàn tất đăng nhập ở đó, sau đó quay lại và bấm Quét lại.`;
+      json(response, 200, { ok: true, message });
     } catch (error) { json(response, 501, { error: safeError(error) }); }
     return true;
   }
@@ -310,9 +341,19 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
   if (request.method === "POST" && pathname === "/api/providers/models") {
     const body = await readBody(request);
     const saved = body.useSavedKey === false ? null : savedApiProviders().find((item) => item.id === String(body.id || ""));
+    const canFallbackSavedKey = Boolean(
+      saved?.apiKey
+      && (!body.baseUrl || normalizeBaseUrl(body.baseUrl, body.protocol || saved.protocol) === normalizeBaseUrl(saved.baseUrl, saved.protocol))
+    );
     let provider;
     try {
-      provider = normalizeUserApiProvider({ ...body, id: body.id || "provider-check", name: body.name || "API provider", models: body.models || "provider-check", apiKey: body.apiKey || saved?.apiKey || "" });
+      provider = normalizeUserApiProvider({
+        ...body,
+        id: body.id || "provider-check",
+        name: body.name || "API provider",
+        models: body.models || "provider-check",
+        apiKey: body.apiKey || (canFallbackSavedKey ? saved.apiKey : ""),
+      });
     } catch (error) { json(response, 400, { error: safeError(error) }); return true; }
     if (provider.apiKey && !secureTransport && !isLoopbackClient(request)) { json(response, 403, { error: "Để gửi API key từ xa, hãy bật HTTPS. Hãy nhập key qua localhost hoặc cấu hình HTTPS trước." }); return true; }
     try {
@@ -385,8 +426,10 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     const metadata = { id: normalized.id, name: normalized.name, protocol: normalized.protocol, baseUrl: normalized.baseUrl, models: normalized.models, apiKeyRequired: normalized.apiKeyRequired };
     nextProviders.push(metadata);
     const nextSecrets = { ...secrets };
-    if (body.clearApiKey === true) delete nextSecrets[id];
-    else if (normalized.apiKey) {
+    const sameSavedBaseUrl = !current || !body.baseUrl || normalizeBaseUrl(body.baseUrl, body.protocol || current.protocol) === normalizeBaseUrl(current.baseUrl, current.protocol);
+    if (body.clearApiKey === true || (!normalized.apiKey && !sameSavedBaseUrl)) {
+      delete nextSecrets[id];
+    } else if (normalized.apiKey) {
       if (!secureTransport && !isLoopbackClient(request)) { json(response, 403, { error: "Để gửi API key từ xa, hãy bật HTTPS. Bạn vẫn có thể cấu hình key trực tiếp trên máy chủ qua localhost." }); return true; }
       nextSecrets[id] = normalized.apiKey;
     }

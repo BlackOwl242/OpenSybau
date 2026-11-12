@@ -36,19 +36,73 @@ export function isMobileCompanionMode() {
   return Boolean(globalThis.window.matchMedia?.("(max-width: 820px)")?.matches);
 }
 
+const pendingNativeHttpRequests = new Map();
+let nativeHttpSeq = 0;
+
+function ensureNativeHttpResultHandler() {
+  if (typeof globalThis.window === "undefined") return;
+  if (typeof globalThis.window.__opensybauOnHttpResult === "function") return;
+  globalThis.window.__opensybauOnHttpResult = (reqIdOrPayload, maybeRawResult) => {
+    let reqId = reqIdOrPayload;
+    let rawResult = maybeRawResult;
+    if (maybeRawResult === undefined && reqIdOrPayload && typeof reqIdOrPayload === "object") {
+      reqId = reqIdOrPayload.reqId || reqIdOrPayload.id;
+      rawResult = reqIdOrPayload.result ?? reqIdOrPayload;
+    }
+    const key = String(reqId || "");
+    const pending = pendingNativeHttpRequests.get(key);
+    if (!pending) return;
+    pendingNativeHttpRequests.delete(key);
+    if (pending.timer) clearTimeout(pending.timer);
+    pending.resolve(rawResult);
+  };
+}
+
+if (typeof globalThis.window !== "undefined") {
+  ensureNativeHttpResultHandler();
+}
+
 export async function remoteFetch(url, options = {}) {
   const targetUrl = String(url || "");
   const bridge = typeof globalThis.window !== "undefined" ? globalThis.window.opensybauAndroid : null;
-  if (bridge && typeof bridge.httpRequest === "function" && /^https?:\/\//i.test(targetUrl)) {
+  if (
+    bridge
+    && (typeof bridge.httpRequestAsync === "function" || typeof bridge.httpRequest === "function")
+    && /^https?:\/\//i.test(targetUrl)
+  ) {
     const method = String(options.method || "GET").toUpperCase();
-    const headersObj = { ...(options.headers || {}) };
-    const bodyStr = typeof options.body === "string" ? options.body : (options.body ? JSON.stringify(options.body) : "");
-    const rawResult = bridge.httpRequest(method, targetUrl, JSON.stringify(headersObj), bodyStr);
+    const headers = { ...(options.headers || {}) };
+    const bodyText = typeof options.body === "string" ? options.body : (options.body ? JSON.stringify(options.body) : "");
+    let rawResult;
+    if (typeof bridge.httpRequestAsync === "function") {
+      ensureNativeHttpResultHandler();
+      const reqId = `req_${++nativeHttpSeq}_${Date.now().toString(36)}`;
+      rawResult = await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          pendingNativeHttpRequests.delete(reqId);
+          reject(new Error("Native HTTP request timed out"));
+        }, 30_000);
+        pendingNativeHttpRequests.set(reqId, { resolve, reject, timer });
+        try {
+          bridge.httpRequestAsync(reqId, method, targetUrl, JSON.stringify(headers), bodyText);
+        } catch (err) {
+          clearTimeout(timer);
+          pendingNativeHttpRequests.delete(reqId);
+          reject(err);
+        }
+      });
+    } else {
+      rawResult = bridge.httpRequest(method, targetUrl, JSON.stringify(headers), bodyText);
+    }
     let parsed;
-    try {
-      parsed = JSON.parse(rawResult || "{}");
-    } catch {
-      parsed = { ok: false, status: 0, error: "Invalid native bridge response" };
+    if (rawResult && typeof rawResult === "object") {
+      parsed = rawResult;
+    } else {
+      try {
+        parsed = JSON.parse(rawResult || "{}");
+      } catch {
+        parsed = { ok: false, status: 0, error: "Invalid native bridge response" };
+      }
     }
     if (!parsed.status) {
       throw new Error(parsed.error || "Network request failed");
@@ -222,12 +276,36 @@ export function setActiveRemoteHost(profileOrNull) {
   return saved;
 }
 
-export function resolveRemoteUrl(path) {
-  const str = String(path || "");
+export function resolveRemoteUrl(input) {
+  const str = String(input || "");
   if (!str.startsWith("/")) return str;
-  const active = getActiveRemoteHost();
-  if (!active?.url) return str;
-  return `${active.url.replace(/\/+$/, "")}${str}`;
+  const activeHost = getActiveRemoteHost();
+  if (!activeHost?.url) return str;
+  let resolved = `${activeHost.url.replace(/\/+$/, "")}${str}`;
+  if (
+    activeHost.password
+    && (
+      str.startsWith("/api/events")
+      || str.startsWith("/__events")
+      || (str.startsWith("/api/workspaces/") && str.includes("/raw/"))
+    )
+    && !/[?&]access_token=/.test(resolved)
+  ) {
+    const sep = resolved.includes("?") ? "&" : "?";
+    resolved = `${resolved}${sep}access_token=${encodeURIComponent(activeHost.password)}`;
+  }
+  return resolved;
+}
+
+export function resolveAuthenticatedMediaUrl(input) {
+  const resolved = resolveRemoteUrl(input);
+  const activeHost = getActiveRemoteHost();
+  if (!activeHost?.url || !activeHost?.password) return resolved;
+  if (!/[?&]access_token=/.test(resolved)) {
+    const sep = resolved.includes("?") ? "&" : "?";
+    return `${resolved}${sep}access_token=${encodeURIComponent(activeHost.password)}`;
+  }
+  return resolved;
 }
 
 export function buildRemoteRequestHeaders(extraHeaders = {}, hostOverride = null) {

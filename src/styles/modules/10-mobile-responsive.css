@@ -414,6 +414,9 @@
   .device-quick-pair-box .device-input-action-row > .button {
     width: 100% !important;
   }
+  .device-password-box .device-input-action-row > .button:last-child {
+    grid-column: 1 / -1 !important;
+  }
   .device-form-actions {
     display: grid !important;
     grid-template-columns: repeat(auto-fit, minmax(136px, 1fr)) !important;

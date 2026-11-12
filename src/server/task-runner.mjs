@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { promises as fs } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, relative, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { estimateTaskCostUsd, parseReviewFindings } from "../domain/task-flow.js";
@@ -7,7 +8,7 @@ import { allowedTextFile, resolveInside, safeRelativePath, usesSharedCheckout, w
 import { parseSkillSelection } from "./skill-catalog.mjs";
 import { parseUnifiedDiffFiles } from "./diff-parser.mjs";
 import { publicProviderName, stageSelection } from "./task-prompts.mjs";
-import { changedFilesSince, failQueuedChatTurns, finishStageRerun, mergeTaskArtifacts, recordTaskCycle } from "./task-stage-runner.mjs";
+import { changedFilesSince, failQueuedChatTurns, finishStageRerun, hasFailedTaskDependency, mergeTaskArtifacts, recordTaskCycle } from "./task-stage-runner.mjs";
 
 export function createTaskRunnerService({
   taskDir,
@@ -87,6 +88,7 @@ export function createTaskRunnerService({
     const workspace = getState().workspaces.find((w) => w.id === task.workspaceId);
     if (!workspace) throw new Error("Workspace not found");
     const info = await inspectWorkspace(workspace.path);
+    workspace.runtime = info;
     assertTaskActive(task);
     let cwd = info.path;
     task.workspaceRuntime = info;
@@ -119,13 +121,22 @@ export function createTaskRunnerService({
         assertTaskActive(task);
       }
     } else {
-      const lockKey = workspaceLockKey(info.path);
+      const lockKey = workspaceLockKey(workspace.runtime?.gitRoot || workspace.path);
+      const runEntry = running.get(task.id);
+      if (runEntry && runEntry.workspacePath !== lockKey) {
+        if (!runEntry.isolated && runEntry.workspacePath) busyWorkspaces.delete(workspaceLockKey(runEntry.workspacePath));
+        runEntry.workspacePath = lockKey;
+        if (!runEntry.isolated && lockKey) busyWorkspaces.add(lockKey);
+      }
       const sameWorkspaceActive = [...running.entries()].some(([id, runInfo]) => id !== task.id && workspaceLockKey(runInfo.workspacePath) === lockKey && !runInfo.isolated);
       if (sameWorkspaceActive) throw new Error("This workspace already has a running shared-checkout task");
     }
     task.executionPath = cwd;
     task.status = "running";
     task.startedAt = new Date().toISOString();
+    if (Boolean(task.resumeFrom)) {
+      task.currentRound = 1;
+    }
     let effectiveResumeFrom = task.resumeFrom || "plan";
     if (effectiveResumeFrom === "build" && !task.plan) effectiveResumeFrom = "plan";
     else if (effectiveResumeFrom === "review" && (!task.plan || !task.implementation)) effectiveResumeFrom = !task.plan ? "plan" : "build";
@@ -242,11 +253,12 @@ export function createTaskRunnerService({
       task.currentRound = round;
       const skipBuildForReviewOnlyRerun = round === 1 && task.resumeFrom === "review" && Boolean(task.implementation);
       if (!skipBuildForReviewOnlyRerun) {
+        const steeringCount = (task.chatMessages || []).filter((m) => m && m.role === "user" && !m.initialChat && m.content).length;
         record(
           task,
           round === 1
-            ? `Handoff ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} · kế hoạch được chuyển sang stage triển khai.`
-            : `Vòng tự sửa lỗi ${round}/${maxRounds} · Chuyển phản hồi Review/QA sang ${publicProviderName(buildSelection.provider)} để khắc phục lỗi blocking.`,
+            ? `Handoff ${publicProviderName(planSelection.provider)} → ${publicProviderName(buildSelection.provider)} · kế hoạch được chuyển sang stage triển khai.${steeringCount ? ` Đã tích hợp ${steeringCount} chỉ dẫn bổ sung giữa chừng của bạn.` : ""}`
+            : `Vòng tự sửa lỗi ${round}/${maxRounds} · Chuyển phản hồi Review/QA sang ${publicProviderName(buildSelection.provider)} để khắc phục lỗi blocking.${steeringCount ? ` Đã tích hợp ${steeringCount} chỉ dẫn bổ sung giữa chừng của bạn.` : ""}`,
           "handoff"
         );
         task.phase = "build"; persist(); publish("task");
@@ -338,6 +350,16 @@ export function createTaskRunnerService({
 
       const needFixLoop = (findings.blocking > 0 || task.qaResult?.status === "failed") && round < maxRounds && task.permissionPreset !== "read-only";
       if (needFixLoop) {
+        task.roundHistory ||= [];
+        task.roundHistory.push({
+          round,
+          implementation: String(task.implementation || "").slice(0, 20_000),
+          review: String(review || "").slice(0, 20_000),
+          reviewFindings: findings,
+          qaStatus: task.qaResult?.status || null,
+          completedAt: new Date().toISOString(),
+        });
+        task.roundHistory = task.roundHistory.slice(-5);
         previousReview = review;
         previousQaOutput = task.qaResult?.status === "failed" ? task.qaResult.output : "";
         record(
@@ -369,7 +391,7 @@ export function createTaskRunnerService({
       const ws = state.workspaces.find((w) => w.id === candidate.workspaceId);
       if (!ws) continue;
       const sharedCheckout = usesSharedCheckout(candidate);
-      const lockKey = workspaceLockKey(sharedCheckout ? ws.path : (candidate.executionPath || candidate.worktreePath || ws.path));
+      const lockKey = workspaceLockKey(sharedCheckout ? (ws.runtime?.gitRoot || ws.path) : (candidate.executionPath || candidate.worktreePath || ws.path));
       if (sharedCheckout && busyWorkspaces.has(lockKey)) continue;
       void processTaskChatQueue(candidate);
     }
@@ -380,17 +402,15 @@ export function createTaskRunnerService({
     const workspace = getState().workspaces.find((item) => item.id === task.workspaceId);
     if (!workspace) return;
     const existingRun = running.get(task.id);
-    if (existingRun && !existingRun.isChat) return;
+    if (existingRun) return;
     const sharedCheckout = usesSharedCheckout(task);
-    const lockPath = sharedCheckout ? workspace.path : (task.executionPath || task.worktreePath || workspace.path);
+    const lockPath = sharedCheckout ? (workspace.runtime?.gitRoot || workspace.path) : (task.executionPath || task.worktreePath || workspace.path);
     const lockKey = workspaceLockKey(lockPath);
-    if (!existingRun && sharedCheckout && busyWorkspaces.has(lockKey)) {
+    if (sharedCheckout && busyWorkspaces.has(lockKey)) {
       return;
     }
-    if (!existingRun) {
-      running.set(task.id, { child: null, stopped: false, workspacePath: lockKey, isolated: !sharedCheckout, isChat: true });
-      if (sharedCheckout && lockKey) busyWorkspaces.add(lockKey);
-    }
+    running.set(task.id, { child: null, stopped: false, workspacePath: lockKey, isolated: !sharedCheckout, isChat: true });
+    if (sharedCheckout && lockKey) busyWorkspaces.add(lockKey);
     const restoreStatus = task.status === "running" ? (task.preChatStatus || "done") : task.status;
     const restorePhase = task.phase === "chat" ? (task.preChatPhase || (restoreStatus === "done" ? "done" : restoreStatus)) : task.phase;
     task.preChatStatus = restoreStatus;
@@ -425,7 +445,10 @@ export function createTaskRunnerService({
           const turnChanges = await changedFilesSince(cwd, turnStartedAt);
           if (turnChanges.length) {
             task.artifacts = mergeTaskArtifacts(task.artifacts, turnChanges);
-            if (!task.worktreeCleaned && task.worktreePath) task.worktreeAppliedAt = null;
+            if (!task.worktreeCleaned && task.worktreePath) {
+              task.worktreeApplied = false;
+              task.worktreeAppliedAt = null;
+            }
           }
           if (userMessage) userMessage.status = "done";
           anyTurnSucceeded = true;
@@ -478,6 +501,31 @@ export function createTaskRunnerService({
       try {
         while (!isShuttingDown()) {
           const state = getState();
+          let cancelledDependent = false;
+          for (const item of state.tasks) {
+            if (item.status === "queued" && !running.has(item.id) && hasFailedTaskDependency(state, item)) {
+              const failedParent = (item.dependsOn || [])
+                .map((depRef) => {
+                  const ref = String(depRef || "").trim();
+                  return state.tasks.find((t) => t.id === ref || (t.code && String(t.code).toUpperCase() === ref.toUpperCase()));
+                })
+                .find((p) => p && p.id !== item.id && (p.status === "failed" || p.status === "cancelled"));
+              const parentLabel = failedParent ? `${failedParent.code || failedParent.id} (${failedParent.status})` : "task phụ thuộc";
+              item.failedPhase = item.phase;
+              item.status = "cancelled";
+              item.phase = "cancelled";
+              item.completedAt = new Date().toISOString();
+              item.error = `Đã hủy tự động vì task phụ thuộc ${parentLabel} không hoàn tất.`;
+              finishStageRerun(item, "cancelled", item.error);
+              record(item, item.error, "warning");
+              cancelledDependent = true;
+            }
+          }
+          if (cancelledDependent) {
+            try { persist(); } catch {}
+            publish("tasks");
+            continue;
+          }
           const hasQueuedFanout = state.tasks.some((item) => item.status === "queued" && item.fanoutId && item.isolated);
           const activeFanoutTaskCount = hasQueuedFanout
             ? state.tasks.filter((item) => item.fanoutId && item.isolated && (item.status === "queued" || running.has(item.id))).length
@@ -485,13 +533,13 @@ export function createTaskRunnerService({
           const maxConcurrent = Math.max(1, Math.min(8, Math.max(Number(state.settings.maxConcurrent) || 1, activeFanoutTaskCount)));
           if (running.size >= maxConcurrent) break;
           const task = state.tasks.find((item) => {
-            const path = state.workspaces.find((w) => w.id === item.workspaceId)?.path;
-            const lockKey = workspaceLockKey(path);
+            const ws = state.workspaces.find((w) => w.id === item.workspaceId);
+            const lockKey = workspaceLockKey(ws?.runtime?.gitRoot || ws?.path);
             return item.status === "queued" && !running.has(item.id) && Boolean(lockKey) && areTaskDependenciesMet(item) && (item.isolated || !busyWorkspaces.has(lockKey));
           });
           if (!task) break;
-          const workspacePath = state.workspaces.find((w) => w.id === task.workspaceId)?.path;
-          const lockKey = workspaceLockKey(workspacePath);
+          const ws = state.workspaces.find((w) => w.id === task.workspaceId);
+          const lockKey = workspaceLockKey(ws?.runtime?.gitRoot || ws?.path);
           running.set(task.id, { child: null, stopped: false, workspacePath: lockKey, isolated: task.isolated });
           if (!task.isolated && lockKey) busyWorkspaces.add(lockKey);
           if (task.isolated && lockKey) isolatedWorkspaces.set(lockKey, (isolatedWorkspaces.get(lockKey) || 0) + 1);
@@ -567,8 +615,9 @@ export function createTaskRunnerService({
     const workspace = getState().workspaces.find((w) => w.id === task.workspaceId);
     if (!workspace) throw new Error("Workspace của task không còn tồn tại.");
     const info = await inspectWorkspace(workspace.path);
+    workspace.runtime = info;
     if (!info.isGit) throw new Error("Workspace chính không phải là Git repository.");
-    const lockKey = workspaceLockKey(info.path);
+    const lockKey = workspaceLockKey(workspace.runtime?.gitRoot || workspace.path);
     if (busyWorkspaces.has(lockKey)) throw new Error("Workspace chính đang có task khác chạy; hãy đợi hoàn tất trước khi áp dụng worktree.");
     busyWorkspaces.add(lockKey);
     const repoRoot = info.gitRoot || info.path;
@@ -576,11 +625,22 @@ export function createTaskRunnerService({
     let appliedFiles = [];
     try {
       await withGitRepoLock(repoRoot, async () => {
-        await git(wtRoot, ["add", "-A"]);
+        const tempIndexFile = resolve(tmpdir(), `opensybau-wt-index-${task.id}-${randomUUID()}.idx`);
+        const prevGitIndexFile = process.env.GIT_INDEX_FILE;
         const baseRef = task.worktreeBaseHead || "HEAD";
-        const patchRes = await git(wtRoot, ["diff", "--cached", "--binary", "--full-index", baseRef]);
-        const namesRes = await git(wtRoot, ["diff", "--cached", "--name-only", baseRef]);
-        await git(wtRoot, ["reset"]).catch(() => {});
+        let patchRes;
+        let namesRes;
+        try {
+          process.env.GIT_INDEX_FILE = tempIndexFile;
+          const indexEnv = { ...process.env, GIT_INDEX_FILE: tempIndexFile };
+          await git(wtRoot, ["add", "-A"], { env: indexEnv });
+          patchRes = await git(wtRoot, ["diff", "--cached", "--binary", "--full-index", baseRef], { env: indexEnv });
+          namesRes = await git(wtRoot, ["diff", "--cached", "--name-only", baseRef], { env: indexEnv });
+        } finally {
+          if (prevGitIndexFile === undefined) delete process.env.GIT_INDEX_FILE;
+          else process.env.GIT_INDEX_FILE = prevGitIndexFile;
+          await fs.rm(tempIndexFile, { force: true }).catch(() => {});
+        }
         const patchContent = patchRes.stdout || "";
         if (!patchContent.trim()) throw new Error("Worktree không có thay đổi nào để áp dụng vào dự án chính.");
         appliedFiles = (namesRes.stdout || "").split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
@@ -589,14 +649,21 @@ export function createTaskRunnerService({
         }
         await fs.mkdir(task.storagePath, { recursive: true });
         const patchPath = resolve(task.storagePath, "apply-worktree.patch");
-        await fs.writeFile(patchPath, patchContent, "utf8");
-        let applyRes = await git(repoRoot, ["apply", "--3way", "--whitespace=nowarn", patchPath]);
-        if (applyRes.code !== 0) applyRes = await git(repoRoot, ["apply", "--whitespace=nowarn", patchPath]);
+        const normalizedPatch = patchContent.endsWith("\n") ? patchContent : `${patchContent}\n`;
+        await fs.writeFile(patchPath, normalizedPatch, "utf8");
+        const applyRes = await git(repoRoot, ["apply", "--3way", "--whitespace=nowarn", patchPath]);
         if (applyRes.code !== 0) {
-          throw new Error(`Không thể tự động áp dụng worktree (có xung đột Git): ${(applyRes.stderr || applyRes.stdout || "git apply failed").trim().slice(0, 400)}`);
+          const err = new Error(`Không thể tự động áp dụng worktree (có xung đột Git): ${(applyRes.stderr || applyRes.stdout || "git apply failed").trim().slice(0, 400)}`);
+          task.mergeConflict = { at: new Date().toISOString(), message: err.message || String(err) };
+          try { persist(); } catch {}
+          publish("tasks");
+          throw err;
         }
       });
-      task.worktreeAppliedAt = new Date().toISOString();
+      const nowIso = new Date().toISOString();
+      task.worktreeApplied = true;
+      task.worktreeAppliedAt = nowIso;
+      task.mergeConflict = null;
       task.appliedFiles = appliedFiles;
       if (cleanup) {
         await cleanupTaskWorktrees(task);

@@ -74,8 +74,10 @@ export function pipelineStepperData(task) {
     ? task.reviewFindings
     : parseReviewFindings(task.review);
   const qaDone = Boolean(task.qaResult?.completedAt || task.qaResult?.status === "passed" || task.qaResult?.status === "failed");
-  const qaPassed = task.qaResult?.status === "passed" || (!task.qaResult && reviewDone && findings.blocking === 0 && task.status === "done");
-  const prDone = Boolean(task.worktreeAppliedAt || task.mergedAt || task.commitHash || (task.status === "done" && !task.isolated));
+  const qaPassed = task.qaResult?.status === "passed";
+  const prDone = task.isolated
+    ? Boolean(task.worktreeApplied)
+    : Boolean(task.worktreeApplied || task.worktreeAppliedAt || task.mergedAt || task.commitHash || task.status === "done");
 
   const stations = [
     {
@@ -148,7 +150,7 @@ export function pipelineStepperData(task) {
         ? "active"
         : task.qaResult?.status === "failed"
           ? "failed"
-          : (qaDone && qaPassed) || (task.status === "done" && !planOnly)
+          : (qaDone && qaPassed)
             ? "done"
             : "pending",
       sub: task.qaResult?.summary || (qaPassed ? "Đã chạy đạt" : "Chạy lệnh test")
@@ -159,15 +161,17 @@ export function pipelineStepperData(task) {
       viLabel: "6. Gộp vào dự án",
       state: prDone
         ? "done"
-        : task.status === "done" && task.isolated && !task.worktreeAppliedAt
+        : task.status === "done" && task.isolated && !task.worktreeApplied
           ? "attention"
           : "pending",
-      sub: task.commitHash
-        ? `Commit ${String(task.commitHash).slice(0, 7)}`
-        : task.worktreeAppliedAt
-          ? "Đã gộp nhánh"
-          : task.isolated
-            ? "Chờ gộp nhánh"
+      sub: task.isolated
+        ? (task.worktreeApplied
+            ? (task.commitHash ? `Commit ${String(task.commitHash).slice(0, 7)}` : "Đã gộp nhánh")
+            : (task.worktreeCommitHash ? `Worktree ${String(task.worktreeCommitHash).slice(0, 7)} · Chờ gộp` : "Chờ gộp nhánh"))
+        : task.commitHash
+          ? `Commit ${String(task.commitHash).slice(0, 7)}`
+          : task.worktreeAppliedAt
+            ? "Đã gộp nhánh"
             : task.status === "done"
               ? "Hoàn tất"
               : "Lưu thay đổi Git"
@@ -195,8 +199,8 @@ export function pipelineStepperData(task) {
             advisory: 0,
             turns: 1,
             durationMin: 1,
-            durationSec: 18,
-            costUsd: Math.round((costUsd * 0.25) * 100) / 100,
+            durationSec: Math.round(Number(task.stageMetrics?.find((item) => item.stage === "plan")?.durationMs || 0) / 1000),
+            costUsd: 0,
             summary: String(task.plan || "").split(/\r?\n/).find((l) => l.trim()) || "Kế hoạch đã hoàn tất",
           });
         }
@@ -215,8 +219,8 @@ export function pipelineStepperData(task) {
             advisory: 0,
             turns: Math.max(1, (task.events || []).filter((e) => e.kind === "tool").length || 1),
             durationMin: 2,
-            durationSec: 45,
-            costUsd: Math.round((costUsd * 0.5) * 100) / 100,
+            durationSec: Math.round(Number(task.stageMetrics?.findLast((item) => item.stage === "build")?.durationMs || 0) / 1000),
+            costUsd: 0,
             summary: `${(task.artifacts || []).length} tệp thay đổi · ${String(task.implementation || "").split(/\r?\n/).find((l) => l.trim()) || "Đã triển khai"}`,
           });
         }
@@ -235,8 +239,8 @@ export function pipelineStepperData(task) {
             advisory: findings.advisory,
             turns: 1,
             durationMin: 1,
-            durationSec: 20,
-            costUsd: Math.round((costUsd * 0.25) * 100) / 100,
+            durationSec: Math.round(Number(task.stageMetrics?.findLast((item) => item.stage === "review")?.durationMs || 0) / 1000),
+            costUsd: 0,
             summary: String(task.review || "").split(/\r?\n/).find((l) => l.trim()) || "Hoàn tất đánh giá mã nguồn",
           });
         }
@@ -266,7 +270,7 @@ export function pipelineStepperData(task) {
   const cycles = baseCycles.map((c) => {
     const rawStatus = String(c.status || "clean");
     const normStatus = rawStatus === "blocking" || rawStatus === "failed" ? "failed" : rawStatus === "awaiting_approval" || rawStatus === "running" ? "active" : "done";
-    const durSec = Number(c.durationSec || (c.durationMs ? Math.max(1, Math.round(c.durationMs / 1000)) : (c.durationMin ? c.durationMin * 60 : 12)));
+    const durSec = Number(c.durationSec ?? (c.durationMs ? Math.max(1, Math.round(c.durationMs / 1000)) : 0));
     const firstLine = String(c.summary || "").split(/\r?\n/).map((l) => l.replace(/^#+\s*/, "").trim()).find(Boolean) || c.badge || c.provider || "";
     const fallbackTitle = `Vòng ${c.round || 1} · ${stageLabelMap[c.stage] || c.stage || "Bước"}`;
     const normalizedTitle = String(c.label || c.title || fallbackTitle)
@@ -281,7 +285,7 @@ export function pipelineStepperData(task) {
       status: normStatus,
       durationSec: durSec,
       durationMin: Math.max(1, Math.round(durSec / 60)),
-      costUsd: Number(c.costUsd ?? (c.stage === "build" ? costUsd * 0.5 : c.stage === "plan" || c.stage === "review" ? costUsd * 0.25 : 0)),
+      costUsd: Number(c.costUsd ?? 0),
       summary: firstLine.slice(0, 140),
     };
   });
@@ -591,7 +595,7 @@ export function orchestrationNodes(task) {
   const findings = parseReviewFindings(task.review);
   nodes.push({ id: "review", group: `BƯỚC 4 · ${label(reviewRole.provider).toLocaleUpperCase()}`, title: `Kiểm tra code (${findings.blocking} lỗi chặn · ${findings.advisory} lưu ý)`, detail: `${reviewRole.model || "Model chưa lưu"} · ${reviewRole.effort || "mức suy nghĩ đã chọn"}`, icon: "book-check", order: 7, state: status(7, Boolean(task.review) || pipelineCompleted, task.phase === "review", true), output: task.review });
   if (task.qaCommand || task.qaResult || task.phase === "qa") {
-    const qaDone = Boolean(task.qaResult?.completedAt) || pipelineCompleted;
+    const qaDone = task.qaResult?.status === "passed";
     nodes.push({
       id: "qa",
       group: "BƯỚC 5 · CHẠY THỬ",

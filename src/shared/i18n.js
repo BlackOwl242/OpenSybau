@@ -71,6 +71,8 @@ const english = {
   "Cần đăng nhập": "Sign-in required",
   "Cần kiểm tra": "Needs attention",
   "Bắt đầu đăng nhập": "Start sign-in",
+  "Đăng nhập": "Sign in",
+  "Đổi tài khoản": "Switch account",
   "Mở terminal đăng nhập": "Open sign-in terminal",
   "Mở CLI để kiểm tra": "Open CLI to check",
   "Đã cài đặt xong và mở cửa sổ đăng nhập CLI.": "CLI installed and sign-in terminal opened.",
@@ -1456,6 +1458,7 @@ const english = {
   "Cây thư mục & Thay đổi": "Files & Changes",
   "Commit, PR & Worktree": "Commit, PR & Worktree",
   "Công cụ CLI & Hạn mức": "CLI Tools & Quotas",
+  "Chưa có dữ liệu": "No data",
   "Tự động nhận diện Codex, Antigravity, Claude Code và kiểm tra hạn mức tài khoản trên máy.": "Automatically detect Codex, Antigravity, and Claude Code and inspect live account quotas on this computer.",
   "Cập nhật hạn mức": "Update quotas",
   "Đang tải hạn mức...": "Refreshing quotas...",
@@ -1566,6 +1569,9 @@ const english = {
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));
 const englishDictionary = new Map(Object.entries(english));
+Object.defineProperty(english, "has", { value: (key) => englishDictionary.has(key) });
+const translationCache = new Map();
+const MAX_TRANSLATION_CACHE_SIZE = 4000;
 const sourceTexts = new WeakMap();
 const sourceAttributes = new WeakMap();
 
@@ -1745,26 +1751,52 @@ function dynamicTranslation(value, language) {
   return value;
 }
 
+function cacheTranslation(cacheKey, result) {
+  if (translationCache.size >= MAX_TRANSLATION_CACHE_SIZE) {
+    const oldestKey = translationCache.keys().next().value;
+    if (oldestKey !== undefined) translationCache.delete(oldestKey);
+  }
+  translationCache.set(cacheKey, result);
+  return result;
+}
+
+export function translateCoreText(core, language = getLanguage()) {
+  if (!core) return core;
+  const cacheKey = `${language}:${core}`;
+  const cached = translationCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const dictionary = language === "en" ? englishDictionary : vietnamese;
+  const exact = dictionary.get(core);
+  if (exact) return cacheTranslation(cacheKey, exact);
+  if (language === "vi") {
+    if (english.has(core) || /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(core)) {
+      return cacheTranslation(cacheKey, core);
+    }
+  }
+  const dynamic = dynamicTranslation(core, language);
+  if (dynamic !== core) return cacheTranslation(cacheKey, dynamic);
+  // Translate complete labels, never individual words inside an unknown sentence.
+  // A metadata row may contain several independent labels separated by a middle dot.
+  const parts = core.split(/(\s+·\s+|\n+)/);
+  if (parts.length > 1) {
+    return cacheTranslation(cacheKey, parts.map((part, index) => (index % 2 ? part : translateText(part, language))).join(""));
+  }
+  if (core.endsWith(":")) {
+    const label = dictionary.get(core.slice(0, -1));
+    if (label) return cacheTranslation(cacheKey, `${label}:`);
+  }
+  return cacheTranslation(cacheKey, core);
+}
+
 export function translateText(input, language = getLanguage()) {
   const value = String(input ?? "");
   const leading = value.match(/^\s*/)?.[0] || "";
   const trailing = value.match(/\s*$/)?.[0] || "";
   const core = value.slice(leading.length, value.length - trailing.length || undefined);
   if (!core) return value;
-  const dictionary = language === "en" ? englishDictionary : vietnamese;
-  const exact = dictionary.get(core);
-  if (exact) return `${leading}${exact}${trailing}`;
-  const dynamic = dynamicTranslation(core, language);
-  if (dynamic !== core) return `${leading}${dynamic}${trailing}`;
-  // Translate complete labels, never individual words inside an unknown sentence.
-  // A metadata row may contain several independent labels separated by a middle dot.
-  const parts = core.split(/(\s+·\s+|\n+)/);
-  if (parts.length > 1) return `${leading}${parts.map((part, index) => index % 2 ? part : translateText(part, language)).join("")}${trailing}`;
-  if (core.endsWith(":")) {
-    const label = dictionary.get(core.slice(0, -1));
-    if (label) return `${leading}${label}:${trailing}`;
-  }
-  return value;
+  const translated = translateCoreText(core, language);
+  return translated === core ? value : `${leading}${translated}${trailing}`;
 }
 
 const translatableAttributes = ["aria-label", "aria-description", "title", "placeholder", "alt"];
@@ -1801,6 +1833,7 @@ export function localizeDom(root, language = getLanguage()) {
   const elements = [...(root.matches?.(selector) ? [root] : []), ...(root.querySelectorAll?.(selector) || [])];
   for (const element of elements) {
     if (element.matches("[data-task], [data-workspace], .wb-task-heading")) continue;
+    if (element.closest(dynamicContentSelector)) continue;
     for (const attribute of translatableAttributes) {
       const value = element.getAttribute(attribute);
       if (value == null) continue;
@@ -1815,32 +1848,65 @@ export function localizeDom(root, language = getLanguage()) {
   }
 }
 
+const DEFAULT_OBSERVER_IGNORE_SELECTOR = "#viewRoot, #content, .orca-right-dock, .wb-page-sidebar, [data-stable-html]";
+
 // Preact menus can render independently of the controller. Localize those updates
 // from their original labels too, without translating user messages or file data.
-export function observeLocalization(root) {
+export function observeLocalization(root, { ignoreSelector = DEFAULT_OBSERVER_IGNORE_SELECTOR, debounce = false } = {}) {
   if (!root || typeof MutationObserver === "undefined") return () => {};
   const options = { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: translatableAttributes };
+  const pending = new Set();
+  let rafId = 0;
+
+  const flush = () => {
+    rafId = 0;
+    if (!pending.size) return;
+    const changed = [...pending];
+    pending.clear();
+    observer.disconnect();
+    for (const candidate of changed) {
+      if (
+        candidate.isConnected
+        && (!ignoreSelector || !candidate.closest?.(ignoreSelector))
+        && !changed.some((other) => other !== candidate && other.contains(candidate))
+      ) {
+        localizeDom(candidate);
+      }
+    }
+    observer.observe(root, options);
+  };
+
   const observer = new MutationObserver((records) => {
-    const changed = new Set();
     for (const record of records) {
       const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
-      if (!target || target.closest(dynamicContentSelector)) continue;
+      if (!target || target.closest(dynamicContentSelector) || (ignoreSelector && target.closest(ignoreSelector))) continue;
       if (record.type === "childList") {
         for (const node of record.addedNodes) {
           const candidate = node.nodeType === 1 ? node : node.parentElement;
-          if (candidate && !candidate.closest(dynamicContentSelector)) changed.add(candidate);
+          if (
+            candidate
+            && !candidate.closest(dynamicContentSelector)
+            && (!ignoreSelector || !candidate.closest(ignoreSelector))
+          ) {
+            pending.add(candidate);
+          }
         }
-      } else changed.add(target);
+      } else {
+        pending.add(target);
+      }
     }
-    if (!changed.size) return;
-    observer.disconnect();
-    for (const candidate of changed) {
-      if (candidate.isConnected && ![...changed].some((other) => other !== candidate && other.contains(candidate))) localizeDom(candidate);
+    if (!pending.size) return;
+    if (debounce && typeof requestAnimationFrame === "function") {
+      if (!rafId) rafId = requestAnimationFrame(flush);
+    } else {
+      flush();
     }
-    observer.observe(root, options);
   });
   observer.observe(root, options);
-  return () => observer.disconnect();
+  return () => {
+    if (rafId && typeof cancelAnimationFrame === "function") cancelAnimationFrame(rafId);
+    observer.disconnect();
+  };
 }
 
 export function formatNumber(value, language = getLanguage()) {

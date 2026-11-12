@@ -8,6 +8,7 @@ import {
   safeRelativePath,
   within,
 } from "./fs-security.mjs";
+import { rustBuildVaultGraphAsync } from "./rust-accelerator.mjs";
 
 export function normalizeVaultNoteRelativePath(relativePath) {
   let clean = safeRelativePath(relativePath).split(sep).join("/").replace(/^\/+|\/+$/g, "");
@@ -27,18 +28,42 @@ export async function writeVaultMarkdownFile(rootPath, relativePath, content, { 
   }
   const rel = normalizeVaultNoteRelativePath(relativePath);
   const realRoot = await fs.realpath(resolve(rootPath));
-  const target = resolve(realRoot, rel);
-  if (!within(realRoot, target) || target === realRoot) throw new Error("Đường dẫn tệp nằm ngoài Obsidian vault.");
-  const parentDir = dirname(target);
+  const fullPath = resolve(realRoot, rel);
+  if (!within(realRoot, fullPath) || fullPath === realRoot) throw new Error("Đường dẫn tệp nằm ngoài Obsidian vault.");
+  const parentDir = dirname(fullPath);
+  let ancestor = parentDir;
+  while (within(realRoot, ancestor)) {
+    const ancestorLstat = await fs.lstat(ancestor).catch(() => null);
+    if (ancestorLstat) {
+      if (ancestorLstat.isSymbolicLink()) {
+        throw new Error("Không cho phép tạo thư mục qua liên kết tượng trưng (symlink) trong vault.");
+      }
+      const realAncestor = await fs.realpath(ancestor);
+      if (!within(realRoot, realAncestor)) {
+        throw new Error("Thư mục đích nằm ngoài Obsidian vault.");
+      }
+      break;
+    }
+    const nextAncestor = dirname(ancestor);
+    if (nextAncestor === ancestor) break;
+    ancestor = nextAncestor;
+  }
   await fs.mkdir(parentDir, { recursive: true });
   const realParent = await fs.realpath(parentDir);
   if (!within(realRoot, realParent)) throw new Error("Thư mục đích không hợp lệ.");
-  if (createOnly && existsSync(target)) throw new Error(`Ghi chú “${rel}” đã tồn tại.`);
-  if (existsSync(target)) {
-    const existingStat = await fs.lstat(target);
-    if (existingStat.isSymbolicLink() || existingStat.isDirectory()) throw new Error("Không thể ghi đè thư mục hoặc symlink.");
+  const existingStat = await fs.lstat(fullPath).catch((err) => {
+    if (err && err.code === "ENOENT") return null;
+    throw err;
+  });
+  if (existingStat) {
+    if (existingStat.isSymbolicLink() || existingStat.isDirectory()) {
+      throw new Error("Không thể ghi đè thư mục hoặc symlink.");
+    }
+    if (createOnly) {
+      throw new Error(`Ghi chú “${rel}” đã tồn tại.`);
+    }
   }
-  await fs.writeFile(target, content, "utf8");
+  await fs.writeFile(fullPath, content, "utf8");
   return readLocalTextFile(realRoot, rel, true);
 }
 
@@ -69,6 +94,12 @@ export async function openObsidianUri(vaultPath, relativePath = "") {
 
 export async function buildVaultKnowledgeGraph(rootPath) {
   const realRoot = await fs.realpath(resolve(rootPath));
+  try {
+    const rustGraph = await rustBuildVaultGraphAsync(realRoot);
+    if (rustGraph && Array.isArray(rustGraph.nodes) && Array.isArray(rustGraph.edges)) {
+      return rustGraph;
+    }
+  } catch {}
   const noteFiles = [];
   async function walk(dir) {
     if (noteFiles.length >= 400) return;

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, promises as fs } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
+import { trackCommand } from "./tool-activity.mjs";
 
 const MAX_TASK_SUBAGENTS = 64;
 const MAX_SUBAGENT_EVENTS = 120;
@@ -60,6 +61,20 @@ function mergeUsageMetrics(prev = null, incoming = null) {
   base.cached_input_tokens = (Number(base.cached_input_tokens) || 0) + cached;
   base.total_tokens = (Number(base.total_tokens) || 0) + (explicitTotal || (input + output));
   return base;
+}
+
+export function rollupTaskSubagentUsage(task) {
+  if (!task || typeof task !== "object") return null;
+  let rolled = null;
+  for (const sub of task.subagents || []) {
+    if (sub?.usage && typeof sub.usage === "object") {
+      rolled = mergeUsageMetrics(rolled, sub.usage);
+    }
+  }
+  if (rolled) {
+    task.subagentUsage = rolled;
+  }
+  return rolled;
 }
 
 export function ensureTaskSubagentContainers(task) {
@@ -190,6 +205,19 @@ export function createStageSubagentTracker({
     }
   }
 
+  function pruneCompletedSubagents() {
+    while (summaries.length > MAX_TASK_SUBAGENTS) {
+      const index = summaries.findIndex((item) => ["completed", "done", "failed", "cancelled", "unknown"].includes(item.status));
+      if (index < 0) break; // Never drop an active subagent to satisfy the history limit.
+      const [evicted] = summaries.splice(index, 1);
+      if (!evicted?.id) continue;
+      delete details[evicted.id];
+      for (const [aliasKey, targetId] of aliasToId.entries()) {
+        if (targetId === evicted.id) aliasToId.delete(aliasKey);
+      }
+    }
+  }
+
   function upsertSubagent(patch = {}) {
     const nowIso = patch.at || new Date().toISOString();
     const lookupKeys = [patch.id, patch.externalId, ...(patch.aliases || [])].filter(Boolean).map(String);
@@ -232,14 +260,12 @@ export function createStageSubagentTracker({
         resultPreview: "",
       };
       summaries.push(sub);
-      if (summaries.length > MAX_TASK_SUBAGENTS) {
-        const evicted = summaries.shift();
-        if (evicted?.id) delete details[evicted.id];
-      }
+      pruneCompletedSubagents();
       aliasToId.set(sub.id, sub.id);
       stageSpawnedIds.add(sub.id);
     }
 
+    if (patch.at && Date.parse(patch.at) < Date.parse(sub.updatedAt)) return sub;
     for (const key of lookupKeys) bindAlias(sub, key);
     if (parentSub?.id && !sub.parentId && parentSub.id !== sub.id) {
       sub.parentId = parentSub.id;
@@ -268,7 +294,26 @@ export function createStageSubagentTracker({
       sub.resultPreview = previewText(patch.result, 400);
     }
     if (patch.usage) {
-      sub.usage = mergeUsageMetrics(sub.usage, patch.usage);
+      const prevUsage = sub.usage ? { ...sub.usage } : null;
+      sub.usage = patch.replaceUsage
+        ? mergeUsageMetrics(null, patch.usage)
+        : mergeUsageMetrics(sub.usage, patch.usage);
+      rollupTaskSubagentUsage(task);
+      const deltaUsage = {
+        input_tokens: Math.max(0, (Number(sub.usage?.input_tokens) || 0) - (Number(prevUsage?.input_tokens) || 0)),
+        output_tokens: Math.max(0, (Number(sub.usage?.output_tokens) || 0) - (Number(prevUsage?.output_tokens) || 0)),
+        cached_input_tokens: Math.max(0, (Number(sub.usage?.cached_input_tokens) || 0) - (Number(prevUsage?.cached_input_tokens) || 0)),
+        total_tokens: Math.max(0, (Number(sub.usage?.total_tokens) || 0) - (Number(prevUsage?.total_tokens) || 0)),
+      };
+      if (deltaUsage.total_tokens > 0 || deltaUsage.input_tokens > 0 || deltaUsage.output_tokens > 0) {
+        const providerKey = sub.harness || harness || "subagent";
+        if (typeof addTaskUsage === "function") {
+          addTaskUsage(task, providerKey, deltaUsage);
+        } else {
+          task.usage ||= {};
+          task.usage[providerKey] = mergeUsageMetrics(task.usage[providerKey], deltaUsage);
+        }
+      }
     }
     if (Number(patch.toolCountFloor) > sub.toolCount) {
       sub.toolCount = Number(patch.toolCountFloor);
@@ -314,6 +359,7 @@ export function createStageSubagentTracker({
       sub.durationMs = Math.max(0, nowMs - startedMs);
     }
 
+    pruneCompletedSubagents();
     touchTask(nowIso);
     return sub;
   }
@@ -376,17 +422,17 @@ export function createStageSubagentTracker({
     for (const sub of summaries) {
       if (!stageSpawnedIds.has(sub.id)) continue;
       if (!["spawning", "running", "waiting"].includes(sub.status)) continue;
-      sub.status = outcome === "cancelled" ? "cancelled" : outcome === "failed" ? "failed" : "completed";
+      sub.status = outcome === "cancelled" ? "cancelled" : outcome === "failed" ? "failed" : "unknown";
       sub.completedAt = nowIso;
       sub.updatedAt = nowIso;
       sub.durationMs = Math.max(0, Date.now() - (Date.parse(sub.startedAt) || Date.now()));
       if (reason) sub.lastActivity = previewText(reason, 180);
-      else if (sub.status === "completed" && !sub.resultPreview) {
-        sub.lastActivity = sub.lastActivity || "Hoàn tất cùng phiên chính";
+      else if (sub.status === "unknown") {
+        sub.lastActivity = "Phiên chính kết thúc; CLI chưa xác nhận kết quả subagent";
       }
       changed = true;
     }
-    if (changed) touchTask(nowIso);
+    if (changed) { pruneCompletedSubagents(); touchTask(nowIso); }
   }
 
   return {
@@ -411,6 +457,7 @@ export function createClaudeStreamContext(task, outputParts, tracker) {
     outputParts,
     tracker,
     toolUseMap: new Map(),
+    backgroundTaskMap: new Map(),
     sawStreamDeltas: false,
     turnUsageFallback: null,
     finalResultText: "",
@@ -437,6 +484,29 @@ export function parseClaudeStreamLine(line, ctx) {
 
   const type = String(event.type || "").toLowerCase();
   const parentToolUseId = event.parent_tool_use_id || event.message?.parent_tool_use_id || null;
+
+  if (type === "system" && ["task_started", "task_progress", "task_notification", "task_updated"].includes(event.subtype) && event.task_id) {
+    const taskId = String(event.task_id);
+    const mappedId = event.tool_use_id || ctx.backgroundTaskMap.get(taskId);
+    const tool = ctx.toolUseMap.get(mappedId);
+    if (!tool) return; // No reliable link: do not invent a process or agent.
+    ctx.backgroundTaskMap.set(taskId, mappedId);
+    const rawStatus = event.status || event.patch?.status;
+    const terminalStatus = ({completed:"completed",failed:"failed",stopped:"cancelled",killed:"cancelled"})[rawStatus];
+    if (tool.isSubagent) {
+      const sub = tracker.findByExternalId(tool.subagentId);
+      if (!sub) return;
+      tracker.bindAlias(sub, taskId);
+      const ended = ["completed", "failed", "cancelled"].includes(sub.status);
+      tracker.upsertSubagent({ id: sub.id, status: terminalStatus || (ended ? undefined : "running"), result: terminalStatus ? event.summary : undefined, usage: event.usage, replaceUsage: true, lastActivity: event.summary || event.description || event.last_tool_name || rawStatus, eventEntry: { kind: "stage", toolName: event.last_tool_name, text: event.summary || event.description || event.subtype, status: terminalStatus || "running" } });
+    } else if (["Bash", "PowerShell"].includes(tool.toolName)) {
+      const existing = (task.commandActivities || []).find((item) => item.id === `claude-cli:${mappedId}`);
+      const ended = existing && ["completed", "failed", "cancelled"].includes(existing.status);
+      trackCommand(task, { id: mappedId, source: "claude-cli", command: tool.cmd, status: terminalStatus || (ended ? existing.status : "running"), output: event.summary, background: true, parentId: tool.parentToolUseId });
+      tracker.schedulePersist?.(); tracker.schedulePublish?.("task");
+    }
+    return;
+  }
 
   if (type === "stream_event") {
     const inner = event.event || {};
@@ -507,7 +577,7 @@ export function parseClaudeStreamLine(line, ctx) {
               status: "running",
             },
           });
-          if (toolId) ctx.toolUseMap.set(toolId, { isSubagent: true, subagentId: sub.id, role, agentType });
+          if (toolId) ctx.toolUseMap.set(toolId, { isSubagent: true, subagentId: sub.id, role, agentType, background });
           record(task, `Claude khởi chạy subagent · ${role} (${agentType})`, "tool", {
             toolName: "subagent",
             subagentId: sub.id,
@@ -517,8 +587,9 @@ export function parseClaudeStreamLine(line, ctx) {
           });
         } else {
           const cmd = String(input.command || input.cmd || "").slice(0, 240);
+          if (["Bash", "PowerShell"].includes(toolName)) trackCommand(task, { id: toolId, source: "claude-cli", command: cmd, status: "running", parentId: parentToolUseId, background: Boolean(input.run_in_background) });
           const filePath = String(input.file_path || input.path || input.file || input.pattern || "").slice(0, 200);
-          if (toolId) ctx.toolUseMap.set(toolId, { isSubagent: false, toolName, cmd, filePath, parentToolUseId });
+          if (toolId) ctx.toolUseMap.set(toolId, { isSubagent: false, toolName, cmd, filePath, parentToolUseId, background: Boolean(input.run_in_background) });
           if (parentToolUseId && tracker.findByExternalId(parentToolUseId)) {
             tracker.recordSubagentTool({
               externalId: parentToolUseId,
@@ -563,6 +634,12 @@ export function parseClaudeStreamLine(line, ctx) {
 
       const sub = toolUseId ? tracker.findByExternalId(toolUseId) : null;
       if (sub) {
+        // An asynchronous launch acknowledgment is not a completion report.
+        if (!isErr && (resultMeta?.isAsync || resultMeta?.async || ctx.toolUseMap.get(toolUseId)?.background)) {
+          if (resultMeta?.agentId) tracker.bindAlias(sub, resultMeta.agentId);
+          tracker.upsertSubagent({ id: sub.id, lastActivity: "Đã khởi chạy nền; đang chờ kết quả", eventEntry: { kind: "tool", text: "CLI xác nhận khởi chạy nền", status: "running" } });
+          continue;
+        }
         const metaUsage = resultMeta?.usage || (Number(resultMeta?.totalTokens) > 0 ? { total_tokens: Number(resultMeta.totalTokens) } : null);
         tracker.upsertSubagent({
           id: sub.id,
@@ -595,6 +672,8 @@ export function parseClaudeStreamLine(line, ctx) {
         continue;
       }
 
+      const commandTool = ctx.toolUseMap.get(toolUseId);
+      if (commandTool && ["Bash", "PowerShell"].includes(commandTool.toolName)) trackCommand(task, { id: toolUseId, source: "claude-cli", command: commandTool.cmd, status: isErr ? "failed" : commandTool.background ? "unknown" : "completed", output: resultText });
       if (parentToolUseId && tracker.findByExternalId(parentToolUseId)) {
         const trackedTool = ctx.toolUseMap.get(toolUseId);
         tracker.recordSubagentTool({
@@ -664,9 +743,10 @@ function mapCodexAgentState(rawState) {
     ? rawState.toLowerCase()
     : String(rawState?.status || rawState?.state || "").toLowerCase();
   if (!value) return "";
-  if (value.includes("complete") || value === "done" || value === "idle") return "completed";
+  if (value.includes("complete") || value === "done") return "completed";
+  if (["notfound", "idle"].includes(value)) return "unknown";
   if (value.includes("error") || value.includes("fail")) return "failed";
-  if (value.includes("shutdown") || value.includes("cancel") || value.includes("close")) return "cancelled";
+  if (value.includes("shutdown") || value.includes("cancel") || value.includes("close") || value === "interrupted") return "cancelled";
   if (value.includes("pending") || value.includes("init") || value.includes("spawn")) return "spawning";
   if (value.includes("wait")) return "waiting";
   return "running";
@@ -705,6 +785,10 @@ export function parseCodexStreamLine(line, ctx) {
   }
 
   const item = event.item || {};
+  if (item.type === "command_execution" && ["item.started", "item.updated", "item.completed"].includes(event.type)) {
+    trackCommand(task, { id: item.id, source: "codex-cli", command: Array.isArray(item.command) ? item.command.join(" ") : item.command, status: event.type === "item.completed" ? (item.exit_code === 0 ? "completed" : item.exit_code != null ? "failed" : "unknown") : "running", output: item.aggregated_output, exitCode: item.exit_code, parentId: isChildThread ? sid : null });
+    tracker.schedulePersist?.(); tracker.schedulePublish?.("task");
+  }
 
   if (item.type === "collab_tool_call" && ["item.started", "item.updated", "item.completed"].includes(event.type)) {
     ctx.sawCollabActivity = true;
@@ -757,10 +841,14 @@ export function parseCodexStreamLine(line, ctx) {
       return;
     }
 
-    if (item.id && ctx.pendingSpawnItemIds.has(String(item.id)) && uniqueTargets.length === 1) {
+    if (item.id && ctx.pendingSpawnItemIds.has(String(item.id)) && uniqueTargets.length >= 1) {
       const pendingSubId = ctx.pendingSpawnItemIds.get(String(item.id));
       const pendingSub = tracker.findByExternalId(pendingSubId);
-      if (pendingSub) tracker.bindAlias(pendingSub, uniqueTargets[0]);
+      if (pendingSub) {
+        for (const targetKey of uniqueTargets) {
+          tracker.bindAlias(pendingSub, targetKey);
+        }
+      }
       if (event.type === "item.completed") ctx.pendingSpawnItemIds.delete(String(item.id));
     }
 
@@ -776,8 +864,8 @@ export function parseCodexStreamLine(line, ctx) {
         : "";
       let nextStatus = mappedState || undefined;
       if (!nextStatus) {
-        if (opLower.includes("close")) nextStatus = "completed";
-        else if (opLower.includes("wait") && event.type === "item.completed") nextStatus = item.exit_code && item.exit_code !== 0 ? "failed" : "completed";
+        if (opLower.includes("close")) nextStatus = "cancelled";
+        else if (opLower.includes("wait") && event.type === "item.completed") nextStatus = "unknown";
         else if (opLower.includes("wait")) nextStatus = "waiting";
         else nextStatus = "running";
       }
@@ -984,6 +1072,7 @@ export async function enrichCodexSubagentsFromRollouts({
               if (spawnedId) {
                 childThreadIds.add(spawnedId);
                 const role = String(callInfo.args?.agent_type || callInfo.args?.role || outJson?.nickname || "Codex Worker").trim();
+                const existingSpawned = tracker.findByExternalId(spawnedId);
                 tracker.upsertSubagent({
                   externalId: spawnedId,
                   name: outJson?.nickname || role,
@@ -991,7 +1080,9 @@ export async function enrichCodexSubagentsFromRollouts({
                   agentType: callInfo.args?.agent_type || "worker",
                   model: callInfo.args?.model || "inherit",
                   prompt: String(callInfo.args?.message || callInfo.args?.prompt || ""),
-                  status: "running",
+                  status: existingSpawned?.status === "failed" || existingSpawned?.status === "cancelled" || existingSpawned?.status === "completed"
+                    ? existingSpawned.status
+                    : "running",
                 });
               }
             }
@@ -1037,6 +1128,10 @@ export async function enrichCodexSubagentsFromRollouts({
         }
       }
 
+      const existingSub = tracker.findByExternalId(sessionId);
+      const preservedStatus = existingSub?.status === "failed" || existingSub?.status === "cancelled"
+        ? existingSub.status
+        : (lastOutput ? "completed" : undefined);
       tracker.upsertSubagent({
         externalId: sessionId,
         role: childRole || undefined,
@@ -1044,7 +1139,8 @@ export async function enrichCodexSubagentsFromRollouts({
         toolCountFloor: toolCalls,
         result: lastOutput || undefined,
         usage: latestUsage || undefined,
-        status: lastOutput ? "completed" : undefined,
+        replaceUsage: true,
+        status: preservedStatus,
       });
     }
   } catch {}
@@ -1056,7 +1152,9 @@ export function createAgyStreamContext(task, outputParts, tracker) {
     outputParts,
     tracker,
     rootSessionId: "",
+    mainSessionId: "",
     pendingAgyCalls: new Map(),
+    pendingAgyQueue: [],
     callCounter: 0,
   };
 }
@@ -1077,17 +1175,43 @@ export function parseAgyStreamLine(line, ctx) {
 
   const sid = event.session_id || event.conversation_id || event.thread_id || "";
   if (sid && typeof sid === "string") {
-    if (!ctx.rootSessionId) {
+    if (!ctx.mainSessionId && !ctx.rootSessionId && !event.parent_conversation_id) {
       ctx.rootSessionId = sid;
+      ctx.mainSessionId = sid;
       task.cliSessions ||= {};
       task.cliSessions.antigravity = sid;
+    } else if (ctx.rootSessionId && !ctx.mainSessionId) {
+      ctx.mainSessionId = ctx.rootSessionId;
+    } else if (ctx.mainSessionId && !ctx.rootSessionId) {
+      ctx.rootSessionId = ctx.mainSessionId;
     }
   }
 
   const isChildSession = Boolean(
     (event.parent_conversation_id && event.conversation_id)
-    || (sid && ctx.rootSessionId && sid !== ctx.rootSessionId && tracker.findByExternalId(sid))
+    || (sid && ctx.mainSessionId && sid !== ctx.mainSessionId)
   );
+  if (isChildSession) {
+    const childKey = String(event.conversation_id || sid);
+    if (childKey && !tracker.findByExternalId(childKey)) {
+      let boundSub = null;
+      while (ctx.pendingAgyQueue.length > 0 && !boundSub) {
+        const nextId = ctx.pendingAgyQueue.shift();
+        boundSub = tracker.findByExternalId(nextId);
+      }
+      if (boundSub) {
+        tracker.bindAlias(boundSub, childKey);
+      } else {
+        tracker.upsertSubagent({
+          externalId: childKey,
+          role: `Antigravity Subagent (${childKey.slice(0, 8)})`,
+          agentType: "research",
+          status: "running",
+          lastActivity: `Đang chạy phiên con (${childKey.slice(0, 8)})`,
+        });
+      }
+    }
+  }
 
   const type = String(event.type || event.event || "").toLowerCase();
   const update = event.step_update || {};
@@ -1230,7 +1354,7 @@ export function parseAgyStreamLine(line, ctx) {
           },
         });
         ctx.pendingAgyCalls.set(provisionalKey, sub.id);
-        ctx.pendingAgyCalls.set("__latest__", sub.id);
+        ctx.pendingAgyQueue.push(sub.id);
         record(task, `Antigravity khởi chạy subagent · ${role} (${agentType})`, "tool", {
           toolName: "subagent",
           subagentId: sub.id,
@@ -1239,10 +1363,19 @@ export function parseAgyStreamLine(line, ctx) {
           detail: subPrompt ? subPrompt.slice(0, 320) : undefined,
         });
       } else {
-        const subId = (callKey && ctx.pendingAgyCalls.get(callKey)) || ctx.pendingAgyCalls.get("__latest__");
-        const sub = subId ? tracker.findByExternalId(subId) : null;
         const convMatch = toolResultText.match(/"conversationId"\s*:\s*"([^"]+)"/);
         const convId = convMatch?.[1] || "";
+        let sub = convId ? tracker.findByExternalId(convId) : null;
+        if (!sub && callKey && ctx.pendingAgyCalls.has(callKey)) {
+          const mappedId = ctx.pendingAgyCalls.get(callKey);
+          sub = tracker.findByExternalId(mappedId);
+          const qIdx = ctx.pendingAgyQueue.indexOf(mappedId);
+          if (qIdx >= 0) ctx.pendingAgyQueue.splice(qIdx, 1);
+        }
+        if (!sub && ctx.pendingAgyQueue.length > 0) {
+          const nextId = ctx.pendingAgyQueue.shift();
+          sub = tracker.findByExternalId(nextId);
+        }
         if (sub) {
           if (convId) tracker.bindAlias(sub, convId);
           tracker.upsertSubagent({

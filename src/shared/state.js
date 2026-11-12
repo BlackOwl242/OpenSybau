@@ -65,6 +65,7 @@ export const view = {
   chatModel: "",
   chatEffort: "",
   chatDraft: "",
+  chatDraftsByTask: {},
   composerAttachments: {},
   chatConfigOpen: false,
   homeMode: "chat",
@@ -160,4 +161,18 @@ export { formatNumber };
 export function tokenCount(usage) {
   if (!usage || typeof usage !== "object") return 0;
   return Number(usage.total_tokens ?? ((usage.input_tokens || usage.prompt_tokens || 0) + (usage.output_tokens || usage.completion_tokens || 0))) || 0;
+}
+
+export function setBoundedCache(obj, key, value, maxKeys = 60) {
+  if (!obj || typeof obj !== "object" || !key) return value;
+  if (Object.hasOwn(obj, key)) {
+    delete obj[key];
+  }
+  obj[key] = value;
+  const keys = Object.keys(obj);
+  while (keys.length > maxKeys) {
+    const oldest = keys.shift();
+    if (oldest !== undefined) delete obj[oldest];
+  }
+  return value;
 }

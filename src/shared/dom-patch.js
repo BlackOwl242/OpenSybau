@@ -54,7 +54,10 @@ export function patchHtml(element, html, { background = false } = {}) {
       // Canvas state and dimensions are managed by its renderer.
       if (from.tagName === "CANVAS") return false;
       if (from.matches("input, textarea, select")) return true;
-      return !from.isEqualNode(to) || (!background && Boolean(from.querySelector("input, textarea, select")));
+      const memo = from.getAttribute("data-memo-key");
+      if (memo && memo === to.getAttribute("data-memo-key")) return false;
+      if (from.childElementCount === 0 && to.childElementCount === 0 && from.isEqualNode(to)) return false;
+      return true;
     },
   });
   [...element.querySelectorAll(SCROLL_SELECTOR)].forEach((el, idx) => {
@@ -68,4 +71,6 @@ export function patchHtml(element, html, { background = false } = {}) {
     if (selection) focused.setSelectionRange(...selection);
   }
 }
+
+export const patchElementHtml = patchHtml;
 

@@ -1004,8 +1004,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   gap: 5px;
 }
 .wb-quota-group + .wb-quota-group {
-  padding-top: 7px;
-  border-top: 1px solid var(--wb-line);
+  padding-top: 4px;
 }
 .wb-quota-group-title {
   font-size: 10.5px;
@@ -1014,7 +1013,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 }
 .wb-quota-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
   gap: 10px;
 }
 .wb-quota-window-row {
@@ -1150,11 +1149,16 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   color: var(--wb-muted) !important;
 }
 .cli-quota-inline {
+  min-width: 0;
   margin-top: 2px;
   padding: 9px 11px;
   border: 1px solid var(--wb-line);
   border-radius: 8px;
   background: var(--wb-panel);
+}
+.wb-quota-unavailable {
+  color: var(--wb-muted);
+  font-size: 11px;
 }
 .chat-response-meta {
   display: flex;

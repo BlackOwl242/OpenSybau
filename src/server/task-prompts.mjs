@@ -1,10 +1,18 @@
 import { randomUUID } from "node:crypto";
+import { dirname, resolve } from "node:path";
 import { providerLabel } from "./provider-registry.mjs";
 import { roleConfig, workflowRoles } from "../domain/agent-roles.js";
-import { listRemoteContextFiles as listRemoteContextFilesBase, usesSharedCheckout } from "./fs-security.mjs";
+import {
+  isForbiddenSystemPath as checkBaseForbiddenSystemPath,
+  listRemoteContextFiles as listRemoteContextFilesBase,
+  usesSharedCheckout,
+  within,
+} from "./fs-security.mjs";
 import { externalWorkspaceContext as buildExternalWorkspaceContext } from "./api-build-ops.mjs";
 import { formatProgressiveSkillsIndex } from "./skill-catalog.mjs";
 import { userProfileMemorySnapshot, WORKSPACE_MEMORY_MAX_CHARS } from "./memory-bm25.mjs";
+
+export const COMPACT_RECENT_TURNS = 12;
 
 export function roleLabel(role) {
   return workflowRoles.find((item) => item.id === role)?.label || role;
@@ -147,7 +155,14 @@ export function summarizeTurnsForCompaction(turns = [], existingSummary = "") {
     const turn = turns[i];
     const speaker = turn.role === "user" ? "User" : (turn.provider || "Assistant");
     const firstLine = String(turn.content || "")
-      .replace(/```[\s\S]*?```/g, "[code block]")
+      .replace(/```([^\r\n`]*)\r?\n?([\s\S]*?)```/g, (_match, rawLang, codeBody) => {
+        const lang = String(rawLang || "").trim().split(/\s+/)[0] || "text";
+        const firstCodeLine = String(codeBody || "")
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .find(Boolean) || "";
+        return firstCodeLine ? `[code ${lang}: ${firstCodeLine.slice(0, 60)}]` : `[code ${lang}]`;
+      })
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean)
@@ -163,20 +178,22 @@ export function summarizeTurnsForCompaction(turns = [], existingSummary = "") {
   return combined.length > 3200 ? `...\n${combined.slice(-3200)}` : combined;
 }
 
-export function compactChatHistory(task, fullHistory = null, windowSize = 12) {
+export function compactChatHistory(task, fullHistory = null, windowSize = COMPACT_RECENT_TURNS) {
   const resolvedHistory = Array.isArray(fullHistory) ? fullHistory : fullChatHistoryBefore(task, null);
+  const alreadyCompacted = Math.max(0, Math.min(resolvedHistory.length, Number(task?.chatCompactedCount || 0)));
   if (!resolvedHistory.length || resolvedHistory.length <= windowSize) {
-    const recent = resolvedHistory.map(({ role, provider, content }) => ({ role, provider, content }));
+    const uncompacted = resolvedHistory.slice(alreadyCompacted);
+    const recent = uncompacted.map(({ role, provider, content }) => ({ role, provider, content }));
     return {
       recentHistory: recent,
       recentMessages: recent,
       compactedSummary: task?.chatCompactedSummary || "",
-      compactedCount: task?.chatCompactedCount || 0,
+      compactedCount: alreadyCompacted,
     };
   }
-  const olderTurns = resolvedHistory.slice(0, resolvedHistory.length - windowSize);
-  const recentTurns = resolvedHistory.slice(-windowSize);
-  const alreadyCompacted = Number(task?.chatCompactedCount || 0);
+  const cutoff = Math.max(alreadyCompacted, resolvedHistory.length - windowSize);
+  const olderTurns = resolvedHistory.slice(0, cutoff);
+  const recentTurns = resolvedHistory.slice(cutoff);
   const newlyAgedTurns = olderTurns.slice(alreadyCompacted);
   if (newlyAgedTurns.length > 0 && task) {
     task.chatCompactedSummary = summarizeTurnsForCompaction(newlyAgedTurns, task.chatCompactedSummary || "");
@@ -199,30 +216,59 @@ export function compactChatHistory(task, fullHistory = null, windowSize = 12) {
   };
 }
 
-export function compactTaskConversationNow(task, keepRecentMessages = 6) {
+export function compactTaskConversationNow(task, keep = COMPACT_RECENT_TURNS, options = {}) {
   const fullHistory = fullChatHistoryBefore(task, null);
-  const keep = Math.max(2, Math.min(12, Number(keepRecentMessages) || 6));
-  if (fullHistory.length <= keep) {
-    const summary = summarizeTurnsForCompaction(fullHistory, task.chatCompactedSummary || "");
-    task.chatCompactedSummary = summary;
-    task.chatCompactedCount = fullHistory.length;
-    task.compactionLineage ||= [];
-    task.compactionLineage.push({
-      id: `compact-${randomUUID().slice(0, 8)}`,
-      at: new Date().toISOString(),
-      compactedMessages: fullHistory.length,
-      keptRecentMessages: fullHistory.length,
-    });
+  const opts = typeof keep === "object" && keep !== null ? keep : (options || {});
+  const rawKeep = typeof keep === "object" && keep !== null
+    ? (keep.keep ?? keep.keepRecentMessages ?? COMPACT_RECENT_TURNS)
+    : keep;
+  const effectiveKeep = Math.max(0, Math.min(24, Number.isFinite(Number(rawKeep)) ? Number(rawKeep) : COMPACT_RECENT_TURNS));
+  const force = Boolean(opts.force);
+  const alreadyCompacted = Math.max(0, Math.min(fullHistory.length, Number(task?.chatCompactedCount || 0)));
+
+  if (fullHistory.length <= effectiveKeep) {
+    if (!force) {
+      const kept = fullHistory.slice(alreadyCompacted);
+      return {
+        compacted: false,
+        compactedCount: alreadyCompacted,
+        keptCount: kept.length,
+        compactedMessages: alreadyCompacted,
+        keptRecentMessages: kept.length,
+        summary: task?.chatCompactedSummary || "",
+      };
+    }
+    const keptCount = effectiveKeep === 0 ? 0 : Math.min(fullHistory.length, Math.floor(fullHistory.length / 2));
+    const older = fullHistory.slice(0, Math.max(alreadyCompacted, fullHistory.length - keptCount));
+    const recent = fullHistory.slice(older.length);
+    const newlyAged = older.slice(alreadyCompacted);
+    const summary = newlyAged.length
+      ? summarizeTurnsForCompaction(newlyAged, task?.chatCompactedSummary || "")
+      : (task?.chatCompactedSummary || "");
+    if (task) {
+      task.chatCompactedSummary = summary;
+      task.chatCompactedCount = older.length;
+      if (newlyAged.length > 0) {
+        task.compactionLineage ||= [];
+        task.compactionLineage.push({
+          id: `compact-${randomUUID().slice(0, 8)}`,
+          at: new Date().toISOString(),
+          compactedMessages: older.length,
+          keptRecentMessages: recent.length,
+        });
+        task.compactionLineage = task.compactionLineage.slice(-12);
+      }
+    }
     return {
-      compacted: fullHistory.length > 0,
-      compactedCount: fullHistory.length,
-      keptCount: fullHistory.length,
-      compactedMessages: fullHistory.length,
-      keptRecentMessages: fullHistory.length,
+      compacted: older.length > 0,
+      compactedCount: older.length,
+      keptCount: recent.length,
+      compactedMessages: older.length,
+      keptRecentMessages: recent.length,
       summary,
     };
   }
-  const res = compactChatHistory(task, fullHistory, keep);
+  const res = compactChatHistory(task, fullHistory, effectiveKeep);
   return {
     compacted: res.compactedCount > 0,
     compactedCount: res.compactedCount,
@@ -235,7 +281,7 @@ export function compactTaskConversationNow(task, keepRecentMessages = 6) {
 
 export function chatHistoryBefore(task, messageId) {
   const fullHistory = fullChatHistoryBefore(task, messageId);
-  const { recentHistory } = compactChatHistory(task, fullHistory, 12);
+  const { recentHistory } = compactChatHistory(task, fullHistory, COMPACT_RECENT_TURNS);
   return recentHistory;
 }
 
@@ -256,9 +302,53 @@ export function createTaskPromptService({
   skillInstructions,
 }) {
   function additionalWritableProjectDirs(task, cwd) {
-    if (!usesSharedCheckout(task)) return [];
-    const workspace = getState().workspaces.find((item) => item.id === task.workspaceId);
-    return projectSourceFolders(task, workspace).filter((directory) => directory.toLowerCase() !== String(cwd).toLowerCase() && !isForbiddenSystemPath(directory));
+    const cwdNorm = cwd ? resolve(String(cwd)).toLowerCase() : "";
+    const workspace = getState().workspaces.find((item) => item.id === task?.workspaceId);
+    const projectDirs = usesSharedCheckout(task)
+      ? projectSourceFolders(task, workspace).filter(
+          (directory) => directory && resolve(String(directory)).toLowerCase() !== cwdNorm && !isForbiddenSystemPath(directory)
+        )
+      : [];
+
+    const rawSkillDirs = [
+      ...(Array.isArray(task?.antigravitySkillDirs) ? task.antigravitySkillDirs : []),
+      ...(Array.isArray(task?.skillDirs) ? task.skillDirs : []),
+      ...(Array.isArray(task?.skills)
+        ? task.skills
+            .filter((s) => s && !(s.workspaceScoped && s.trusted === false))
+            .flatMap((s) => [
+              s.runtimeDirectory,
+              s.directory,
+              ...(Array.isArray(s.files)
+                ? s.files
+                    .filter((f) => f && !(f.workspaceScoped && f.trusted === false))
+                    .map((f) => f.directory || (f.file ? dirname(f.file) : ""))
+                : []),
+            ])
+        : []),
+      ...(Array.isArray(task?.progressiveSkills)
+        ? task.progressiveSkills
+            .filter((s) => s && !(s.workspaceScoped && s.trusted === false))
+            .map((s) => s.directory || (s.filePath ? dirname(s.filePath) : ""))
+        : []),
+    ];
+
+    const safeSkillDirs = rawSkillDirs.filter((dir) => {
+      if (!dir || typeof dir !== "string") return false;
+      const resolvedDir = resolve(dir);
+      if (cwdNorm && resolvedDir.toLowerCase() === cwdNorm) return false;
+      if (checkBaseForbiddenSystemPath(resolvedDir)) return false;
+      if (task?.storagePath && within(task.storagePath, resolvedDir)) return true;
+      return !isForbiddenSystemPath(resolvedDir);
+    });
+
+    const deduped = new Map();
+    for (const dir of [...projectDirs, ...safeSkillDirs]) {
+      const resolvedDir = resolve(String(dir));
+      const key = process.platform === "win32" ? resolvedDir.toLowerCase() : resolvedDir;
+      if (!deduped.has(key)) deduped.set(key, dir);
+    }
+    return [...deduped.values()];
   }
 
   function requestedRole(body, roleId, connectors) {
@@ -286,42 +376,53 @@ export function createTaskPromptService({
     return snap ? `\n\nUser profile & global preferences (USER.md snapshot):\n${snap}` : "";
   }
 
-  function makePrompt(task, stage, plan, memory, workspace, skillInstructionsList = [], roundInfo = null) {
+  function stagePrompt(task, stage, plan, memory, workspace, skillInstructionsList = [], roundInfo = null) {
     const userProfileText = frozenUserSnapshotText();
     const memText = memory.length
       ? `\n\nRelevant workspace memory (MEMORY.md lessons):\n${memory.map((m) => `- ${m.title}: ${m.content}`).join("\n").slice(0, WORKSPACE_MEMORY_MAX_CHARS)}`
       : "";
     const provider = stageSelection(task, stage).provider;
-    const applicableSkills = skillInstructionsList.filter((skill) => skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"]));
+    const applicableSkills = skillInstructionsList.filter(
+      (skill) => !(skill.workspaceScoped && skill.trusted === false) && skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"])
+    );
     const skillText = applicableSkills.length
-      ? `\n\nSelected skills for ${provider} (follow only when relevant to the user's request):\n${applicableSkills.map((skill) => `<skill name="${skill.name}">\n${skill.instruction}${skill.runtimeDirectory ? `\n\nSupporting files for this skill are available in the task copy at: ${skill.runtimeDirectory}. Read referenced files from there when needed.` : ""}\n</skill>`).join("\n\n")}`
+      ? `\n\nSelected skills (follow only when relevant to the user's request):\n${applicableSkills.map((skill) => `<skill name="${skill.name}">\n${skill.instruction}${skill.runtimeDirectory ? `\n\nSupporting files for this skill are available in the task copy at: ${skill.runtimeDirectory}. Read referenced files from there when needed.` : ""}\n</skill>`).join("\n\n")}`
       : "";
     const progressiveIndexText = !hasApiProvider(provider)
-      ? formatProgressiveSkillsIndex((task.progressiveSkills || []).filter((s) => skillProviderCompatible(provider, s.providers || ["*"])))
+      ? formatProgressiveSkillsIndex((task.progressiveSkills || []).filter((s) => !(s.workspaceScoped && s.trusted === false) && skillProviderCompatible(provider, s.providers || ["*"])))
       : "";
     const goalText = task.goal ? `\n\nLong-term goal:\n${task.goal}${task.goalChecklist?.length ? `\nAcceptance checklist:\n${task.goalChecklist.map((item) => `- [${item.done ? "x" : " "}] ${item.text}`).join("\n")}` : ""}` : "";
     const gateFeedbackText = task.planGateFeedback ? `\n\nHuman Plan Gate guidance / feedback:\n${task.planGateFeedback}` : "";
     const attachmentText = Array.isArray(task.attachments) && task.attachments.length
       ? `\n\nAttached files:\n${task.attachments.map((file) => `### ${String(file.name || "attached file").slice(0, 180)}\n${String(file.content || "")}`).join("\n\n")}`
       : "";
+    const midRunUserMessages = (task.chatMessages || [])
+      .filter((m) => m && m.role === "user" && !m.initialChat && !["cancelled", "unknown", "sending", "failed"].includes(m.status) && String(m.content || "").trim())
+      .slice(-6);
+    const midRunSteeringText = midRunUserMessages.length
+      ? `\n\nMid-run user steering / follow-up instructions (HIGH PRIORITY — incorporate these latest instructions from the user into this ${stage} stage):\n${midRunUserMessages.map((m, idx) => `${idx + 1}. ${String(m.content).trim().slice(0, 3000)}`).join("\n")}`
+      : "";
 
-    // Tier 1 (Stable) -> Tier 2 (Context) -> Tier 3 (Volatile Request)
-    const context = `Workspace: ${task.executionPath || workspace.path}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}${userProfileText}${memText}${skillText}${progressiveIndexText}${goalText}${gateFeedbackText}\nUser request:\n${task.prompt}${attachmentText}`;
+    // Tier 1 (Stable Prefix for Anthropic/OpenAI prompt caching) -> Tier 2 (Stage Instructions & Plan Context) -> Tier 3 (Volatile Request)
+    const workspaceHeader = `Workspace: ${task.executionPath || workspace?.path || task.workspacePath || ""}\nProject source folders:\n${projectSourceFolders(task, workspace).map((directory) => `- ${directory}`).join("\n")}`;
+    const tier1StablePrefix = `${workspaceHeader}${userProfileText}${skillText}${memText}${progressiveIndexText}${goalText}${gateFeedbackText}`;
 
     if (stage === "plan") {
-      return `You are the planning agent in a local coding workflow. Inspect the project context provided. Do not modify files. Produce a concise implementation plan, risks, files likely involved, and checks. If you are an API provider, you may either request read-only workspace inspection via {"tool_call":{"name":"read_file"|"search_files"|"list_files","args":{...}}} or produce the plan directly from the supplied context; never claim to have inspected files that were not read.\n\n${context}`;
+      return `${tier1StablePrefix}\n\nStage instructions (plan):\nYou are the planning agent in a local coding workflow. Inspect the project context provided. Do not modify files. Produce a concise implementation plan, risks, files likely involved, and checks. If you are an API provider, you may either request read-only workspace inspection via {"tool_call":{"name":"read_file"|"search_files"|"list_files","args":{...}}} or produce the plan directly from the supplied context; never claim to have inspected files that were not read.\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}`;
     }
     if (stage === "build") {
       const fixRoundNote = roundInfo?.round > 1
         ? `\n\nAUTONOMOUS FIX LOOP — ROUND ${roundInfo.round} (Fixing Round ${roundInfo.round - 1} issues):\n${roundInfo.previousReview ? `Previous Review Findings to fix:\n${String(roundInfo.previousReview).slice(0, 4500)}\n` : ""}${roundInfo.previousQaOutput ? `Previous QA / Test Failures to fix:\n${String(roundInfo.previousQaOutput).slice(0, 3500)}\n` : ""}Focus on resolving all [BLOCKING] issues and failing QA checks without introducing regressions.`
         : "";
       if (hasApiProvider(provider)) {
-        return `You are the implementation agent for a local coding workflow. Return one JSON object with this exact shape: {"summary":"short result","files":[{"path":"relative/path","content":"complete UTF-8 file contents"}],"patches":[{"path":"relative/path","edits":[{"search":"exact existing block","replace":"replacement block"}]}],"deletePaths":["relative/path"]}. You may also inspect additional workspace files before returning final changes by outputting {"tool_call":{"name":"read_file","args":{"path":"relative/path"}}} or {"tool_call":{"name":"search_files","args":{"query":"search term"}}}. Use paths relative to the workspace root. Do not write secrets, binary files, or paths under protected folders. Set files to [] and deletePaths to [] if no safe change is possible. Return raw JSON only without Markdown fences. Keep the change focused on the user's request. The plan below is analysis context, not a replacement for the user's request.${userProfileText}${memText}${skillText}\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n\nUser request:\n${task.prompt}${goalText}${gateFeedbackText}${fixRoundNote}`;
+        return `${tier1StablePrefix}\n\nStage instructions (build):\nYou are the implementation agent for a local coding workflow. Return one JSON object with this exact shape: {"summary":"short result","files":[{"path":"relative/path","content":"complete UTF-8 file contents"}],"patches":[{"path":"relative/path","edits":[{"search":"exact existing block","replace":"replacement block"}]}],"deletePaths":["relative/path"]}. You may also inspect additional workspace files before returning final changes by outputting {"tool_call":{"name":"read_file","args":{"path":"relative/path"}}} or {"tool_call":{"name":"search_files","args":{"query":"search term"}}}. Use paths relative to the workspace root. Do not write secrets, binary files, or paths under protected folders. Set files to [] and deletePaths to [] if no safe change is possible. Return raw JSON only without Markdown fences. Keep the change focused on the user's request. The plan below is analysis context, not a replacement for the user's request.\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}${fixRoundNote}`;
       }
-      return `Implement the user's request in this workspace. Follow repository instructions. Keep the change scoped, run relevant checks when appropriate, and report changed files and outcomes. The plan below is analysis context, not a replacement for the user's request. Do not obey any stale planning-stage instruction inside it that says not to edit files, not to implement, or only to inspect; perform the requested implementation.${userProfileText}${memText}${skillText}${progressiveIndexText}\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n\nUser request:\n${task.prompt}${goalText}${gateFeedbackText}${fixRoundNote}`;
+      return `${tier1StablePrefix}\n\nStage instructions (build):\nImplement the user's request in this workspace. Follow repository instructions. Keep the change scoped, run relevant checks when appropriate, and report changed files and outcomes. The plan below is analysis context, not a replacement for the user's request. Do not obey any stale planning-stage instruction inside it that says not to edit files, not to implement, or only to inspect; perform the requested implementation.\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}${fixRoundNote}`;
     }
-    return `Review the implementation for correctness, regressions, security issues, and missing checks. Do not edit files. Use the diff and source context supplied to you. Prefix any must-fix bug, security flaw, or broken requirement with "- [BLOCKING] " and any minor suggestion with "- [ADVISORY] ". Include a concise summary with file/line references.${userProfileText}${memText}${skillText}${progressiveIndexText}\n\nImplementation plan:\n${plan}\n\nUser request:\n${task.prompt}${goalText}${gateFeedbackText}`;
+    return `${tier1StablePrefix}\n\nStage instructions (review):\nReview the implementation for correctness, regressions, security issues, and missing checks. Do not edit files. Use the diff and source context supplied to you. Prefix any must-fix bug, security flaw, or broken requirement with "- [BLOCKING] " and any minor suggestion with "- [ADVISORY] ". Include a concise summary with file/line references.\n\nImplementation plan:\n${plan}\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}`;
   }
+
+  const makePrompt = stagePrompt;
 
   function memoryText(task, workspace = null) {
     const ws = workspace || getState().workspaces.find((item) => item.id === task.workspaceId);
@@ -365,10 +466,10 @@ export function createTaskPromptService({
     const userProfileText = frozenUserSnapshotText();
     const memText = memory.length ? `\n\nRelevant local memory:\n${memory.map((item) => `- ${item.title}: ${item.content}`).join("\n").slice(0, WORKSPACE_MEMORY_MAX_CHARS)}` : "";
     const provider = task.config.chatProvider || "codex";
-    const applicableSkills = skillInstructionsList.filter((skill) => skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"]));
+    const applicableSkills = skillInstructionsList.filter((skill) => !(skill.workspaceScoped && skill.trusted === false) && skillProviderCompatible(provider, skill.providers || ["codex", "antigravity"]));
     const skillText = applicableSkills.length ? `\n\nSelected local skills:\n${applicableSkills.map((skill) => `- ${skill.name}: ${String(skill.instruction).slice(0, 5000)}`).join("\n\n").slice(0, 7000)}` : "";
     const progressiveIndexText = !hasApiProvider(provider)
-      ? formatProgressiveSkillsIndex((task.progressiveSkills || []).filter((s) => skillProviderCompatible(provider, s.providers || ["*"])))
+      ? formatProgressiveSkillsIndex((task.progressiveSkills || []).filter((s) => !(s.workspaceScoped && s.trusted === false) && skillProviderCompatible(provider, s.providers || ["*"])))
       : "";
     const goalText = task.goal ? `\n\nLong-term goal:\n${task.goal}${task.goalChecklist?.length ? `\nAcceptance checklist:\n${task.goalChecklist.map((item) => `- [${item.done ? "x" : " "}] ${item.text}`).join("\n")}` : ""}` : "";
     const readOnly = task.permissionPreset === "read-only";
@@ -385,6 +486,7 @@ export function createTaskPromptService({
     listRemoteContextFiles,
     externalWorkspaceContext,
     makePrompt,
+    stagePrompt,
     memoryText,
     makeChatPrompt,
     makeInitialChatPrompt,

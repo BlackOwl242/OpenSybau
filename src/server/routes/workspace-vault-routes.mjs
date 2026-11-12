@@ -4,6 +4,7 @@ import { basename, extname, resolve, sep } from "node:path";
 import { randomUUID } from "node:crypto";
 import {
   allowedTextFile,
+  isSensitiveWorkspaceSubpath,
   listLocalFiles,
   readLocalTextFile,
   resolveInside,
@@ -22,6 +23,7 @@ import { parseUnifiedDiffFiles } from "../diff-parser.mjs";
 import { injectOrcaInspectorHtml } from "../html-inspector-script.mjs";
 import { listWorkspaceGithubIssues } from "../github-cli.mjs";
 import { normalizeDirectoryInput } from "../cli-discovery.mjs";
+import { customizationInventory } from "../customization-inventory.mjs";
 
 const RAW_MIME_MAP = {
   ".html": "text/html; charset=utf-8",
@@ -73,6 +75,13 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
   const { inspectWorkspace } = cliDiscovery;
   const { listRemoteContextFiles } = promptService;
   const state = getState();
+  const inventoryMatch = pathname.match(/^\/api\/workspaces\/([^/]+)\/customizations$/);
+  if (request.method === "GET" && inventoryMatch) {
+    const workspace = state.workspaces.find((item) => item.id === decodeURIComponent(inventoryMatch[1]));
+    if (!workspace) { json(response, 404, { error: "Workspace không tồn tại." }); return true; }
+    json(response, 200, await customizationInventory(workspace));
+    return true;
+  }
 
   const workspaceFileMatch = pathname.match(/^\/api\/workspaces\/([^/]+)\/(files|file|file-index|raw|file-diff|github|git-status|git-stage)(?:\/(.*))?$/);
   if (workspaceFileMatch) {
@@ -225,11 +234,15 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
       return true;
     }
     if (request.method === "GET" && workspaceFileMatch[2] === "raw") {
+      if (isSensitiveWorkspaceSubpath(rawSubpath)) {
+        json(response, 403, { error: "Từ chối truy cập tệp nhạy cảm trong workspace." });
+        return true;
+      }
       try {
-        const { target, stat } = await resolveInside(baseRoot, rawSubpath, true);
+        const { target, stat, relativePath: resolvedRel } = await resolveInside(baseRoot, rawSubpath, true);
         const fileName = basename(target);
-        if (/^\.env(?:\.|$)/i.test(fileName) && !/^\.env\.example$/i.test(fileName)) {
-          json(response, 403, { error: "Từ chối truy cập tệp môi trường .env." });
+        if (isSensitiveWorkspaceSubpath(resolvedRel || rawSubpath) || isSensitiveWorkspaceSubpath(fileName)) {
+          json(response, 403, { error: "Từ chối truy cập tệp nhạy cảm trong workspace." });
           return true;
         }
         if (stat.size > 50_000_000) { json(response, 413, { error: "Tệp quá lớn để xem trực tiếp." }); return true; }
@@ -434,7 +447,7 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
       path: info.path,
       sourceFolders: [info.path],
       pinned: false,
-      trustedSkills: body.trustedSkills !== undefined ? Boolean(body.trustedSkills) : true,
+      trustedSkills: Boolean(body.trustedSkills),
       section: "Projects",
       addedAt: new Date().toISOString(),
       runtime: info,

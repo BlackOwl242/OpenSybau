@@ -1,4 +1,20 @@
+import { createHash } from "node:crypto";
+import { isMainThread, parentPort, Worker } from "node:worker_threads";
 import { unquoteGitPath } from "./fs-security.mjs";
+import { rustParseDiffAsync, rustParseDiffSync } from "./rust-accelerator.mjs";
+
+const DIFF_PARSE_CACHE_MAX = 24;
+const diffParseCache = new Map();
+
+function storeDiffCache(cacheKey, result) {
+  if (!cacheKey) return result;
+  if (diffParseCache.size >= DIFF_PARSE_CACHE_MAX) {
+    const oldestKey = diffParseCache.keys().next().value;
+    if (oldestKey !== undefined) diffParseCache.delete(oldestKey);
+  }
+  diffParseCache.set(cacheKey, result);
+  return result;
+}
 
 function cleanDiffHeaderPath(raw = "", prefix = "") {
   let str = unquoteGitPath(String(raw || "").trim());
@@ -9,6 +25,18 @@ function cleanDiffHeaderPath(raw = "", prefix = "") {
 export function parseUnifiedDiffFiles(diffText) {
   const raw = String(diffText || "");
   if (!raw.trim() || (!raw.includes("---") && !raw.includes("diff --git"))) return [];
+  const cacheKey = raw.length <= 262_144
+    ? `${raw.length}:${createHash("sha1").update(raw).digest("base64")}`
+    : "";
+  if (cacheKey && diffParseCache.has(cacheKey)) {
+    return diffParseCache.get(cacheKey);
+  }
+  if (isMainThread && raw.length >= 4_096) {
+    const rustFiles = rustParseDiffSync(raw);
+    if (Array.isArray(rustFiles)) {
+      return storeDiffCache(cacheKey, rustFiles);
+    }
+  }
   const lines = raw.split(/\r?\n/);
   const files = [];
   let current = null;
@@ -63,5 +91,75 @@ export function parseUnifiedDiffFiles(diffText) {
     }
   }
   if (current && (current.hunks.length || current.additions || current.deletions)) files.push(current);
-  return files.slice(0, 60);
+  const result = files.slice(0, 60);
+  if (cacheKey) {
+    if (diffParseCache.size >= DIFF_PARSE_CACHE_MAX) {
+      const oldestKey = diffParseCache.keys().next().value;
+      if (oldestKey !== undefined) diffParseCache.delete(oldestKey);
+    }
+    diffParseCache.set(cacheKey, result);
+  }
+  return result;
+}
+
+if (!isMainThread && parentPort) {
+  parentPort.on("message", ({ id, diffText }) => {
+    try {
+      const files = parseUnifiedDiffFiles(diffText);
+      parentPort.postMessage({ id, ok: true, files });
+    } catch (err) {
+      parentPort.postMessage({ id, ok: false, error: err?.message || String(err) });
+    }
+  });
+}
+
+let diffWorker = null;
+let diffWorkerSeq = 0;
+const pendingWorkerJobs = new Map();
+
+function ensureDiffWorker() {
+  if (diffWorker) return diffWorker;
+  try {
+    diffWorker = new Worker(new URL(import.meta.url));
+    diffWorker.unref();
+    diffWorker.on("message", ({ id, ok, files }) => {
+      const job = pendingWorkerJobs.get(id);
+      if (!job) return;
+      pendingWorkerJobs.delete(id);
+      job.resolve(ok && Array.isArray(files) ? files : []);
+    });
+    diffWorker.on("error", () => {
+      diffWorker = null;
+      for (const [, job] of pendingWorkerJobs) job.resolve(parseUnifiedDiffFiles(job.diffText));
+      pendingWorkerJobs.clear();
+    });
+  } catch {
+    diffWorker = null;
+  }
+  return diffWorker;
+}
+
+export async function parseUnifiedDiffFilesAsync(diffText) {
+  const raw = String(diffText || "");
+  if (!raw.trim() || (!raw.includes("---") && !raw.includes("diff --git"))) return [];
+  const cacheKey = raw.length <= 262_144
+    ? `${raw.length}:${createHash("sha1").update(raw).digest("base64")}`
+    : "";
+  if (cacheKey && diffParseCache.has(cacheKey)) {
+    return diffParseCache.get(cacheKey);
+  }
+  try {
+    const rustFiles = await rustParseDiffAsync(raw);
+    if (Array.isArray(rustFiles)) {
+      return storeDiffCache(cacheKey, rustFiles);
+    }
+  } catch {}
+  if (raw.length < 65_536) return parseUnifiedDiffFiles(raw);
+  const worker = ensureDiffWorker();
+  if (!worker) return parseUnifiedDiffFiles(raw);
+  const id = ++diffWorkerSeq;
+  return new Promise((resolvePromise) => {
+    pendingWorkerJobs.set(id, { resolve: resolvePromise, diffText: raw });
+    worker.postMessage({ id, diffText: raw });
+  });
 }

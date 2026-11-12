@@ -210,7 +210,7 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
   if (action === "generate-connection-password") {
     const info = await api("/api/connection-config", {
       method: "POST",
-      body: JSON.stringify({ generate: true }),
+      body: JSON.stringify({ generate: true, allowedHosts: $("[data-connection-allowed-hosts]")?.value || "" }),
     });
     view.connectionInfo = info;
     view.connectionPasswordDraft = info.accessPassword || "";
@@ -221,19 +221,19 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
   if (action === "save-connection-password") {
     const passInput = $("[data-connection-password-input]");
     const password = String(passInput?.value ?? view.connectionPasswordDraft ?? "").trim();
-    if (!password || password.length < 6) {
-      showToast("Mật khẩu cần tối thiểu 6 ký tự.");
+    if (!password || password.length < 16) {
+      showToast("Mật khẩu cần tối thiểu 16 ký tự.");
       passInput?.focus();
       return true;
     }
     const info = await api("/api/connection-config", {
       method: "POST",
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, allowedHosts: $("[data-connection-allowed-hosts]")?.value || "" }),
     });
     view.connectionInfo = info;
     view.connectionPasswordDraft = info.accessPassword || password;
     render();
-    showToast("Đã lưu mật khẩu và mở kết nối cho điện thoại!");
+    showToast(info.lanActive ? "Đã lưu và mở kết nối LAN." : "Đã lưu mật khẩu; kết nối vẫn chỉ trên máy này.");
     return true;
   }
   if (action === "copy-connection-password") {
@@ -470,25 +470,34 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
       showToast(`Cài CLI thất bại: ${error.message}`);
     } finally {
       view.cliInstallProvider = "";
-      if (button.isConnected) { button.disabled = false; button.innerHTML = buttonLabel; }
+      // Preact may reuse this node for the login action after a successful scan.
+      // Do not restore the old install label onto a different action.
+      if (button.isConnected && button.dataset.action === "provider-cli-install") {
+        button.disabled = false;
+        button.innerHTML = buttonLabel;
+      }
       render();
     }
     return true;
   }
-  if (action === "provider-cli-login") {
+  if (action === "provider-cli-login" || action === "provider-cli-switch-account") {
+    const switching = action === "provider-cli-switch-account";
+    if (switching && !window.confirm(id === "antigravity"
+      ? "Mở Antigravity CLI để đổi tài khoản? Trong terminal, nhập /logout rồi mở lại CLI để đăng nhập tài khoản khác."
+      : "Đăng xuất tài khoản CLI hiện tại và mở đăng nhập tài khoản khác? Thay đổi này cũng ảnh hưởng các ứng dụng khác dùng cùng CLI. Hãy chọn tài khoản khác trong trình duyệt.")) return true;
     const label = button.innerHTML;
     button.disabled = true;
     button.textContent = "Đang mở terminal…";
     try {
-      const result = await api(`/api/connectors/${encodeURIComponent(id)}/login`, { method: "POST" });
-      const feedback = $(".cli-connect-feedback", button.closest(".modal"));
+      const result = await api(`/api/connectors/${encodeURIComponent(id)}/${switching ? "switch-account" : "login"}`, { method: "POST" });
+      const feedback = button.closest(".modal")?.querySelector(".cli-connect-feedback");
       if (feedback) { feedback.textContent = result.message; feedback.hidden = false; }
       showToast(result.message);
-      startCliLoginAutoPoll(id);
+      if (!(switching && id === "antigravity")) startCliLoginAutoPoll(id);
     } catch (error) {
       showToast(error.message || "Không thể mở terminal đăng nhập CLI.");
     } finally {
-      if (button.isConnected) {
+      if (button.isConnected && button.dataset.action === action) {
         button.disabled = false;
         button.innerHTML = label;
       }

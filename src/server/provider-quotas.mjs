@@ -38,6 +38,29 @@ function formatPlanLabel(raw) {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+export function normalizeCodexQuotaWindows(rateLimits = {}) {
+  return [
+    ["primary", 300],
+    ["secondary", 10080],
+  ].flatMap(([key, fallbackMinutes]) => {
+    const source = rateLimits[key];
+    const used = source?.usedPercent ?? source?.used_percent;
+    if (typeof used !== "number" || !Number.isFinite(used)) return [];
+    const rawMinutes = Number(source.windowDurationMins ?? source.window_minutes);
+    const windowMinutes = Number.isFinite(rawMinutes) && rawMinutes > 0 ? rawMinutes : fallbackMinutes;
+    const label = windowMinutes === 300 ? "5h" : windowMinutes === 10080 ? "7d" : `${windowMinutes} min`;
+    const usedPercent = clampPercent(used);
+    return [{
+      id: `codex-${key}-${windowMinutes}`,
+      label,
+      windowMinutes,
+      usedPercent,
+      remainingPercent: 100 - usedPercent,
+      resetsAt: toIsoTime(source.resetsAt ?? source.resets_at),
+    }];
+  });
+}
+
 function readLatestCodexSessionQuota(home = homedir()) {
   const sessionsDir = resolve(home, ".codex", "sessions");
   if (!existsSync(sessionsDir)) return null;
@@ -65,29 +88,7 @@ function readLatestCodexSessionQuota(home = homedir()) {
         const parsed = JSON.parse(line);
         const rl = parsed?.payload?.rate_limits || parsed?.rate_limits;
         if (!rl || (!rl.primary && !rl.secondary)) continue;
-        const windows = [];
-        if (rl.primary && typeof rl.primary.used_percent === "number") {
-          const usedPercent = clampPercent(rl.primary.used_percent);
-          windows.push({
-            id: "codex-5h",
-            label: "5h",
-            windowMinutes: Number(rl.primary.window_minutes || 300),
-            usedPercent,
-            remainingPercent: Math.max(0, 100 - usedPercent),
-            resetsAt: toIsoTime(rl.primary.resets_at),
-          });
-        }
-        if (rl.secondary && typeof rl.secondary.used_percent === "number") {
-          const usedPercent = clampPercent(rl.secondary.used_percent);
-          windows.push({
-            id: "codex-7d",
-            label: "7d",
-            windowMinutes: Number(rl.secondary.window_minutes || 10080),
-            usedPercent,
-            remainingPercent: Math.max(0, 100 - usedPercent),
-            resetsAt: toIsoTime(rl.secondary.resets_at),
-          });
-        }
+        const windows = normalizeCodexQuotaWindows(rl);
         if (windows.length) {
           return {
             provider: "codex",
@@ -157,29 +158,7 @@ export async function probeCodexQuota(codexExe, connector) {
           }
           if (rateLimitsMsg && accountMsg) {
             const rl = rateLimitsMsg.rateLimits || rateLimitsMsg.rateLimitsByLimitId?.codex || {};
-            const windows = [];
-            if (rl.primary && typeof rl.primary.usedPercent === "number") {
-              const usedPercent = clampPercent(rl.primary.usedPercent);
-              windows.push({
-                id: "codex-5h",
-                label: "5h",
-                windowMinutes: Number(rl.primary.windowDurationMins || 300),
-                usedPercent,
-                remainingPercent: Math.max(0, 100 - usedPercent),
-                resetsAt: toIsoTime(rl.primary.resetsAt),
-              });
-            }
-            if (rl.secondary && typeof rl.secondary.usedPercent === "number") {
-              const usedPercent = clampPercent(rl.secondary.usedPercent);
-              windows.push({
-                id: "codex-7d",
-                label: "7d",
-                windowMinutes: Number(rl.secondary.windowDurationMins || 10080),
-                usedPercent,
-                remainingPercent: Math.max(0, 100 - usedPercent),
-                resetsAt: toIsoTime(rl.secondary.resetsAt),
-              });
-            }
+            const windows = normalizeCodexQuotaWindows(rl);
             finish({
               provider: "codex",
               status: windows.length ? "ok" : "unavailable",
@@ -372,12 +351,14 @@ function formatAntigravityQuotaPayload(quotaSummary, userStatus) {
       const remFrac = Number(bucket.remainingFraction);
       const remainingPercent = Number.isFinite(remFrac) ? clampPercent(remFrac * 100) : 0;
       const usedPercent = Math.max(0, 100 - remainingPercent);
-      const is5h = String(bucket.window || bucket.bucketId || "").toLowerCase().includes("5h");
+      const period = `${bucket.window || ""} ${bucket.bucketId || ""} ${bucket.displayName || ""}`.toLowerCase();
+      const is5h = /5h|five[ -]?hour/.test(period);
+      const isWeekly = /weekly|7d|seven[ -]?day/.test(period);
       return {
         id: String(bucket.bucketId || bucket.window || "bucket"),
-        label: is5h ? "5h" : "7d",
-        displayName: String(bucket.displayName || (is5h ? "5h" : "Weekly")),
-        window: is5h ? "5h" : "weekly",
+        label: is5h ? "5h" : isWeekly ? "7d" : String(bucket.displayName || bucket.window || bucket.bucketId || "Quota"),
+        displayName: String(bucket.displayName || (is5h ? "5h" : isWeekly ? "Weekly" : "Quota")),
+        window: is5h ? "5h" : isWeekly ? "weekly" : String(bucket.window || ""),
         usedPercent,
         remainingPercent,
         resetsAt: toIsoTime(bucket.resetTime),

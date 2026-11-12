@@ -42,9 +42,9 @@
         width: 72px;
         height: 72px;
         border-radius: 18px;
-        border: 1px solid rgba(255, 255, 255, 0.09);
-        background: rgba(255, 255, 255, 0.025);
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--wb-border-subtle, rgba(255, 255, 255, 0.09));
+        background: var(--wb-panel, #18191b);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
         display: grid;
         place-items: center;
         overflow: hidden;
@@ -52,7 +52,7 @@
       .wb-boot-svg {
         width: 44px;
         height: 44px;
-        color: #f4f4f5;
+        color: var(--wb-ink-strong, #f4f4f5);
         display: block;
         overflow: visible;
       }
@@ -76,11 +76,11 @@
         font-size: 15px;
         font-weight: 700;
         letter-spacing: 0.01em;
-        color: #f4f4f5;
+        color: var(--wb-ink-strong, #f4f4f5);
       }
       .wb-boot-subtitle {
         font-size: 12.5px;
-        color: #a1a1aa;
+        color: var(--wb-muted, #a1a1aa);
         max-width: 320px;
         line-height: 1.45;
       }

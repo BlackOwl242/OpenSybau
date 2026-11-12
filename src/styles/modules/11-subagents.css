@@ -201,6 +201,27 @@
 }
 
 /* Pipeline / StatusBar Live Subagent Badges */
+.dock-overview { display: flex; flex-direction: column; gap: 4px; }
+.dock-overview-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--wb-ink); text-align: left; cursor: pointer; }
+.dock-overview-row:hover { background: var(--wb-hover); }
+.dock-overview-row span { flex: 1; min-width: 0; }
+.dock-overview-row small { color: var(--wb-muted); white-space: nowrap; }
+.orca-dock-tabs { min-width: 0; overflow-x: auto; flex: 1; scrollbar-width: thin; }
+.orca-dock-tab { flex: 0 0 32px; }
+.orca-dock-pad code { overflow-wrap: anywhere; }
+.dock-subagent-summary { min-width: 0; }
+.dock-subagent-summary small { flex-shrink: 0; }
+.orca-right-dock .orca-section-label,
+.orca-right-dock .orca-muted-note,
+.orca-right-dock .dock-subagent-label,
+.orca-right-dock .dock-subagent-head-main small { color: var(--wb-muted); }
+.dock-subagent-card.is-completed .wb-task-dot,
+.dock-subagent-card.is-done .wb-task-dot { background: var(--wb-green); }
+.dock-overview .dock-subagent-summary { display: flex; }
+.dock-overview .dock-subagent-summary .orca-tree-label { flex: 1; min-width: 0; }
+.dock-overview-job { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dock-overview-job > .dock-overview-row { flex: 1; min-width: 0; }
+.dock-overview-job > code { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .chat-worktree-chip.is-subagent-chip {
   cursor: pointer;
   border: 1px solid color-mix(in srgb, var(--wb-tint) 12%, transparent);
@@ -486,7 +507,7 @@
   overflow-wrap: anywhere;
 }
 .subagent-log-scroll {
-  max-height: 156px;
+  max-height: 280px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -498,23 +519,21 @@
 }
 .dock-subagent-ev {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: baseline;
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
   font-size: 10.5px;
   line-height: 1.4;
 }
 .dock-subagent-ev strong {
-  color: color-mix(in srgb, var(--wb-tint) 70%, transparent);
+  color: var(--wb-ink-strong);
   font-family: var(--wb-font-mono);
   font-size: 10px;
 }
 .dock-subagent-ev code {
-  color: color-mix(in srgb, var(--wb-tint) 56%, transparent);
+  color: var(--wb-ink);
   font-family: var(--wb-font-mono);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .dock-subagent-ev.is-err strong,
 .dock-subagent-ev.is-err code {

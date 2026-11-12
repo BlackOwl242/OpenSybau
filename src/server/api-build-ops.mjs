@@ -77,17 +77,74 @@ export async function externalWorkspaceContext(task, stage, gitFn) {
   return { text: `\n\nExternal provider context (shared outside this computer; obvious secret patterns were redacted):\n${sections.join("\n\n")}`, buildSnapshotHashes };
 }
 
+function extractToolCallCandidates(rawText) {
+  const text = String(rawText || "").trim();
+  if (!text) return [];
+  const candidates = [];
+  const stripped = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  if (stripped.startsWith("{") && stripped.endsWith("}")) {
+    candidates.push(stripped);
+  }
+  const fenceRegex = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
+  let fenceMatch;
+  while ((fenceMatch = fenceRegex.exec(text)) !== null) {
+    const inner = fenceMatch[1].trim();
+    if (inner.startsWith("{") && inner.endsWith("}")) {
+      candidates.push(inner);
+    }
+  }
+  if (text.includes("\"tool_call\"")) {
+    for (let i = 0; i < text.length; i += 1) {
+      if (text[i] !== "{") continue;
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+      for (let j = i; j < text.length; j += 1) {
+        const ch = text[j];
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (ch === "\\") {
+          if (inString) escaped = true;
+          continue;
+        }
+        if (ch === "\"") {
+          inString = !inString;
+          continue;
+        }
+        if (inString) continue;
+        if (ch === "{") depth += 1;
+        else if (ch === "}") {
+          depth -= 1;
+          if (depth === 0) {
+            const slice = text.slice(i, j + 1);
+            if (slice.includes("\"tool_call\"")) {
+              candidates.push(slice);
+            }
+            i = j;
+            break;
+          }
+        }
+      }
+    }
+  }
+  return candidates;
+}
+
 export function parseApiToolCall(responseText) {
-  const trimmed = String(responseText || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
-  let parsed;
-  try { parsed = JSON.parse(trimmed); } catch { return null; }
-  const call = parsed?.tool_call;
-  if (!call || typeof call !== "object" || Array.isArray(call)) return null;
-  const name = String(call.name || "").trim();
-  if (!["read_file", "search_files", "list_files"].includes(name)) return null;
-  const args = call.args && typeof call.args === "object" && !Array.isArray(call.args) ? call.args : {};
-  return { name, args };
+  const candidates = extractToolCallCandidates(responseText);
+  for (const candidate of candidates) {
+    let parsed;
+    try { parsed = JSON.parse(candidate); } catch { continue; }
+    const call = parsed?.tool_call;
+    if (!call || typeof call !== "object" || Array.isArray(call)) continue;
+    const name = String(call.name || "").trim();
+    if (!["read_file", "search_files", "list_files", "recall_sessions", "memory_save", "propose_skill_patch", "delegate_subagent"].includes(name)) continue;
+    const args = call.args && typeof call.args === "object" && !Array.isArray(call.args) ? call.args : {};
+    return { name, args };
+  }
+  return null;
 }
 
 export async function executeApiWorkspaceTool(cwdOrTask, toolCallOrCwd, optionsOrToolCall = {}, maybeOptions = {}) {
@@ -129,18 +186,23 @@ export async function executeApiWorkspaceTool(cwdOrTask, toolCallOrCwd, optionsO
       const rawBytes = await fs.readFile(resolved.target);
       const original = rawBytes.toString("utf8");
       const redacted = redactRemoteSecrets(original);
-      if (redacted === original && !original.includes("\uFFFD")) {
-        const digest = createHash("sha256").update(rawBytes).digest("hex");
-        const key = rawPath.toLocaleLowerCase();
-        if (buildSnapshotHashes instanceof Map) buildSnapshotHashes.set(key, digest);
-        if (task && typeof task === "object") {
-          task.buildSnapshotHashes ||= {};
-          task.buildSnapshotHashes[key] = digest;
-        }
-      }
       const lines = redacted.split(/\r?\n/);
       const startLine = Math.max(1, Number(args.startLine) || 1);
       const endLine = Math.min(lines.length, Math.max(startLine, Number(args.endLine) || (startLine + 249)));
+      if (redacted === original && !original.includes("\uFFFD")) {
+        const digest = createHash("sha256").update(rawBytes).digest("hex");
+        const key = rawPath.toLocaleLowerCase();
+        const isFullRead = startLine === 1 && endLine >= lines.length;
+        const existingHash = buildSnapshotHashes instanceof Map
+          ? buildSnapshotHashes.get(key)
+          : (task?.buildSnapshotHashes?.[key]);
+        const recordedHash = (isFullRead || existingHash === digest) ? digest : `partial:${digest}`;
+        if (buildSnapshotHashes instanceof Map) buildSnapshotHashes.set(key, recordedHash);
+        if (task && typeof task === "object") {
+          task.buildSnapshotHashes ||= {};
+          task.buildSnapshotHashes[key] = recordedHash;
+        }
+      }
       const sliced = lines
         .slice(startLine - 1, endLine)
         .map((line, idx) => `${startLine + idx}: ${line}`)
@@ -186,6 +248,52 @@ export async function executeApiWorkspaceTool(cwdOrTask, toolCallOrCwd, optionsO
       output: matches.length ? matches.join("\n") : `No matches found for "${query}".`,
     };
   }
+  if (name === "recall_sessions") {
+    const query = String(args.query || "").trim();
+    if (!query) return { ok: false, summary: "recall_sessions() missing query", output: "Error: Provide a search query." };
+    const results = typeof options.searchWorkbenchFn === "function"
+      ? options.searchWorkbenchFn(query, { limit: 8 })
+      : [];
+    const formatted = Array.isArray(results) && results.length
+      ? results.map((r, idx) => `${idx + 1}. [${r.scope || "task"}] ${r.title || r.id}: ${String(r.snippet || "").slice(0, 200)}`).join("\n")
+      : `No historical sessions matched "${query}".`;
+    return {
+      ok: true,
+      summary: `recall_sessions("${query.slice(0, 40)}") -> ${Array.isArray(results) ? results.length : 0} hits`,
+      output: formatted,
+    };
+  }
+  if (name === "memory_save") {
+    const title = String(args.title || "Agent lesson").trim().slice(0, 120);
+    const content = redactRemoteSecrets(String(args.content || "").trim().slice(0, 1200));
+    if (!content) return { ok: false, summary: "memory_save() empty", output: "Error: Memory content is required." };
+    if (task && typeof task === "object") {
+      task.proposedMemories ||= [];
+      task.proposedMemories.push({ title, content, kind: String(args.kind || "lesson"), createdAt: new Date().toISOString() });
+    }
+    return { ok: true, summary: `memory_save("${title}")`, output: `Saved lesson "${title}" to task memory buffer.` };
+  }
+  if (name === "propose_skill_patch") {
+    const skillName = String(args.name || "custom-skill").trim().slice(0, 80);
+    const description = String(args.description || "").trim().slice(0, 240);
+    const instructions = redactRemoteSecrets(String(args.instructions || args.content || "").trim().slice(0, 4000));
+    if (!instructions) return { ok: false, summary: "propose_skill_patch() empty", output: "Error: Skill instructions are required." };
+    if (task && typeof task === "object") {
+      task.proposedSkills ||= [];
+      task.proposedSkills.push({ name: skillName, description, instructions, createdAt: new Date().toISOString() });
+    }
+    return { ok: true, summary: `propose_skill_patch("${skillName}")`, output: `Proposed skill patch "${skillName}" recorded for user review.` };
+  }
+  if (name === "delegate_subagent") {
+    const role = String(args.role || "subagent").trim().slice(0, 80);
+    const prompt = String(args.prompt || "").trim().slice(0, 2000);
+    if (!prompt) return { ok: false, summary: "delegate_subagent() missing prompt", output: "Error: Subagent prompt is required." };
+    if (task && typeof task === "object") {
+      task.delegatedSubagents ||= [];
+      task.delegatedSubagents.push({ role, prompt, createdAt: new Date().toISOString() });
+    }
+    return { ok: true, summary: `delegate_subagent("${role}")`, output: `Recorded subagent delegation "${role}" for execution.` };
+  }
   return { ok: false, summary: `unknown tool ${name}`, output: "Error: Unsupported tool." };
 }
 
@@ -228,7 +336,8 @@ export function parseApiBuildOperations(responseText) {
   return { summary: String(result.summary || "API implementation completed.").slice(0, 3000), files, patches, deletePaths };
 }
 
-export async function apiBuildTarget(rootPath, rawPath, buildSnapshotHashes, { isPatch = false } = {}) {
+export async function apiBuildTarget(rootPath, rawPath, buildSnapshotHashes, optionsOrIsPatch = false) {
+  const isPatch = typeof optionsOrIsPatch === "boolean" ? optionsOrIsPatch : Boolean(optionsOrIsPatch?.isPatch);
   const normalized = rawPath.replace(/\\/g, "/");
   const parts = normalized.split("/");
   const name = basename(normalized);
@@ -252,19 +361,35 @@ export async function apiBuildTarget(rootPath, rawPath, buildSnapshotHashes, { i
   try {
     const stat = await fs.lstat(target);
     if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`API implementation target must be a regular file: ${rawPath}`);
+    const rel = normalized.toLocaleLowerCase();
     const expectedHash = buildSnapshotHashes instanceof Map
-      ? buildSnapshotHashes.get(normalized.toLocaleLowerCase())
-      : (buildSnapshotHashes?.expectedFileHashes?.[normalized.toLocaleLowerCase()] || buildSnapshotHashes?.[normalized.toLocaleLowerCase()]);
+      ? buildSnapshotHashes.get(rel)
+      : (buildSnapshotHashes?.expectedFileHashes?.[rel] || buildSnapshotHashes?.[rel]);
+    const isPartialHash = typeof expectedHash === "string" && expectedHash.startsWith("partial:");
+    const cleanExpectedHash = isPartialHash ? expectedHash.slice("partial:".length) : expectedHash;
+    const currentDigest = createHash("sha256").update(await fs.readFile(target)).digest("hex");
     if (!isPatch) {
       if (!expectedHash) throw new Error(`API implementation cannot replace a file whose full contents were not supplied as context: ${rawPath}`);
-      const currentHash = createHash("sha256").update(await fs.readFile(target)).digest("hex");
-      if (currentHash !== expectedHash) throw new Error(`Workspace file changed while the API was working; refusing to overwrite it: ${rawPath}`);
-    } else if (expectedHash) {
-      const currentHash = createHash("sha256").update(await fs.readFile(target)).digest("hex");
-      if (currentHash !== expectedHash) throw new Error(`Workspace file changed while the API was working; refusing to patch it: ${rawPath}`);
+      if (isPartialHash && stat.size > 8_192) {
+        throw new Error(`API implementation cannot replace a partially-read file larger than 8 KB without using patches: ${rawPath}`);
+      }
+      if (currentDigest !== cleanExpectedHash) throw new Error(`Workspace file changed while the API was working; refusing to overwrite it: ${rawPath}`);
+    } else {
+      if (cleanExpectedHash && currentDigest !== cleanExpectedHash) {
+        throw new Error(`Workspace file changed while the API was working; refusing to patch it: ${rawPath}`);
+      }
+      if (buildSnapshotHashes instanceof Map) {
+        buildSnapshotHashes.set(rel, currentDigest);
+      } else if (buildSnapshotHashes && typeof buildSnapshotHashes === "object") {
+        if (buildSnapshotHashes.expectedFileHashes && typeof buildSnapshotHashes.expectedFileHashes === "object") {
+          buildSnapshotHashes.expectedFileHashes[rel] = currentDigest;
+        } else {
+          buildSnapshotHashes[rel] = currentDigest;
+        }
+      }
     }
   } catch (error) {
-    if (error.code === "ENOENT" && isPatch) {
+    if (error.code === "ENOENT" && isPatch && typeof optionsOrIsPatch === "object" && optionsOrIsPatch?.isPatch) {
       throw new Error(`API patch target does not exist: ${rawPath}`);
     }
     if (error.code !== "ENOENT") throw error;
@@ -291,10 +416,28 @@ export async function applyApiBuildResult(cwd, responseText, buildSnapshotHashes
     const target = await apiBuildTarget(cwd, patch.path, buildSnapshotHashes, { isPatch: true });
     let nextContent = await fs.readFile(target, "utf8");
     for (const edit of patch.edits) {
-      if (!nextContent.includes(edit.search)) {
+      let matchedSearch = edit.search;
+      let matchedReplace = edit.replace;
+      if (!nextContent.includes(matchedSearch) && nextContent.includes("\r\n")) {
+        const crlfSearch = edit.search.replace(/\r?\n/g, "\r\n");
+        if (nextContent.includes(crlfSearch)) {
+          matchedSearch = crlfSearch;
+          matchedReplace = edit.replace.replace(/\r?\n/g, "\r\n");
+        }
+      } else if (!nextContent.includes(matchedSearch) && edit.search.includes("\r\n")) {
+        const lfSearch = edit.search.replace(/\r\n/g, "\n");
+        if (nextContent.includes(lfSearch)) {
+          matchedSearch = lfSearch;
+          matchedReplace = edit.replace.replace(/\r\n/g, "\n");
+        }
+      }
+      if (!nextContent.includes(matchedSearch)) {
         throw new Error(`API patch search block did not match existing file content in: ${patch.path}`);
       }
-      nextContent = nextContent.replace(edit.search, () => edit.replace);
+      if (nextContent.indexOf(matchedSearch) !== nextContent.lastIndexOf(matchedSearch)) {
+        throw new Error(`API patch search block is ambiguous and matches multiple locations in: ${patch.path}`);
+      }
+      nextContent = nextContent.replace(matchedSearch, () => matchedReplace);
     }
     patches.push({ path: patch.path, target, content: nextContent });
   }
@@ -303,7 +446,7 @@ export async function applyApiBuildResult(cwd, responseText, buildSnapshotHashes
     const key = item.replace(/\\/g, "/").toLocaleLowerCase();
     if (seen.has(key)) throw new Error(`API implementation returned a duplicate path: ${item}`);
     seen.add(key);
-    deletes.push({ path: item, target: await apiBuildTarget(cwd, item, buildSnapshotHashes) });
+    deletes.push({ path: item, target: await apiBuildTarget(cwd, item, buildSnapshotHashes, true) });
   }
   const changed = [];
   for (const item of deletes) {

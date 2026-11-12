@@ -13,6 +13,7 @@ import { formatNumber } from "../shared/i18n.js";
 import { THEMES, THEME_GROUPS, getThemeDefinition } from "../shared/themes.js";
 import { compactChatTitle } from "../shared/chat-labels.js";
 import { isMobileCompanionMode } from "../shared/remote-host.js";
+import { findQuotaPeriod, quotaWindowsWithPeriods } from "../shared/quota-windows.js";
 
 function quotaTone(usedPercent) {
   const used = Number(usedPercent || 0);
@@ -51,6 +52,7 @@ function formatQuotaReset(isoTime, english = false) {
 }
 
 function QuotaWindowRow({ win, english }) {
+  if (win.unavailable) return <div class="wb-quota-window-row"><div class="wb-quota-window-meta"><span class="wb-quota-window-label"><b>{win.label === "5h" ? "5h" : english ? "7d" : "7 ngày"}</b></span><span class="wb-quota-unavailable">{english ? "No data" : "Chưa có dữ liệu"}</span></div></div>;
   const used = Number(win.usedPercent || 0);
   const remaining = Number(win.remainingPercent ?? Math.max(0, 100 - used));
   const tone = quotaTone(used);
@@ -95,10 +97,12 @@ function StatusBar({ snapshot }) {
 
   const liveBadges = usageProviders.map(([id, , shortName]) => {
     const q = quotas[id];
-    const win5h = q?.windows?.find((w) => w.label === "5h") || q?.windows?.[0];
-    if (!win5h || q?.status !== "ok") return null;
-    const tone = quotaTone(win5h.usedPercent);
-    return { id, shortName, remaining: win5h.remainingPercent, used: win5h.usedPercent, tone };
+    const windows = q?.groups?.[0]?.windows || q?.windows || [];
+    const win5h = findQuotaPeriod(windows, "5h");
+    const weekly = findQuotaPeriod(windows, "7d");
+    if ((!win5h && !weekly) || q?.status !== "ok") return null;
+    const tone = quotaTone(Math.max(win5h?.usedPercent ?? 0, weekly?.usedPercent ?? 0));
+    return { id, shortName, fiveHour: win5h?.remainingPercent, weekly: weekly?.remainingPercent, tone };
   }).filter(Boolean);
 
   return <footer class="wb-statusbar" aria-label="Trạng thái hệ thống và hạn mức">
@@ -130,7 +134,7 @@ function StatusBar({ snapshot }) {
         {liveBadges.map((badge) => (
           <span class="wb-status-quota-pill" key={badge.id}>
             <i class={`wb-quota-dot is-${badge.tone}`} />
-            <span>{badge.shortName} <strong>{badge.remaining}%</strong></span>
+            <span>{badge.shortName} 5h <strong>{badge.fiveHour == null ? "—" : `${badge.fiveHour}%`}</strong> / 7d <strong>{badge.weekly == null ? "—" : `${badge.weekly}%`}</strong></span>
             <span class="wb-status-sep">·</span>
           </span>
         ))}
@@ -175,14 +179,14 @@ function StatusBar({ snapshot }) {
                     <div class="wb-quota-group" key={group.name}>
                       <div class="wb-quota-group-title" data-localize-skip="true">{group.name}</div>
                       <div class="wb-quota-grid">
-                        {group.windows.map((win) => <QuotaWindowRow key={win.id} win={win} english={english} />)}
+                        {quotaWindowsWithPeriods(group.windows).map((win) => <QuotaWindowRow key={win.id} win={win} english={english} />)}
                       </div>
                     </div>
                   ))}
                 </div>
               ) : hasWindows ? (
                 <div class="wb-quota-grid">
-                  {q.windows.map((win) => <QuotaWindowRow key={win.id} win={win} english={english} />)}
+                  {quotaWindowsWithPeriods(q.windows).map((win) => <QuotaWindowRow key={win.id} win={win} english={english} />)}
                 </div>
               ) : null}
             </section>;

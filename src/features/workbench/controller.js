@@ -1,4 +1,4 @@
-import { $, view } from "../../shared/state.js";
+import { $, setBoundedCache, view } from "../../shared/state.js";
 import { roleConfig } from "../../domain/agent-roles.js";
 import { localizeDom } from "../../shared/i18n.js";
 import { applyThemeToDom } from "../../shared/themes.js";
@@ -9,7 +9,7 @@ import {
   parsePairingInput,
   probeRemoteHost,
 } from "../../shared/remote-host.js";
-import { syncHtmlInspectUi } from "./html-inspector.js";
+import { markIframeInspectorBridgeReady, syncHtmlInspectUi } from "./html-inspector.js";
 import { wrapStageWithOrcaTabs } from "./stage-viewer.js";
 import { pageSupportsRightDock } from "./right-dock.js";
 import {
@@ -99,6 +99,12 @@ if (window.opensybauDesktop?.isDesktop) document.documentElement.classList.add("
 
 function render({ background = false } = {}) {
   if (!view.state) return;
+  if (view._pendingTaskSwitchId) {
+    const nextKey = view._pendingTaskSwitchId;
+    view._pendingTaskSwitchId = "";
+    view.chatDraft = view.chatDraftsByTask?.[nextKey] || "";
+    view.mpSessionTab = "chat";
+  }
   if (view.page === "workspaces" && !view.workspaceOverviewMode && view.state.workspaces?.length) {
     const activeWs = view.state.workspaces.find((w) => w.id === view.selected)
       || view.state.workspaces.find((w) => w.id === view.homeWorkspaceId)
@@ -185,7 +191,10 @@ function render({ background = false } = {}) {
   view.searchResults = searchResults;
   const pageSidebarMarkup = view.page === "settings" ? settingsSidebarMarkup() : "";
   updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, theme: view.theme, state: view.state, connectors: view.connectors, quotas: view.quotas, quotasLoading: Boolean(view.quotasLoading), desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: (selectedTask || selectedWorkspace) ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults, collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, activeRemoteHostName: getActiveRemoteHost()?.name || "", chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, pageSidebarMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
-  localizeDom(document.querySelector("#root"), view.language);
+  if (view.renderedLanguage !== view.language) {
+    view.renderedLanguage = view.language;
+    localizeDom(document.querySelector("#root"), view.language);
+  }
   const overlay = $("#overlay");
   if (overlay && overlay.children.length > 0) {
     localizeDom(overlay, view.language);
@@ -242,7 +251,6 @@ function render({ background = false } = {}) {
     overlay.innerHTML = "";
   }
   syncWorkflow();
-  localizeDom(document.querySelector("#root"), view.language);
 }
 
 registerRuntimeHooks({
@@ -263,9 +271,53 @@ attachChatOutlineListeners();
 
 const activeButtonActions = new WeakSet();
 const lastButtonActionAt = new WeakMap();
+const MUTATION_CLICK_ACTIONS = new Set([
+  "create-task",
+  "send-chat-message",
+  "apply-worktree",
+  "pick-arena-winner",
+  "discard-worktree",
+  "rerun-stage",
+  "rerun-task",
+  "stop-task",
+  "git-commit",
+  "task-git-commit",
+  "promote-subagent",
+  "submit-diff-review",
+  "send-html-element-comment",
+  "send-stage-line-comment",
+  "save-stage-file",
+  "run-task-qa",
+  "approve-plan-gate",
+  "revise-plan-gate",
+  "distill-task-skill",
+  "compact-task-chat",
+  "delete-chat",
+  "archive-task",
+  "restore-task",
+  "fork-chat",
+]);
+
 document.addEventListener("click", async (event) => {
-  const button = event.target.closest?.("button, [data-action='open-diff-comment']");
+  const commentRow = event.target.closest?.("[data-action='open-stage-line-comment'], [data-action='open-diff-comment']");
+  if (commentRow && !commentRow.dataset.code) {
+    const codeCell = commentRow.querySelector(".orca-diff-code, .orca-file-code, .orca-code-text, .diff-code, code");
+    if (codeCell) commentRow.dataset.code = codeCell.textContent || "";
+  }
+  const taskEl = event.target.closest?.("[data-task]");
+  if (taskEl && !event.target.closest?.("[data-page]")) {
+    view.chatDraftsByTask ||= {};
+    const currentKey = view.selectedTaskId || view.selected || "__new__";
+    view.chatDraftsByTask[currentKey] = view.chatDraft;
+    setBoundedCache(view.chatDraftsByTask, currentKey, view.chatDraft);
+    view._pendingTaskSwitchId = taskEl.dataset.task || "__new__";
+  }
+  const button = event.target.closest?.("button, [data-action]");
   if (!button) return handleWorkbenchClick(event);
+  const action = button.dataset?.action || "";
+  if (!MUTATION_CLICK_ACTIONS.has(action)) {
+    return handleWorkbenchClick(event);
+  }
   const now = Date.now();
   const lastActionAt = lastButtonActionAt.get(button) || 0;
   if (activeButtonActions.has(button) || now - lastActionAt < 250) {
@@ -303,6 +355,29 @@ document.addEventListener("drop", (event) => {
   input.dispatchEvent(new Event("input", { bubbles: true }));
 });
 
+let filterRenderRafId = 0;
+function scheduleFilterRender(focusSelector, selectionPos) {
+  if (filterRenderRafId && typeof cancelAnimationFrame === "function") {
+    cancelAnimationFrame(filterRenderRafId);
+  }
+  const run = () => {
+    filterRenderRafId = 0;
+    render();
+    if (focusSelector) {
+      const nextInput = $(focusSelector);
+      nextInput?.focus();
+      if (typeof selectionPos === "number") {
+        try { nextInput?.setSelectionRange(selectionPos, selectionPos); } catch {}
+      }
+    }
+  };
+  if (typeof requestAnimationFrame === "function") {
+    filterRenderRafId = requestAnimationFrame(run);
+  } else {
+    run();
+  }
+}
+
 document.addEventListener("input", (event) => {
   if (event.target.matches?.("[data-html-element-comment-input]")) {
     view.stageHtmlCommentDraft = event.target.value;
@@ -311,16 +386,30 @@ document.addEventListener("input", (event) => {
   const chatInput = event.target.closest(".chat-input");
   if (chatInput) {
     const splitTaskId = chatInput.closest(".multi-chat-pane")?.dataset.taskId;
-    if (splitTaskId) { view.chatSplitDrafts ||= {}; view.chatSplitDrafts[splitTaskId] = chatInput.value; }
-    else view.chatDraft = chatInput.value;
+    if (splitTaskId) {
+      view.chatSplitDrafts ||= {};
+      setBoundedCache(view.chatSplitDrafts, splitTaskId, chatInput.value);
+    } else {
+      view.chatDraft = chatInput.value;
+      view.chatDraftsByTask ||= {};
+      const key = view.selectedTaskId || view.selected || "__new__";
+      view.chatDraftsByTask[key] = chatInput.value;
+      setBoundedCache(view.chatDraftsByTask, key, chatInput.value);
+    }
     resizeComposerTextarea(chatInput);
     void updateComposerMentionMenu(chatInput);
     return;
   }
   const homePrompt = event.target.closest("[data-home-prompt]");
   if (homePrompt) {
-    if (homePrompt.closest("[data-split-chat-create]")) view.chatSplitCreateDraft = homePrompt.value;
-    else view.chatDraft = homePrompt.value;
+    if (homePrompt.closest("[data-split-chat-create]")) {
+      view.chatSplitCreateDraft = homePrompt.value;
+    } else {
+      view.chatDraft = homePrompt.value;
+      view.chatDraftsByTask ||= {};
+      view.chatDraftsByTask.__new__ = homePrompt.value;
+      setBoundedCache(view.chatDraftsByTask, "__new__", homePrompt.value);
+    }
     resizeComposerTextarea(homePrompt);
     void updateComposerMentionMenu(homePrompt);
     return;
@@ -328,21 +417,25 @@ document.addEventListener("input", (event) => {
   const drawerFilter = event.target.closest("[data-chat-drawer-filter]");
   if (drawerFilter) {
     view.chatDrawerFilter = drawerFilter.value;
-    const pos = drawerFilter.selectionStart;
-    render();
-    const nextFilter = $("[data-chat-drawer-filter]");
-    nextFilter?.focus();
-    if (typeof pos === "number") nextFilter?.setSelectionRange(pos, pos);
+    scheduleFilterRender("[data-chat-drawer-filter]", drawerFilter.selectionStart);
+    return;
+  }
+  const skillOrSubagentSearch = event.target.closest("[data-skill-search], [data-subagent-search]");
+  if (skillOrSubagentSearch) {
+    const isSubagent = skillOrSubagentSearch.hasAttribute("data-subagent-search");
+    if (isSubagent) view.subagentFilter = skillOrSubagentSearch.value;
+    else view.skillFilter = skillOrSubagentSearch.value;
+    view.chatDrawerFilter = skillOrSubagentSearch.value;
+    scheduleFilterRender(
+      isSubagent ? "[data-subagent-search]" : "[data-skill-search]",
+      skillOrSubagentSearch.selectionStart,
+    );
     return;
   }
   const diffBranchSearch = event.target.closest("[data-diff-branch-search]");
   if (diffBranchSearch) {
     view.diffBranchFilter = diffBranchSearch.value;
-    const pos = diffBranchSearch.selectionStart;
-    render();
-    const nextInput = $("[data-diff-branch-search]");
-    nextInput?.focus();
-    if (typeof pos === "number") nextInput?.setSelectionRange(pos, pos);
+    scheduleFilterRender("[data-diff-branch-search]", diffBranchSearch.selectionStart);
     return;
   }
   const settingsSearch = event.target.closest("[data-settings-search]");
@@ -350,11 +443,7 @@ document.addEventListener("input", (event) => {
   const mpWlSearch = event.target.closest("[data-mp-wl-search]");
   if (mpWlSearch) {
     view.mpWlSearchQuery = mpWlSearch.value;
-    const pos = mpWlSearch.selectionStart;
-    render();
-    const nextInput = $("[data-mp-wl-search]");
-    nextInput?.focus();
-    if (typeof pos === "number") nextInput?.setSelectionRange(pos, pos);
+    scheduleFilterRender("[data-mp-wl-search]", mpWlSearch.selectionStart);
     return;
   }
   const homeSearch = event.target.closest("[data-home-search]");
@@ -392,7 +481,11 @@ document.addEventListener("input", (event) => {
   const input = event.target.closest("[data-skill-filter]");
   if (!input) return;
   if (input.dataset.skillFilter === "library") view.skillFilter = input.value;
-  applySkillFilter(input);
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => applySkillFilter(input));
+  } else {
+    applySkillFilter(input);
+  }
 });
 
 document.addEventListener("change", (event) => {
@@ -533,8 +626,11 @@ window.addEventListener("message", (event) => {
   if (!frame || event.source !== frame.contentWindow) return;
   const data = event?.data;
   if (!data || typeof data !== "object") return;
-  if (data.type === "orca-inspect:ready") syncHtmlInspectUi();
-  else if (data.type === "orca-inspect:selected" && data.element) {
+  if (data.type === "orca-inspect:ready" || data.type === "orca-inspect-ready") {
+    markIframeInspectorBridgeReady(frame);
+    syncHtmlInspectUi();
+  } else if (data.type === "orca-inspect:selected" && data.element) {
+    markIframeInspectorBridgeReady(frame);
     view.stageHtmlInspectActive = true;
     view.stageHtmlSelectedElement = data.element;
     syncHtmlInspectUi({ focusInput: true });

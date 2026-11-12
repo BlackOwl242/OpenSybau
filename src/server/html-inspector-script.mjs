@@ -162,6 +162,8 @@ export const ORCA_INSPECTOR_SCRIPT = `<script data-orca-inspector="1">
   }, true);
 
   window.addEventListener("message", (e) => {
+    if (e.source !== window.parent) return;
+    if (!e.origin || (window.location.origin && window.location.origin !== "null" && e.origin !== window.location.origin)) return;
     const data = e?.data;
     if (!data || typeof data !== "object") return;
     if (data.type === "orca-inspect:set-mode") {

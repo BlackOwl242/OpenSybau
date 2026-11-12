@@ -60,10 +60,12 @@ export function providerLabel(id) {
   return ({ codex: "Codex", antigravity: "Antigravity", claude: "Claude Code", "claude-api": "Claude API", openai: "OpenAI API", gemini: "Google Gemini API" })[id] || id;
 }
 
-function isBlockedEndpointHost(hostname) {
+export function isBlockedEndpointHost(hostname) {
   const host = String(hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
   if (!host || host === "0.0.0.0" || host === "::" || host === "metadata.google.internal" || host === "instance-data") return true;
-  if (/^169\.254\.\d{1,3}\.\d{1,3}$/.test(host) || /^fe80:/i.test(host)) return true;
+  if (/^(127|0)\./.test(host)) return true;
+  if (/^169\.254\.\d{1,3}\.\d{1,3}$/.test(host) || /^(fc|fd|fe80)/i.test(host)) return true;
+  if (host.startsWith("::ffff:") || host.startsWith("0:0:0:0:0:ffff:") || host.includes("a9fe:a9fe")) return true;
   return false;
 }
 

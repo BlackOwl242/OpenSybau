@@ -71,11 +71,11 @@ export function renderDiffStudioModal({ showModal } = {}) {
         const cls = line.type === "add" ? "diff-row-add" : line.type === "del" ? "diff-row-del" : "diff-row-ctx";
         const prefix = line.type === "add" ? "+" : line.type === "del" ? "-" : " ";
         return `<div class="diff-row-group">
-          <div class="diff-row ${cls} diff-line-annotatable" data-action="open-diff-comment" data-key="${esc(lineKey)}" data-path="${esc(selectedFile.path)}" data-side="${side}" data-line="${esc(lineNo)}" data-code="${esc(line.text)}" title="Nhấn để thêm nhận xét review tại dòng ${lineNo}">
+          <div class="diff-row ${cls} diff-line-annotatable" data-action="open-diff-comment" data-key="${esc(lineKey)}" data-path="${esc(selectedFile.path)}" data-side="${side}" data-line="${esc(lineNo)}" title="Nhấn để thêm nhận xét review tại dòng ${lineNo}">
             <span class="diff-ln">${line.oldLine ?? ""}</span>
             <span class="diff-ln">${line.newLine ?? ""}</span>
             <span class="diff-sign">${prefix}<i class="diff-add-comment-icon">+</i></span>
-            <code class="diff-code">${esc(line.text) || " "}</code>
+            <code class="diff-code orca-diff-code">${esc(line.text) || " "}</code>
           </div>
           ${lineAnns.map((ann) => `<div class="diff-inline-annotation">
             <div class="diff-annotation-head"><strong>Nhận xét dòng ${esc(ann.line)}</strong><button type="button" class="icon-button" data-action="remove-diff-comment" data-comment-id="${esc(ann.id)}" title="Xóa nhận xét">${icon("x", 13)}</button></div>

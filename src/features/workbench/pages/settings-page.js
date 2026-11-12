@@ -6,6 +6,7 @@ import { THEMES, THEME_GROUPS, getThemeDefinition } from "../../../shared/themes
 import { renderDeviceConnectSettingsSection } from "../device-connect.js";
 import { cliRefreshButton, showModal } from "../runtime.js";
 import { homeSelectField, roleEditor } from "../ui-controls.js";
+import { quotaWindowsWithPeriods } from "../../../shared/quota-windows.js";
 
 export const SETTINGS_NAV_ITEMS = [
   { id: "all", label: "Tất cả cài đặt", mobileLabel: "Tất cả", icon: "sliders-horizontal", keywords: "" },
@@ -149,10 +150,11 @@ function formatInlineReset(isoTime) {
 }
 
 function renderInlineQuotaWindow(win) {
+  if (win.unavailable) return `<div class="wb-quota-window-row is-inline"><div class="wb-quota-window-meta"><span class="wb-quota-window-label"><b>${win.label === "5h" ? "5h" : "7 ngày"}</b></span><span class="wb-quota-unavailable">Chưa có dữ liệu</span></div></div>`;
   const used = Number(win.usedPercent || 0);
   const remaining = Number(win.remainingPercent ?? Math.max(0, 100 - used));
   const tone = used >= 90 ? "critical" : used >= 80 ? "warning" : "normal";
-  const label = String(win.label || "").toLowerCase() === "5h" ? "5h" : String(win.label || "").toLowerCase() === "7d" ? "7 ngày" : win.label;
+  const label = String(win.label || "").toLowerCase() === "5h" ? "5h" : ["7d", "weekly"].includes(String(win.label || "").toLowerCase()) ? "7 ngày" : win.label;
   const reset = formatInlineReset(win.resetsAt);
   return `<div class="wb-quota-window-row is-inline">
     <div class="wb-quota-window-meta">
@@ -170,8 +172,8 @@ function renderCliQuotaDetails(providerId) {
   const hasWindows = Array.isArray(q.windows) && q.windows.length > 0;
   if (!hasGroups && !hasWindows) return "";
   const body = hasGroups
-    ? `<div class="wb-quota-groups is-inline">${q.groups.map((g) => `<div class="wb-quota-group"><div class="wb-quota-group-title" data-localize-skip="true">${esc(g.name)}</div><div class="wb-quota-grid">${g.windows.map(renderInlineQuotaWindow).join("")}</div></div>`).join("")}</div>`
-    : `<div class="wb-quota-grid is-inline">${q.windows.map(renderInlineQuotaWindow).join("")}</div>`;
+    ? `<div class="wb-quota-groups is-inline">${q.groups.map((g) => `<div class="wb-quota-group"><div class="wb-quota-group-title" data-localize-skip="true">${esc(g.name)}</div><div class="wb-quota-grid">${quotaWindowsWithPeriods(g.windows).map(renderInlineQuotaWindow).join("")}</div></div>`).join("")}</div>`
+    : `<div class="wb-quota-grid is-inline">${quotaWindowsWithPeriods(q.windows).map(renderInlineQuotaWindow).join("")}</div>`;
   return `<div class="cli-quota-inline">${body}</div>`;
 }
 
@@ -194,8 +196,8 @@ export function settingsPage() {
           ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${esc(agent.id)}" ${view.cliInstallProvider ? "disabled" : ""}>${view.cliInstallProvider === agent.id ? "Đang cài đặt…" : "Cài CLI"}</button>`
           : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
         : status.tone === "ready"
-          ? ""
-          : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Mở terminal đăng nhập</button>`;
+          ? `<button class="button quiet small" type="button" data-action="provider-cli-switch-account" data-id="${esc(agent.id)}">Đổi tài khoản</button>`
+          : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Đăng nhập</button>`;
     const detail = mobileDisconnected
       ? "Chưa kết nối với máy tính (PC). Ghép nối với PC để đồng bộ CLI và hạn mức."
       : status.tone === "ready"
@@ -299,7 +301,7 @@ export function settingsPage() {
       <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu model mặc định</button></footer>
     </section>
     <section class="settings-card cli-setup-card" id="cli-setup" data-settings-section="cli" ${showSection("cli") ? "" : "hidden"}><header><div><h2>Công cụ CLI & Hạn mức</h2><p>${isMobile ? "Trạng thái Codex, Antigravity, Claude Code và hạn mức tài khoản trên máy tính (PC) đang kết nối." : "Tự động nhận diện Codex, Antigravity, Claude Code và kiểm tra hạn mức tài khoản trên máy."}</p></div><div class="page-head-actions"><button class="button quiet small" type="button" data-action="refresh-quotas" ${view.quotasLoading ? "disabled" : ""}>${icon("refresh-cw", 13)} ${view.quotasLoading ? "Đang tải hạn mức..." : "Cập nhật hạn mức"}</button>${cliRefreshButton()}</div></header><div class="cli-guide-list">${cliSetup}</div></section>
-    <section class="settings-card provider-setup-card" id="settings-api" data-settings-section="api" ${showSection("api") ? "" : "hidden"}><header><div><h2>Kết nối API & Model cục bộ</h2><p>Dùng thêm khóa API (OpenAI, Gemini, Claude) hoặc model chạy qua Ollama, LM Studio.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa thêm nguồn API nào</strong><p>Bấm Thêm nguồn nếu bạn muốn dùng API key riêng hoặc kết nối Ollama / LM Studio.</p><button class="button quiet small" type="button" data-action="provider-add">${icon("plus", 13)} Thêm nguồn API</button></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div></section>
+    <section class="settings-card provider-setup-card" id="settings-api" data-settings-section="api" ${showSection("api") ? "" : "hidden"}><header><div><h2>Kết nối API & Model cục bộ</h2><p>Dùng thêm khóa API (OpenAI, Gemini, Claude) hoặc model chạy qua Ollama, LM Studio.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa thêm nguồn API nào</strong><p>Bấm Thêm nguồn nếu bạn muốn dùng API key riêng hoặc kết nối Ollama / LM Studio.</p></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div></section>
     ${renderDeviceConnectSettingsSection({ hidden: !showSection("devices") })}
     <section class="settings-card concurrency-card" id="settings-concurrency" data-settings-section="concurrency" ${showSection("concurrency") ? "" : "hidden"}><header><div><h2>Số công việc chạy cùng lúc</h2><p>${isMobile ? "Giới hạn số công việc AI được phép chạy song song trên máy tính (PC)." : "Giới hạn số công việc AI được phép chạy song song trên máy."}</p></div></header>
       <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${maxConcurrent}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
@@ -342,7 +344,7 @@ export function showCliProviderModal() {
         : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
       : status.tone === "ready"
         ? cliRefreshButton("Đã kết nối · quét lại")
-        : `<button class="button primary small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">${icon("square-terminal", 13)} ${status.tone === "needs-action" && connector?.authenticated ? "Mở CLI để kiểm tra" : "Bắt đầu đăng nhập"}</button>`;
+        : `<button class="button primary small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">${icon("square-terminal", 13)} ${status.tone === "needs-action" && connector?.authenticated ? "Mở CLI để kiểm tra" : "Đăng nhập"}</button>`;
     const docsUrl = status.tone === "missing" ? agent.url : agent.authUrl || agent.url;
     const instructions = status.tone === "missing"
       ? `<div class="cli-connect-login"><span>Cài đặt CLI</span><small>${esc(agent.installHelp)}</small></div>`
