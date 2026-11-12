@@ -1,19 +1,12 @@
+import { isMobileCompanionMode } from "./remote-host.js";
+
 const THEME_STORAGE_KEY = "opensybau.theme";
 const MOBILE_OLED_MIGRATION_KEY = "opensybau.mobile-oled-default.v1";
 export const DEFAULT_THEME_ID = "obsidian";
 export const MOBILE_DEFAULT_THEME_ID = "carbon-oled";
 
 export function isMobileThemeRuntime() {
-  if (typeof window === "undefined") return false;
-  if (window.opensybauAndroid) return true;
-  const host = String(window.location?.hostname || "").toLowerCase();
-  if (host === "appassets.androidplatform.net") return true;
-  const ua = String(window.navigator?.userAgent || "");
-  if (/OpenSybauAndroid|Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true;
-  if (typeof window.matchMedia === "function" && window.matchMedia("(max-width: 740px)").matches) {
-    return true;
-  }
-  return false;
+  return isMobileCompanionMode();
 }
 
 export function getDefaultThemeId() {

@@ -204,7 +204,7 @@ function StatusBar({ snapshot }) {
   </footer>;
 }
 
-function WindowChrome({ snapshot, sidebarCollapsed, mobileSidebarOpen, onToggleSidebar }) {
+function WindowChrome({ snapshot, sidebarCollapsed, mobileSidebarOpen, onToggleSidebar, onCloseSidebar }) {
   const desktop = typeof window !== "undefined" ? window.opensybauDesktop : null;
   const [updateState, setUpdateState] = useState(null);
   useEffect(() => {
@@ -342,6 +342,7 @@ function WindowChrome({ snapshot, sidebarCollapsed, mobileSidebarOpen, onToggleS
           type="button"
           class={`wb-chrome-icon wb-mobile-only-btn ${dockOpen ? "is-active" : ""}`}
           data-action="toggle-chat-drawer"
+          onClick={(event) => { if (mobileSidebarOpen) { onCloseSidebar(); if (dockOpen) event.stopPropagation(); } }}
           title="Mở thanh công cụ bên phải"
           aria-label="Mở thanh công cụ bên phải"
         >
@@ -387,6 +388,7 @@ export function AppShell({ snapshot, pageMarkup }) {
     hasPageSidebar && "has-page-sidebar",
     hasContextSidebar && hasPageSidebar && "has-both-sidebars",
     hasRightDock && "has-right-dock",
+    mobileSidebarOpen && "has-mobile-sidebar-open",
     sidebarCollapsed && "is-sidebar-collapsed",
   ].filter(Boolean).join(" ");
   useEffect(() => { setMobileSidebarOpen(false); }, [page, snapshot.selected]);
@@ -420,6 +422,7 @@ export function AppShell({ snapshot, pageMarkup }) {
       snapshot={snapshot}
       sidebarCollapsed={sidebarCollapsed}
       mobileSidebarOpen={mobileSidebarOpen}
+      onCloseSidebar={() => setMobileSidebarOpen(false)}
       onToggleSidebar={() => {
         if (window.matchMedia("(max-width: 740px)").matches) setMobileSidebarOpen((prev) => !prev);
         else setSidebarCollapsed((prev) => !prev);

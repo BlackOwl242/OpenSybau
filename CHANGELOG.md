@@ -5,6 +5,18 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.7] - 2026-11-12
+
+### Tiếng Việt
+- Cải thiện giao diện cửa sổ hẹp và điện thoại: ô chat, menu, thanh bên, bộ lọc công việc và cài đặt model.
+- Phân biệt thiết bị desktop và điện thoại, đặt kích thước cửa sổ desktop tối thiểu và sửa vùng kéo thanh tiêu đề.
+
+### English
+- Improve narrow-window and mobile layouts, composer menus, drawers, task filters and model settings.
+- Distinguish desktop from mobile devices, set a desktop minimum window size and fix title-bar dragging.
+
+---
+
 ## [0.3.6] - 2026-11-12
 
 ### Tiếng Việt

@@ -527,10 +527,10 @@ button:disabled { cursor: not-allowed; }
   .wb-context-sidebar, .wb-context-sidebar.is-mobile-only {
     position: fixed; top: 0; bottom: 0; left: 0; z-index: 42;
     width: min(340px, max(280px, 86vw)); height: 100dvh; display: flex;
-    border-right: 1px solid var(--wb-border-subtle); box-shadow: 18px 0 44px #0008;
+    border-right: 1px solid var(--wb-border-subtle); box-shadow: none;
     transform: translateX(-105%); transition: transform .2s ease;
   }
-  .wb-context-sidebar.is-mobile-open { transform: translateX(0); }
+  .wb-context-sidebar.is-mobile-open { transform: translateX(0); box-shadow: 18px 0 44px #0008; }
   .wb-sidebar-header { justify-content: space-between; }
   .wb-sidebar-close { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--wb-raised); border-radius: 8px; color: var(--wb-ink); background: var(--wb-raised); }
   .wb-page-sidebar { display: none; }

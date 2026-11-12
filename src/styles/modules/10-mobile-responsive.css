@@ -4,6 +4,51 @@
    ========================================================================== */
 
 @media (max-width: 740px) {
+  .wb-page-content #settings-roles .settings-role-grid { gap: 12px !important; }
+  .wb-page-content #settings-roles .agent-role-card {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+    padding: 14px !important;
+  }
+  .wb-page-content #settings-roles .agent-role-card > header {
+    grid-column: 1 !important;
+    padding-bottom: 6px !important;
+  }
+  .wb-page-content #settings-roles .agent-role-card > .agent-role-picker-field {
+    grid-column: 1 !important;
+    grid-template-columns: minmax(82px, 0.7fr) minmax(0, 1.3fr) !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+  .wb-page-content #settings-roles .agent-role-picker > summary {
+    min-height: 40px !important;
+    width: 100% !important;
+  }
+  .wb-page-content #settings-roles .settings-actions > .button { width: 100%; justify-content: center; }
+  html body .wb-page-content .quick-stats.is-four-cols.task-overview-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    padding: 0 !important;
+    gap: 8px !important;
+    background: transparent !important;
+  }
+  .wb-page-content .task-overview-stats > div { min-width: 0; min-height: 56px; }
+  .wb-page-content .task-overview-stats > div > small {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+  html body .wb-page-content .list-toolbar.task-filter-toolbar > .filters {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    overflow: visible !important;
+  }
+  .wb-page-content .task-filter-toolbar > .filters > .filter {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    padding: 0 4px !important;
+  }
   /* 1. Safe-area top & unified 48px mobile top header */
   .wb-app-shell,
   .wb-app-shell.has-context-sidebar,
@@ -1714,4 +1759,196 @@
     white-space: pre-wrap;
     word-break: break-word;
   }
+}
+
+/* Narrow desktop windows have native window controls as well as app controls. */
+@media (max-width: 1020px) {
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    align-items: center !important;
+    gap: 8px !important;
+    height: auto !important;
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+  }
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar > .kb-topbar-right {
+    display: contents !important;
+  }
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar .vault-mode-tabs {
+    display: flex !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar .vault-mode-tab {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+  }
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar .vault-mode-tab span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body .wb-page-content .kb-stage-topbar.is-skill-topbar > .kb-topbar-right > .button {
+    width: 100%;
+    min-width: 0 !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+@media (max-width: 740px) {
+  .wb-window-chrome.is-desktop .wb-window-chrome-right > .wb-update-btn:not(.is-ready) {
+    display: none !important;
+  }
+  .wb-window-chrome.is-desktop .wb-theme-trigger > .wb-theme-dot {
+    display: inline-block !important;
+  }
+}
+@media (max-width: 480px) {
+  .wb-window-chrome.is-desktop .wb-window-chrome-left,
+  .wb-window-chrome.is-desktop .wb-window-chrome-right { gap: 4px !important; }
+  .wb-window-chrome.is-desktop .wb-window-chrome-left > .wb-sidebar-toggle-btn,
+  .wb-window-chrome.is-desktop .wb-window-chrome-right > .wb-chrome-icon,
+  .wb-window-chrome.is-desktop .wb-window-chrome-right > .wb-chrome-pill,
+  .wb-window-chrome.is-desktop .wb-window-chrome-right .wb-theme-trigger {
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+  }
+}
+
+/* Floating drawers must cover the workspace even when desktop acrylic is enabled. */
+@media (max-width: 1020px) {
+  html.desktop-glass .wb-app-shell .orca-right-dock {
+    background: linear-gradient(var(--wb-sidebar), var(--wb-sidebar)), var(--wb-bg) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+/* Phone layout: keep every control reachable without squeezing the composer. */
+@media (max-width: 740px) {
+  .wb-window-chrome-right > [data-action="new-chat"],
+  .wb-window-chrome-right > .wb-theme-menu {
+    display: none !important;
+  }
+  html.mobile-companion .wb-page-content .quick-stats.is-four-cols {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  html.mobile-companion .wb-page-content .quick-stats small {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.3 !important;
+  }
+  html.mobile-companion .wb-page-content .list-toolbar > .filters,
+  html.mobile-companion .wb-page-content .mc-filter-strip,
+  html.mobile-companion .wb-page-content .mc-counter-strip {
+    flex-wrap: wrap !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-width: 100% !important;
+  }
+  .wb-page-content .home-composer-controls,
+  .wb-page-content .chat-composer-controls {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+  }
+  .wb-page-content .home-composer-actions {
+    display: flex !important;
+    width: 100% !important;
+    justify-content: space-between !important;
+    margin: 0 !important;
+  }
+  .wb-page-content .home-composer-actions .codex-inline-model-bar {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    max-width: calc(100% - 48px) !important;
+  }
+  .wb-page-content .home-composer-actions .home-submit,
+  .wb-page-content .home-composer-actions .chat-send-button {
+    flex: 0 0 auto !important;
+    position: static !important;
+    margin-left: auto !important;
+  }
+  .wb-page-content .home-composer-actions .codex-pop-menu {
+    min-width: 0 !important;
+  }
+  .wb-page-content .home-composer-actions .codex-inline-trigger {
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  .wb-page-content .home-composer-actions .codex-inline-trigger span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .wb-app-shell > .wb-main.is-home-stage > .wb-workspace-split > .wb-stage-column {
+    padding-bottom: 220px !important;
+  }
+  .wb-page-content.is-home .home-composer-dock {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: calc(69px + env(safe-area-inset-bottom, 0px));
+    z-index: 18;
+  }
+  /* Anchor menus to the top edge of the composer, leaving the input visible. */
+  .wb-page-content.is-home .home-composer-dock :is(.codex-composer-rail, .home-composer),
+  .wb-page-content.is-home .home-composer-dock .codex-composer-rail .codex-pop-menu,
+  .wb-page-content.is-home .home-composer-controls :is(.codex-pop-menu, .composer-add),
+  .wb-page-content .chat-composer :is(.codex-pop-menu, .composer-add) {
+    position: static !important;
+  }
+  .wb-page-content.is-home .codex-composer-rail .codex-pop-menu[open] > .codex-pop-card,
+  .wb-page-content.is-home .home-composer-controls :is(.codex-pop-menu[open] > .codex-pop-card, .composer-add[open] > .composer-add-menu),
+  .wb-page-content .chat-composer :is(.codex-pop-menu[open] > .codex-pop-card, .composer-add[open] > .composer-add-menu) {
+    position: absolute !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: calc(100% + 8px) !important;
+    max-width: 100% !important;
+    max-height: min(35dvh, 210px) !important;
+    overflow-y: auto !important;
+    background: var(--wb-raised) !important;
+  }
+  .wb-page-content :is(.home-composer-controls, .chat-composer) .codex-pop-menu[open] > .codex-pop-card:is(.is-model-list, .is-effort-list) {
+    overflow: hidden !important;
+  }
+  .wb-page-content :is(.home-composer-controls, .chat-composer) .codex-pop-card:is(.is-model-list, .is-effort-list) > .codex-pop-scroll {
+    min-height: 0;
+    max-height: none !important;
+    overflow-y: auto !important;
+  }
+  .wb-app-shell.has-mobile-sidebar-open .home-composer-dock,
+  .wb-app-shell:has(.orca-right-dock) .home-composer-dock {
+    visibility: hidden;
+    pointer-events: none;
+  }
+}
+@media (max-width: 740px) {
+  html.desktop-glass .wb-app-shell .wb-context-sidebar {
+    background: linear-gradient(var(--wb-sidebar), var(--wb-sidebar)), var(--wb-bg) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .wb-app-shell.has-mobile-sidebar-open .wb-dock-backdrop,
+  .wb-app-shell.has-mobile-sidebar-open .orca-right-dock {
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+  .wb-app-shell .wb-window-chrome { z-index: 110 !important; }
+  .wb-app-shell .wb-main,
+  .wb-app-shell:not(.has-context-sidebar):not(.has-page-sidebar) .wb-main { border-radius: 0 !important; }
+  .wb-window-chrome.is-desktop .wb-window-chrome-left,
+  .wb-window-chrome.is-desktop .wb-window-chrome-right,
+  .wb-window-chrome.is-desktop .wb-mobile-chrome-title { -webkit-app-region: drag !important; }
+  .wb-window-chrome button, .wb-window-chrome summary { -webkit-app-region: no-drag !important; }
 }

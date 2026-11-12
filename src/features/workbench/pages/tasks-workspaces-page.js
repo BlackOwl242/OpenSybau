@@ -84,14 +84,14 @@ export function taskPage() {
   const queued = all.filter((task) => task.status === "queued").length;
   const completed = all.filter((task) => task.status === "done").length;
   return `<div class="page-head"><div><h1>Công việc</h1><p>Tạo việc thật trong repository bạn chọn, xem tiến độ và đầu ra trực tiếp.</p></div>${all.length ? `<div class="page-head-actions"><button class="button primary" data-action="${view.state.workspaces.length ? "new-task" : "add-workspace"}">${icon("plus", 15)} <span>${view.state.workspaces.length ? "Tạo task" : "Thêm dự án"}</span></button></div>` : ""}</div>
-  <div class="quick-stats is-four-cols">
+  <div class="quick-stats is-four-cols task-overview-stats">
     <div><small>Tổng số</small><strong>${all.length}</strong></div>
     <div><small>Đang chạy</small><strong>${running}</strong></div>
     <div><small>Đang chờ</small><strong>${queued}</strong></div>
     <div><small>Hoàn tất</small><strong>${completed}</strong></div>
   </div>
   ${activityChart()}
-  <div class="list-toolbar"><div class="filters">${[["all", "Tất cả"], ["running", "Đang chạy"], ["queued", "Chờ"], ["done", "Xong"], ["failed", "Lỗi"], ["cancelled", "Đã dừng"]].map(([key, label]) => `<button class="filter ${view.filter === key ? "active" : ""}" data-filter="${key}">${label}</button>`).join("")}</div><span>${all.length} task đã ghi trên máy này</span></div>
+  <div class="list-toolbar task-filter-toolbar"><div class="filters">${[["all", "Tất cả"], ["running", "Đang chạy"], ["queued", "Chờ"], ["done", "Xong"], ["failed", "Lỗi"], ["cancelled", "Đã dừng"]].map(([key, label]) => `<button class="filter ${view.filter === key ? "active" : ""}" data-filter="${key}" aria-pressed="${view.filter === key}">${label}</button>`).join("")}</div><span>${all.length} task đã ghi trên máy này</span></div>
   <section class="task-list">${visible.length ? visible.map(taskRow).join("") : `<div class="empty-state"><div class="empty-symbol">${icon("folder-code", 18)}</div><strong>${all.length ? "Không có task trong bộ lọc này" : view.state.workspaces.length ? "Chưa có task nào được chạy" : "Thêm repository của bạn để bắt đầu"}</strong><p>${all.length ? "Chọn bộ lọc khác để xem task." : view.state.workspaces.length ? "Task tiếp theo sẽ chạy trong đúng workspace đã đăng ký và lịch sử sẽ được lưu cục bộ." : "OpenSybau chỉ chạy trong thư mục bạn chỉ định. Hãy thêm đường dẫn repository hoặc thư mục ứng dụng trước; thư mục cài đặt ứng dụng không được tự coi là dự án của bạn."}</p>${all.length ? "" : view.state.workspaces.length ? `<button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button>` : `<button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm đường dẫn dự án</button>`}</div>`}</section>`;
 }
 

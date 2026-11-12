@@ -2,7 +2,7 @@ import { h } from "preact";
 import { Icon } from "../../shared/ui/Icon.jsx";
 import { chatNumber, compactChatTitle } from "../../shared/chat-labels.js";
 import { formatNumber } from "../../shared/i18n.js";
-import { getActiveRemoteHost, getSavedRemoteHosts, isAndroidApkRuntime } from "../../shared/remote-host.js";
+import { getActiveRemoteHost, getSavedRemoteHosts, isAndroidApkRuntime, isMobileCompanionMode } from "../../shared/remote-host.js";
 import { findQuotaPeriod } from "../../shared/quota-windows.js";
 
 const REPO_COLORS = ["blue", "green", "orange", "violet"];
@@ -240,6 +240,7 @@ export function MobileOrcaOverlay({ snapshot }) {
 
   // 1. On Home Chat screen: render Orca Mobile Companion Deck right below the AI Composer
   if (isHomeChat) {
+    if (!isMobileCompanionMode()) return null;
     const wlFilter = snapshot.mpWlFilter || "all";
     const wlRepo = snapshot.mpWlRepo || "all";
     const wlSearchOpen = Boolean(snapshot.mpWlSearchOpen);

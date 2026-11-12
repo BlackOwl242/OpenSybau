@@ -29,11 +29,14 @@ export function isAndroidApkRuntime() {
 }
 
 export function isMobileCompanionMode() {
-  if (isAndroidApkRuntime()) return true;
   if (typeof globalThis.window === "undefined") return false;
   if (globalThis.window.opensybauDesktop?.isDesktop) return false;
-  if (getActiveRemoteHost()?.url) return true;
-  return Boolean(globalThis.window.matchMedia?.("(max-width: 820px)")?.matches);
+  if (isAndroidApkRuntime()) return true;
+  const nav = globalThis.window.navigator || globalThis.navigator;
+  if (nav?.userAgentData?.mobile === true) return true;
+  const ua = String(nav?.userAgent || "");
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(ua)
+    || (nav?.platform === "MacIntel" && Number(nav?.maxTouchPoints) > 1);
 }
 
 const pendingNativeHttpRequests = new Map();

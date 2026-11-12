@@ -7,6 +7,7 @@ import { view } from "../src/shared/state.js";
 import { THEMES } from "../src/shared/themes.js";
 import { renderOrcaRightDockMarkup } from "../src/features/workbench/right-dock.js";
 import { settingsPage } from "../src/features/workbench/pages/settings-page.js";
+import { skillPage } from "../src/features/workbench/pages/knowledge-skills-page.js";
 import { within } from "../src/server/fs-security.mjs";
 const chrome=process.env.CHROME_PATH||"C:/Program Files/Google/Chrome/Application/chrome.exe";
 globalThis.window={opensybauDesktop:{supportsCliInstall:true},location:{hostname:"127.0.0.1"},matchMedia:()=>({matches:false})};
@@ -27,6 +28,8 @@ view.selectedDockSubagentId="sub-0";
 view.customizationInventory={workspace:{entries:[{name:"AGENTS.md",source:"AGENTS.md",kind:"rules",scope:"workspace",providers:["codex"],trusted:false,tokenEstimate:120},{name:"SKILL.md",source:".agents/skills/test/SKILL.md",kind:"skills",scope:"workspace",providers:["codex"],trusted:false,tokenEstimate:80}]}};
 const fragments={};for(const tab of ["overview","subagents","customizations","docs","terminal"]){view.chatDrawerTab=tab;fragments[tab]=`<div class="wb-app-shell" style="display:flex;justify-content:flex-end;width:100vw;height:100vh"><aside class="orca-right-dock">${renderOrcaRightDockMarkup()}</aside></div>`;}
 view.page="settings";view.settingsSection="api";fragments.settings=`<main class="wb-page-content" style="padding:16px;max-width:1100px;margin:auto">${settingsPage()}</main>`;
+view.page="skills";view.skillsSection="subagents";view.skills=Array.from({length:365},(_,i)=>({id:`fixture-${i}`,name:`Skill ${i}`}));view.subagentProfiles=[];view.subagentProfilesLoaded=true;
+fragments.skills=`<style>@media(min-width:741px) and (max-width:1020px){.test-skills-main{width:calc(100% - 308px);align-self:flex-end}}</style><div class="wb-app-shell" style="display:flex;flex-direction:column;width:100vw;height:100vh"><header class="wb-window-chrome is-desktop"><div class="wb-window-chrome-left"><button class="wb-chrome-icon wb-sidebar-toggle-btn">☰</button><div class="wb-mobile-chrome-title"><strong>Kỹ năng</strong></div></div><div class="wb-window-chrome-right"><details class="wb-theme-menu"><summary class="wb-chrome-pill wb-theme-trigger"><span class="wb-theme-dot" style="background:#88c0d0"></span><span class="wb-theme-trigger-label">Nordic Aurora</span></summary></details><button class="wb-chrome-pill">VI</button><button class="wb-chrome-icon">▣</button><button class="wb-chrome-pill wb-update-btn">Cập nhật</button></div></header><main class="wb-page-content test-skills-main" style="min-width:0;flex:1">${skillPage()}</main></div>`;
 const server=createServer(async(req,res)=>{
   const url=new URL(req.url,"http://127.0.0.1");
   if(url.pathname.startsWith("/assets/")&&names.includes(basename(url.pathname))){res.setHeader("Content-Type",url.pathname.endsWith(".css")?"text/css":"font/woff2");res.end(await fs.readFile(join(assets,basename(url.pathname))));return;}
@@ -51,7 +54,10 @@ try {
     const lum=c=>c.map(n=>n/255).map(n=>n<=0.04045?n/12.92:((n+0.055)/1.055)**2.4).reduce((sum,n,i)=>sum+n*[0.2126,0.7152,0.0722][i],0);
     return [...document.querySelectorAll(".orca-muted-note,.dock-overview-row,.dock-subagent-label,.orca-section-label,.dock-subagent-head-main small,.dock-subagent-ev code")].filter(e=>e.getClientRects().length&&e.textContent.trim()).map(e=>{const background=bg(e),foreground=blend(rgba(getComputedStyle(e).color),background),a=lum(background),b=lum(foreground);return {text:e.textContent.slice(0,50),ratio:(Math.max(a,b)+0.05)/(Math.min(a,b)+0.05)};});
   }
-  for(const theme of THEMES)for(const width of [1280,375])for(const tab of Object.keys(fragments)){
+  const themes=process.env.UI_THEMES?THEMES.filter(theme=>process.env.UI_THEMES.split(",").includes(theme.id)):THEMES;
+  const widths=process.env.UI_WIDTHS?process.env.UI_WIDTHS.split(",").map(Number):[1280,900,740,375,320];
+  const tabs=process.env.UI_TABS?process.env.UI_TABS.split(","):Object.keys(fragments);
+  for(const theme of themes)for(const width of widths)for(const tab of tabs){
     await cdp("Emulation.setDeviceMetricsOverride",{width,height:900,deviceScaleFactor:1,mobile:width===375});
     await cdp("Page.navigate",{url:`${base}/?theme=${theme.id}&tab=${tab}`});
     for(let i=0;i<100;i++){const ready=await cdp("Runtime.evaluate",{expression:"document.readyState==='complete'",returnByValue:true});if(ready.result.value)break;await new Promise(resolve=>setTimeout(resolve,10));}
@@ -59,16 +65,23 @@ try {
     const evaluated=await cdp("Runtime.evaluate",{returnByValue:true,expression:`(()=>{const dock=document.querySelector('.orca-right-dock');const tabs=document.querySelector('.orca-dock-tabs');return {overflow:document.documentElement.scrollWidth>innerWidth+1,dockWidth:dock?.getBoundingClientRect().width,tabsReachable:!tabs||tabs.scrollWidth>=tabs.clientWidth,text:document.body.innerText.length,colors:[...document.querySelectorAll('.orca-muted-note,.dock-overview-row,.dock-subagent-label,.orca-tree-label')].filter(e=>e.getClientRects().length).map(e=>({text:e.textContent.slice(0,40),color:getComputedStyle(e).color,bg:getComputedStyle(dock||document.body).backgroundColor}))}})()`});
     const result={theme:theme.id,width,tab,...evaluated.result.value};results.push(result);
     const contrast=await cdp("Runtime.evaluate",{expression:`(${measureContrast.toString()})()`,returnByValue:true});result.contrast=contrast.result.value;
-    assert.equal(result.overflow,false,JSON.stringify(result));assert.ok(result.text>50);if(tab!=="settings")assert.ok(result.dockWidth>200&&result.dockWidth<=Math.min(width,620));
+    assert.equal(result.overflow,false,JSON.stringify(result));assert.ok(result.text>50);if(!["settings","skills"].includes(tab))assert.ok(result.dockWidth>200&&result.dockWidth<=Math.min(width,620));
     if(tab==="overview"){
       const commandWidth=await cdp("Runtime.evaluate",{expression:"document.querySelector('.dock-overview summary .orca-tree-label').getBoundingClientRect().width",returnByValue:true});assert.ok(commandWidth.result.value>80,"Command labels must not collapse to the status-dot grid column");
     }
-    if(["obsidian","sakura-light"].includes(theme.id)&&tab==="subagents"){
-      const shot=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(output,`${theme.id}-${width}.png`),Buffer.from(shot.data,"base64"));
+    if(tab==="skills"&&width<=1020){
+      const check=await cdp("Runtime.evaluate",{returnByValue:true,expression:`(()=>{const bar=document.querySelector('.is-skill-topbar');return {display:getComputedStyle(bar).display,buttons:[...bar.querySelectorAll('button')].map(e=>({text:e.textContent.trim(),left:e.getBoundingClientRect().left,right:e.getBoundingClientRect().right,height:e.getBoundingClientRect().height,visible:!!e.getClientRects().length})),tabs:[...bar.querySelectorAll('.vault-mode-tab span')].map(e=>({height:e.getBoundingClientRect().height,lineHeight:parseFloat(getComputedStyle(e).lineHeight)}))}})()`});
+      assert.equal(check.result.value.display,"grid");
+      assert.ok(check.result.value.buttons.filter(e=>e.visible).every(e=>e.left>=0&&e.right<=width+1&&e.height>=20),JSON.stringify(check.result.value));
+      assert.ok(check.result.value.tabs.every(e=>e.height<28),JSON.stringify(check.result.value));
+      if(width<=740){const themeDot=await cdp("Runtime.evaluate",{expression:"getComputedStyle(document.querySelector('.wb-theme-dot')).display",returnByValue:true});assert.notEqual(themeDot.result.value,"none");}
+    }
+    if(["obsidian","sakura-light","nordic"].includes(theme.id)&&["subagents","skills"].includes(tab)){
+      const shot=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(output,`${tab}-${theme.id}-${width}.png`),Buffer.from(shot.data,"base64"));
     }
   }
   await fs.writeFile(join(output,"layout-results.json"),JSON.stringify(results,null,2));
   const lowContrast=results.flatMap(result=>(result.contrast||[]).filter(item=>item.ratio<4.5).map(item=>({theme:result.theme,width:result.width,tab:result.tab,...item})));
   assert.equal(lowContrast.length,0,JSON.stringify(lowContrast.slice(0,12),null,2));
-  console.log(`${results.length} browser layouts passed across ${THEMES.length} themes, desktop and 375 px; screenshots: ${output}`);
+  console.log(`${results.length} browser layouts passed across ${themes.length} themes and ${widths.join(", ")} px; screenshots: ${output}`);
 } finally {ws?.close();child.kill();await new Promise(resolve=>server.close(resolve));assert.ok(within(output,profile)&&profile!==output);await fs.rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:200}).catch(()=>{});}
