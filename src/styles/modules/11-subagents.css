@@ -206,7 +206,13 @@
 .dock-overview-row:hover { background: var(--wb-hover); }
 .dock-overview-row span { flex: 1; min-width: 0; }
 .dock-overview-row small { color: var(--wb-muted); white-space: nowrap; }
-.orca-dock-tabs { min-width: 0; overflow-x: auto; flex: 1; scrollbar-width: thin; }
+.orca-dock-tabs { min-width: 0; overflow-x: auto; overflow-y: hidden; flex: 1; }
+body .orca-dock-tabs { scrollbar-width: auto; }
+.orca-dock-tabs::-webkit-scrollbar:horizontal { height: 3px !important; }
+.orca-dock-tabs::-webkit-scrollbar-track:horizontal { background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.orca-dock-tabs::-webkit-scrollbar-thumb:horizontal { background: color-mix(in srgb, var(--wb-tint) 30%, transparent) !important; border: 0 !important; border-radius: 999px; }
+.orca-dock-tabs::-webkit-scrollbar-button { display: none !important; width: 0 !important; height: 0 !important; }
+.orca-dock-tabs::-webkit-scrollbar:vertical { display: none; }
 .orca-dock-tab { flex: 0 0 32px; }
 .orca-dock-pad code { overflow-wrap: anywhere; }
 .dock-subagent-summary { min-width: 0; }

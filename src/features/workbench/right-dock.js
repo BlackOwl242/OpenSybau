@@ -473,7 +473,7 @@ export function renderOrcaRightDockMarkup({
     } else {
       const artifacts = selectedTask?.artifacts || [];
       const taskBusy = selectedTask && ["running", "queued"].includes(selectedTask.status);
-      const canManageWt = Boolean(selectedTask?.isolated && !taskBusy && !selectedTask.worktreeCleaned && !selectedTask.worktreeAppliedAt);
+      const canManageWt = Boolean(selectedTask?.isolated && !taskBusy && !selectedTask.worktreeMissing && !selectedTask.worktreeCleaned && !selectedTask.worktreeAppliedAt);
       const canMergeWt = Boolean(canManageWt && artifacts.length > 0);
       const isolatedTasks = (view.state?.tasks || []).filter((t) => t.workspaceId === activeWs?.id && t.isolated && !t.worktreeCleaned && !t.archived);
       const fanoutSiblings = selectedTask?.fanoutId ? (view.state?.tasks || []).filter((t) => t.fanoutId === selectedTask.fanoutId && !t.archived) : [];

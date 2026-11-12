@@ -423,7 +423,7 @@ export function computeWaveDag(tasks = []) {
       ? String(task.riskLevel).toUpperCase()
       : (task.config?.workflow === "codex-antigravity" ? "M" : "S");
     const code = task.code || `TASK-${String(Math.max(1, list.length - idx)).padStart(2, "0")}`;
-    const needsHumanLook = task.status === "awaiting_approval" || task.phase === "plan-gate" || task.status === "failed" || (task.status === "done" && task.isolated && !task.worktreeAppliedAt && (task.artifacts || []).length > 0);
+    const needsHumanLook = task.status === "awaiting_approval" || task.phase === "plan-gate" || task.status === "failed" || (task.status === "done" && task.isolated && !task.worktreeMissing && !task.worktreeAppliedAt && (task.artifacts || []).length > 0);
 
     let boardState = "ready";
     if (task.status === "awaiting_approval" || task.phase === "plan-gate") {

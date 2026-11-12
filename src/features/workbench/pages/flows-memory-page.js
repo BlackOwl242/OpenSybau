@@ -16,7 +16,7 @@ export function missionControlStepperMarkup(task, { compact = false } = {}) {
   const data = pipelineStepperData(task);
   const busy = ["queued", "running"].includes(task.status);
   const artifactsCount = (task.artifacts || []).length;
-  const canManageWorktree = Boolean(task.isolated && !busy && !task.worktreeCleaned && !task.worktreeAppliedAt);
+  const canManageWorktree = Boolean(task.isolated && !busy && !task.worktreeMissing && !task.worktreeCleaned && !task.worktreeAppliedAt);
   const lastEvent = (task.events || []).filter((e) => e.kind !== "output").at(-1) || (task.events || []).at(-1);
   const stationDocMap = { "plan-review": "plan", you: "plan", build: "impl", "code-review": "review", qa: "qa", pr: "impl" };
 
@@ -163,7 +163,7 @@ export function workflowPage() {
   const tasks = allTasks.filter((t) => {
     if (statusFilter === "all") return true;
     const f = parseReviewFindings(t.review || "");
-    const canMerge = t.isolated && !t.worktreeCleaned && !t.worktreeAppliedAt && (t.artifacts || []).length > 0 && t.status === "done";
+    const canMerge = t.isolated && !t.worktreeMissing && !t.worktreeCleaned && !t.worktreeAppliedAt && (t.artifacts || []).length > 0 && t.status === "done";
     if (statusFilter === "attention") {
       return t.status === "awaiting_approval" || t.status === "failed" || f.blocking > 0 || canMerge;
     }
@@ -188,7 +188,7 @@ export function workflowPage() {
       ${dag.needsLookTasks.map((t) => {
         const stepper = pipelineStepperData(t);
         const isGate = t.status === "awaiting_approval";
-        const canMerge = t.isolated && !t.worktreeCleaned && !t.worktreeAppliedAt && (t.artifacts || []).length > 0 && t.status === "done";
+        const canMerge = t.isolated && !t.worktreeMissing && !t.worktreeCleaned && !t.worktreeAppliedAt && (t.artifacts || []).length > 0 && t.status === "done";
         return `<article class="mc-needs-look-card">
           <div class="mc-needs-look-main">
             <span class="mc-code-pill">${esc(t.code || "TASK")}</span>

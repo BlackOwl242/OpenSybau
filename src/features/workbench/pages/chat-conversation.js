@@ -34,7 +34,7 @@ export function taskConversationPipelineStrip(task, busy) {
   const hasSubagents = (task.subagents || []).length > 0;
   if (workflow === "chat-only" && !busy && !artifactsCount && !task.isolated && !task.fanoutId && !task.promotedFromSubagent && !hasSubagents) return "";
   const worktreeChip = task.isolated
-    ? `<span class="chat-worktree-chip ${task.worktreeAppliedAt ? "is-merged" : ""}" title="${esc(task.worktreePath || task.executionPath || "")}">${icon(task.worktreeAppliedAt ? "check" : "git-branch", 12)} ${task.worktreeAppliedAt ? "Đã gộp vào dự án" : task.worktreeCleaned ? "Worktree đã dọn" : esc(task.worktreeBranch || "Worktree cô lập")}</span>`
+    ? `<span class="chat-worktree-chip ${task.worktreeAppliedAt ? "is-merged" : ""}" title="${esc(task.worktreePath || task.executionPath || "")}">${icon(task.worktreeAppliedAt ? "check" : "git-branch", 12)} ${task.worktreeAppliedAt ? "Đã gộp vào dự án" : task.worktreeCleaned ? "Worktree đã dọn" : task.worktreeMissing ? "Không tìm thấy worktree · không thể gộp" : esc(task.worktreeBranch || "Worktree cô lập")}</span>`
     : "";
   const originChip = task.promotedFromSubagent
     ? `<button type="button" class="chat-worktree-chip is-origin-chip" data-task="${esc(task.promotedFromSubagent.taskId)}" title="Xem task cha gốc">${icon("waypoints", 11)}<span>Từ Subagent: <b data-localize-skip="true">${esc(task.promotedFromSubagent.role || "subagent")}</b></span></button>`
@@ -44,7 +44,7 @@ export function taskConversationPipelineStrip(task, busy) {
     ? `<button type="button" class="chat-worktree-chip is-subagent-chip" data-action="open-dock-subagents" data-id="${esc(task.id)}" title="Mở bảng giám sát Subagents">${icon("waypoints", 12)}<span>${activeSubCount > 0 ? `${activeSubCount} subagent đang chạy` : `${task.subagents.length} subagent`}</span></button>`
     : "";
   const activityText = busy && lastEvent?.text ? `<span class="chat-live-event" title="${esc(lastEvent.text)}"><i class="pulse-dot"></i>${esc(String(lastEvent.text).slice(0, 110))}</span>` : "";
-  const canManageWorktree = Boolean(task.isolated && !busy && !task.worktreeCleaned && !task.worktreeAppliedAt);
+  const canManageWorktree = Boolean(task.isolated && !busy && !task.worktreeMissing && !task.worktreeCleaned && !task.worktreeAppliedAt);
   const applyWtBtn = canManageWorktree && artifactsCount > 0
     ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(task.id)}" title="Áp dụng thay đổi từ worktree cô lập này vào nhánh chính của dự án">${icon("check", 13)}<span>Gộp vào dự án</span></button>`
     : "";

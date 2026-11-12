@@ -164,7 +164,7 @@
 
 .orca-stage-split-layout {
   display: grid !important;
-  grid-template-columns: minmax(280px, var(--stage-split-ratio, 48%)) 5px minmax(320px, 1fr) !important;
+  grid-template-columns: minmax(280px, var(--stage-split-ratio, 48%)) 10px minmax(320px, 1fr) !important;
   width: 100% !important;
   height: 100% !important;
   min-height: 0 !important;
@@ -195,7 +195,8 @@
 }
 
 .orca-stage-split-resizer {
-  width: 5px;
+  width: 10px;
+  touch-action: none;
   height: 100%;
   background: color-mix(in srgb, var(--wb-tint) 5.5%, transparent);
   cursor: col-resize;

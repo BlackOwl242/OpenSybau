@@ -131,8 +131,9 @@ body.is-resizing-dock * {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -3px;
-  width: 6px;
+  left: 0;
+  width: 10px;
+  touch-action: none;
   cursor: col-resize;
   z-index: 20;
   background: transparent;
@@ -143,6 +144,7 @@ body.is-resizing-dock * {
 body.is-resizing-dock .orca-dock-resizer {
   background: color-mix(in srgb, var(--wb-tint) 24%, transparent);
 }
+body.is-resizing-dock iframe { pointer-events: none !important; }
 
 /* Top 4-Icon Bar + Right Sidebar Toggle Button (44px height aligned with .wb-topbar) */
 .orca-dock-topbar {

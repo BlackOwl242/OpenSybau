@@ -727,23 +727,27 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) sche
   } catch {}
   let resizingDock = false;
   let resizingSplit = false;
+  let splitBounds = null;
+  let pendingX = null;
+  let resizeFrame = 0;
+  function applyResize() {
+    resizeFrame = 0;
+    if (pendingX === null) return;
+    if (resizingDock) document.documentElement.style.setProperty("--right-dock-width", `${Math.max(220, Math.min(620, Math.round(window.innerWidth - pendingX)))}px`);
+    else if (resizingSplit && splitBounds?.width > 100) document.documentElement.style.setProperty("--stage-split-ratio", `${Math.max(28, Math.min(72, Math.round(((pendingX - splitBounds.left) / splitBounds.width) * 100)))}%`);
+    pendingX = null;
+  }
   document.addEventListener("pointerdown", (event) => {
-    if (event.target.closest?.("[data-right-dock-resizer]")) { event.preventDefault(); resizingDock = true; document.body.classList.add("is-resizing-dock"); return; }
-    if (event.target.closest?.("[data-stage-split-resizer]")) { event.preventDefault(); resizingSplit = true; document.body.classList.add("is-resizing-dock"); }
+    if (event.target.closest?.("[data-right-dock-resizer]")) { event.preventDefault(); resizingDock = true; event.target.closest("[data-right-dock-resizer]").setPointerCapture?.(event.pointerId); document.body.classList.add("is-resizing-dock"); return; }
+    if (event.target.closest?.("[data-stage-split-resizer]")) { event.preventDefault(); resizingSplit = true; splitBounds = document.querySelector(".orca-stage-split-layout")?.getBoundingClientRect(); event.target.closest("[data-stage-split-resizer]").setPointerCapture?.(event.pointerId); document.body.classList.add("is-resizing-dock"); }
   });
   window.addEventListener("pointermove", (event) => {
-    if (resizingDock) {
-      document.documentElement.style.setProperty("--right-dock-width", `${Math.max(220, Math.min(620, Math.round(window.innerWidth - event.clientX)))}px`);
-      return;
-    }
-    if (resizingSplit) {
-      const splitContainer = document.querySelector(".orca-stage-split-layout");
-      const rect = splitContainer?.getBoundingClientRect();
-      if (!rect || rect.width <= 100) return;
-      document.documentElement.style.setProperty("--stage-split-ratio", `${Math.max(28, Math.min(72, Math.round(((event.clientX - rect.left) / rect.width) * 100)))}%`);
-    }
+    if (!resizingDock && !resizingSplit) return;
+    pendingX = event.clientX;
+    if (!resizeFrame) resizeFrame = requestAnimationFrame(applyResize);
   });
-  window.addEventListener("pointerup", () => {
+  const finishResize = () => {
+    if (resizeFrame) { cancelAnimationFrame(resizeFrame); applyResize(); }
     if (resizingDock) {
       resizingDock = false; document.body.classList.remove("is-resizing-dock");
       try {
@@ -758,7 +762,10 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) sche
         if (pct >= 28 && pct <= 72) localStorage.setItem("opensybau.stage-split-ratio", String(pct));
       } catch {}
     }
-  });
+    splitBounds = null;
+  };
+  window.addEventListener("pointerup", finishResize);
+  window.addEventListener("pointercancel", finishResize);
 })();
 
 refresh({ configuration: true });

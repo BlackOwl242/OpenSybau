@@ -508,6 +508,7 @@ function publicState() {
       const { _currentStageUsage, _subagentDetails, ...publicTask } = task;
       return {
         ...publicTask,
+        worktreeMissing: Boolean(task.isolated && task.worktreePath && !task.worktreeCleaned && !existsSync(task.worktreePath)),
         attachments: task.attachments?.length ? task.attachments.map(({ name }) => ({ name })) : task.attachments,
         chatMessages: task.chatMessages?.length
           ? task.chatMessages.map((msg) => (msg.attachments?.length ? { ...msg, attachments: msg.attachments.map(({ name }) => ({ name })) } : msg))

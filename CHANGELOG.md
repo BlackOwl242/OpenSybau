@@ -5,6 +5,18 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.8] - 2026-11-12
+
+### Tiếng Việt
+- Cải thiện thanh công cụ và khả năng thay đổi kích thước các panel; điều chỉnh thanh cuộn ngang gọn hơn.
+- Hiển thị đúng khi worktree không còn tồn tại.
+
+### English
+- Improve sidebar tools, panel resizing, and horizontal scrollbar styling.
+- Report missing worktrees.
+
+---
+
 ## [0.3.7] - 2026-11-12
 
 ### Tiếng Việt
