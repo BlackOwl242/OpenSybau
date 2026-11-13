@@ -413,7 +413,7 @@ export function openCommandPalette(initialQuery = "") {
   const overlay = $("#overlay");
   if (!overlay) return;
   overlay.hidden = false;
-  overlay.innerHTML = `<div class="modal app-dialog-shell cmd-palette-modal command-palette-modal" role="dialog" aria-modal="true" aria-label="Tìm kiếm toàn cục và Bảng lệnh nhanh">
+  overlay.innerHTML = `<div class="modal-backdrop cmd-palette-backdrop" data-action="close-command-palette"><div class="modal app-dialog-shell cmd-palette-modal command-palette-modal" role="dialog" aria-modal="true" aria-label="Tìm kiếm toàn cục và Bảng lệnh nhanh">
     <header class="cmd-palette-input-wrap command-palette-header">
       <span class="command-palette-search-icon">${icon("search", 16)}</span>
       <input
@@ -436,7 +436,7 @@ export function openCommandPalette(initialQuery = "") {
       <span><kbd>Enter</kbd> Mở</span>
       <span><kbd>Ctrl+K</kbd> Đóng / Mở nhanh</span>
     </footer>
-  </div>`;
+  </div></div>`;
   localizeDom(overlay, view.language);
   requestAnimationFrame(() => {
     const input = overlay.querySelector("[data-command-palette-input]");

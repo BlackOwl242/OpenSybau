@@ -684,9 +684,9 @@ export function taskConversationPage(taskId = view.selectedTaskId || view.select
     ? `<div class="chat-session-context-bar">
         <div class="chat-session-context-left">${backBtnMarkup}</div>
         ${canDistillOrCompact ? `<div class="chat-session-context-actions">
-          <button type="button" class="btn ghost sm" data-action="compact-task-chat" data-id="${esc(task.id)}" title="Nén bớt lịch sử hội thoại dài để tiết kiệm ngữ cảnh">${icon("minimize-2", 14)}<span>Nén ngữ cảnh</span></button>
-          <button type="button" class="btn ghost sm" data-action="distill-task-memory" data-id="${esc(task.id)}" title="Đúc kết bài học hoặc quy tắc từ phiên này vào Bộ nhớ dự án">${icon("sparkles", 14)}<span>Đúc kết Bài học</span></button>
-          <button type="button" class="btn ghost sm" data-action="distill-task-skill" data-id="${esc(task.id)}" title="Đúc kết quy trình giải quyết thành Kỹ năng tái sử dụng">${icon("book-open-text", 14)}<span>Đúc kết Kỹ năng</span></button>
+          <button type="button" class="button quiet small btn ghost sm" data-action="compact-task-chat" data-id="${esc(task.id)}" title="Nén bớt lịch sử hội thoại dài để tiết kiệm ngữ cảnh">${icon("minimize-2", 14)}<span>Nén ngữ cảnh</span></button>
+          <button type="button" class="button quiet small btn ghost sm" data-action="distill-task-memory" data-id="${esc(task.id)}" title="Đúc kết bài học hoặc quy tắc từ phiên này vào Bộ nhớ dự án">${icon("sparkles", 14)}<span>Đúc kết Bài học</span></button>
+          <button type="button" class="button quiet small btn ghost sm" data-action="distill-task-skill" data-id="${esc(task.id)}" title="Đúc kết quy trình giải quyết thành Kỹ năng tái sử dụng">${icon("book-open-text", 14)}<span>Đúc kết Kỹ năng</span></button>
         </div>` : ""}
       </div>`
     : "";

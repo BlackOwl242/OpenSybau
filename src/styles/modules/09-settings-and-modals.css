@@ -483,7 +483,7 @@ body .wb-page-content .page-head-actions > .button.small {
   gap: 6px;
 }
 
-:is(#overlay .modal, .desktop-setup-dialog, .wb-page-content .composer-config-dialog) .app-dialog-content .button:not(.home-submit):not(.chat-send-button) {
+:is(#overlay .modal, .desktop-setup-dialog, .wb-page-content .composer-config-dialog) .app-dialog-content .button:not(.home-submit):not(.chat-send-button):not(.small):not(.sm) {
   height: 34px;
   min-height: 34px;
   padding: 0 13px;
@@ -495,6 +495,11 @@ body .wb-page-content .page-head-actions > .button.small {
   justify-content: center;
   gap: 6px;
   white-space: nowrap;
+}
+
+#overlay .modal.modal-wide {
+  width: min(760px, calc(100vw - 32px));
+  max-width: 760px;
 }
 
 body .desktop-setup-heading {
@@ -722,22 +727,49 @@ body :is(.home-composer-controls, .chat-composer-controls) .composer-add > summa
   justify-content: center;
   padding: 0;
 }
+body :is(.home-composer-controls, .chat-composer-controls) :is(.codex-perm-pill, .codex-subagent-pill) {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 12px;
+  gap: 5px;
+  max-width: 176px;
+  overflow: hidden;
+}
+body :is(.home-composer-controls, .chat-composer-controls) :is(.codex-perm-pill, .codex-subagent-pill) > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 body :is(.home-composer-controls, .chat-composer-controls) .codex-inline-model-bar {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
+  min-width: 0;
 }
 body :is(.home-composer-controls, .chat-composer-controls) .codex-inline-model-bar .codex-inline-trigger {
   height: 30px;
   min-height: 30px;
-  padding: 0 10px;
+  padding: 0 9px;
   border-radius: 999px;
   border: 1px solid var(--wb-line);
   background: var(--wb-surface-2);
   color: var(--wb-ink-strong);
   font-size: 12px;
   font-weight: 500;
-  gap: 5px;
+  gap: 4px;
+  max-width: 148px;
+  overflow: hidden;
+}
+body :is(.home-composer-controls, .chat-composer-controls) .codex-inline-model-bar .codex-inline-trigger.is-effort {
+  max-width: 112px;
+}
+body :is(.home-composer-controls, .chat-composer-controls) .codex-inline-model-bar .codex-inline-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 body :is(.home-composer-controls, .chat-composer-controls) .codex-inline-model-bar .codex-inline-trigger:hover {
   background: var(--wb-hover);
@@ -1311,7 +1343,33 @@ h4,
   font-size: 11.5px;
 }
 
-/* CLI Approval Banner & Actionable Inbox Cards */
+/* Session Context Toolbar & CLI Approval Banner / Card */
+.chat-session-context-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  padding: 8px clamp(14px, 3vw, 24px);
+  border-bottom: 1px solid var(--wb-border-subtle);
+  background: color-mix(in srgb, var(--wb-panel) 92%, transparent);
+  flex-shrink: 0;
+}
+
+.chat-session-context-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.chat-session-context-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .cli-approval-banner {
   display: flex;
   align-items: center;
@@ -1324,6 +1382,109 @@ h4,
   border: 1px solid color-mix(in srgb, var(--wb-amber) 38%, var(--wb-border-default));
   background: color-mix(in srgb, var(--wb-amber) 9%, var(--wb-panel));
   color: var(--wb-text-primary);
+}
+
+.cli-approval-banner:has(> .cli-approval-card) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: min(760px, calc(100% - 36px));
+  margin: 8px auto 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.cli-approval-card {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 13px 15px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--wb-amber) 38%, var(--wb-border-default));
+  background: color-mix(in srgb, var(--wb-amber) 8%, var(--wb-raised));
+  color: var(--wb-text-primary);
+}
+
+.cli-approval-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cli-approval-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 620;
+  color: var(--wb-amber);
+}
+
+.cli-approval-method {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--wb-border-subtle);
+  background: var(--wb-surface-2);
+  color: var(--wb-ink);
+  font-family: var(--wb-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.cli-approval-cmd {
+  display: block;
+  width: 100%;
+  padding: 8px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--wb-border-subtle);
+  background: var(--wb-bg);
+  color: var(--wb-ink-strong);
+  font-family: var(--wb-font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cli-approval-cwd {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--wb-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.cli-approval-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cli-approval-file {
+  border: 1px solid var(--wb-border-subtle);
+  border-radius: 8px;
+  background: var(--wb-surface-2);
+  padding: 6px 10px;
+  font-size: 11.5px;
+}
+
+.cli-approval-file > summary {
+  cursor: pointer;
+  font-family: var(--wb-font-mono);
+  color: var(--wb-ink-strong);
+}
+
+.cli-approval-file > pre {
+  margin: 6px 0 0;
+  max-height: 180px;
+  overflow: auto;
+  font-family: var(--wb-font-mono);
+  font-size: 11px;
 }
 
 .cli-approval-banner:is(.is-accent, .is-plan, [data-tone="accent"]) {
@@ -1364,8 +1525,8 @@ h4,
 .cli-approval-banner code {
   font-family: var(--wb-font-mono);
   font-size: 11.5px;
-  padding: 1px 5px;
-  border-radius: 5px;
+  padding: 6px 9px;
+  border-radius: 7px;
   background: var(--wb-surface-2);
   border: 1px solid var(--wb-border-subtle);
   color: var(--wb-text-primary);
@@ -1373,7 +1534,7 @@ h4,
 }
 
 .cli-approval-actions {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
@@ -1467,11 +1628,12 @@ h4,
 }
 
 /* Global Command Palette (Ctrl+K) */
+#overlay .modal-backdrop.cmd-palette-backdrop,
 .cmd-palette-backdrop {
   position: fixed;
   inset: 0;
   z-index: var(--wb-z-modal);
-  padding: 10vh 16px 24px;
+  padding: min(11vh, 88px) 16px 24px;
   background: var(--wb-overlay);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -1497,6 +1659,7 @@ h4,
 
 #overlay .modal.cmd-palette-modal {
   padding: 0;
+  margin: 0 auto;
   width: min(620px, calc(100vw - 24px));
   max-height: min(72dvh, 520px);
 }
@@ -1506,18 +1669,28 @@ h4,
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  height: 50px;
+  padding: 0 14px;
   border-bottom: 1px solid var(--wb-border-default);
   background: var(--wb-surface);
   color: var(--wb-text-secondary);
 }
 
+.command-palette-search-icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--wb-muted);
+  flex-shrink: 0;
+}
+
 .cmd-palette-input-wrap input,
-#overlay .modal .cmd-palette-input-wrap input {
+#overlay .modal.cmd-palette-modal .cmd-palette-input-wrap input.command-palette-input,
+#overlay .modal.cmd-palette-modal .cmd-palette-input-wrap input.command-palette-input:focus {
   flex: 1 1 auto;
   min-width: 0;
-  height: 28px;
-  padding: 0;
+  height: 36px;
+  min-height: 0;
+  padding: 0 2px;
   margin: 0;
   border: 0;
   border-radius: 0;
@@ -1529,6 +1702,25 @@ h4,
   line-height: 1.4;
   outline: none;
   box-shadow: none;
+}
+
+.command-palette-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.command-palette-item-icon {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 7px;
+  border: 1px solid var(--wb-border-subtle);
+  background: var(--wb-surface-2);
+  display: inline-grid;
+  place-items: center;
+  color: var(--wb-ink);
+  flex-shrink: 0;
 }
 
 .cmd-palette-input-wrap input::placeholder {
@@ -1806,4 +1998,266 @@ h4,
 .back-context-btn:focus-visible {
   outline: 2px solid var(--wb-accent);
   outline-offset: 2px;
+}
+
+/* ==========================================================================
+   Schedules Overview Card, Schedules Modal List & Modal Check-Row Alignment
+   ========================================================================== */
+.wb-page-content .schedules-overview-card {
+  margin-top: 16px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 1px solid var(--wb-border-default);
+  background: var(--wb-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wb-page-content .schedules-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 20px;
+  flex-wrap: wrap;
+}
+
+.wb-page-content .schedules-card-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.wb-page-content .schedules-card-icon {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 9px;
+  border: 1px solid var(--wb-border-default);
+  background: var(--wb-raised);
+  color: var(--wb-ink-strong);
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.wb-page-content .schedules-card-title h2 {
+  margin: 0 0 3px;
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--wb-ink-strong);
+}
+
+.wb-page-content .schedules-card-title p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--wb-muted);
+  max-width: 68ch;
+}
+
+.wb-page-content .schedules-item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--wb-border-subtle);
+}
+
+.wb-page-content .schedule-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--wb-border-subtle);
+  background: var(--wb-raised);
+  transition: border-color 120ms ease;
+}
+
+.wb-page-content .schedule-item-row:hover {
+  border-color: var(--wb-border-strong);
+}
+
+.wb-page-content .schedule-item-row.is-paused {
+  opacity: 0.68;
+}
+
+.wb-page-content .schedule-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.wb-page-content .schedule-item-main > strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wb-ink-strong);
+}
+
+.wb-page-content .schedule-item-main > small {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--wb-muted);
+}
+
+.wb-page-content .schedule-item-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.wb-page-content .schedule-item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.schedules-modal-existing {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--wb-border-subtle);
+}
+
+.schedules-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.schedule-modal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--wb-border-subtle);
+  background: var(--wb-surface-2);
+}
+
+.schedule-modal-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.schedule-modal-row-info > strong {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--wb-ink-strong);
+}
+
+.schedule-modal-row-info > small {
+  font-size: 11px;
+  color: var(--wb-muted);
+}
+
+.schedule-modal-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Global Modal Checkbox Rows (.check-row) & Skill Picker Modal Polish */
+body #overlay .modal label.check-row,
+body .desktop-setup-dialog label.check-row,
+body .wb-page-content .composer-config-dialog label.check-row,
+.modal label.check-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 4px 0;
+  border-radius: 9px;
+  border: 1px solid var(--wb-border-subtle);
+  background: color-mix(in srgb, var(--wb-tint) 3%, transparent);
+  cursor: pointer;
+}
+
+body #overlay .modal label.check-row:hover,
+.modal label.check-row:hover {
+  border-color: var(--wb-border-default);
+  background: color-mix(in srgb, var(--wb-tint) 5%, transparent);
+}
+
+body #overlay .modal label.check-row > input[type="checkbox"],
+body .desktop-setup-dialog label.check-row > input[type="checkbox"],
+body .wb-page-content .composer-config-dialog label.check-row > input[type="checkbox"],
+.modal label.check-row > input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 2px 0 0;
+  padding: 0;
+  flex: 0 0 16px;
+  accent-color: var(--wb-ink-strong);
+}
+
+body #overlay .modal label.check-row > span,
+.modal label.check-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--wb-ink);
+}
+
+body #overlay .modal label.check-row > span > strong,
+.modal label.check-row > span > strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wb-ink-strong);
+}
+
+body #overlay .modal label.check-row > span > small,
+.modal label.check-row > span > small {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--wb-muted);
+}
+
+.badge.neutral {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--wb-border-default);
+  background: var(--wb-surface-2);
+  color: var(--wb-ink);
+  font-size: 11.5px;
+  font-weight: 560;
+  white-space: nowrap;
 }

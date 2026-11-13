@@ -15,16 +15,21 @@ function resolveAttentionCount(snapshot) {
 }
 
 function countFor(item, snapshot) {
-  const { state, skills = [] } = snapshot;
+  const { state } = snapshot;
   if (!state) return "";
   if (item.id === "chat") {
     const attn = resolveAttentionCount(snapshot);
-    return attn > 0 ? attn : "";
+    return attn > 0 ? (attn > 99 ? "99+" : attn) : "";
   }
-  if (item.count === "tasks") return (state.tasks || []).filter((task) => !task.archived).length || "";
-  if (item.count === "running") return (state.tasks || []).filter((task) => ["queued", "running"].includes(task.status)).length || "";
+  if (item.count === "tasks") {
+    const n = (state.tasks || []).filter((task) => !task.archived).length;
+    return n > 0 ? (n > 99 ? "99+" : n) : "";
+  }
+  if (item.count === "running") {
+    const n = (state.tasks || []).filter((task) => ["queued", "running"].includes(task.status)).length;
+    return n > 0 ? (n > 99 ? "99+" : n) : "";
+  }
   if (item.count === "workspaces") return state.workspaces?.length || "";
-  if (item.count === "skills") return skills.length || "";
   if (item.count === "memory") return state.memoryCount || "";
   return "";
 }

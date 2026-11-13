@@ -182,7 +182,7 @@ export async function probeCodexQuota(codexExe, connector) {
         jsonrpc: "2.0",
         id: 1,
         method: "initialize",
-        params: { clientInfo: { name: "opensybau", version: "0.3.9" } },
+        params: { clientInfo: { name: "opensybau", version: "0.3.10" } },
       })}\n`);
     } catch {
       finish(null);
@@ -437,7 +437,7 @@ function fetchAnthropicOauthUsage(accessToken) {
         Authorization: `Bearer ${accessToken}`,
         "anthropic-beta": "oauth-2025-04-20",
         Accept: "application/json",
-        "User-Agent": "opensybau/0.3.9",
+        "User-Agent": "opensybau/0.3.10",
       },
       timeout: 4500,
     }, (res) => {

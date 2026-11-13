@@ -150,6 +150,13 @@ body,
   background: color-mix(in srgb, var(--wb-tint) 13%, transparent);
   color: var(--wb-ink-strong);
 }
+.wb-rail-quick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+}
 .wb-rail-group {
   border-bottom: 0;
   padding-bottom: 4px;
@@ -1758,131 +1765,136 @@ body *:not(.wb-rail-nav) {
   font-size: 12.5px;
 }
 
-/* 9.4 Unified Button System Across Modals, Settings, and Views */
-body .wb-page-content .button:not(.home-submit):not(.chat-send-button),
-body #overlay .button,
-body .desktop-setup-dialog .button {
+/* 9.4 Unified Button System Across Modals, Right Dock, Mobile Companion, Settings & Views */
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) :is(.button, .btn):not(.home-submit):not(.chat-send-button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 32px;
-  min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  gap: 7px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 13px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 12%, transparent);
   border-radius: 8px;
   background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
   color: var(--wb-ink);
   font-size: 12.5px;
-  font-weight: 540;
+  font-weight: 560;
   line-height: 1;
   text-decoration: none;
   white-space: nowrap;
+  flex-shrink: 0;
   cursor: pointer;
   transform: none;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
 }
 
-body .wb-page-content .button:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
-body #overlay .button:hover:not(:disabled),
-body .desktop-setup-dialog .button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--wb-tint) 18%, transparent);
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) :is(.button, .btn, .icon-button) svg {
+  flex-shrink: 0;
+}
+
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) :is(.button, .btn):not(.home-submit):not(.chat-send-button):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--wb-tint) 22%, transparent);
   background: color-mix(in srgb, var(--wb-tint) 11%, transparent);
   color: var(--wb-ink-strong);
   transform: none;
 }
 
-body .wb-page-content .button.small:not(.home-submit):not(.chat-send-button),
-body #overlay .button.small,
-body .desktop-setup-dialog .button.small {
-  height: 27px;
-  min-height: 27px;
-  padding: 0 9px;
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) :is(.button, .btn):is(.small, .sm):not(.home-submit):not(.chat-send-button) {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 10px;
+  gap: 6px;
   border-radius: 7px;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
-body .wb-page-content .button.quiet:not(.home-submit):not(.chat-send-button),
-body #overlay .button.quiet,
-body .desktop-setup-dialog .button.quiet {
-  border-color: color-mix(in srgb, var(--wb-tint) 8%, transparent);
-  background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) :is(.button, .btn):is(.quiet, .secondary, .ghost):not(.home-submit):not(.chat-send-button) {
+  border-color: color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 4.5%, transparent);
   color: var(--wb-ink);
 }
 
-body .wb-page-content .button.quiet:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
-body #overlay .button.quiet:hover:not(:disabled),
-body .desktop-setup-dialog .button.quiet:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--wb-tint) 16%, transparent);
-  background: color-mix(in srgb, var(--wb-tint) 9%, transparent);
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) :is(.button, .btn):is(.quiet, .secondary, .ghost):not(.home-submit):not(.chat-send-button):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--wb-tint) 20%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 9.5%, transparent);
   color: var(--wb-ink-strong);
   transform: none;
 }
 
-body .wb-page-content .button.primary:not(.home-submit):not(.chat-send-button),
-body #overlay .button.primary,
-body .desktop-setup-dialog .button.primary {
-  border-color: var(--wb-primary-bg); background: var(--wb-primary-bg); color: var(--wb-primary-fg);
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) :is(.button, .btn).primary:not(.home-submit):not(.chat-send-button) {
+  border-color: var(--wb-primary-bg);
+  background: var(--wb-primary-bg);
+  color: var(--wb-primary-fg);
   font-weight: 600;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
-body .wb-page-content .button.primary:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
-body #overlay .button.primary:hover:not(:disabled),
-body .desktop-setup-dialog .button.primary:hover:not(:disabled) {
-  border-color: var(--wb-primary-bg); background: var(--wb-primary-bg); color: var(--wb-primary-fg);
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) :is(.button, .btn).primary:not(.home-submit):not(.chat-send-button):hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--wb-primary-bg) 88%, #ffffff);
+  background: color-mix(in srgb, var(--wb-primary-bg) 88%, #ffffff);
+  color: var(--wb-primary-fg);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   transform: none;
 }
 
-body .wb-page-content .button.danger:not(.home-submit):not(.chat-send-button),
-body #overlay .button.danger {
-  border-color: rgba(248, 113, 113, 0.3);
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) :is(.button, .btn):is(.danger, .is-danger):not(.home-submit):not(.chat-send-button) {
+  border-color: rgba(248, 113, 113, 0.32);
   background: rgba(239, 68, 68, 0.14);
   color: var(--wb-red);
 }
 
-body .wb-page-content .button.danger:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
-body #overlay .button.danger:hover:not(:disabled) {
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) :is(.button, .btn):is(.danger, .is-danger):not(.home-submit):not(.chat-send-button):hover:not(:disabled) {
   border-color: rgba(248, 113, 113, 0.5);
   background: rgba(239, 68, 68, 0.24);
   color: var(--wb-red);
   transform: none;
 }
 
-body .wb-page-content .button:disabled,
-body #overlay .button:disabled,
-body .desktop-setup-dialog .button:disabled {
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) :is(.button, .btn):disabled {
   opacity: 0.42;
   box-shadow: none;
   cursor: not-allowed;
   transform: none;
 }
 
-/* Unified Icon Buttons (Close Modal ×, Toolbar Actions) */
-body .wb-page-content .icon-button,
-body #overlay .icon-button,
-body .desktop-setup-dialog .icon-button {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
-  min-height: 28px;
+@media (min-width: 741px) {
+  html:not(.mobile-companion) body :is(.wb-mobile-only-btn, .kb-mobile-drawer-btn) {
+    display: none !important;
+  }
+}
+
+/* Unified Icon Buttons (Close Modal ×, Toolbar Actions, Compact Card Actions) */
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) .icon-button {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
   padding: 0;
   display: inline-grid;
   place-items: center;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
-  color: color-mix(in srgb, var(--wb-tint) 56%, transparent);
+  color: color-mix(in srgb, var(--wb-tint) 60%, transparent);
+  flex-shrink: 0;
   cursor: pointer;
   transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 
-body .wb-page-content .icon-button:hover:not(:disabled),
-body #overlay .icon-button:hover:not(:disabled),
-body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
+body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay, .desktop-setup-dialog) .icon-button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
   color: var(--wb-ink-strong);
+}
+
+body .wb-page-content .page-head-actions > .icon-button {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  border-radius: 8px;
+  border-color: color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 4.5%, transparent);
 }
 
 /* Unified Settings Cards & Concurrency Stepper */

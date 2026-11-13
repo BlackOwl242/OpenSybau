@@ -288,7 +288,32 @@ html:not(.mobile-companion) .mp-home-companion {
     color: var(--wb-muted);
     background: transparent;
   }
-  .wb-mobile-nav > button > span {
+  .wb-mobile-nav-icon-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 20px;
+    overflow: visible;
+  }
+  .wb-mobile-nav-badge {
+    position: absolute;
+    top: -4px;
+    right: -10px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--wb-primary-bg);
+    color: var(--wb-primary-fg);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 15px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .wb-mobile-nav > button > span:not(.wb-mobile-nav-icon-wrap) {
     max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -324,10 +349,8 @@ html:not(.mobile-companion) .mp-home-companion {
   }
 
   /* 4. Uniform Button Heights & Proportional Action Grids on Mobile */
-  body .wb-page-content .button:not(.home-submit):not(.chat-send-button),
-  body .wb-page-content .button.small:not(.home-submit):not(.chat-send-button),
-  body #overlay .button,
-  body #overlay .button.small {
+  body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay) :is(.button, .btn):not(.home-submit):not(.chat-send-button),
+  body :is(.wb-app-shell, .wb-page-content, .orca-right-dock, #overlay) :is(.button, .btn):is(.small, .sm):not(.home-submit):not(.chat-send-button) {
     height: 38px;
     min-height: 38px;
     padding: 0 12px;
@@ -339,6 +362,10 @@ html:not(.mobile-companion) .mp-home-companion {
     min-height: 0;
     margin: 0 0 14px;
     gap: 10px;
+  }
+  .wb-page-content .page-head > div:first-child {
+    flex: 0 0 auto;
+    width: 100%;
   }
   .wb-page-content .page-head h1 {
     font-size: 20px;
@@ -356,6 +383,9 @@ html:not(.mobile-companion) .mp-home-companion {
   .wb-page-content .page-head-actions > .button {
     width: 100%;
     justify-content: center;
+  }
+  .wb-page-content .page-head-actions > .button:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 
   /* Compact Quick Stats & Flow Summary grids on mobile */
@@ -383,8 +413,8 @@ html:not(.mobile-companion) .mp-home-companion {
     margin-bottom: 14px;
   }
   .wb-page-content .quick-stats.is-four-cols {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
     margin-bottom: 12px;
   }
   .wb-page-content .quick-stats > div,
@@ -1292,6 +1322,33 @@ html.mobile-companion .wb-mobile-nav > button {
   -webkit-tap-highlight-color: transparent;
 }
 
+html.mobile-companion .wb-mobile-nav-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 20px;
+  overflow: visible;
+}
+
+html.mobile-companion .wb-mobile-nav-badge {
+  position: absolute;
+  top: -4px;
+  right: -10px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--wb-primary-bg);
+  color: var(--wb-primary-fg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 html.mobile-companion .wb-mobile-nav > button.is-active {
   color: var(--wb-ink-strong);
   background: var(--wb-raised);
@@ -1347,13 +1404,104 @@ html.mobile-companion .mp-mobile-only {
 
 html.mobile-companion .mp-orca-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 12px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: calc(8px + var(--wb-safe-top, 0px)) 12px 8px;
   background: var(--wb-panel);
   border-bottom: 1px solid var(--wb-line);
+  flex-shrink: 0;
+}
+
+html.mobile-companion .mp-orca-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+}
+
+html.mobile-companion .mp-orca-brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--wb-line);
+  background: var(--wb-surface-2);
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+html.mobile-companion :is(.mp-orca-back-btn, .mp-orca-icon-btn, .mp-orca-lang-btn, .mp-session-tab-add) {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--wb-line);
+  background: var(--wb-surface-2);
+  color: var(--wb-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+html.mobile-companion .mp-orca-icon-btn.is-active {
+  background: var(--wb-primary-bg);
+  color: var(--wb-primary-fg);
+  border-color: var(--wb-primary-bg);
+}
+
+html.mobile-companion .mp-orca-title-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 1px;
+}
+
+html.mobile-companion .mp-orca-title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--wb-ink-strong);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.mobile-companion .mp-orca-subtitle {
+  font-size: 11px;
+  color: var(--wb-muted);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+html.mobile-companion .mp-orca-conn-pill {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--wb-line);
+  background: var(--wb-surface-2);
+  color: var(--wb-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 124px;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 html.mobile-companion .mp-token-pill {
@@ -1444,6 +1592,23 @@ html.mobile-companion .wb-page-content.is-home .home-composer-dock {
   z-index: var(--wb-z-sticky);
 }
 
+html.mobile-companion .wb-page-content.is-home .home-composer-dock::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  right: -12px;
+  top: -18px;
+  bottom: -11px;
+  z-index: -1;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--wb-main) 0%, transparent) 0%,
+    color-mix(in srgb, var(--wb-main) 94%, transparent) 24%,
+    var(--wb-main) 100%
+  );
+  pointer-events: none;
+}
+
 html.mobile-companion .wb-page-content.is-home .home-composer-dock :is(.codex-composer-rail, .home-composer),
 html.mobile-companion .wb-page-content.is-home .home-composer-dock .codex-composer-rail .codex-pop-menu,
 html.mobile-companion .wb-page-content.is-home .home-composer-controls :is(.codex-pop-menu, .composer-add),
@@ -1532,12 +1697,132 @@ html.mobile-companion .mp-home-companion {
 }
 
 html.mobile-companion .mp-inbox-section {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 4px;
 }
 
+html.mobile-companion .mp-inbox-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+html.mobile-companion .mp-inbox-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--wb-ink-strong);
+}
+
+html.mobile-companion .mp-inbox-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--wb-amber);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-grid;
+  place-items: center;
+}
+
+html.mobile-companion .mp-inbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 html.mobile-companion .mp-inbox-card {
-  padding: 11px 12px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--wb-line);
+  background: var(--wb-panel);
+}
+
+html.mobile-companion .mp-inbox-card:is(.is-approval, .is-plan) {
+  border-color: rgba(245, 158, 11, 0.32);
+}
+
+html.mobile-companion .mp-inbox-card.is-failed {
+  border-color: rgba(248, 113, 113, 0.32);
+}
+
+html.mobile-companion .mp-inbox-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+html.mobile-companion .mp-inbox-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+html.mobile-companion .mp-inbox-tag.is-warn {
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--wb-amber);
+}
+
+html.mobile-companion .mp-inbox-tag.is-danger {
+  background: rgba(248, 113, 113, 0.16);
+  color: var(--wb-red);
+}
+
+html.mobile-companion .mp-inbox-task-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wb-ink-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+html.mobile-companion .mp-inbox-meta {
+  font-size: 11.5px;
+  color: var(--wb-muted);
+}
+
+html.mobile-companion .mp-inbox-cmd {
+  display: block;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--wb-bg);
+  border: 1px solid var(--wb-line);
+  font-family: var(--wb-font-mono);
+  font-size: 11.5px;
+  color: var(--wb-ink-strong);
+  overflow-x: auto;
+}
+
+html.mobile-companion .mp-inbox-summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--wb-ink);
+}
+
+html.mobile-companion .mp-inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 }
 

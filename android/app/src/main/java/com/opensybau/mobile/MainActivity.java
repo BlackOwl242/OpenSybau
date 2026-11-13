@@ -117,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.3.9");
+        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.3.10");
 
         webView.clearCache(true);
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
@@ -258,7 +258,7 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public String getAppVersion() {
-            return "0.3.9";
+            return "0.3.10";
         }
 
         @JavascriptInterface

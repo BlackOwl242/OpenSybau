@@ -471,18 +471,18 @@
 .wb-page-content .home-composer-controls,
 .wb-page-content .chat-composer-controls {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 6px 8px;
   min-width: 0;
 }
 
 .composer-add-wrap {
   display: inline-flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
   flex: 0 1 auto;
 }
@@ -491,18 +491,27 @@
   display: inline-flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 4px;
+  justify-content: flex-end;
+  gap: 6px;
   margin-left: auto;
   min-width: 0;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
 }
 
 .codex-inline-model-bar {
   display: inline-flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   min-width: 0;
+  flex: 0 1 auto;
+}
+
+.wb-page-content .home-submit,
+.wb-page-content .chat-send-button {
+  flex: 0 0 32px;
+  position: relative;
+  z-index: 1;
 }
 
 @container (max-width: 480px) {
@@ -855,11 +864,52 @@ body .orca-right-dock .icon-button:hover:not(:disabled) {
 }
 
 /* 8. Unified System Layout for Skills, Memory, and Settings Pages */
-.page-head-actions {
+.wb-page-content .page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px 24px;
+  margin-bottom: 18px;
+}
+
+.wb-page-content .page-head > div:first-child {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.wb-page-content .page-head p {
+  max-width: 62ch;
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+
+.page-head-actions,
+.wb-page-content .page-head-actions {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  flex-wrap: nowrap;
+  max-width: 100%;
+}
+
+@media (max-width: 960px) {
+  .page-head-actions,
+  .wb-page-content .page-head-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}
+
+.wb-page-content .workflow-empty-actions {
+  display: inline-flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 6px;
 }
 
 .wb-page-content .settings-form {
@@ -908,10 +958,15 @@ body .orca-right-dock .icon-button:hover:not(:disabled) {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px 18px;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
-  background: var(--wb-surface-soft);
+  padding: 15px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--wb-border-default);
+  background: var(--wb-surface);
+}
+
+.wb-page-content .memory-card.is-pinned-memory {
+  border-color: var(--wb-border-strong);
+  background: color-mix(in srgb, var(--wb-tint) 3%, var(--wb-surface));
 }
 
 .wb-page-content .memory-card p {
@@ -921,19 +976,44 @@ body .orca-right-dock .icon-button:hover:not(:disabled) {
   line-height: 1.55;
 }
 
-.wb-page-content .memory-head {
+.wb-page-content .memory-head,
+.wb-page-content .memory-card-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
-.wb-page-content .page-head > div:first-child {
-  flex: 1 1 auto;
+.wb-page-content .memory-card-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
-.wb-page-content .page-head p,
+.wb-page-content .memory-card-title-group h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--wb-ink-strong);
+}
+
+.wb-page-content .memory-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.wb-page-content .memory-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .wb-page-content .settings-card > header > div:first-child,
 .wb-page-content .settings-card > header p {
   max-width: none;

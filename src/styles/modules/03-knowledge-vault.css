@@ -231,6 +231,7 @@
 }
 
 .kb-topbar-left {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -245,6 +246,7 @@
 }
 
 .kb-active-doc-info {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: baseline;
@@ -253,6 +255,8 @@
 }
 
 .kb-active-doc-info strong {
+  flex: 0 1 auto;
+  min-width: 64px;
   font-size: 13px;
   font-weight: 620;
   color: var(--wb-ink-strong);
@@ -262,11 +266,18 @@
 }
 
 .kb-active-doc-info small {
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: 11px;
-  color: color-mix(in srgb, var(--wb-tint) 42%, transparent);
+  color: color-mix(in srgb, var(--wb-tint) 46%, transparent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Hide redundant read-only badge in Skills topbar (already rendered in .skill-stage-hero below) */
+.kb-stage-topbar.is-skill-topbar .kb-active-doc-info > .kb-tag-chip.is-inline-badge {
+  display: none;
 }
 
 .kb-topbar-right {

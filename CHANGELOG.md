@@ -5,6 +5,32 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.10] - 2026-11-13
+
+### Tiếng Việt
+- **Đồng bộ Hệ thống Nút bấm & Cân đối Bố cục Trang (`src/styles/modules/02-codex-shell-composer.css`, `06-markdown-inspector-responsive.css`, `src/features/workbench/pages/`)**:
+  - Thống nhất chiều cao nút `34px` (mặc định) và `30px` (`small` / icon) trên toàn bộ Shell, nội dung trang, thanh dock phải và hộp thoại `#overlay`; sửa tương phản chữ/nền cho `.button.primary` trong `.orca-right-dock`.
+  - Giữ cụm `.page-head-actions` nằm gọn trên một hàng ngang ở Desktop (`> 960px`), bỏ nút `Lịch tự động` bị lặp trong trạng thái trống của Quy trình và đồng bộ nút thao tác ngữ cảnh phiên chat.
+  - Sửa bố cục thanh chọn ở khung soạn thảo để nút Độ sâu suy luận và nút Gửi không đè lên nhau ở màn hình hẹp; ẩn các nút chỉ dành cho Mobile trên Desktop (`>= 741px`).
+- **Hoàn thiện Thẻ Lịch chạy Tự động, Hộp thoại & Command Palette (`src/styles/modules/09-settings-and-modals.css`, `03-knowledge-vault.css`, `src/features/workbench/command-palette.js`, `src/shell/components/NavRail.jsx`)**:
+  - Thiết kế lại thẻ `.schedules-overview-card`, danh sách lịch chạy `.schedule-item-row`, hộp thoại Quản lý Lịch tự động, thẻ `.memory-card`, thanh ngữ cảnh phiên chat và thẻ phê duyệt lệnh CLI; căn hàng ngang chuẩn cho mọi `label.check-row`.
+  - Bọc Command Palette (`Ctrl+K`) trong `.modal-backdrop.cmd-palette-backdrop` căn giữa màn hình và làm gọn ô nhập tìm kiếm; sửa co giãn thanh tiêu đề Kho Kỹ năng để tên kỹ năng không bị cắt cụt; bỏ huy hiệu đếm tĩnh `366` trên thanh điều hướng trái và giới hạn bộ đếm ở `99+`.
+- **Tinh chỉnh Giao diện Mobile (`src/styles/modules/10-mobile-responsive.css`)**:
+  - Khắc phục khoảng trống dọc `200px` dưới tiêu đề trang Công việc trên Mobile (`flex: 0 0 auto`), sửa lỗi cắt viền huy hiệu tròn trên thanh điều hướng đáy (`.wb-mobile-nav-icon-wrap`), thêm lớp nền chuyển sắc dưới khung nhập liệu cố định ở Trang chủ và đồng bộ chiều cao nút chạm `38px` cùng lưới 2 cột cho `.page-head-actions`.
+
+### English
+- **Unified Button System & Page Header Alignment (`src/styles/modules/02-codex-shell-composer.css`, `06-markdown-inspector-responsive.css`, `src/features/workbench/pages/`)**:
+  - Standardized `34px` default and `30px` `small`/icon button heights across Shell, page views, right dock, and `#overlay` modals; fixed `.button.primary` foreground/background contrast inside `.orca-right-dock`.
+  - Kept `.page-head-actions` aligned on a single horizontal row on Desktop (`> 960px`), removed the duplicate schedule action inside workflow empty states, and normalized chat session context action buttons.
+  - Prevented Effort selector and Send button overlap in narrow composers and hid mobile-only drawer triggers on Desktop (`>= 741px`).
+- **Schedule Cards, Modals & Command Palette Polish (`src/styles/modules/09-settings-and-modals.css`, `03-knowledge-vault.css`, `src/features/workbench/command-palette.js`, `src/shell/components/NavRail.jsx`)**:
+  - Styled `.schedules-overview-card`, `.schedule-item-row`, the recurring schedules modal, `.memory-card`, chat context bar, CLI approval cards, and horizontal `label.check-row` checkboxes across all modals.
+  - Centered `Ctrl+K` Command Palette inside `.modal-backdrop.cmd-palette-backdrop` with a clean borderless search input, fixed Skills topbar flex sizing to prevent truncated titles, removed the noisy `366` skills badge from `NavRail`, and capped task/attention badges at `99+`.
+- **Mobile Layout & Navigation Refinements (`src/styles/modules/10-mobile-responsive.css`)**:
+  - Eliminated the `200px` vertical flex-basis gap under mobile page headers, fixed clipped circular count badges in the bottom navigation bar, added a gradient backdrop behind the sticky mobile home composer, and standardized `38px` mobile button heights with a 2-column `.page-head-actions` grid.
+
+---
+
 ## [0.3.9] - 2026-11-13
 
 ### Tiếng Việt
