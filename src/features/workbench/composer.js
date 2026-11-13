@@ -35,14 +35,20 @@ export async function readComposerAttachments(form) {
 }
 
 export function composerAddMenu(target, taskId = "") {
+  const transportLabel = view.homeCodexTransport === "exec"
+    ? "CLI exec"
+    : view.homeCodexTransport === "app-server"
+      ? "App Server"
+      : "Tự động";
   const extra = taskId
-    ? `<button type="button" data-action="edit-task-goal" data-id="${esc(taskId)}">${icon("target", 16)}<span>Mục tiêu cuộc trò chuyện</span></button>`
-    : `<button type="button" data-action="toggle-home-config">${icon("settings-2", 16)}<span>Agent và model</span></button>`;
+    ? `<button type="button" data-action="edit-task-goal" data-id="${esc(taskId)}">${icon("target", 16)}<span>Mục tiêu cuộc trò chuyện</span></button><button type="button" data-action="edit-task-instruction" data-id="${esc(taskId)}">${icon("terminal", 16)}<span>Agent & Bộ chạy CLI</span></button>`
+    : `<button type="button" data-action="toggle-home-config">${icon("settings-2", 16)}<span>Agent và model</span></button><button type="button" data-action="cycle-home-codex-transport">${icon("terminal", 16)}<span>Bộ chạy Codex: ${esc(transportLabel)}</span></button>`;
+  const selectedSkillCount = !taskId && Array.isArray(view.homeSelectedSkills) ? view.homeSelectedSkills.length : 0;
   const fileImportOptions = [
     { label: "Tệp văn bản, Markdown, mã nguồn", icon: "file", attrs: `accept="${contentImportAccept}" multiple`, aria: "Chọn tệp văn bản hoặc Markdown" },
     { label: "Thư mục tệp văn bản", icon: "folder-open", attrs: "webkitdirectory multiple", aria: "Chọn thư mục tệp văn bản" },
   ].map((option) => `<label class="composer-file-option"><span class="composer-file-option-label">${icon(option.icon, 16)}<span>${option.label}</span></span><input type="file" ${option.attrs} data-content-file-import data-import-target="${target}" aria-label="${option.aria}"><small data-content-file-status aria-live="polite" hidden></small></label>`).join("");
-  return `<details class="composer-add"><summary aria-label="Thêm tệp và tính năng" title="Thêm tệp và tính năng">${icon("plus", 18)}</summary><div class="composer-add-menu" role="group" aria-label="Thêm vào cuộc trò chuyện"><strong>Thêm vào cuộc trò chuyện</strong>${fileImportOptions}${extra}<button type="button" data-page="skills">${icon("notebook-tabs", 16)}<span>Kỹ năng</span></button><small>Tệp văn bản được gửi riêng kèm tin nhắn. Tối đa 20 tệp, tổng 1 MB.</small></div></details>`;
+  return `<details class="composer-add"><summary aria-label="Thêm tệp và tính năng" title="Thêm tệp và tính năng">${icon("plus", 18)}</summary><div class="composer-add-menu" role="group" aria-label="Thêm vào cuộc trò chuyện"><strong>Thêm vào cuộc trò chuyện</strong>${fileImportOptions}${extra}<button type="button" data-action="open-skill-picker" ${taskId ? `data-id="${esc(taskId)}"` : ""}>${icon("notebook-tabs", 16)}<span>Kỹ năng${selectedSkillCount ? ` (${selectedSkillCount})` : ""}</span></button><small>Tệp văn bản được gửi riêng kèm tin nhắn. Tối đa 20 tệp, tổng 1 MB.</small></div></details>`;
 }
 
 export function permissionModeIcon(mode, size = 16) {
@@ -152,7 +158,7 @@ export function composerSubagentMenuMarkup(policyInput = {}, { scope = "home", t
     <div class="codex-pop-card is-subagent-card" role="menu" aria-label="Điều phối Subagent">
       <div class="codex-perm-header codex-subagent-head">
         <span class="codex-perm-title">Điều phối Subagent</span>
-        <button type="button" class="subagent-manage-link" data-action="open-subagent-profiles">${icon("settings-2", 12)}<span>Quản lý hồ sơ</span></button>
+        <button type="button" class="subagent-manage-link" data-action="create-subagent-profile">${icon("plus", 12)}<span>Tạo hồ sơ</span></button>
       </div>
       <div class="codex-perm-list">
         ${modeOptions.map((opt) => {
@@ -305,7 +311,8 @@ export async function updateComposerMentionMenu(textarea) {
   }
   const query = match[1].toLowerCase();
   const startPos = cursor - match[1].length - 1;
-  const task = view.selected ? view.state?.tasks?.find((t) => t.id === view.selected) : null;
+  const activeTaskId = view.selectedTaskId || view.selected;
+  const task = activeTaskId ? view.state?.tasks?.find((t) => t.id === activeTaskId) : null;
   const wsId = task?.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
   const files = await ensureWorkspaceFileIndex(wsId);
   const matches = files.filter((f) => !query || f.toLowerCase().includes(query)).slice(0, 8);

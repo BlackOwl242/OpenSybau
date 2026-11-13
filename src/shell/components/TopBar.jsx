@@ -2,6 +2,7 @@ import { h } from "preact";
 import { pageTitles } from "../navigation.js";
 import { Icon } from "../../shared/ui/Icon.jsx";
 import { chatNumber, compactChatTitle } from "../../shared/chat-labels.js";
+import { isMobileCompanionMode } from "../../shared/remote-host.js";
 
 function tabIconName(ext = "") {
   const lower = String(ext || "").toLowerCase();
@@ -13,24 +14,37 @@ function tabIconName(ext = "") {
 }
 
 export function TopBar({ snapshot }) {
+  const isMobileCompanion = Boolean(snapshot?.isMobileCompanion ?? isMobileCompanionMode());
+  if (isMobileCompanion) {
+    return null;
+  }
+
   const page = snapshot.page || "chat";
   const stageTabs = snapshot.stageTabs || [];
   const activeStageTabId = snapshot.activeStageTabId || "chat";
   const stageSplit = Boolean(snapshot.stageSplit && stageTabs.length > 0);
   const splitWorkspaceId = page === "chat" ? snapshot.chatSplitWorkspaceId : "";
-  const splitTasks = splitWorkspaceId ? (snapshot.chatSplitTaskIds || []).map((id) => snapshot.state?.tasks?.find((task) => task.id === id)).filter((task) => task && task.workspaceId === splitWorkspaceId) : [];
+  const splitTasks = splitWorkspaceId
+    ? (snapshot.chatSplitTaskIds || [])
+        .map((id) => snapshot.state?.tasks?.find((task) => task.id === id))
+        .filter((task) => task && task.workspaceId === splitWorkspaceId)
+    : [];
   const isHome = page === "chat" && !snapshot.selected && !splitWorkspaceId;
   const supportsDock = page === "chat" || page === "workspaces" || page === "skills" || (page === "knowledge" && Boolean(snapshot.state?.settings?.vaultPath));
   const dockOpen = Boolean(supportsDock && snapshot.chatDrawerOpen && snapshot.rightDockMarkup);
 
   if (isHome && stageTabs.length === 0) {
-    return <>
-      {supportsDock && !dockOpen ? <div class="wb-home-dock-trigger">
-        <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
-          <Icon name="sidebar-right" size={16} />
-        </button>
-      </div> : null}
-    </>;
+    return (
+      <>
+        {supportsDock && !dockOpen ? (
+          <div class="wb-home-dock-trigger">
+            <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
+              <Icon name="sidebar-right" size={16} />
+            </button>
+          </div>
+        ) : null}
+      </>
+    );
   }
 
   const title = pageTitles[page] || "OpenSybau";
@@ -54,99 +68,156 @@ export function TopBar({ snapshot }) {
     const primaryIcon = page === "workspaces" && !task ? "folder-code" : "message-circle";
     const isPrimaryActive = activeStageTabId === "chat" && !stageSplit;
 
-    return <header class="wb-topbar orca-tabbar" aria-label="Thanh tab đa cửa sổ">
-      <div class="orca-tabbar-scroll" role="tablist">
-        {splitWorkspaceId ? splitTasks.map((item, index) => <div key={item.id} role="tab" aria-selected={(snapshot.chatSplitActiveTaskId || splitTasks[0]?.id) === item.id} class={`orca-tab ${(snapshot.chatSplitActiveTaskId || splitTasks[0]?.id) === item.id ? "is-active" : ""}`} data-action="focus-chat-pane" data-id={item.id} title={item.title}>
-          <span class={`wb-task-dot is-${item.status || "done"}`} aria-hidden="true" />
-          <span class="orca-tab-title" data-localize-skip="true">{compactChatTitle(item)}</span>
-          <button type="button" class="orca-tab-close" data-action="remove-chat-pane" data-id={item.id} title={`Đóng khung ${chatNumber(item, index + 1)}`} aria-label={`Đóng khung ${chatNumber(item, index + 1)}`}><Icon name="x" size={11} /></button>
-        </div>) : <button
-          type="button"
-          role="tab"
-          aria-selected={isPrimaryActive}
-          class={`orca-tab is-primary-tab ${isPrimaryActive ? "is-active" : ""} ${stageSplit ? "is-split-pinned" : ""}`}
-          data-action="activate-stage-tab"
-          data-tab-id="chat"
-          title={primaryTitle}
-        >
-          <Icon name={primaryIcon} size={13} />
-          <span class="orca-tab-title" data-localize-skip={task || page === "workspaces" && workspace ? "true" : undefined}>{primaryTitle}</span>
-        </button>}
-        {stageTabs.map((tab) => {
-          const isActive = activeStageTabId === tab.id || (stageSplit && activeStageTabId === "chat" && stageTabs[0]?.id === tab.id);
-          return <div
-            key={tab.id}
-            role="tab"
-            aria-selected={isActive}
-            class={`orca-tab ${isActive ? "is-active" : ""}`}
-            data-action="activate-stage-tab"
-            data-tab-id={tab.id}
-            title={tab.path}
-          >
-            <Icon name={tabIconName(tab.ext)} size={13} />
-            <span class="orca-tab-title" data-localize-skip="true">{tab.name}</span>
+    return (
+      <header class="wb-topbar orca-tabbar" aria-label="Thanh tab đa cửa sổ">
+        <div class="orca-tabbar-scroll" role="tablist">
+          {splitWorkspaceId ? (
+            splitTasks.map((item, index) => (
+              <div
+                key={item.id}
+                role="tab"
+                aria-selected={(snapshot.chatSplitActiveTaskId || splitTasks[0]?.id) === item.id}
+                class={`orca-tab ${(snapshot.chatSplitActiveTaskId || splitTasks[0]?.id) === item.id ? "is-active" : ""}`}
+                data-action="focus-chat-pane"
+                data-id={item.id}
+                title={item.title}
+              >
+                <span class={`wb-task-dot is-${item.status || "done"}`} aria-hidden="true" />
+                <span class="orca-tab-title" data-localize-skip="true">{compactChatTitle(item)}</span>
+                <button
+                  type="button"
+                  class="orca-tab-close"
+                  data-action="remove-chat-pane"
+                  data-id={item.id}
+                  title={`Đóng khung ${chatNumber(item, index + 1)}`}
+                  aria-label={`Đóng khung ${chatNumber(item, index + 1)}`}
+                >
+                  <Icon name="x" size={14} />
+                </button>
+              </div>
+            ))
+          ) : (
             <button
               type="button"
-              class="orca-tab-close"
-              data-action="close-stage-tab"
-              data-tab-id={tab.id}
-              title={`Đóng tab ${tab.name}`}
-              aria-label={`Đóng tab ${tab.name}`}
+              role="tab"
+              aria-selected={isPrimaryActive}
+              class={`orca-tab is-primary-tab ${isPrimaryActive ? "is-active" : ""} ${stageSplit ? "is-split-pinned" : ""}`}
+              data-action="activate-stage-tab"
+              data-tab-id="chat"
+              title={primaryTitle}
             >
-              <Icon name="x" size={11} />
+              <Icon name={primaryIcon} size={14} />
+              <span class="orca-tab-title" data-localize-skip={task || (page === "workspaces" && workspace) ? "true" : undefined}>
+                {primaryTitle}
+              </span>
             </button>
-          </div>;
-        })}
-        <button
-          type="button"
-          class="orca-tabbar-add"
-          data-action={splitWorkspaceId ? "toggle-chat-picker" : "new-chat"}
-          title={splitWorkspaceId ? "Mở thêm khung chat" : "Mở cuộc trò chuyện mới"}
-          aria-label={splitWorkspaceId ? "Mở thêm khung chat" : "Mở cuộc trò chuyện mới"}
-        >
-          <Icon name="plus" size={14} />
-        </button>
-      </div>
-      <div class="wb-top-actions orca-tabbar-actions">
-        {splitWorkspaceId || task && workspace ? <button class={`wb-top-icon ${splitWorkspaceId ? "is-active" : ""}`} type="button" data-action={splitWorkspaceId ? "exit-chat-split" : "open-chat-split"} data-workspace-id={splitWorkspaceId || workspace.id} data-task-id={task?.id} title={splitWorkspaceId ? "Đóng chế độ nhiều khung" : "Chia khung chat"} aria-label={splitWorkspaceId ? "Đóng chế độ nhiều khung" : "Chia khung chat"}><Icon name="columns-2" size={15} /></button> : null}
-        {task ? <button class="wb-top-icon wb-mobile-outline-toggle" type="button" data-action="toggle-chat-outline" title="Tóm tắt câu trả lời" aria-label="Tóm tắt câu trả lời" aria-expanded="false"><Icon name="list" size={16} /></button> : null}
-        {stageTabs.length > 0 ? (
+          )}
+          {stageTabs.map((tab) => {
+            const isActive = activeStageTabId === tab.id || (stageSplit && activeStageTabId === "chat" && stageTabs[0]?.id === tab.id);
+            return (
+              <div
+                key={tab.id}
+                role="tab"
+                aria-selected={isActive}
+                class={`orca-tab ${isActive ? "is-active" : ""}`}
+                data-action="activate-stage-tab"
+                data-tab-id={tab.id}
+                title={tab.path}
+              >
+                <Icon name={tabIconName(tab.ext)} size={14} />
+                <span class="orca-tab-title" data-localize-skip="true">{tab.name}</span>
+                <button
+                  type="button"
+                  class="orca-tab-close"
+                  data-action="close-stage-tab"
+                  data-tab-id={tab.id}
+                  title={`Đóng tab ${tab.name}`}
+                  aria-label={`Đóng tab ${tab.name}`}
+                >
+                  <Icon name="x" size={14} />
+                </button>
+              </div>
+            );
+          })}
           <button
-            class={`wb-top-icon ${stageSplit ? "is-active" : ""}`}
             type="button"
-            data-action="toggle-stage-split"
-            title={stageSplit ? "Tắt chế độ chia đôi màn hình" : "Chia đôi màn hình: Chat + Xem File song song"}
-            aria-label="Chia đôi màn hình: Chat + Xem File song song"
+            class="orca-tabbar-add"
+            data-action={splitWorkspaceId ? "toggle-chat-picker" : "new-chat"}
+            title={splitWorkspaceId ? "Mở thêm khung chat" : "Mở cuộc trò chuyện mới"}
+            aria-label={splitWorkspaceId ? "Mở thêm khung chat" : "Mở cuộc trò chuyện mới"}
           >
-            <Icon name="columns-2" size={15} />
+            <Icon name="plus" size={14} />
           </button>
-        ) : null}
+        </div>
+        <div class="wb-top-actions orca-tabbar-actions">
+          {splitWorkspaceId || (task && workspace) ? (
+            <button
+              class={`wb-top-icon ${splitWorkspaceId ? "is-active" : ""}`}
+              type="button"
+              data-action={splitWorkspaceId ? "exit-chat-split" : "open-chat-split"}
+              data-workspace-id={splitWorkspaceId || workspace.id}
+              data-task-id={task?.id}
+              title={splitWorkspaceId ? "Đóng chế độ nhiều khung" : "Chia khung chat"}
+              aria-label={splitWorkspaceId ? "Đóng chế độ nhiều khung" : "Chia khung chat"}
+            >
+              <Icon name="columns-2" size={16} />
+            </button>
+          ) : null}
+          {task ? (
+            <button
+              class="wb-top-icon wb-mobile-outline-toggle"
+              type="button"
+              data-action="toggle-chat-outline"
+              title="Tóm tắt câu trả lời"
+              aria-label="Tóm tắt câu trả lời"
+              aria-expanded="false"
+            >
+              <Icon name="list" size={16} />
+            </button>
+          ) : null}
+          {stageTabs.length > 0 ? (
+            <button
+              class={`wb-top-icon ${stageSplit ? "is-active" : ""}`}
+              type="button"
+              data-action="toggle-stage-split"
+              title={stageSplit ? "Tắt chế độ chia đôi màn hình" : "Chia đôi màn hình: Chat + Xem File song song"}
+              aria-label="Chia đôi màn hình: Chat + Xem File song song"
+            >
+              <Icon name="columns-2" size={16} />
+            </button>
+          ) : null}
+          {supportsDock && !dockOpen ? (
+            <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
+              <Icon name="sidebar-right" size={16} />
+            </button>
+          ) : null}
+        </div>
+      </header>
+    );
+  }
+
+  return (
+    <header class="wb-topbar">
+      <div class="wb-topbar-leading">
+        <div class="wb-breadcrumb">
+          <span>OpenSybau</span>
+          <Icon name="chevron-right" size={14} />
+          <strong>{title}</strong>
+          {workspace && ["tasks", "flows", "workspaces"].includes(page) ? (
+            <>
+              <Icon name="chevron-right" size={14} />
+              <span data-localize-skip="true">{workspace.name}</span>
+            </>
+          ) : null}
+        </div>
+      </div>
+      <div class="wb-top-actions">
         {supportsDock && !dockOpen ? (
           <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
             <Icon name="sidebar-right" size={16} />
           </button>
         ) : null}
       </div>
-    </header>;
-  }
-
-  return <header class="wb-topbar">
-    <div class="wb-topbar-leading">
-      <div class="wb-breadcrumb">
-        <span>OpenSybau</span>
-        <Icon name="chevron-right" size={13} />
-        <strong>{title}</strong>
-        {workspace && ["tasks", "flows", "workspaces"].includes(page) ? <><Icon name="chevron-right" size={13} /><span>{workspace.name}</span></> : null}
-      </div>
-    </div>
-    <div class="wb-top-actions">
-      {supportsDock && !dockOpen ? (
-        <button class="wb-top-icon" type="button" data-action="toggle-chat-drawer" title="Mở thanh bên phải" aria-label="Mở thanh bên phải">
-          <Icon name="sidebar-right" size={16} />
-        </button>
-      ) : null}
-    </div>
-  </header>;
+    </header>
+  );
 }
-
-

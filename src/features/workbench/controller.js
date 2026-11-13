@@ -6,9 +6,20 @@ import { updateWorkbenchShell } from "../../shell/mount.jsx";
 import { readBrowserRoute } from "../../shell/router.js";
 import {
   getActiveRemoteHost,
+  isMobileCompanionMode,
   parsePairingInput,
   probeRemoteHost,
+  saveRemoteHostProfile,
+  setActiveRemoteHost,
 } from "../../shared/remote-host.js";
+import {
+  closeCommandPalette,
+  handleCommandPaletteInput,
+  handleCommandPaletteKeydown,
+  toggleCommandPalette,
+} from "./command-palette.js";
+import { syncSchedulesFromServer } from "./schedules-modal.js";
+import { syncTaskChatDraft } from "./actions/chat-task-actions.js";
 import { markIframeInspectorBridgeReady, syncHtmlInspectUi } from "./html-inspector.js";
 import { wrapStageWithOrcaTabs } from "./stage-viewer.js";
 import { pageSupportsRightDock } from "./right-dock.js";
@@ -82,8 +93,12 @@ import { handleSubmit } from "./actions/form-submit.js";
 import { handleWorkbenchClick } from "./actions/click-router.js";
 
 Object.assign(view, readBrowserRoute());
-if (view.page !== "chat") view.mobileScreen = "page";
-else if (view.selected) view.mobileScreen = "session";
+if (view.page === "workspaces" && view.selected) {
+  view.selectedWorkspaceId = view.selected;
+} else if (view.selected && ["chat", "flows", "tasks"].includes(view.page)) {
+  view.selectedTaskId = view.selected;
+}
+view.mobileScreen = "home";
 const compactLayout = window.matchMedia("(max-width: 1020px)");
 if (compactLayout.matches) view.chatDrawerOpen = false;
 compactLayout.addEventListener("change", ({ matches }) => {
@@ -99,25 +114,29 @@ if (window.opensybauDesktop?.isDesktop) document.documentElement.classList.add("
 
 function render({ background = false } = {}) {
   if (!view.state) return;
-  if (view._pendingTaskSwitchId) {
-    const nextKey = view._pendingTaskSwitchId;
-    view._pendingTaskSwitchId = "";
-    view.chatDraft = view.chatDraftsByTask?.[nextKey] || "";
-    view.mpSessionTab = "chat";
-  }
-  if (view.page === "workspaces" && !view.workspaceOverviewMode && view.state.workspaces?.length) {
-    const activeWs = view.state.workspaces.find((w) => w.id === view.selected)
-      || view.state.workspaces.find((w) => w.id === view.homeWorkspaceId)
-      || view.state.workspaces[0];
-    if (activeWs) {
-      if (view.selected !== activeWs.id) {
-        view.selected = activeWs.id;
-        view.workspaceDir = "";
-        view.workspaceEntries = [];
-        markReplaceBrowserRoute();
+  if (view.page === "workspaces") {
+    if (!view.workspaceOverviewMode && view.state.workspaces?.length) {
+      const activeWs = view.state.workspaces.find((w) => w.id === (view.selectedWorkspaceId || view.selected))
+        || view.state.workspaces.find((w) => w.id === view.homeWorkspaceId)
+        || view.state.workspaces[0];
+      if (activeWs) {
+        if (view.selected !== activeWs.id) {
+          view.selected = activeWs.id;
+          view.workspaceDir = "";
+          view.workspaceEntries = [];
+          markReplaceBrowserRoute();
+        }
+        view.selectedWorkspaceId = activeWs.id;
+        view.homeWorkspaceId = activeWs.id;
       }
-      view.homeWorkspaceId = activeWs.id;
     }
+  } else if (view.page === "chat") {
+    const candidateTaskId = view.selectedTaskId || view.selected || "";
+    const validTask = candidateTaskId && view.state.tasks.some((t) => t.id === candidateTaskId)
+      ? candidateTaskId
+      : null;
+    view.selectedTaskId = validTask;
+    view.selected = validTask;
   }
   syncLocation();
   const pages = {
@@ -190,7 +209,59 @@ function render({ background = false } = {}) {
   const searchResults = view.searchQuery ? homeSearchResults(view.searchQuery) : "";
   view.searchResults = searchResults;
   const pageSidebarMarkup = view.page === "settings" ? settingsSidebarMarkup() : "";
-  updateWorkbenchShell({ backgroundUpdate: background, page: view.page, language: view.language, theme: view.theme, state: view.state, connectors: view.connectors, quotas: view.quotas, quotasLoading: Boolean(view.quotasLoading), desktopSetupOpen: view.desktopSetupOpen, cliInstallProvider: view.cliInstallProvider, skills: view.skills, selected: (selectedTask || selectedWorkspace) ? view.selected : null, homeWorkspaceId: view.homeWorkspaceId, searchQuery: view.searchQuery, searchResults, collapsedWorkspaces: view.collapsedWorkspaces, collapsedFanouts: view.collapsedFanouts, projectMenuId: view.projectMenuId, taskMenuId: view.taskMenuId, streamConnected: view.streamConnected, activeRemoteHostName: getActiveRemoteHost()?.name || "", chatDrawerOpen: view.chatDrawerOpen, rightDockMarkup, pageSidebarMarkup, stageTabs: view.stageTabs || [], activeStageTabId: view.activeStageTabId || "chat", stageSplit: Boolean(view.stageSplit), chatSplitWorkspaceId: view.chatSplitWorkspaceId, chatSplitTaskIds: view.chatSplitTaskIds, chatSplitActiveTaskId: view.chatSplitActiveTaskId }, pageMarkup);
+  const attentionTasks = (view.state.tasks || [])
+    .filter((t) => !t.archived && (
+      t.status === "awaiting_approval"
+      || (Array.isArray(t.pendingApprovals) && t.pendingApprovals.length > 0)
+      || t.status === "failed"
+    ))
+    .sort((a, b) => Date.parse(b.updatedAt || b.createdAt || "") - Date.parse(a.updatedAt || a.createdAt || ""))
+    .slice(0, 8);
+  updateWorkbenchShell({
+    backgroundUpdate: background,
+    page: view.page,
+    language: view.language,
+    theme: view.theme,
+    state: view.state,
+    connectors: view.connectors,
+    quotas: view.quotas,
+    quotasLoading: Boolean(view.quotasLoading),
+    desktopSetupOpen: view.desktopSetupOpen,
+    cliInstallProvider: view.cliInstallProvider,
+    skills: view.skills,
+    selected: (selectedTask || selectedWorkspace) ? view.selected : null,
+    selectedTaskId: view.selectedTaskId || null,
+    selectedWorkspaceId: view.selectedWorkspaceId || null,
+    homeWorkspaceId: view.homeWorkspaceId,
+    searchQuery: view.searchQuery,
+    searchResults,
+    collapsedWorkspaces: view.collapsedWorkspaces,
+    collapsedFanouts: view.collapsedFanouts,
+    projectMenuId: view.projectMenuId,
+    taskMenuId: view.taskMenuId,
+    streamConnected: view.streamConnected,
+    activeRemoteHostName: getActiveRemoteHost()?.name || "",
+    connectionInfo: view.connectionInfo || null,
+    isMobileCompanion: isMobileCompanionMode(),
+    sidebarCollapsed: Boolean(view.sidebarCollapsed),
+    mobileScreen: view.mobileScreen || "home",
+    mpSessionTab: view.mpSessionTab || "chat",
+    mpWlFilter: view.mpWlFilter || "all",
+    mpWlRepo: view.mpWlRepo || "all",
+    mpWlSearchOpen: Boolean(view.mpWlSearchOpen),
+    mpWlSearchQuery: view.mpWlSearchQuery || "",
+    attentionTasks,
+    chatDrawerOpen: view.chatDrawerOpen,
+    chatDrawerTab: view.chatDrawerTab || "files",
+    rightDockMarkup,
+    pageSidebarMarkup,
+    stageTabs: view.stageTabs || [],
+    activeStageTabId: view.activeStageTabId || "chat",
+    stageSplit: Boolean(view.stageSplit),
+    chatSplitWorkspaceId: view.chatSplitWorkspaceId,
+    chatSplitTaskIds: view.chatSplitTaskIds,
+    chatSplitActiveTaskId: view.chatSplitActiveTaskId,
+  }, pageMarkup);
   if (view.renderedLanguage !== view.language) {
     view.renderedLanguage = view.language;
     localizeDom(document.querySelector("#root"), view.language);
@@ -253,14 +324,166 @@ function render({ background = false } = {}) {
   syncWorkflow();
 }
 
+export function navigateWorkbench(nextRoute, options = {}) {
+  const prevPage = view.page;
+  if (prevPage === "chat") {
+    syncTaskChatDraft(view.selectedTaskId || "");
+  }
+  view.mobileScreen = "home";
+  view.projectMenuId = "";
+  view.taskMenuId = "";
+  if (view.commandPaletteOpen) {
+    closeCommandPalette();
+  }
+  closeOverlay();
+  document.querySelectorAll("details[open]").forEach((el) => {
+    if (el.matches(".codex-pop-menu, .composer-add, .wb-status-usage, .vault-action-menu")) {
+      el.removeAttribute("open");
+    }
+  });
+  if (isMobileCompanionMode() || window.matchMedia?.("(max-width: 1020px)")?.matches) {
+    view.chatDrawerOpen = false;
+    view.homeDockOpen = false;
+    document.body?.classList?.remove("mobile-nav-open", "sidebar-drawer-open");
+  }
+
+  let targetPage = view.page;
+  let explicitSelected = undefined;
+  if (typeof nextRoute === "string") {
+    const trimmed = nextRoute.trim();
+    if (trimmed.startsWith("/")) {
+      const parts = trimmed.replace(/^\/+/, "").split("/");
+      targetPage = parts[0] || "chat";
+      if (parts[1]) explicitSelected = decodeURIComponent(parts[1]);
+    } else if (trimmed) {
+      targetPage = trimmed;
+    }
+  } else if (nextRoute && typeof nextRoute === "object") {
+    if (nextRoute.page) targetPage = nextRoute.page;
+    if ("selected" in nextRoute) explicitSelected = nextRoute.selected;
+    if (nextRoute.settingsSection) view.settingsSection = nextRoute.settingsSection;
+    if ("selectedTaskId" in nextRoute) view.selectedTaskId = nextRoute.selectedTaskId;
+    if ("selectedWorkspaceId" in nextRoute) view.selectedWorkspaceId = nextRoute.selectedWorkspaceId;
+    if (nextRoute.mpSessionTab) view.mpSessionTab = nextRoute.mpSessionTab;
+  }
+
+  if (options.preserveOrigin && prevPage !== targetPage) {
+    view.navOriginPage = prevPage;
+  } else if (!options.keepOrigin) {
+    view.navOriginPage = nextRoute?.navOriginPage ?? null;
+  }
+
+  view.page = targetPage;
+  if (targetPage === "chat") {
+    if (explicitSelected !== undefined) {
+      view.selectedTaskId = explicitSelected || null;
+    }
+    view.selected = view.selectedTaskId || null;
+    view.chatDraft = view.chatDraftsByTask?.[view.selectedTaskId || "__new__"] || "";
+  } else if (targetPage === "workspaces") {
+    if (explicitSelected) {
+      view.selectedWorkspaceId = explicitSelected;
+    }
+    view.selected = view.selectedWorkspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || null;
+    view.selectedWorkspaceId = view.selected;
+  } else if (["flows", "tasks"].includes(targetPage)) {
+    view.selected = explicitSelected !== undefined ? explicitSelected : null;
+    void syncSchedulesFromServer({ silent: true });
+  } else {
+    view.selected = null;
+  }
+
+  if (targetPage === "knowledge" && view.state?.settings?.vaultPath && !view.vaultEntries?.length) {
+    void loadVaultDir(view.vaultDir || "");
+  } else if (targetPage === "settings" && !view.connectionInfo) {
+    api("/api/connection-info")
+      .then((info) => {
+        view.connectionInfo = info;
+        render({ background: true });
+      })
+      .catch(() => {});
+  }
+
+  render();
+}
+
+export function handleWorkbenchBack() {
+  if (view.commandPaletteOpen) {
+    closeCommandPalette();
+    render();
+    return true;
+  }
+  const overlay = $("#overlay");
+  if (overlay && overlay.children.length > 0) {
+    closeOverlay();
+    return true;
+  }
+  const openDetails = [
+    ...document.querySelectorAll(
+      "details.codex-pop-menu[open], details.composer-add[open], details.wb-status-usage[open], details.vault-action-menu[open], .orca-viewer-toolbar details[open]",
+    ),
+  ];
+  if (openDetails.length > 0) {
+    openDetails.forEach((el) => el.removeAttribute("open"));
+    return true;
+  }
+  const isNarrow = isMobileCompanionMode() || Boolean(window.matchMedia?.("(max-width: 1020px)")?.matches);
+  const hasBodyDrawer = document.body?.classList?.contains("mobile-nav-open")
+    || document.body?.classList?.contains("sidebar-drawer-open");
+  if (hasBodyDrawer || (isNarrow && (view.chatDrawerOpen || view.homeDockOpen))) {
+    view.chatDrawerOpen = false;
+    view.homeDockOpen = false;
+    document.body?.classList?.remove("mobile-nav-open", "sidebar-drawer-open");
+    render();
+    return true;
+  }
+  if (view.mobileScreen && view.mobileScreen !== "home") {
+    view.mobileScreen = "home";
+    render();
+    return true;
+  }
+  if (isMobileCompanionMode() && view.page === "chat" && view.selectedTaskId) {
+    if (view.mpSessionTab && view.mpSessionTab !== "chat") {
+      view.mpSessionTab = "chat";
+      render();
+      return true;
+    }
+    syncTaskChatDraft("");
+    view.selectedTaskId = null;
+    view.selected = null;
+    render();
+    return true;
+  }
+  if (view.navOriginPage) {
+    const origin = view.navOriginPage;
+    view.navOriginPage = null;
+    navigateWorkbench(origin);
+    return true;
+  }
+  if (view.page !== "chat") {
+    navigateWorkbench("chat");
+    return true;
+  }
+  return false;
+}
+
+if (typeof window !== "undefined") {
+  window.__opensybauNavigate = (nextRoute, options) => navigateWorkbench(nextRoute, options);
+  window.__opensybauHandleBack = handleWorkbenchBack;
+}
+
 registerRuntimeHooks({
   render,
   showCliProviderModal,
   hydrateRouteData: async () => {
     if (!view.state) return;
-    if (view.page === "workspaces" && view.selected) await loadWorkspaceDir(view.selected, view.workspaceDir);
-    else if (view.page === "knowledge" && view.state.settings.vaultPath) await loadVaultDir(view.vaultDir);
-    else if (view.page === "settings" && !view.connectionInfo) {
+    if (view.page === "workspaces" && (view.selectedWorkspaceId || view.selected)) {
+      await loadWorkspaceDir(view.selectedWorkspaceId || view.selected, view.workspaceDir);
+    } else if (view.page === "knowledge" && view.state.settings.vaultPath) {
+      await loadVaultDir(view.vaultDir);
+    } else if (["tasks", "flows"].includes(view.page)) {
+      void syncSchedulesFromServer({ silent: true });
+    } else if (view.page === "settings" && !view.connectionInfo) {
       view.connectionInfo = await api("/api/connection-info").catch(() => null);
       render({ background: true });
     }
@@ -290,8 +513,14 @@ const MUTATION_CLICK_ACTIONS = new Set([
   "run-task-qa",
   "approve-plan-gate",
   "revise-plan-gate",
+  "resolve-cli-approval",
   "distill-task-skill",
+  "distill-task-memory",
   "compact-task-chat",
+  "toggle-pin-memory",
+  "trigger-schedule",
+  "delete-schedule",
+  "toggle-schedule",
   "delete-chat",
   "archive-task",
   "restore-task",
@@ -299,19 +528,6 @@ const MUTATION_CLICK_ACTIONS = new Set([
 ]);
 
 document.addEventListener("click", async (event) => {
-  const commentRow = event.target.closest?.("[data-action='open-stage-line-comment'], [data-action='open-diff-comment']");
-  if (commentRow && !commentRow.dataset.code) {
-    const codeCell = commentRow.querySelector(".orca-diff-code, .orca-file-code, .orca-code-text, .diff-code, code");
-    if (codeCell) commentRow.dataset.code = codeCell.textContent || "";
-  }
-  const taskEl = event.target.closest?.("[data-task]");
-  if (taskEl && !event.target.closest?.("[data-page]")) {
-    view.chatDraftsByTask ||= {};
-    const currentKey = view.selectedTaskId || view.selected || "__new__";
-    view.chatDraftsByTask[currentKey] = view.chatDraft;
-    setBoundedCache(view.chatDraftsByTask, currentKey, view.chatDraft);
-    view._pendingTaskSwitchId = taskEl.dataset.task || "__new__";
-  }
   const button = event.target.closest?.("button, [data-action]");
   if (!button) return handleWorkbenchClick(event);
   const action = button.dataset?.action || "";
@@ -379,6 +595,19 @@ function scheduleFilterRender(focusSelector, selectionPos) {
 }
 
 document.addEventListener("input", (event) => {
+  if (event.target.matches?.("[data-command-palette-input]")) {
+    handleCommandPaletteInput(event.target);
+    return;
+  }
+  if (event.target.matches?.("[data-skill-picker-search]")) {
+    const q = String(event.target.value || "").trim().toLowerCase();
+    const root = event.target.closest("[data-skill-picker-root]");
+    root?.querySelectorAll("[data-skill-picker-item]").forEach((row) => {
+      const hay = row.dataset.skillPickerItem || "";
+      row.hidden = Boolean(q && !hay.includes(q));
+    });
+    return;
+  }
   if (event.target.matches?.("[data-html-element-comment-input]")) {
     view.stageHtmlCommentDraft = event.target.value;
     return;
@@ -478,6 +707,18 @@ document.addEventListener("input", (event) => {
   }
   const connPassInput = event.target.closest("[data-connection-password-input]");
   if (connPassInput) { view.connectionPasswordDraft = connPassInput.value; return; }
+  const connAllowedInput = event.target.closest("[data-connection-allowed-hosts]");
+  if (connAllowedInput) { view.connectionAllowedHostsDraft = connAllowedInput.value; return; }
+  const orcaPairInput = event.target.closest("[data-orca-quick-pair-input], [data-orca-host-url], [data-orca-host-pass], [data-orca-host-name], [data-orca-host-user]");
+  if (orcaPairInput) {
+    view.orcaConnectDraft ||= { name: "", url: "", username: "opensybau", password: "", quickPair: "" };
+    if (orcaPairInput.hasAttribute("data-orca-quick-pair-input")) view.orcaConnectDraft.quickPair = orcaPairInput.value;
+    else if (orcaPairInput.hasAttribute("data-orca-host-url")) view.orcaConnectDraft.url = orcaPairInput.value;
+    else if (orcaPairInput.hasAttribute("data-orca-host-pass")) view.orcaConnectDraft.password = orcaPairInput.value;
+    else if (orcaPairInput.hasAttribute("data-orca-host-name")) view.orcaConnectDraft.name = orcaPairInput.value;
+    else if (orcaPairInput.hasAttribute("data-orca-host-user")) view.orcaConnectDraft.username = orcaPairInput.value;
+    return;
+  }
   const input = event.target.closest("[data-skill-filter]");
   if (!input) return;
   if (input.dataset.skillFilter === "library") view.skillFilter = input.value;
@@ -531,7 +772,20 @@ document.addEventListener("change", (event) => {
   if (event.target.matches("[data-arena-slot-model]")) {
     const idx = Number(event.target.dataset.arenaSlotModel || 0);
     const slots = ensureHomeArenaSlots();
-    if (slots[idx]) { slots[idx].model = event.target.value; view.homeArenaSlots = [...slots]; render(); }
+    if (slots[idx]) {
+      const nextModelId = event.target.value;
+      slots[idx].model = nextModelId;
+      const providerId = slots[idx].provider;
+      const models = view.connectors?.[providerId]?.models || [];
+      const modelObj = models.find((m) => m.id === nextModelId) || models[0];
+      const supportedEfforts = modelObj?.reasoningEfforts || modelObj?.efforts || [];
+      if (supportedEfforts.length && !supportedEfforts.includes(slots[idx].effort)) {
+        slots[idx].effort = modelObj?.defaultEffort
+          || (supportedEfforts.includes("medium") ? "medium" : supportedEfforts[0]);
+      }
+      view.homeArenaSlots = [...slots];
+      render();
+    }
     return;
   }
   if (event.target.matches("[data-arena-slot-effort]")) {
@@ -645,14 +899,19 @@ document.addEventListener("load", (event) => {
 }, true);
 
 document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    toggleCommandPalette();
+    return;
+  }
+  if (handleCommandPaletteKeydown(event)) {
+    return;
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && view.page === "knowledge" && view.vaultEditing) {
     event.preventDefault(); document.querySelector("[data-action='vault-save-note']")?.click(); return;
   }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && document.querySelector("[data-stage-file-editor]")) {
     event.preventDefault(); document.querySelector("[data-action='save-stage-file']")?.click(); return;
-  }
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-    event.preventDefault(); view.page = "chat"; view.selected = null; view.chatDraft = ""; render(); $(`[data-home-prompt]`)?.focus({ preventScroll: true }); return;
   }
   const activePopover = event.target.closest?.(".composer-input-wrap")?.querySelector("[data-mention-popover]:not([hidden])");
   if (activePopover && (event.key === "Tab" || event.key === "Enter") && !event.shiftKey) {
@@ -671,6 +930,9 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     if (view.stageHtmlSelectedElement) { view.stageHtmlSelectedElement = null; view.stageHtmlCommentDraft = ""; syncHtmlInspectUi(); return; }
     if (view.stageHtmlInspectActive) { view.stageHtmlInspectActive = false; syncHtmlInspectUi(); return; }
+    if ($("#overlay")?.children.length > 0) { closeOverlay(); return; }
+    const openDetails = [...document.querySelectorAll("details.codex-pop-menu[open], details.composer-add[open], details.wb-status-usage[open], details.vault-action-menu[open]")];
+    if (openDetails.length > 0) { openDetails.forEach((el) => el.removeAttribute("open")); return; }
     closeOverlay();
   }
   if (event.key === "Enter" && !event.shiftKey && event.target.matches?.("[data-html-element-comment-input]")) {
@@ -685,12 +947,26 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("popstate", () => {
+  const prevSelectedTaskId = view.selectedTaskId;
+  const prevSelectedWsId = view.selectedWorkspaceId;
   Object.assign(view, readBrowserRoute());
-  view.chatDraft = ""; view.projectMenuId = ""; view.filePreview = null; view.vaultPreview = null;
+  if (view.page === "workspaces" && view.selected) {
+    view.selectedWorkspaceId = view.selected;
+    view.selectedTaskId = prevSelectedTaskId;
+  } else if (view.page === "chat") {
+    view.selectedTaskId = view.selected || null;
+    view.selectedWorkspaceId = prevSelectedWsId;
+  } else {
+    view.selectedTaskId = prevSelectedTaskId;
+    view.selectedWorkspaceId = prevSelectedWsId;
+  }
+  view.mobileScreen = "home";
+  view.chatDraft = view.chatDraftsByTask?.[view.selectedTaskId || "__new__"] || "";
+  view.projectMenuId = ""; view.filePreview = null; view.vaultPreview = null;
   view.workspaceEntries = []; view.vaultEntries = []; view.renderedPage = "";
   setRouteNeedsHydration(view.page === "knowledge" || (view.page === "workspaces" && Boolean(view.selected)));
   closeOverlay(); normalizeRouteSelection();
-  const selectedTask = view.state?.tasks.find((task) => task.id === view.selected);
+  const selectedTask = view.state?.tasks.find((task) => task.id === (view.selectedTaskId || view.selected));
   if (selectedTask && view.page === "chat") {
     view.homeWorkspaceId = selectedTask.workspaceId;
     view.chatProvider = selectedTask.config?.workflow === "chat-only" ? selectedTask.config.chatProvider || "codex" : roleConfig(selectedTask.config, "plan").provider || "codex";
@@ -710,10 +986,37 @@ window.addEventListener("opensybau:pair", async (event) => {
   if (!uri) return;
   try {
     const parsed = parsePairingInput(uri);
-    view.page = "settings"; view.settingsSection = "devices"; view.selected = null; view.orcaConnectTab = "client";
-    view.orcaConnectDraft = { name: parsed.name || "", url: parsed.url || "", username: parsed.username || "opensybau", password: parsed.password || "", quickPair: uri };
-    view.orcaConnectProbeResult = await probeRemoteHost(view.orcaConnectDraft);
-    render();
+    const draft = {
+      name: parsed.name || "",
+      url: parsed.url || "",
+      username: parsed.username || "opensybau",
+      password: parsed.password || "",
+      quickPair: uri,
+    };
+    view.orcaConnectDraft = draft;
+    const probe = await probeRemoteHost(draft);
+    view.orcaConnectProbeResult = probe;
+    if (probe.ok) {
+      const saved = saveRemoteHostProfile({
+        ...draft,
+        name: draft.name || probe.info?.hostname || draft.url,
+      });
+      setActiveRemoteHost(saved || draft);
+      view.page = "chat";
+      view.mobileScreen = "home";
+      view.navOriginPage = null;
+      connectEventStream();
+      await refresh({ configuration: true });
+      render();
+      showToast(`Đã ghép nối và kết nối tới ${probe.info?.hostname || draft.name || draft.url}.`);
+    } else {
+      view.page = "settings";
+      view.settingsSection = "devices";
+      view.selected = null;
+      view.orcaConnectTab = "client";
+      render();
+      showToast(probe.error || "Không thể kết nối tới máy tính từ liên kết ghép nối.");
+    }
   } catch (error) { showToast(error.message); }
 });
 document.addEventListener("visibilitychange", () => { if (!document.hidden) scheduleRefresh(80); });

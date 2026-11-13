@@ -2,14 +2,16 @@
    Mission Control, 6-Station Pipeline Stepper, Wave DAG & QA/Terminal
    ========================================================================== */
 
+.wb-page-content .pill.status-awaiting_approval,
 .pill.status-awaiting_approval {
-  background: color-mix(in srgb, var(--wb-amber) 16%, transparent) !important;
-  color: var(--wb-amber) !important;
-  border-color: color-mix(in srgb, var(--wb-amber) 34%, transparent) !important;
+  background: color-mix(in srgb, var(--wb-amber) 16%, transparent);
+  color: var(--wb-amber);
+  border-color: color-mix(in srgb, var(--wb-amber) 34%, transparent);
 }
 .pill.status-awaiting_approval i,
-.wb-task-dot.is-awaiting_approval {
-  background: var(--wb-amber) !important;
+.wb-task-dot.is-awaiting_approval,
+.dock-subagent-card .wb-task-dot.is-awaiting_approval {
+  background: var(--wb-amber);
   box-shadow: 0 0 8px color-mix(in srgb, var(--wb-amber) 55%, transparent);
 }
 
@@ -98,22 +100,27 @@
 }
 
 .mc-stations-track {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
+  display: flex;
   align-items: center;
+  gap: 6px;
+  width: 100%;
 }
 .mc-station {
   display: flex;
   align-items: center;
+  flex: 1 1 0;
   gap: 6px;
   min-width: 0;
+}
+.mc-station:last-child {
+  flex: 0 1 auto;
 }
 .mc-station-btn {
   display: flex;
   align-items: center;
   gap: 7px;
-  width: 100%;
+  flex: 0 1 auto;
+  width: auto;
   min-width: 0;
   padding: 6px 8px;
   border-radius: 8px;
@@ -174,14 +181,31 @@
   text-overflow: ellipsis;
 }
 .mc-station-text small {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--wb-ink-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .mc-station-line {
+  display: block;
+  flex: 1 1 12px;
+  min-width: 8px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--wb-border-default);
+  transition: background-color 0.18s ease;
+}
+.mc-station:last-child .mc-station-line {
   display: none;
+}
+.mc-station.is-done .mc-station-line,
+.mc-station-line.is-done {
+  background: var(--wb-success);
+}
+.mc-station.is-active .mc-station-line,
+.mc-station-line.is-active {
+  background: var(--wb-accent);
 }
 
 .mc-plan-gate-banner {
@@ -420,7 +444,7 @@
 
 .mc-wave-board {
   position: relative;
-  display: grid !important;
+  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: 18px;
   align-items: start;
@@ -431,7 +455,7 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 1;
+  z-index: var(--wb-z-base);
   overflow: visible;
 }
 .mc-wave-edge {
@@ -451,7 +475,7 @@
 }
 .mc-wave-column {
   position: relative;
-  z-index: 2;
+  z-index: calc(var(--wb-z-base) + 1);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -498,7 +522,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--wb-ink-muted);
   min-width: 0;
 }
@@ -589,7 +613,7 @@
   word-break: break-word;
 }
 .orca-tree-badge.is-ready {
-  color: var(--wb-green) !important;
+  color: var(--wb-green);
 }
 .role-title-row {
   display: flex;
@@ -603,7 +627,7 @@
   align-items: center;
   padding: 2px 7px;
   border-radius: 999px;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--wb-accent);
   background: color-mix(in srgb, var(--wb-accent) 12%, var(--wb-raised));
@@ -640,7 +664,7 @@
   color: var(--wb-ink-strong);
 }
 .station-map-item small {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--wb-ink-muted);
 }
 .station-map-item.is-ai small {
@@ -659,7 +683,17 @@
 }
 @media (max-width: 960px) {
   .mc-stations-track {
+    display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .mc-station-btn {
+    flex: 1 1 auto;
+  }
+  .mc-station-line {
+    flex: 0 0 10px;
+  }
+  .mc-station:nth-child(3n) .mc-station-line {
+    display: none;
   }
 }
 
@@ -674,7 +708,7 @@
 @media (max-width: 740px) {
   .wb-page-content .page-head {
     flex-direction: column;
-    align-items: stretch !important;
+    align-items: stretch;
     gap: 12px;
   }
   .wb-page-content .page-head-actions {
@@ -688,8 +722,8 @@
     justify-content: center;
   }
   .mc-stepper-card {
-    padding: 12px !important;
-    margin-bottom: 12px !important;
+    padding: 12px;
+    margin-bottom: 12px;
   }
   .mc-stepper-head {
     flex-direction: column;
@@ -697,10 +731,10 @@
     gap: 6px;
   }
   .mc-stations-track {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   }
-  .mc-station-node {
+  .mc-station-btn {
     padding: 8px 9px;
   }
   .mc-plan-gate-banner {
@@ -724,12 +758,12 @@
   }
   .mc-board-toolbar {
     flex-direction: column;
-    align-items: stretch !important;
+    align-items: stretch;
     gap: 10px;
   }
   .mc-filter-strip {
     overflow-x: auto;
-    flex-wrap: nowrap !important;
+    flex-wrap: nowrap;
     padding-bottom: 4px;
     scrollbar-width: none;
   }
@@ -741,19 +775,19 @@
     white-space: nowrap;
   }
   .mc-wave-board {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
   .mc-wave-svg-layer {
-    display: none !important;
+    display: none;
   }
   .mc-mini-stations {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
   .mc-needs-look-card {
     flex-direction: column;
-    align-items: stretch !important;
+    align-items: stretch;
     gap: 10px;
   }
   .mc-needs-look-actions {
@@ -769,7 +803,7 @@
   .codex-rail-bar {
     flex-wrap: wrap;
     gap: 8px;
-    padding: 8px 10px !important;
+    padding: 8px 10px;
   }
   .codex-rail-left,
   .codex-rail-right {
@@ -777,42 +811,42 @@
     gap: 6px;
   }
   .home-arena-strip {
-    padding: 10px !important;
+    padding: 10px;
   }
   .arena-slot-row {
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 8px !important;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
   }
   .arena-banner {
     flex-direction: column;
-    align-items: stretch !important;
+    align-items: stretch;
     gap: 10px;
   }
   .settings-station-map {
-    display: grid !important;
+    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     padding: 10px;
   }
   .station-map-arrow {
-    display: none !important;
+    display: none;
   }
   .station-map-item {
     min-width: 0;
   }
   .wb-page-content .agent-role-grid {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
   .kb-stage-topbar {
     flex-wrap: wrap;
     gap: 8px;
-    height: auto !important;
+    height: auto;
     min-height: 44px;
-    padding: 8px 10px !important;
+    padding: 8px 10px;
   }
   .task-orchestration-page .conversation-top {
     flex-direction: column;
-    align-items: stretch !important;
+    align-items: stretch;
     gap: 10px;
   }
   .task-orchestration-page .conversation-actions {
@@ -823,19 +857,19 @@
 
 @media (max-width: 560px) {
   .wb-window-chrome.is-desktop .wb-chrome-pill span {
-    display: none !important;
+    display: none;
   }
   .wb-window-chrome.is-desktop .wb-chrome-pill {
-    padding: 0 7px !important;
+    padding: 0 7px;
   }
   .mc-stations-track {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
   .mc-mini-stations {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .settings-station-map {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: minmax(0, 1fr);
   }
   .workflow-empty-actions {
     flex-direction: column;
@@ -851,7 +885,7 @@
    In-Tab Code Editor & GitHub Issues Integration Styles
    ========================================================================== */
 .orca-code-editor-pane { display: flex; flex-direction: column; height: 100%; min-height: 360px; background: var(--bg-surface, #111215); }
-.orca-code-editor-textarea { flex: 1; width: 100%; min-height: 320px; padding: 14px 16px; border: 0; border-radius: 0; outline: none; resize: none; background: transparent; color: var(--text-primary, #f4f4f5); font-family: "JetBrains Mono Variable", "Cascadia Code", Consolas, monospace !important; font-size: 13px; line-height: 1.6; tab-size: 2; }
+.orca-code-editor-textarea { flex: 1; width: 100%; min-height: 320px; padding: 14px 16px; border: 0; border-radius: 0; outline: none; resize: none; background: transparent; color: var(--text-primary, #f4f4f5); font-family: "JetBrains Mono Variable", "Cascadia Code", Consolas, monospace; font-size: 13px; line-height: 1.6; tab-size: 2; }
 .orca-code-editor-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 14px; border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)); background: var(--bg-elevated, rgba(255, 255, 255, 0.02)); font-size: 12px; color: var(--text-muted, #a1a1aa); }
 .github-issues-modal { max-width: 720px; width: min(720px, 94vw); }
 .github-issues-section { display: flex; flex-direction: column; gap: 8px; }
@@ -860,3 +894,26 @@
 .github-issue-main { min-width: 0; flex: 1; }
 .github-issue-title { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; }
 .github-issue-num { color: var(--text-muted, #a1a1aa); font-family: "JetBrains Mono Variable", monospace; font-size: 12px; }
+
+/* Mission Control Typography & Tabular Stats */
+.mc-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--wb-text-primary);
+}
+.mc-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--wb-text-primary);
+}
+.mc-stat-val,
+.mc-counter-pill strong,
+.mc-wave-count,
+.mc-metric-pill,
+.mc-cycle-metrics {
+  font-variant-numeric: tabular-nums;
+}

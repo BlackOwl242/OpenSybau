@@ -1,4 +1,5 @@
-import { efforts, esc, icon, statuses, view } from "../../../shared/state.js";
+import { backContextButtonMarkup, efforts, esc, icon, statuses, view } from "../../../shared/state.js";
+import * as iconsUi from "../../../shared/ui/icons.js";
 import { connectorSupports, providerTitle, workflowRoles } from "../../../domain/agent-roles.js";
 import { compactChatTitle } from "../../../shared/chat-labels.js";
 import { getActiveRemoteHost, isMobileCompanionMode } from "../../../shared/remote-host.js";
@@ -74,7 +75,8 @@ export function ensureHomeArenaSlots() {
 
 export function chatPage() {
   if (view.chatSplitWorkspaceId) return multiChatPage();
-  if (view.selected && view.state.tasks.some((task) => task.id === view.selected)) return taskConversationPage();
+  const activeChatTaskId = view.selectedTaskId || view.selected;
+  if (activeChatTaskId && view.state.tasks.some((task) => task.id === activeChatTaskId)) return taskConversationPage(activeChatTaskId);
   const workspaces = view.state.workspaces;
   const roleSelections = Object.fromEntries(workflowRoles.map((role) => [role.id, normalizedRoleSelection(role.id, view.homeRoles?.[role.id])]));
   const pipelineReady = workflowRoles.every((role) => roleSelections[role.id].candidates.length > 0);
@@ -135,6 +137,10 @@ export function chatPage() {
     <summary class="codex-rail-pill" title="Chế độ làm việc" aria-label="Chế độ làm việc" aria-haspopup="menu">${icon(activeHomeMode.icon, 14)}<span data-localize-skip="true">${activeHomeMode.label}</span>${icon("chevron-down", 12)}</summary>
     <div class="codex-pop-card home-mode-popover" role="menu" aria-label="Chế độ làm việc"><div class="codex-pop-head">Chế độ làm việc</div>
       ${homeModeOptions.map((mode) => `<button type="button" role="menuitemradio" aria-checked="${mode.id === activeHomeMode.id}" class="codex-pop-item ${mode.id === activeHomeMode.id ? "is-selected" : ""}" data-home-mode="${mode.id}" ${mode.disabled ? "disabled title=\"Cần agent phù hợp để dùng chế độ này\"" : mode.title ? `title="${mode.title}"` : ""}><span class="codex-pop-item-main">${icon(mode.icon, 14)}<span>${mode.label}</span></span>${mode.id === activeHomeMode.id ? icon("check", 13) : ""}</button>`).join("")}
+      ${workflow !== "chat-only" && !isArena ? `<div class="codex-pop-sep"></div>
+      <div class="codex-pop-head">Tùy chọn luồng</div>
+      <button type="button" class="codex-pop-item ${view.homePlanGate ? "is-selected" : ""}" data-action="toggle-home-plan-gate" title="Tạm dừng sau bước Lập kế hoạch để bạn duyệt trước khi Agent sửa code"><span class="codex-pop-item-main">${icon("shield-check", 14)}<span>Duyệt kế hoạch: ${view.homePlanGate ? "Bật" : "Tự động"}</span></span>${view.homePlanGate ? icon("check", 13) : ""}</button>
+      ${workflow === "codex-antigravity" ? `<button type="button" class="codex-pop-item" data-action="cycle-home-max-rounds" title="Số vòng tự động sửa lỗi (Triển khai ↔ Đánh giá) tối đa"><span class="codex-pop-item-main">${icon("refresh-cw", 14)}<span>Vòng sửa: ${view.homeMaxRounds || 2}</span></span></button>` : ""}` : ""}
     </div>
   </details>`;
 
@@ -172,8 +178,9 @@ export function chatPage() {
     </div>
   </div>` : "";
 
-  const heroEmblem = `<div class="codex-hero-emblem" aria-hidden="true">
-    <svg class="wb-hero-svg" viewBox="0 0 64 64" width="30" height="30" fill="none">
+  const heroSvgMarkup = typeof iconsUi.brandLogoSvg === "function"
+    ? iconsUi.brandLogoSvg("wbHeroLogoClip", "wb-hero-svg")
+    : `<svg class="wb-hero-svg" viewBox="0 0 64 64" width="30" height="30" fill="none">
       <defs>
         <clipPath id="wbHeroLogoClip">
           <circle cx="19.6" cy="19.8" r="6.8" />
@@ -189,14 +196,16 @@ export function chatPage() {
       <g clip-path="url(#wbHeroLogoClip)">
         <rect class="solid-fill-rect" x="-10" y="-10" width="84" height="84" fill="currentColor" />
       </g>
-    </svg>
-  </div>`;
+    </svg>`;
+  const heroEmblem = `<div class="codex-hero-emblem" aria-hidden="true">${heroSvgMarkup}</div>`;
 
   const isMobile = isMobileCompanionMode();
   const mobileDisconnected = isMobile && !getActiveRemoteHost()?.url;
+  const backBtnMarkup = backContextButtonMarkup();
 
   return `<section class="command-home">
     <div class="command-stage">
+      ${backBtnMarkup ? `<div class="home-back-bar">${backBtnMarkup}</div>` : ""}
       <div class="home-welcome">
         ${heroEmblem}
         <h1>${activeWorkspace ? `Bạn muốn xây dựng gì trong ${esc(activeWorkspace.name)}?` : "Bạn muốn xây dựng gì?"}</h1>
@@ -236,14 +245,6 @@ export function chatPage() {
                 ${homeIsolated ? icon("git-branch", 14) : icon("laptop", 14)}
                 <span>${homeIsolated ? "Git Worktree" : (isMobile ? "Trực tiếp trên PC" : "Máy tính này")}</span>
               </button>
-              ${workflow !== "chat-only" && !isArena ? `<button type="button" class="codex-rail-pill ${view.homePlanGate ? "is-active" : ""}" data-action="toggle-home-plan-gate" title="Cổng duyệt kế hoạch (Trạm 2): Tạm dừng sau bước Lập kế hoạch để bạn duyệt trước khi Agent sửa code">
-                ${icon("shield-check", 13)}
-                <span>Duyệt kế hoạch: ${view.homePlanGate ? "Bật" : "Tự động"}</span>
-              </button>` : ""}
-              ${workflow === "codex-antigravity" && !isArena ? `<button type="button" class="codex-rail-pill ${(view.homeMaxRounds || 2) > 1 ? "is-active" : ""}" data-action="cycle-home-max-rounds" title="Số vòng tự động sửa lỗi (Triển khai ↔ Đánh giá) tối đa khi phát hiện lỗi">
-                ${icon("refresh-cw", 13)}
-                <span>Vòng sửa: ${view.homeMaxRounds || 2}</span>
-              </button>` : ""}
             </div>
             <div class="codex-rail-right">${homeModeMenu}</div>
           </div>

@@ -100,7 +100,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       platform: process.platform,
       port: getBoundPort(),
       authRequired: Boolean(getEffectiveAccessPassword()),
-      version: "0.3.6",
+      version: "0.3.9",
       mode: (!isLoopbackBind || isLanActive()) ? "network" : "loopback",
       ts: Date.now(),
     });
@@ -125,7 +125,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       includePassword: isLoopbackClient(request),
       hasAccessPassword: Boolean(activePass),
       allowedHosts,
-      version: "0.3.6",
+      version: "0.3.9",
       connectors,
       activeWorktreesCount,
       runningTasksCount,
@@ -190,7 +190,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       includePassword: true,
       hasAccessPassword: Boolean(activePass),
       allowedHosts,
-      version: "0.3.6",
+      version: "0.3.9",
       connectors,
       activeWorktreesCount,
       runningTasksCount,
@@ -805,6 +805,46 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     persistMemory();
     publish("memory");
     json(response, 201, { memory });
+    return true;
+  }
+
+  if (request.method === "PATCH" && pathname.startsWith("/api/memory/")) {
+    const id = decodeURIComponent(pathname.slice("/api/memory/".length));
+    const memories = getMemories();
+    const target = memories.find((item) => item.id === id);
+    if (!target) {
+      json(response, 404, { error: "Không tìm thấy ghi nhớ." });
+      return true;
+    }
+    const body = await readBody(request);
+    if (body.title !== undefined) {
+      const nextTitle = String(body.title || "").trim();
+      if (!nextTitle || nextTitle.length > 120) {
+        json(response, 400, { error: "Tên ghi nhớ cần từ 1–120 ký tự." });
+        return true;
+      }
+      target.title = nextTitle;
+    }
+    if (body.content !== undefined) {
+      const nextContent = String(body.content || "").trim();
+      if (!nextContent || nextContent.length > 5000) {
+        json(response, 400, { error: "Nội dung ghi nhớ cần từ 1–5.000 ký tự." });
+        return true;
+      }
+      target.content = nextContent;
+    }
+    if (body.kind !== undefined && ["user-profile", "pitfall", "lesson"].includes(String(body.kind))) {
+      target.kind = String(body.kind);
+      target.category = target.kind === "user-profile" ? "user" : "workspace";
+      if (target.kind === "user-profile") target.workspaceId = "all";
+    }
+    if (body.pinned !== undefined) {
+      target.pinned = Boolean(body.pinned);
+    }
+    target.updatedAt = new Date().toISOString();
+    persistMemory();
+    publish("memory");
+    json(response, 200, { memory: target });
     return true;
   }
 

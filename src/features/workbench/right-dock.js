@@ -1,4 +1,5 @@
 import { esc, fmtDate, formatNumber, icon, statuses, tokenCount, view } from "../../shared/state.js";
+import { isMobileCompanionMode } from "../../shared/remote-host.js";
 import { providerTitle } from "../../domain/agent-roles.js";
 import { pipelineStepperData } from "../../domain/task-flow.js";
 import { taskArtifactCatalog } from "../../domain/artifact-catalog.js";
@@ -93,12 +94,15 @@ export function renderOrcaRightDockMarkup({
 } = {}) {
   const page = view.page || "chat";
   if (!pageSupportsRightDock(page)) return "";
-  const selectedTask = (page === "chat" && view.selected) ? (view.state?.tasks || []).find((t) => t.id === view.selected) : null;
+  const isMobile = isMobileCompanionMode();
+  const activeTaskId = view.selectedTaskId || view.selected;
+  const selectedTask = (page === "chat" && activeTaskId) ? (view.state?.tasks || []).find((t) => t.id === activeTaskId) : null;
   const availableTabs = getRightDockTabsForPage(page, selectedTask);
   const tab = availableTabs.some((t) => t.id === view.chatDrawerTab) ? view.chatDrawerTab : (availableTabs[0]?.id || "files");
   const filter = (view.chatDrawerFilter || "").trim().toLowerCase();
-  const activeWsId = (page === "workspaces" && view.selected)
-    ? view.selected
+  const activeWsSelection = view.selectedWorkspaceId || view.selected;
+  const activeWsId = (page === "workspaces" && activeWsSelection)
+    ? activeWsSelection
     : selectedTask?.workspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "";
   const activeWs = (view.state?.workspaces || []).find((w) => w.id === activeWsId) || null;
 
@@ -120,7 +124,7 @@ export function renderOrcaRightDockMarkup({
       <summary class="icon-button orca-sub-btn" title="Tùy chọn Vault">${icon("ellipsis", 14)}</summary>
       <div class="codex-pop-card">
         <button type="button" class="codex-pop-item" data-action="vault-new-note"><span class="codex-pop-item-main">${icon("plus", 13)}<span>Ghi chú Markdown mới</span></span></button>
-        <button type="button" class="codex-pop-item" data-action="open-obsidian" data-path="${esc(view.vaultPreview?.path || "")}"><span class="codex-pop-item-main">${icon("arrow-up-right", 13)}<span>Mở trong Obsidian</span></span></button>
+        ${!isMobile ? `<button type="button" class="codex-pop-item" data-action="open-obsidian" data-path="${esc(view.vaultPreview?.path || "")}"><span class="codex-pop-item-main">${icon("arrow-up-right", 13)}<span>Mở trong Obsidian</span></span></button>` : ""}
         <button type="button" class="codex-pop-item" data-action="connect-vault"><span class="codex-pop-item-main">${icon("folder-open", 13)}<span>Đổi thư mục Vault…</span></span></button>
         <div class="codex-pop-sep"></div>
         <button type="button" class="codex-pop-item is-danger" data-action="disconnect-vault"><span class="codex-pop-item-main">${icon("x", 13)}<span>Ngắt kết nối Vault</span></span></button>
@@ -150,6 +154,9 @@ export function renderOrcaRightDockMarkup({
           <div class="codex-pop-head">Phiên trò chuyện</div>
           <button type="button" class="codex-pop-item" data-action="show-diff" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("file-text", 13)}<span>Diff & Review (${taskArtifactsCount})</span></span></button>
           <button type="button" class="codex-pop-item" data-action="open-task-flow" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("workflow", 13)}<span>Luồng điều phối</span></span></button>
+          <button type="button" class="codex-pop-item" data-action="compact-task-chat" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("minimize-2", 13)}<span>Nén ngữ cảnh hội thoại</span></span></button>
+          <button type="button" class="codex-pop-item" data-action="distill-task-memory" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("sparkles", 13)}<span>Đúc kết Bài học (Memory)</span></span></button>
+          <button type="button" class="codex-pop-item" data-action="distill-task-skill" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("book-open-text", 13)}<span>Đúc kết thành Kỹ năng</span></span></button>
           <button type="button" class="codex-pop-item" data-action="task-permissions" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("shield", 13)}<span>Quyền truy cập</span></span></button>
           <button type="button" class="codex-pop-item" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("target", 13)}<span>Mục tiêu & Checklist</span></span></button>
           <button type="button" class="codex-pop-item" data-action="task-instruction" data-id="${esc(selectedTask.id)}"><span class="codex-pop-item-main">${icon("settings-2", 13)}<span>Cấu hình Agent / Model</span></span></button>
@@ -157,7 +164,7 @@ export function renderOrcaRightDockMarkup({
           <div class="codex-pop-sep"></div>
         ` : ""}
         <div class="codex-pop-head">Dự án</div>
-        <button type="button" class="codex-pop-item" data-action="open-project-folder" data-id="${esc(activeWs.id)}"><span class="codex-pop-item-main">${icon("folder-open", 13)}<span>Mở trong Explorer</span></span></button>
+        ${!isMobile ? `<button type="button" class="codex-pop-item" data-action="open-project-folder" data-id="${esc(activeWs.id)}"><span class="codex-pop-item-main">${icon("folder-open", 13)}<span>Mở trong Explorer</span></span></button>` : ""}
         <button type="button" class="codex-pop-item" data-action="open-github-issues" data-workspace-id="${esc(activeWs.id)}"><span class="codex-pop-item-main">${icon("git-branch", 13)}<span>GitHub Issues & PRs</span></span></button>
         <button type="button" class="codex-pop-item" data-action="edit-project" data-id="${esc(activeWs.id)}"><span class="codex-pop-item-main">${icon("settings-2", 13)}<span>Sửa cấu hình dự án</span></span></button>
         <button type="button" class="codex-pop-item" data-action="add-workspace"><span class="codex-pop-item-main">${icon("folder-plus", 13)}<span>Thêm dự án mới…</span></span></button>
@@ -170,12 +177,27 @@ export function renderOrcaRightDockMarkup({
   if (tab === "customizations" && activeWs) {
     const inventory = view.customizationInventory?.[activeWs.id];
     if (!inventory) void ensureCustomizationInventory(activeWs.id);
+    const hasEntries = Array.isArray(inventory?.entries) && inventory.entries.length > 0;
     bodyHtml = `<div class="orca-dock-pad"><div class="orca-section-head"><span class="orca-section-label">CUSTOMIZATIONS</span><button type="button" class="subagent-manage-link" data-action="refresh-customizations" data-id="${esc(activeWs.id)}">Tải lại</button></div>
       <p class="orca-muted-note">Danh sách chỉ đọc. Token là ước tính theo ký tự, không phải số token CLI đã nạp.</p>
-      ${!inventory ? `<p class="orca-muted-note">Đang quét…</p>` : inventory.error ? `<p class="orca-muted-note">Không đọc được danh sách. Hãy tải lại.</p>` : `${inventory.truncated ? `<p class="orca-muted-note">Danh sách đã đạt giới hạn quét; có thể còn mục chưa hiển thị.</p>` : ""}${["rules", "skills", "agents", "mcp"].map((kind) => {
-        const items = inventory.entries.filter((item) => item.kind === kind);
-        return `<details open><summary>${esc(kind)} (${items.length})</summary>${items.length ? items.map((item) => `<div class="dock-subagent-block" style="padding:8px 0"><strong data-localize-skip="true">${esc(item.name)}</strong><small data-localize-skip="true">${esc(item.scope)} · ${esc(item.providers.join(", "))} · ${esc(item.source)}</small><small>${item.tokenEstimate == null ? "Chưa ước tính token" : `~${item.tokenEstimate} token`}${item.serverCount != null ? ` · ${item.serverCount} MCP` : ""} · ${item.trusted ? "Nguồn đã tin cậy" : "Chưa tin cậy"} · CLI chưa báo trạng thái nạp</small></div>`).join("") : `<p class="orca-muted-note">Không tìm thấy mục nào.</p>`}</details>`;
-      }).join("")}`}</div>`;
+      ${!inventory
+        ? `<p class="orca-muted-note">Đang quét cấu hình dự án…</p>`
+        : inventory.error
+          ? `<p class="orca-muted-note">Không đọc được danh sách. Hãy tải lại.</p>`
+          : !hasEntries
+            ? `<div class="orca-dock-empty dock-customizations-empty">
+                ${icon("settings-2", 20)}
+                <strong>Chưa phát hiện tùy chỉnh cục bộ</strong>
+                <p>OpenSybau tự động nhận diện quy tắc và công cụ trong dự án khi có mặt các tệp <code>AGENTS.md</code>, <code>CLAUDE.md</code>, <code>SKILL.md</code>, thư mục <code>.agents/</code> hoặc cấu hình máy chủ <code>MCP</code>.</p>
+                <div class="orca-quick-pills" style="justify-content:center;margin-top:8px">
+                  <button type="button" class="button quiet small" data-action="open-skill-picker">${icon("sparkles", 13)}<span>Chọn Kỹ năng</span></button>
+                  <button type="button" class="button quiet small" data-action="create-subagent-profile">${icon("waypoints", 13)}<span>Tạo Subagent</span></button>
+                </div>
+              </div>`
+            : `${inventory.truncated ? `<p class="orca-muted-note">Danh sách đã đạt giới hạn quét; có thể còn mục chưa hiển thị.</p>` : ""}${["rules", "skills", "agents", "mcp"].map((kind) => {
+                const items = inventory.entries.filter((item) => item.kind === kind);
+                return `<details open><summary>${esc(kind)} (${items.length})</summary>${items.length ? items.map((item) => `<div class="dock-subagent-block" style="padding:8px 0"><strong data-localize-skip="true">${esc(item.name)}</strong><small data-localize-skip="true">${esc(item.scope)} · ${esc(item.providers.join(", "))} · ${esc(item.source)}</small><small>${item.tokenEstimate == null ? "Chưa ước tính token" : `~${item.tokenEstimate} token`}${item.serverCount != null ? ` · ${item.serverCount} MCP` : ""} · ${item.trusted ? "Nguồn đã tin cậy" : "Chưa tin cậy"} · CLI chưa báo trạng thái nạp</small></div>`).join("") : `<p class="orca-muted-note">Không tìm thấy mục nào.</p>`}</details>`;
+              }).join("")}`}</div>`;
   } else if (tab === "overview" && selectedTask) {
     const subagents = Array.isArray(selectedTask.subagents) ? selectedTask.subagents : [];
     const active = subagents.filter((sub) => ["spawning", "running", "waiting"].includes(sub.status)).length;
@@ -186,7 +208,7 @@ export function renderOrcaRightDockMarkup({
     bodyHtml = `<div class="orca-dock-pad dock-overview">
       <div class="orca-section-head"><span class="orca-section-label">TỔNG QUAN PHIÊN</span></div>
       ${selectedTask.liveControl?.turnId ? `<button type="button" class="dock-overview-row" data-action="steer-active-turn" data-id="${esc(selectedTask.id)}">${icon("message-square", 14)}<span>Gửi vào lượt đang chạy</span></button>` : usesCodex && !selectedTask.processRunning && !["queued", "running"].includes(selectedTask.status) ? `<button type="button" class="dock-overview-row" data-action="set-codex-transport" data-id="${esc(selectedTask.id)}" data-transport="${selectedTask.config?.codexTransport === "app-server" ? "exec" : "app-server"}"><span>Codex: ${selectedTask.config?.codexTransport === "app-server" ? "App Server · chuyển về exec" : "exec · bật App Server"}</span></button>` : ""}
-      ${(selectedTask.pendingApprovals || []).map((approval) => `<div class="dock-subagent-block"><strong>Codex đang chờ duyệt</strong><code data-localize-skip="true">${esc(approval.command || approval.reason || approval.method)}</code>${approval.cwd || approval.grantRoot ? `<small data-localize-skip="true">${approval.grantRoot ? "Thư mục xin quyền: " : "Thư mục thực thi: "}${esc(approval.grantRoot || approval.cwd)}</small>` : ""}${(approval.files || []).map((file) => `<details><summary data-localize-skip="true">${esc(file.path)}</summary><pre class="dock-subagent-pre" data-localize-skip="true">${esc(file.diff || "CLI chưa cung cấp diff.")}</pre></details>`).join("")}<div class="orca-quick-pills">${[ ["accept", "Cho phép"], ["decline", "Từ chối"] ].map(([decision,label]) => `<button type="button" class="button quiet small" data-action="resolve-cli-approval" data-id="${esc(selectedTask.id)}" data-approval-id="${esc(approval.id)}" data-decision="${decision}">${label}</button>`).join("")}</div></div>`).join("")}
+      ${(selectedTask.pendingApprovals || []).map((approval) => `<div class="dock-subagent-block"><strong>Codex đang chờ duyệt</strong><code data-localize-skip="true">${esc(approval.command || approval.reason || approval.method)}</code>${approval.cwd || approval.grantRoot ? `<small data-localize-skip="true">${approval.grantRoot ? "Thư mục xin quyền: " : "Thư mục thực thi: "}${esc(approval.grantRoot || approval.cwd)}</small>` : ""}${(approval.files || []).map((file) => `<details><summary data-localize-skip="true">${esc(file.path)}</summary><pre class="dock-subagent-pre" data-localize-skip="true">${esc(file.diff || "CLI chưa cung cấp diff.")}</pre></details>`).join("")}<div class="orca-quick-pills">${[ ["accept", "Cho phép"], ["acceptForSession", "Luôn cho phép phiên này"], ["decline", "Từ chối"] ].map(([decision,label]) => `<button type="button" class="button quiet small" data-action="resolve-cli-approval" data-id="${esc(selectedTask.id)}" data-task-id="${esc(selectedTask.id)}" data-approval-id="${esc(approval.id)}" data-decision="${decision}">${label}</button>`).join("")}</div></div>`).join("")}
       <button type="button" class="dock-overview-row" data-action="show-diff" data-id="${esc(selectedTask.id)}">${icon("file-text", 15)}<span>Review & thay đổi</span><small>${files} tệp</small></button>
       <button type="button" class="dock-overview-row" data-action="right-dock-tab" data-tab="files">${icon("files", 15)}<span>Tệp dự án</span></button>
       <button type="button" class="dock-overview-row" data-action="right-dock-tab" data-tab="subagents">${icon("waypoints", 15)}<span>Subagents</span><small>${subagents.length}${active ? ` · ${active} đang chạy` : ""}</small></button>
@@ -311,7 +333,7 @@ export function renderOrcaRightDockMarkup({
             path: p,
             unstaged: true,
             staged: false,
-            badge: "M↓",
+            badge: "M",
             statusKind: "modified",
           }));
 
@@ -720,7 +742,9 @@ export function renderOrcaRightDockMarkup({
           <button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(selectedTask.id)}">${icon("workflow", 13)}<span>Luồng</span></button>
           <button type="button" class="button quiet small" data-action="task-permissions" data-id="${esc(selectedTask.id)}">${icon("shield", 13)}<span>Quyền</span></button>
           <button type="button" class="button quiet small" data-action="edit-task-goal" data-id="${esc(selectedTask.id)}">${icon("target", 13)}<span>Mục tiêu</span></button>
-          <button type="button" class="button quiet small" data-action="open-folder" data-id="${esc(selectedTask.id)}">${icon("folder-open", 13)}<span>Mở thư mục</span></button>
+          <button type="button" class="button quiet small" data-action="compact-task-chat" data-id="${esc(selectedTask.id)}">${icon("minimize-2", 13)}<span>Nén ngữ cảnh</span></button>
+          <button type="button" class="button quiet small" data-action="distill-task-memory" data-id="${esc(selectedTask.id)}">${icon("sparkles", 13)}<span>Đúc kết Bài học</span></button>
+          ${!isMobile ? `<button type="button" class="button quiet small" data-action="open-folder" data-id="${esc(selectedTask.id)}">${icon("folder-open", 13)}<span>Mở thư mục</span></button>` : ""}
           ${taskBusy ? `<button type="button" class="button danger small" data-action="stop-task" data-id="${esc(selectedTask.id)}">${icon("square", 12)}<span>Dừng</span></button>` : ""}
         </div>
         <div class="orca-section-head" style="margin-top:12px">

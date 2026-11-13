@@ -2,9 +2,10 @@
    Multi-Theme System: WindowChrome Popover + Settings Gallery + Surface Sync
    ========================================================================== */
 
-html.desktop-glass:not([data-theme]) .wb-app-shell,
-html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
-  background: linear-gradient(145deg, rgba(16, 20, 26, 0.62) 0%, rgba(12, 15, 19, 0.68) 100%) !important;
+html.desktop-glass:not([data-theme]):not([data-wb-theme]) .wb-app-shell,
+html.desktop-glass[data-theme="obsidian"] .wb-app-shell,
+html.desktop-glass[data-wb-theme="obsidian"] .wb-app-shell {
+  background: linear-gradient(145deg, rgba(16, 20, 26, 0.62) 0%, rgba(12, 15, 19, 0.68) 100%);
 }
 
 .wb-theme-menu {
@@ -21,8 +22,8 @@ html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
 }
 
 .wb-theme-trigger {
-  gap: 7px !important;
-  padding: 0 10px !important;
+  gap: 7px;
+  padding: 0 10px;
   cursor: pointer;
 }
 
@@ -36,15 +37,15 @@ html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
 }
 
 .wb-theme-pop-card {
-  width: 316px !important;
-  max-height: min(78vh, 540px) !important;
-  overflow-y: auto !important;
-  padding: 10px !important;
-  border-radius: 14px !important;
-  background: var(--wb-panel) !important;
-  border: 1px solid var(--wb-border-strong) !important;
-  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36) !important;
-  z-index: 1200 !important;
+  width: 316px;
+  max-height: min(78vh, 540px);
+  overflow-y: auto;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--wb-panel);
+  border: 1px solid var(--wb-border-strong);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.36);
+  z-index: var(--wb-z-popover);
 }
 
 .wb-theme-pop-group + .wb-theme-pop-group {
@@ -68,51 +69,51 @@ html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
 }
 
 .wb-theme-pop-item {
-  display: flex !important;
-  align-items: center !important;
-  gap: 10px !important;
-  width: 100% !important;
-  padding: 7px 9px !important;
-  border: 1px solid transparent !important;
-  border-radius: 10px !important;
-  background: transparent !important;
-  color: var(--wb-ink) !important;
-  text-align: left !important;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--wb-ink);
+  text-align: left;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease !important;
+  transition: background 120ms ease, border-color 120ms ease;
 }
 
 .wb-theme-pop-item:hover {
-  background: var(--wb-hover) !important;
-  border-color: var(--wb-line) !important;
+  background: var(--wb-hover);
+  border-color: var(--wb-line);
 }
 
 .wb-theme-pop-item.is-active,
 .wb-theme-pop-item.is-selected {
-  background: var(--wb-surface-soft) !important;
-  border-color: var(--wb-accent) !important;
+  background: var(--wb-surface-soft);
+  border-color: var(--wb-accent);
 }
 
 .wb-theme-swatch-mini {
-  width: 38px !important;
-  height: 22px !important;
-  border-radius: 6px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 24%, transparent) !important;
-  overflow: hidden !important;
-  flex-shrink: 0 !important;
-  display: grid !important;
-  grid-template-columns: repeat(4, 1fr) !important;
-  padding: 0 !important;
-  gap: 0 !important;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08) !important;
+  width: 38px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 24%, transparent);
+  overflow: hidden;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 0;
+  gap: 0;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
 .wb-theme-swatch-mini > i {
-  display: block !important;
-  width: 100% !important;
-  height: 100% !important;
-  min-width: 8px !important;
-  min-height: 20px !important;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-width: 8px;
+  min-height: 20px;
 }
 
 .wb-theme-pop-copy {
@@ -130,7 +131,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
 }
 
 .wb-theme-pop-copy small {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--wb-muted);
   line-height: 1.25;
 }
@@ -138,7 +139,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
 .wb-theme-pop-check {
   font-size: 12px;
   font-weight: 700;
-  color: var(--wb-accent) !important;
+  color: var(--wb-accent);
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -214,89 +215,89 @@ html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
 }
 
 .theme-preview-window {
-  display: grid !important;
-  grid-template-columns: 44px 1fr !important;
-  height: 84px !important;
-  border-radius: 8px !important;
-  background: var(--tp-bg, #141416) !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 20%, transparent) !important;
-  overflow: hidden !important;
-  width: 100% !important;
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  height: 84px;
+  border-radius: 8px;
+  background: var(--tp-bg, #141416);
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 20%, transparent);
+  overflow: hidden;
+  width: 100%;
 }
 
 .theme-preview-rail {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 6px !important;
-  padding: 9px 7px !important;
-  background: var(--tp-panel, #1d1e22) !important;
-  border-right: 1px solid rgba(128, 128, 128, 0.2) !important;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 7px;
+  background: var(--tp-panel, #1d1e22);
+  border-right: 1px solid rgba(128, 128, 128, 0.2);
 }
 
 .theme-preview-rail > i:first-child {
-  width: 9px !important;
-  height: 9px !important;
-  border-radius: 999px !important;
-  background: var(--tp-accent, #6366f1) !important;
-  display: block !important;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--tp-accent, #6366f1);
+  display: block;
 }
 
 .theme-preview-rail > i:nth-child(2),
 .theme-preview-rail > i:nth-child(3) {
-  width: 100% !important;
-  height: 4px !important;
-  border-radius: 999px !important;
-  background: var(--tp-ink, #ececef) !important;
-  display: block !important;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--tp-ink, #ececef);
+  display: block;
 }
 
 .theme-preview-rail > i:nth-child(3) {
-  width: 68% !important;
+  width: 68%;
 }
 
 .theme-preview-stage {
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: space-between !important;
-  padding: 9px 10px !important;
-  background: var(--tp-bg, #141416) !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 9px 10px;
+  background: var(--tp-bg, #141416);
 }
 
 .theme-preview-bar {
-  display: block !important;
-  width: 54% !important;
-  height: 5px !important;
-  border-radius: 999px !important;
-  background: var(--tp-ink, #ececef) !important;
+  display: block;
+  width: 54%;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--tp-ink, #ececef);
 }
 
 .theme-preview-bubble {
-  display: block !important;
-  align-self: flex-end !important;
-  width: 66% !important;
-  height: 16px !important;
-  border-radius: 6px !important;
-  background: var(--tp-panel, #1d1e22) !important;
-  border: 1px solid rgba(128, 128, 128, 0.24) !important;
+  display: block;
+  align-self: flex-end;
+  width: 66%;
+  height: 16px;
+  border-radius: 6px;
+  background: var(--tp-panel, #1d1e22);
+  border: 1px solid rgba(128, 128, 128, 0.24);
 }
 
 .theme-preview-composer {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  height: 18px !important;
-  padding: 0 5px !important;
-  border-radius: 6px !important;
-  background: var(--tp-panel, #1d1e22) !important;
-  border: 1px solid rgba(128, 128, 128, 0.24) !important;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 6px;
+  background: var(--tp-panel, #1d1e22);
+  border: 1px solid rgba(128, 128, 128, 0.24);
 }
 
 .theme-preview-composer > b {
-  display: block !important;
-  width: 9px !important;
-  height: 9px !important;
-  border-radius: 999px !important;
-  background: var(--tp-accent, #6366f1) !important;
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--tp-accent, #6366f1);
 }
 
 .theme-gallery-meta {
@@ -319,7 +320,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
 }
 
 .theme-gallery-badge {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 999px;
@@ -351,12 +352,12 @@ html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
 
 .theme-gallery-swatches > i,
 .theme-gallery-swatches > span:not(.theme-gallery-check) {
-  display: inline-block !important;
-  width: 14px !important;
-  height: 14px !important;
-  border-radius: 999px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 26%, transparent) !important;
-  flex-shrink: 0 !important;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 26%, transparent);
+  flex-shrink: 0;
 }
 
 .theme-gallery-check {
@@ -370,61 +371,62 @@ html.desktop-glass[data-theme="obsidian"] .wb-app-shell {
    Light Theme Elevation, Composer & Contrast Polish
    ========================================================================== */
 
-html[data-color-scheme="light"] {
-  color-scheme: light !important;
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) {
+  color-scheme: light;
 }
 
-html[data-color-scheme="light"] .wb-mark {
-  background: var(--wb-surface) !important;
-  color: var(--wb-ink-strong) !important;
-  border: 1px solid var(--wb-line) !important;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .wb-mark {
+  background: var(--wb-surface);
+  color: var(--wb-ink-strong);
+  border: 1px solid var(--wb-line);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
 }
 
-html[data-color-scheme="light"] .wb-mark:hover {
-  background: var(--wb-raised) !important;
-  color: var(--wb-ink-strong) !important;
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .wb-mark:hover {
+  background: var(--wb-raised);
+  color: var(--wb-ink-strong);
 }
 
-html[data-color-scheme="light"] .wb-page-content .home-composer,
-html[data-color-scheme="light"] .wb-page-content .task-conversation-page .chat-composer {
-  background: var(--wb-field) !important;
-  border-color: var(--wb-border-subtle) !important;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .wb-page-content .home-composer,
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .wb-page-content .task-conversation-page .chat-composer {
+  background: var(--wb-field);
+  border-color: var(--wb-border-subtle);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
 }
 
-html[data-color-scheme="light"] .wb-page-content .home-composer:focus-within,
-html[data-color-scheme="light"] .wb-page-content .task-conversation-page .chat-composer:focus-within {
-  border-color: var(--wb-border-strong) !important;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .wb-page-content .home-composer:focus-within,
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .wb-page-content .task-conversation-page .chat-composer:focus-within {
+  border-color: var(--wb-border-strong);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
-html[data-color-scheme="light"] .codex-pop-card,
-html[data-color-scheme="light"] .wb-theme-pop-card,
-html[data-color-scheme="light"] #overlay .modal,
-html[data-color-scheme="light"] .composer-config-dialog,
-html[data-color-scheme="light"] .desktop-setup-dialog,
-html[data-color-scheme="light"] .wb-page-content .multi-chat-create-form,
-html[data-color-scheme="light"] .wb-page-content .orca-inspect-banner,
-html[data-color-scheme="light"] .wb-page-content .orca-element-comment-popover {
-  background: var(--wb-panel) !important;
-  border-color: var(--wb-border-subtle) !important;
-  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .codex-pop-card,
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .wb-theme-pop-card,
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) #overlay .modal,
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .composer-config-dialog,
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .desktop-setup-dialog,
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .wb-page-content .multi-chat-create-form,
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .wb-page-content .orca-inspect-banner,
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) .wb-page-content .orca-element-comment-popover {
+  background: var(--wb-panel);
+  border-color: var(--wb-border-subtle);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06);
 }
 
 #overlay:not(:empty) {
-  z-index: 90;
+  z-index: var(--wb-z-modal);
 }
 
 #toast,
-.toast {
-  z-index: 110;
+.toast,
+.toast-stack {
+  z-index: var(--wb-z-toast);
 }
 
-html[data-color-scheme="light"] *::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--wb-tint) 18%, transparent) !important;
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) *::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--wb-tint) 18%, transparent);
 }
 
-html[data-color-scheme="light"] *::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--wb-tint) 30%, transparent) !important;
+html:is([data-color-scheme="light"], [data-wb-scheme="light"]) *::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--wb-tint) 30%, transparent);
 }

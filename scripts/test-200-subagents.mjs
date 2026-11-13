@@ -504,14 +504,28 @@ const probes = [
     i18nSrc.includes("element.closest(dynamicContentSelector)") ? ["PASS", "Skips [title]/[alt] attributes inside code viewers and markdown blocks during localizeDom"] : ["FAIL", "Unfiltered"]],
   ["SA-132", "D7", "Bilingual VI/EN Coverage Completeness", "impeccable", "src/shared/i18n.js", () =>
     i18nSrc.length > 100_000 ? ["PASS", "Comprehensive bidirectional Vietnamese <-> English dictionary covering all pages, modals, and dynamic badges"] : ["FAIL", "Incomplete"]],
-  ["SA-133", "D7", "Scheduled Tasks Management UI & Manual Trigger", "workflow-automation", "src/features/workbench/pages/tasks-workspaces-page.js", () =>
-    providerRoutesSrc.includes("/api/schedules") ? ["PASS", "Supports creating, toggling, manually triggering, and deleting recurring worktree schedules"] : ["FAIL", "Missing"]],
-  ["SA-134", "D7", "Cross-Session Search Modal / Bar Integration", "impeccable", "src/server/routes/provider-skill-routes.mjs", () =>
-    providerRoutesSrc.includes("/api/search") ? ["PASS", "Exposes GET /api/search?q=... across tasks, chats, memories, skills, and subagents"] : ["FAIL", "Missing"]],
+  ["SA-133", "D7", "Scheduled Tasks Management UI & Manual Trigger", "workflow-automation", "src/features/workbench/schedules-modal.js", () =>
+    providerRoutesSrc.includes("/api/schedules")
+    && existsSync(resolve(repoRoot, "src/features/workbench/schedules-modal.js"))
+    && readRepoText("src/features/workbench/schedules-modal.js").includes("/trigger")
+    && readRepoText("src/features/workbench/pages/tasks-workspaces-page.js").includes("open-schedules-modal")
+      ? ["PASS", "Wires full Schedules UI modal & section (create, toggle, Chạy ngay trigger, delete) to /api/schedules"]
+      : ["FAIL", "Missing frontend schedules UI wiring"]],
+  ["SA-134", "D7", "Cross-Session Search Modal / Bar Integration", "impeccable", "src/features/workbench/command-palette.js", () =>
+    providerRoutesSrc.includes("/api/search")
+    && existsSync(resolve(repoRoot, "src/features/workbench/command-palette.js"))
+    && readRepoText("src/features/workbench/command-palette.js").includes("/api/search")
+    && shellSrc.includes("open-command-palette")
+      ? ["PASS", "Wires Ctrl+K Global Command Palette & Shell Search button to GET /api/search?q=... across all 5 scopes"]
+      : ["FAIL", "Missing frontend Ctrl+K /api/search modal integration"]],
   ["SA-135", "D7", "Task Presets Save & Reuse Flow", "workflow-automation", "src/server/routes/task-routes.mjs", () =>
     serverSrc.includes("taskPresets") ? ["PASS", "Persists reusable task configuration presets in settings.taskPresets"] : ["FAIL", "Missing"]],
   ["SA-136", "D7", "Memory Workspace Filter & Manual Pinning", "memory-management", "src/features/workbench/pages/flows-memory-page.js", () =>
-    readRepoText("src/features/workbench/pages/flows-memory-page.js").includes("memory") ? ["PASS", "Supports filtering memories by workspace, pinning global USER.md rules, and editing lessons"] : ["FAIL", "Missing"]],
+    providerRoutesSrc.includes('method === "PATCH"')
+    && readRepoText("src/features/workbench/pages/flows-memory-page.js").includes("toggle-pin-memory")
+    && readRepoText("src/features/workbench/modals.js").includes("user-profile")
+      ? ["PASS", "Supports filtering memories by workspace, pinning global USER.md rules via PATCH /api/memory/:id, and editing lessons"]
+      : ["FAIL", "Missing PATCH /api/memory/:id or frontend toggle-pin-memory / user-profile UI"]],
   ["SA-137", "D7", "Skills Library Browser & Custom SKILL.md Creator", "agent-coordination", "src/features/workbench/pages/knowledge-skills-page.js", () =>
     readRepoText("src/features/workbench/pages/knowledge-skills-page.js").includes("subagents") ? ["PASS", "Unified Skills & Subagents library with scope filtering, trust toggle, and Markdown editor"] : ["FAIL", "Missing"]],
   ["SA-138", "D7", "Toast Notification Stack & Auto-Dismiss", "impeccable", "src/features/workbench/notifications.js", () =>
@@ -524,8 +538,13 @@ const probes = [
   // D8: SA-141..SA-160 (Cross-Platform UX: Desktop Electron, Mobile Orca Shell & LAN Companion)
   ["SA-141", "D8", "Mobile Orca Shell Companion Deck & Session Header", "impeccable", "src/shell/components/MobileOrcaShell.jsx", () =>
     mobileOrcaSrc.length > 2000 ? ["PASS", "Dedicated mobile shell with Quick Resume, worktree cards, quota bars, and Chat/Shell/PLAN.md tabs"] : ["FAIL", "Missing"]],
-  ["SA-142", "D8", "Mobile Session Tab (mpSessionTab) Auto-Reset on Task Switch", "impeccable", "src/features/workbench/actions/chat-task-actions.js", () =>
-    chatActionsSrc.includes('view.mpSessionTab = "chat"') ? ["PASS", "Resets view.mpSessionTab to 'chat' when switching tasks or starting a new chat"] : ["FAIL", "Sticky tab"]],
+  ["SA-142", "D8", "Mobile Session Tab (mpSessionTab) Snapshot Sync & Auto-Reset", "impeccable", "src/features/workbench/controller.js", () =>
+    chatActionsSrc.includes('view.mpSessionTab = "chat"')
+    && controllerSrc.includes("mpSessionTab:")
+    && controllerSrc.includes("mpWlFilter:")
+    && controllerSrc.includes("__opensybauHandleBack")
+      ? ["PASS", "Syncs mpSessionTab & mobile filters in controller snapshot, resets on task switch, and wires __opensybauHandleBack"]
+      : ["FAIL", "Missing mpSessionTab snapshot sync or back handler"]],
   ["SA-143", "D8", "Authenticated Remote/Mobile EventSource SSE Support", "performance-analysis", "src/features/workbench/runtime.js", () =>
     !runtimeSrc.includes("if (activeHost?.url && activeHost.password) {\n    startPolling()") && remoteHostSrc.includes("access_token")
       ? ["PASS", "Connects EventSource SSE on password-protected LAN/Mobile hosts via constant-time access_token"]

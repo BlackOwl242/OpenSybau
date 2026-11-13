@@ -1,9 +1,30 @@
 import { view } from "../../shared/state.js";
+import * as remoteHost from "../../shared/remote-host.js";
 import { pipelineStepperData } from "../../domain/task-flow.js";
 import { defaultFileTabMode } from "./stage-viewer.js";
 import { normalizeFrontendGitPath, renderOrcaRightDockMarkup } from "./right-dock.js";
 import { api, ensureWorkspaceFileIndex, ensureWorkspaceGitStatus, render, showToast } from "./runtime.js";
 import { loadVaultGraph, vaultNoteOptionsMenu } from "./pages/knowledge-skills-page.js";
+
+function resolveCompanionUrlSafe(rawUrl) {
+  const value = String(rawUrl || "").trim();
+  if (!value) return "";
+  if (typeof remoteHost.resolveCompanionPreviewUrl === "function") {
+    return remoteHost.resolveCompanionPreviewUrl(value);
+  }
+  if (!remoteHost.isMobileCompanionMode?.()) return value;
+  try {
+    const parsed = new URL(value);
+    if (!["localhost", "127.0.0.1", "[::1]", "::1"].includes(parsed.hostname.toLowerCase())) return value;
+    const activeUrl = remoteHost.getActiveRemoteHost?.()?.url || "";
+    if (!activeUrl) return value;
+    const activeParsed = new URL(activeUrl);
+    parsed.hostname = activeParsed.hostname;
+    return parsed.toString();
+  } catch {
+    return value;
+  }
+}
 
 export async function openStageFileTab({
   workspaceId = "",
@@ -13,9 +34,11 @@ export async function openStageFileTab({
   showChanges = undefined,
   diffBase = "",
 } = {}) {
-  const selectedTask = (taskId || view.selected) ? (view.state?.tasks || []).find((t) => t.id === (taskId || view.selected)) : null;
+  const activeTaskId = taskId || view.selectedTaskId || view.selected || "";
+  const selectedTask = activeTaskId ? (view.state?.tasks || []).find((t) => t.id === activeTaskId) : null;
+  const activeWsSelection = view.selectedWorkspaceId || view.selected || "";
   const wsId = workspaceId
-    || (view.page === "workspaces" && view.selected ? view.selected : "")
+    || (view.page === "workspaces" && activeWsSelection ? activeWsSelection : "")
     || selectedTask?.workspaceId
     || view.homeWorkspaceId
     || view.state?.workspaces?.[0]?.id
@@ -71,9 +94,11 @@ export async function openStageFileTab({
 }
 
 export async function openAllChangesStageTab({ workspaceId = "", taskId = "", base = "head" } = {}) {
-  const selectedTask = (taskId || view.selected) ? (view.state?.tasks || []).find((t) => t.id === (taskId || view.selected)) : null;
+  const activeTaskId = taskId || view.selectedTaskId || view.selected || "";
+  const selectedTask = activeTaskId ? (view.state?.tasks || []).find((t) => t.id === activeTaskId) : null;
+  const activeWsSelection = view.selectedWorkspaceId || view.selected || "";
   const wsId = workspaceId
-    || (view.page === "workspaces" && view.selected ? view.selected : "")
+    || (view.page === "workspaces" && activeWsSelection ? activeWsSelection : "")
     || selectedTask?.workspaceId
     || view.homeWorkspaceId
     || view.state?.workspaces?.[0]?.id
@@ -260,6 +285,16 @@ export function openLiveUrlTab(rawUrl, taskId = "") {
   if (!cleanUrl) return;
   if (/^\d{2,5}(\/.*)?$/.test(cleanUrl)) cleanUrl = `http://localhost:${cleanUrl}`;
   else if (/^localhost:\d+/i.test(cleanUrl)) cleanUrl = `http://${cleanUrl}`;
+  const isCompanion = Boolean(remoteHost.isMobileCompanionMode?.());
+  let pairedHostname = "";
+  if (isCompanion) {
+    try {
+      const activeRemoteUrl = remoteHost.getActiveRemoteHost?.()?.url || "";
+      if (activeRemoteUrl) pairedHostname = new URL(activeRemoteUrl).hostname.toLowerCase();
+    } catch {
+      pairedHostname = "";
+    }
+  }
   let parsed;
   try {
     parsed = new URL(cleanUrl);
@@ -267,11 +302,20 @@ export function openLiveUrlTab(rawUrl, taskId = "") {
     showToast("Nhập địa chỉ localhost hợp lệ (ví dụ: http://localhost:3000 hoặc 5173).");
     return;
   }
-  if (!["http:", "https:"].includes(parsed.protocol) || !["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname.toLowerCase())) {
-    showToast("Trình duyệt Live Dev Server chỉ cho phép kết nối tới localhost / 127.0.0.1 để bảo mật.");
+  const allowedHosts = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+  if (pairedHostname) allowedHosts.add(pairedHostname);
+  if (!["http:", "https:"].includes(parsed.protocol) || !allowedHosts.has(parsed.hostname.toLowerCase())) {
+    showToast("Trình duyệt Live Dev Server chỉ cho phép kết nối tới localhost / máy chủ ghép đôi để bảo mật.");
     return;
   }
-  const normalizedUrl = parsed.href;
+  const rewrittenHref = isCompanion ? resolveCompanionUrlSafe(parsed.href) : parsed.href;
+  let finalParsed = parsed;
+  try {
+    finalParsed = new URL(rewrittenHref);
+  } catch {
+    finalParsed = parsed;
+  }
+  const normalizedUrl = finalParsed.href;
   view.liveDevServerUrl = normalizedUrl;
   const tabId = `live::${normalizedUrl}`;
   view.stageTabs ||= [];
@@ -284,7 +328,7 @@ export function openLiveUrlTab(rawUrl, taskId = "") {
       workspaceId: view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || "",
       taskId,
       path: normalizedUrl,
-      name: `${parsed.hostname}:${parsed.port || (parsed.protocol === "https:" ? "443" : "80")}${parsed.pathname !== "/" ? parsed.pathname : ""}`,
+      name: `${finalParsed.hostname}:${finalParsed.port || (finalParsed.protocol === "https:" ? "443" : "80")}${finalParsed.pathname !== "/" ? finalParsed.pathname : ""}`,
       ext: ".html",
       mode: "preview",
       fileData: { name: normalizedUrl, path: normalizedUrl, extension: ".html", kind: "live-url" },
@@ -295,6 +339,7 @@ export function openLiveUrlTab(rawUrl, taskId = "") {
     view.stageTabs.push(tab);
     if (view.stageTabs.length > 10) view.stageTabs.shift();
   } else {
+    tab.liveUrl = normalizedUrl;
     tab.loadedAt = Date.now();
   }
   view.activeStageTabId = tab.id;

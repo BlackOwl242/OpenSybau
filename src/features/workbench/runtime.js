@@ -68,12 +68,55 @@ export function syncLocation() {
 
 export function normalizeRouteSelection() {
   if (!view.state) return;
-  const selectedExists = view.page === "workspaces"
-    ? view.state.workspaces.some((workspace) => workspace.id === view.selected)
-    : ["chat", "flows"].includes(view.page) && view.state.tasks.some((task) => task.id === view.selected);
-  if (view.selected && !selectedExists) {
+  const workspaces = Array.isArray(view.state.workspaces) ? view.state.workspaces : [];
+  const tasks = Array.isArray(view.state.tasks) ? view.state.tasks : [];
+
+  if (view.selectedTaskId && !tasks.some((task) => task.id === view.selectedTaskId)) {
+    view.selectedTaskId = null;
+  }
+  if (view.selectedWorkspaceId && !workspaces.some((workspace) => workspace.id === view.selectedWorkspaceId)) {
+    view.selectedWorkspaceId = null;
+  }
+
+  if (view.page === "workspaces") {
+    const candidateWs = view.selectedWorkspaceId || view.selected || "";
+    const wsExists = Boolean(candidateWs) && workspaces.some((workspace) => workspace.id === candidateWs);
+    if (wsExists) {
+      view.selectedWorkspaceId = candidateWs;
+      view.selected = candidateWs;
+    } else {
+      if (view.selected) replaceBrowserRoute = true;
+      view.selectedWorkspaceId = workspaces[0]?.id || null;
+      view.selected = view.selectedWorkspaceId;
+      view.workspaceDir = "";
+    }
+    return;
+  }
+
+  if (view.page === "chat") {
+    const candidateTask = view.selectedTaskId || view.selected || "";
+    const taskExists = Boolean(candidateTask) && tasks.some((task) => task.id === candidateTask);
+    if (taskExists) {
+      view.selectedTaskId = candidateTask;
+      view.selected = candidateTask;
+    } else {
+      if (view.selected) replaceBrowserRoute = true;
+      view.selectedTaskId = null;
+      view.selected = null;
+    }
+    return;
+  }
+
+  if (["flows", "tasks"].includes(view.page)) {
+    if (view.selected && !tasks.some((task) => task.id === view.selected)) {
+      view.selected = null;
+      replaceBrowserRoute = true;
+    }
+    return;
+  }
+
+  if (view.selected) {
     view.selected = null;
-    view.workspaceDir = "";
     replaceBrowserRoute = true;
   }
 }
@@ -171,9 +214,10 @@ async function refreshSnapshot(includeConfiguration, background) {
   view.subagentProfiles = subagentRes.profiles || [];
   view.subagentProfilesLoaded = true;
   view.subagentProfilesWorkspaceId = activeWsId;
-  if (view.selected && view.chatDrawerTab === "subagents") {
-    const activeTask = (state.tasks || []).find((t) => t.id === view.selected);
-    const cached = view.taskSubagentDetailCache?.[view.selected];
+  const activeSubagentTaskId = view.selectedTaskId || view.selected;
+  if (activeSubagentTaskId && view.chatDrawerTab === "subagents") {
+    const activeTask = (state.tasks || []).find((t) => t.id === activeSubagentTaskId);
+    const cached = view.taskSubagentDetailCache?.[activeSubagentTaskId];
     if (activeTask && (activeTask.subagents || []).length > 0 && (!cached || cached.updatedAt !== activeTask.updatedAt)) {
       void ensureTaskSubagentsDetail(activeTask.id, { force: true });
     }
@@ -420,8 +464,12 @@ export async function ensureWorkspaceGitStatus(workspaceId, taskId = "", { force
 export function showModal(title, body, submitLabel, formType = "") {
   const inferred = title === "Task mới" ? "task" : title === "Thêm workspace" ? "workspace" : title === "Ghi nhớ mới" ? "memory" : "dismiss";
   const type = formType || inferred;
-  $("#overlay").innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal app-dialog-shell" role="dialog" aria-modal="true" aria-labelledby="modal-title" data-form="${type}" data-modal><header class="modal-head app-dialog-header"><h2 id="modal-title">${esc(title)}</h2><button type="button" class="icon-button app-dialog-close" data-action="close-modal" aria-label="Đóng" title="Đóng">${icon("x", 16)}</button></header><div class="modal-body app-dialog-content">${body}</div><footer class="modal-actions app-dialog-footer">${type === "dismiss" ? "" : `<button type="button" class="button quiet" data-action="close-modal">Hủy</button>`}<button class="button primary" type="submit">${esc(submitLabel)}</button></footer></form></div>`;
-  localizeDom($("#overlay"), view.language);
+  const overlay = $("#overlay");
+  if (!overlay) return;
+  overlay.hidden = false;
+  view.commandPaletteOpen = false;
+  overlay.innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal app-dialog-shell" role="dialog" aria-modal="true" aria-labelledby="modal-title" data-form="${type}" data-modal><header class="modal-head app-dialog-header"><h2 id="modal-title">${esc(title)}</h2><button type="button" class="icon-button app-dialog-close" data-action="close-modal" aria-label="Đóng" title="Đóng">${icon("x", 16)}</button></header><div class="modal-body app-dialog-content">${body}</div><footer class="modal-actions app-dialog-footer">${type === "dismiss" ? "" : `<button type="button" class="button quiet" data-action="close-modal">Hủy</button>`}<button class="button primary" type="submit">${esc(submitLabel)}</button></footer></form></div>`;
+  localizeDom(overlay, view.language);
   $(".modal input, .modal textarea, .modal select")?.focus();
 }
 
@@ -433,8 +481,12 @@ export function showErrorDetails(text) {
 }
 
 export function closeOverlay() {
-  $("#overlay").innerHTML = "";
+  view.commandPaletteOpen = false;
+  const overlay = $("#overlay");
+  if (overlay) overlay.innerHTML = "";
 }
+
+export const closeModal = closeOverlay;
 
 export function showToast(message) {
   const toast = $("#toast");
@@ -554,6 +606,8 @@ export function connectEventStream() {
   }
 }
 
+export const connectEvents = connectEventStream;
+
 export function startPeriodicRefresh() {
   setInterval(() => {
     if (document.hidden) return;
@@ -562,4 +616,21 @@ export function startPeriodicRefresh() {
       void refresh({ configuration: true, background: true });
     }
   }, 30_000);
+}
+
+let lifecycleWakeBound = false;
+if (typeof window !== "undefined" && typeof document !== "undefined" && !lifecycleWakeBound) {
+  lifecycleWakeBound = true;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      if (!view.streamConnected || getActiveRemoteHost()?.url) {
+        connectEvents();
+      }
+      void refreshState({ background: true });
+    }
+  });
+  window.addEventListener("online", () => {
+    connectEvents();
+    void refreshState({ background: true });
+  });
 }

@@ -1,9 +1,11 @@
-import { esc, fmtDate, formatNumber, icon, statuses, tokenCount, view } from "../../../shared/state.js";
+import { backContextButtonMarkup, esc, fmtDate, formatNumber, icon, statuses, tokenCount, view } from "../../../shared/state.js";
+import { isMobileCompanionMode } from "../../../shared/remote-host.js";
 import { estimateTaskCostUsd, orchestrationNodes } from "../../../domain/task-flow.js";
 import { providerTitle, roleConfig } from "../../../domain/agent-roles.js";
 import { translateText } from "../../../shared/i18n.js";
 import { api, ensureWorkspaceFileIndex, render } from "../runtime.js";
 import { homeSelectField, taskProgress, workflowSummary } from "../ui-controls.js";
+import { renderSchedulesSectionMarkup } from "../schedules-modal.js";
 import { vaultNoteOptionsMenu } from "./knowledge-skills-page.js";
 import { missionControlStepperMarkup } from "./flows-memory-page.js";
 
@@ -83,7 +85,9 @@ export function taskPage() {
   const running = all.filter((task) => task.status === "running").length;
   const queued = all.filter((task) => task.status === "queued").length;
   const completed = all.filter((task) => task.status === "done").length;
-  return `<div class="page-head"><div><h1>Công việc</h1><p>Tạo việc thật trong repository bạn chọn, xem tiến độ và đầu ra trực tiếp.</p></div>${all.length ? `<div class="page-head-actions"><button class="button primary" data-action="${view.state.workspaces.length ? "new-task" : "add-workspace"}">${icon("plus", 15)} <span>${view.state.workspaces.length ? "Tạo task" : "Thêm dự án"}</span></button></div>` : ""}</div>
+  const schedulesCount = Array.isArray(view.schedules) ? view.schedules.length : 0;
+  const backBtnMarkup = backContextButtonMarkup();
+  return `<div class="page-head"><div>${backBtnMarkup}<h1>Công việc</h1><p>Tạo việc thật trong repository bạn chọn, xem tiến độ và đầu ra trực tiếp.</p></div><div class="page-head-actions"><button type="button" class="button quiet" data-action="open-schedules-modal">${icon("calendar", 15)} <span>Lịch tự động${schedulesCount ? ` (${schedulesCount})` : ""}</span></button>${all.length ? `<button class="button primary" data-action="${view.state.workspaces.length ? "new-task" : "add-workspace"}">${icon("plus", 15)} <span>${view.state.workspaces.length ? "Tạo task" : "Thêm dự án"}</span></button>` : ""}</div></div>
   <div class="quick-stats is-four-cols task-overview-stats">
     <div><small>Tổng số</small><strong>${all.length}</strong></div>
     <div><small>Đang chạy</small><strong>${running}</strong></div>
@@ -92,19 +96,23 @@ export function taskPage() {
   </div>
   ${activityChart()}
   <div class="list-toolbar task-filter-toolbar"><div class="filters">${[["all", "Tất cả"], ["running", "Đang chạy"], ["queued", "Chờ"], ["done", "Xong"], ["failed", "Lỗi"], ["cancelled", "Đã dừng"]].map(([key, label]) => `<button class="filter ${view.filter === key ? "active" : ""}" data-filter="${key}" aria-pressed="${view.filter === key}">${label}</button>`).join("")}</div><span>${all.length} task đã ghi trên máy này</span></div>
-  <section class="task-list">${visible.length ? visible.map(taskRow).join("") : `<div class="empty-state"><div class="empty-symbol">${icon("folder-code", 18)}</div><strong>${all.length ? "Không có task trong bộ lọc này" : view.state.workspaces.length ? "Chưa có task nào được chạy" : "Thêm repository của bạn để bắt đầu"}</strong><p>${all.length ? "Chọn bộ lọc khác để xem task." : view.state.workspaces.length ? "Task tiếp theo sẽ chạy trong đúng workspace đã đăng ký và lịch sử sẽ được lưu cục bộ." : "OpenSybau chỉ chạy trong thư mục bạn chỉ định. Hãy thêm đường dẫn repository hoặc thư mục ứng dụng trước; thư mục cài đặt ứng dụng không được tự coi là dự án của bạn."}</p>${all.length ? "" : view.state.workspaces.length ? `<button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button>` : `<button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm đường dẫn dự án</button>`}</div>`}</section>`;
+  <section class="task-list">${visible.length ? visible.map(taskRow).join("") : `<div class="empty-state"><div class="empty-symbol">${icon("folder-code", 20)}</div><strong>${all.length ? "Không có task trong bộ lọc này" : view.state.workspaces.length ? "Chưa có task nào được chạy" : "Thêm repository của bạn để bắt đầu"}</strong><p>${all.length ? "Chọn bộ lọc khác để xem task." : view.state.workspaces.length ? "Task tiếp theo sẽ chạy trong đúng workspace đã đăng ký và lịch sử sẽ được lưu cục bộ." : "OpenSybau chỉ chạy trong thư mục bạn chỉ định. Hãy thêm đường dẫn repository hoặc thư mục ứng dụng trước; thư mục cài đặt ứng dụng không được tự coi là dự án của bạn."}</p>${all.length ? "" : view.state.workspaces.length ? `<button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button>` : `<button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm đường dẫn dự án</button>`}</div>`}</section>
+  ${renderSchedulesSectionMarkup()}`;
 }
 
 export function workspacePage() {
   const workspaces = view.state.workspaces || [];
+  const isMobile = isMobileCompanionMode();
+  const backBtnMarkup = backContextButtonMarkup();
   if (!workspaces.length) {
-    return `<div class="page-head"><div><h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div></div>
-    <section class="workspace-list"><div class="empty-state"><div class="empty-symbol">${icon("folder-code", 18)}</div><strong>Chưa có dự án</strong><p>Thêm đường dẫn repository hoặc thư mục làm việc trên máy để bắt đầu điều phối AI và duyệt mã nguồn.</p><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div></section>`;
+    return `<div class="page-head"><div>${backBtnMarkup}<h1>Dự án</h1><p>Chỉ các đường dẫn bạn thêm mới được đưa vào bộ điều phối.</p></div></div>
+    <section class="workspace-list"><div class="empty-state"><div class="empty-symbol">${icon("folder-code", 20)}</div><strong>Chưa có dự án</strong><p>Thêm đường dẫn repository hoặc thư mục làm việc trên máy để bắt đầu điều phối AI và duyệt mã nguồn.</p><button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm dự án</button></div></section>`;
   }
-  const activeWs = workspaces.find((item) => item.id === view.selected)
+  const activeWs = workspaces.find((item) => item.id === (view.selectedWorkspaceId || view.selected))
     || workspaces.find((item) => item.id === view.homeWorkspaceId)
     || workspaces[0];
   if (activeWs) {
+    view.selectedWorkspaceId = activeWs.id;
     view.selected = activeWs.id;
     view.homeWorkspaceId = activeWs.id;
     if (!view.workspaceFileIndex?.[activeWs.id]) {
@@ -123,6 +131,7 @@ export function workspacePage() {
 
   return `<div class="page-head">
     <div>
+      ${backBtnMarkup}
       <h1>Dự án</h1>
       <p>Quản lý thư mục mã nguồn cục bộ, chọn không gian làm việc đang hoạt động và cấu hình phạm vi cho AI.</p>
     </div>
@@ -143,6 +152,16 @@ export function workspacePage() {
     const isGit = Boolean(w.runtime?.isGit);
     const branchLabel = isGit ? (w.runtime.branch || "HEAD") : "Thư mục thường";
     const extraFolders = (w.sourceFolders || []).filter((p) => p.toLowerCase() !== w.path.toLowerCase());
+    const indexedFiles = Array.isArray(view.workspaceFileIndex?.[w.id]) ? view.workspaceFileIndex[w.id] : null;
+    const mdDocCount = indexedFiles
+      ? indexedFiles.filter((fp) => /\.(md|mdx|markdown)$/i.test(String(fp))).length
+      : null;
+    const touchedFilesCount = new Set(wsTasks.flatMap((t) => t.artifacts || [])).size;
+    const dynamicDocsNote = mdDocCount !== null
+      ? ` · ${mdDocCount} tài liệu Markdown`
+      : touchedFilesCount > 0
+        ? ` · ${touchedFilesCount} tệp đã sửa`
+        : "";
     return `<article class="workspace-card ${isCurrent ? "is-active-workspace" : ""}">
       <div class="workspace-card-icon">${icon("folder-code", 17)}</div>
       <div class="workspace-card-main" data-action="open-workspace" data-id="${esc(w.id)}" role="button" tabindex="0" title="Chọn ${esc(w.name)} làm dự án đang làm việc">
@@ -153,11 +172,11 @@ export function workspacePage() {
           ${extraFolders.length ? `<span class="workspace-meta-pill">+${extraFolders.length} thư mục phụ</span>` : ""}
         </div>
         <code data-localize-skip="true">${esc(w.path)}</code>
-        <small>${esc(statusText(w))} · ${wsTasks.length} phiên làm việc${runningCount ? ` (${runningCount} đang chạy)` : ""}</small>
+        <small>${esc(statusText(w))} · ${wsTasks.length} phiên làm việc${runningCount ? ` (${runningCount} đang chạy)` : ""}${esc(dynamicDocsNote)}</small>
       </div>
       <div class="workspace-card-actions">
         <button type="button" class="button ${isCurrent ? "primary" : "quiet"} small" data-action="new-chat" data-workspace-id="${esc(w.id)}">${icon("square-pen", 13)} <span>Chat mới</span></button>
-        <button type="button" class="icon-button" data-action="open-project-folder" data-id="${esc(w.id)}" title="Mở thư mục trong Explorer" aria-label="Mở thư mục trong Explorer">${icon("folder-open", 15)}</button>
+        ${!isMobile ? `<button type="button" class="icon-button" data-action="open-project-folder" data-id="${esc(w.id)}" title="Mở thư mục trong Explorer" aria-label="Mở thư mục trong Explorer">${icon("folder-open", 15)}</button>` : ""}
         <button type="button" class="icon-button" data-action="edit-project" data-id="${esc(w.id)}" title="Cấu hình dự án" aria-label="Cấu hình dự án">${icon("settings-2", 15)}</button>
         <button type="button" class="icon-button" data-action="remove-workspace" data-id="${esc(w.id)}" title="Gỡ dự án" aria-label="Gỡ dự án">${icon("x", 16)}</button>
       </div>
@@ -206,6 +225,7 @@ export async function loadWorkspaceDir(workspaceId, path = "") {
   const workspace = view.state.workspaces.find((item) => item.id === workspaceId);
   if (!workspace) return;
   view.page = "workspaces";
+  view.selectedWorkspaceId = workspaceId;
   view.selected = workspaceId;
   view.homeWorkspaceId = workspaceId;
   view.activeStageTabId = "chat";
@@ -219,7 +239,7 @@ export async function loadWorkspaceDir(workspaceId, path = "") {
 
 export async function loadWorkspacePreview(workspaceId, path) {
   const file = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/file?path=${encodeURIComponent(path)}`);
-  if (view.selected !== workspaceId) return;
+  if ((view.selectedWorkspaceId || view.selected) !== workspaceId) return;
   view.filePreview = file;
   render();
 }
@@ -282,13 +302,18 @@ export function taskDetails() {
     return `<details class="stage-history-entry"><summary>${esc(stageLabel)} · ${esc(statusLabel)} · ${fmtDate(attempt.requestedAt)}</summary>${attempt.error ? `<p class="stage-history-error">${esc(attempt.error)}</p>` : ""}${outputRows || "<p>Không có đầu ra cũ cho giai đoạn này.</p>"}${previousArtifacts}</details>`;
   }).join("")}</section>` : "";
   const costUsd = estimateTaskCostUsd(task.usage);
+  const isMobile = isMobileCompanionMode();
+  const subs = Array.isArray(task.subagents) ? task.subagents : [];
+  const subagentsSectionHtml = subs.length
+    ? `<section class="orchestration-stage-results"><strong>${icon("waypoints", 14)} Subagents đã ghi nhận (${subs.length})</strong><div class="orchestration-subagent-grid">${subs.map((sub) => `<div class="dock-subagent-block" style="padding:8px 0"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><strong data-localize-skip="true">${esc(sub.role || sub.agentType || sub.id)}</strong><button type="button" class="button quiet small" data-action="open-subagent-detail" data-id="${esc(task.id)}" data-sub-id="${esc(sub.id)}">${icon("eye", 12)}<span>Chi tiết</span></button></div><small>${esc(sub.summary || sub.resultPreview || sub.lastActivity || sub.status || "")}</small></div>`).join("")}</div></section>`
+    : "";
   return `<section class="task-orchestration-page" aria-label="Tiến trình công việc">
-    <header class="conversation-top"><div class="conversation-context"><span class="conversation-repo">${icon("folder-code", 15)} ${esc(workspace?.name || task.workspacePath)}</span><span class="conversation-separator">/</span><span class="conversation-task-id">${esc(task.code || task.id)}</span></div><div class="detail-head-actions"><button class="button quiet small" data-action="back-flows">${icon("arrow-left", 14)} Quay lại Tiến trình</button><button class="button quiet small" data-action="back-chat" data-id="${esc(task.id)}">${icon("square-terminal", 14)} Cuộc trò chuyện</button><button class="button quiet small" data-action="open-folder" data-id="${esc(task.id)}">${icon("folder-code", 14)} Mở workspace</button><button class="button quiet small" data-action="task-instruction" data-id="${esc(task.id)}">${icon("arrow-up-right", 14)} Gửi chỉ dẫn</button><button class="button quiet small" data-action="new-task">${icon("plus", 14)} Giao việc mới</button></div></header>
+    <header class="conversation-top"><div class="conversation-context"><span class="conversation-repo">${icon("folder-code", 15)} ${esc(workspace?.name || task.workspacePath)}</span><span class="conversation-separator">/</span><span class="conversation-task-id">${esc(task.code || task.id)}</span></div><div class="detail-head-actions"><button class="button quiet small" data-action="back-flows">${icon("arrow-left", 14)} Quay lại Tiến trình</button><button class="button quiet small" data-action="open-task-chat" data-id="${esc(task.id)}">${icon("square-terminal", 14)} Mở Không gian Chat</button>${!isMobile ? `<button class="button quiet small" data-action="open-folder" data-id="${esc(task.id)}">${icon("folder-code", 14)} Mở workspace</button>` : ""}<button class="button quiet small" data-action="task-instruction" data-id="${esc(task.id)}">${icon("arrow-up-right", 14)} Gửi chỉ dẫn</button><button class="button quiet small" data-action="new-task">${icon("plus", 14)} Giao việc mới</button></div></header>
     <div class="detail-title-row"><div><h2>${esc(task.title)}</h2><div class="detail-meta"><span class="pill status-${esc(task.status)}"><i></i>${esc(statuses[task.status] || task.status)}</span>${presetBadge}<span>${fmtDate(task.createdAt)}</span>${usage ? `<span>${formatNumber(usage)} token${costUsd > 0 ? ` · $${costUsd.toFixed(2)}` : ""}</span>` : ""}<span>${formatNumber(events.length)} sự kiện · ${formatNumber(nodes.length)} bước</span></div></div></div>
     ${missionControlStepperMarkup(task, { compact: false })}
     ${task.skills?.length ? `<div class="skill-used">${icon("notebook-tabs", 14)} Skill đã chọn: ${task.skills.map((skill) => esc(skill.name)).join(" · ")}</div>` : ""}
-    <div class="orchestration-layout"><section class="orchestration-canvas"><header class="orchestration-canvas-head"><div><small>TIẾN TRÌNH THỰC HIỆN · ${esc(task.config.workflow === "chat-only" ? "TRÒ CHUYỆN" : task.config.workflow === "plan-only" ? "CHỈ LÊN KẾ HOẠCH" : "QUY TRÌNH 6 BƯỚC")}</small><h3>${busy ? "Đang thực hiện công việc" : "Chi tiết các bước đã chạy"}</h3></div><span class="activity-live ${busy ? "is-live" : ""}"><i></i>${busy ? "Đang chạy" : "Đã lưu"}</span></header><div class="orchestration-flow">${nodes.map((node, index) => orchestrationNodeHtml(node, index, nodes.length)).join("")}</div></section>
-      <aside class="orchestration-activity"><header class="orchestration-activity-head"><div><small>NHẬT KÝ SỰ KIỆN</small><h3>Điều phối & hoạt động</h3></div><span>${events.length} sự kiện</span></header><div class="orchestration-activity-note">${icon("workflow", 14)} Chỉ hiện hoạt động, bàn giao, đầu ra và công cụ được CLI ghi nhận. Suy luận nội bộ của model không được cung cấp.</div><div class="orchestration-event-list" id="agent-activity-feed">${sortedEvents.length ? sortedEvents.map((item) => { const text = String(item.text || ""); const longOutput = item.kind === "output" && text.length > 320; return `<article class="orchestration-event kind-${esc(item.kind)}"><span class="orchestration-event-mark">${icon(({ stage: "square-terminal", handoff: "workflow", tool: "settings-2", output: "file", chat: "book-open-text", memory: "brain", error: "circle-question-mark", success: "check", warning: "circle-question-mark" })[item.kind] || "workflow", 14)}</span><div><header><strong>${esc(eventLabels[item.kind] || "SỰ KIỆN")}</strong><time>${fmtDate(item.at)}</time>${item.kind === "error" ? `<button type="button" class="event-error-open" data-action="view-error-details" data-error="${esc(text)}">Xem lỗi</button>` : ""}</header>${longOutput ? `<p>${esc(text.slice(0, 280))}…</p><details class="orchestration-event-details"><summary>Xem đầu ra đầy đủ</summary><pre>${esc(text)}</pre></details>` : `<p>${esc(text)}</p>`}</div></article>`; }).join("") : `<p class="orchestration-activity-empty">Các sự kiện sẽ xuất hiện khi task được chạy.</p>`}</div>${stages.length ? `<section class="orchestration-stage-results"><strong>Đầu ra agent</strong>${stages.map(([label, output]) => `<details><summary>${esc(label)}</summary><pre>${esc(output)}</pre></details>`).join("")}</section>` : ""}${(task.artifacts || []).length ? `<section class="orchestration-artifacts"><strong>${icon("file", 14)} Tệp thay đổi · ${task.artifacts.length}</strong>${task.artifacts.slice(0, 20).map((file) => `<div>${icon("file", 13)}<code>${esc(file)}</code></div>`).join("")}</section>` : ""}${stageRunHistory}</aside></div>
-    <footer class="detail-actions">${task.status === "running" || task.status === "queued" ? `<button class="button danger" data-action="stop-task" data-id="${esc(task.id)}">${icon("square", 13)} Dừng task</button>` : replayControls}${task.status !== "queued" ? `<button class="button quiet" data-action="show-diff" data-id="${esc(task.id)}">Xem diff</button>` : ""}</footer>
+    <div class="orchestration-layout is-single-column">
+      <aside class="orchestration-activity"><header class="orchestration-activity-head"><div><small>NHẬT KÝ SỰ KIỆN & ĐẦU RA</small><h3>Điều phối & hoạt động</h3></div><span>${events.length} sự kiện</span></header><div class="orchestration-activity-note">${icon("workflow", 14)} Chỉ hiện hoạt động, bàn giao, đầu ra và công cụ được CLI ghi nhận. Suy luận nội bộ của model không được cung cấp.</div>${subagentsSectionHtml}<div class="orchestration-event-list" id="agent-activity-feed">${sortedEvents.length ? sortedEvents.map((item) => { const text = String(item.text || ""); const longOutput = item.kind === "output" && text.length > 320; return `<article class="orchestration-event kind-${esc(item.kind)}"><span class="orchestration-event-mark">${icon(({ stage: "square-terminal", handoff: "workflow", tool: "settings-2", output: "file", chat: "book-open-text", memory: "brain", error: "circle-question-mark", success: "check", warning: "circle-question-mark" })[item.kind] || "workflow", 14)}</span><div><header><strong>${esc(eventLabels[item.kind] || "SỰ KIỆN")}</strong><time>${fmtDate(item.at)}</time>${item.kind === "error" ? `<button type="button" class="event-error-open" data-action="view-error-details" data-error="${esc(text)}">Xem lỗi</button>` : ""}</header>${longOutput ? `<p>${esc(text.slice(0, 280))}…</p><details class="orchestration-event-details"><summary>Xem đầu ra đầy đủ</summary><pre>${esc(text)}</pre></details>` : `<p>${esc(text)}</p>`}</div></article>`; }).join("") : `<p class="orchestration-activity-empty">Các sự kiện sẽ xuất hiện khi task được chạy.</p>`}</div>${stages.length ? `<section class="orchestration-stage-results"><strong>Đầu ra agent</strong>${stages.map(([label, output]) => `<details><summary>${esc(label)}</summary><pre>${esc(output)}</pre></details>`).join("")}</section>` : ""}${(task.artifacts || []).length ? `<section class="orchestration-artifacts"><strong>${icon("file", 14)} Tệp thay đổi · ${task.artifacts.length}</strong>${task.artifacts.slice(0, 20).map((file) => `<div>${icon("file", 13)}<button type="button" class="subagent-manage-link" data-action="open-diff-file" data-id="${esc(task.id)}" data-path="${esc(file)}"><code>${esc(file)}</code></button></div>`).join("")}</section>` : ""}${stageRunHistory}</aside></div>
+    <footer class="detail-actions">${task.status === "running" || task.status === "queued" ? `<button class="button danger" data-action="stop-task" data-id="${esc(task.id)}">${icon("square", 13)} Dừng task</button>` : replayControls}${task.status !== "queued" ? `<button class="button quiet" data-action="open-diff-modal" data-id="${esc(task.id)}">Review diff</button>` : ""}</footer>
   </section>`;
 }

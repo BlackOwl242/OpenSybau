@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { join, resolve } from "node:path";
 import { within } from "../src/server/fs-security.mjs";
@@ -44,7 +44,7 @@ try {
         await evalJs(`document.querySelector('[data-pop-id="${name}"] .codex-pop-scroll').scrollTop=0`);
       }
       assert.equal(await evalJs(`(()=>{const e=document.querySelector('.home-composer textarea'),r=e.getBoundingClientRect();return document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)===e})()`),true,`${name} blocks input`);
-      if(width===375&&["home-model","home-effort"].includes(name)){const img=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(base,`mobile-${name}-menu-375.png`),Buffer.from(img.data,"base64"));}
+      if(width===375&&["home-model","home-effort"].includes(name)){const img=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(dir,`mobile-${name}-menu-375.png`),Buffer.from(img.data,"base64"));}
       await click(`[data-pop-id="${name}"] .codex-pop-item.is-selected`);await wait(`!document.querySelector('[data-pop-id="${name}"][open]')`);
     }
     for(const selector of ['.home-composer .composer-add','[data-pop-id="home-permission"]','[data-pop-id="home-subagents"]']){
@@ -61,12 +61,12 @@ try {
         : `!!document.querySelector('.wb-mobile-nav [data-page="${page}"][aria-current=page]')`);
       const layout=await evalJs(`(()=>({scroll:document.documentElement.scrollWidth,width:innerWidth,content:document.querySelector('#content')?.innerText.length||0,filters:[...document.querySelectorAll('.list-toolbar .filters .filter,.mc-filter-strip .filter')].filter(e=>e.getClientRects().length).map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right}})}))()`);
       assert.ok(layout.scroll<=layout.width+1,`${page} ${width}: ${JSON.stringify(layout)}`);assert.ok(layout.content>20,`${page} is empty`);assert.ok(layout.filters.every(f=>f.left>=0&&f.right<=width+1),`${page} filters clipped: ${JSON.stringify(layout.filters)}`);
-      if(width===375&&["chat","tasks","flows"].includes(page)){const img=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(base,`mobile-${page}-375.png`),Buffer.from(img.data,"base64"));}
+      if(width===375&&["chat","tasks","flows"].includes(page)){const img=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(dir,`mobile-${page}-375.png`),Buffer.from(img.data,"base64"));}
       if(page==="settings"){
         await click('.settings-mobile-nav [data-section="roles"]');await wait("!!document.querySelector('#settings-roles:not([hidden]) .agent-role-card')");
         const roleLayout=await evalJs(`(()=>[...document.querySelectorAll('#settings-roles .agent-role-card')].map(card=>{const c=card.getBoundingClientRect();return [...card.querySelectorAll('.agent-role-picker-field summary')].map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,cardLeft:c.left,cardRight:c.right,width:r.width}})}))()`);
         assert.equal(roleLayout.length,3);for(const row of roleLayout){assert.equal(row.length,3);assert.ok(row.every(r=>r.left>=r.cardLeft&&r.right<=r.cardRight+1&&r.width>100),JSON.stringify(row));assert.ok(Math.max(...row.map(r=>r.left))-Math.min(...row.map(r=>r.left))<1,JSON.stringify(row));}
-        if(width===375){await evalJs("document.querySelector('#settings-roles .settings-role-grid').scrollIntoView({block:'start'})");const img=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(base,"mobile-settings-roles-375.png"),Buffer.from(img.data,"base64"));}
+        if(width===375){await evalJs("document.querySelector('#settings-roles .settings-role-grid').scrollIntoView({block:'start'})");const img=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(dir,"mobile-settings-roles-375.png"),Buffer.from(img.data,"base64"));}
         if(await evalJs("!!document.querySelector('#settings-roles [data-pop-id=role-plan-model]:not([data-disabled])')")){
           await click('#settings-roles [data-pop-id=role-plan-model] > summary');await wait("!!document.querySelector('#settings-roles [data-pop-id=role-plan-model][open]')");
           await click('#settings-roles [data-pop-id=role-plan-model] .codex-pop-item.is-selected');await wait("!document.querySelector('#settings-roles [data-pop-id=role-plan-model][open]')");
@@ -97,4 +97,14 @@ try {
   await cdp("Emulation.setDeviceMetricsOverride",{width:960,height:850,deviceScaleFactor:1,mobile:false});
   assert.notEqual(await evalJs("getComputedStyle(document.querySelector('.wb-window-chrome-right .wb-theme-menu')).display"),"none");
   console.log("Mobile app: eight navigation pages, visible filters and non-overlapping composer passed at 320/375/430 px.");
-} finally {ws?.close();browser?.kill();await stopWorkbench();assert.ok(within(base,dir)&&dir!==base);await fs.rm(dir,{recursive:true,force:true,maxRetries:10,retryDelay:200});}
+} finally {
+  try { ws?.close(); } catch {}
+  try { browser?.stderr?.destroy(); } catch {}
+  if (browser?.pid) {
+    if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(browser.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+    else try { browser.kill("SIGKILL"); } catch {}
+  }
+  await stopWorkbench();
+  assert.ok(within(base, dir) && dir !== base);
+  await fs.rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+}

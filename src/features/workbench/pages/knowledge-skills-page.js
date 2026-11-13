@@ -1,16 +1,18 @@
-import { esc, formatNumber, icon, view } from "../../../shared/state.js";
+import { backContextButtonMarkup, esc, formatNumber, icon, view } from "../../../shared/state.js";
+import { isMobileCompanionMode } from "../../../shared/remote-host.js";
 import { renderKnowledgeMarkdown, renderMarkdown } from "../markdown.js";
 import { mountKnowledgeGraphCanvas as mountVaultKnowledgeGraphCanvas } from "../knowledge-graph.js";
 import { api, ensureSubagentProfiles, markReplaceBrowserRoute, render } from "../runtime.js";
 
 export function vaultNoteOptionsMenu(filePath, { showRead = false, showGraph = false, direction = "down" } = {}) {
+  const isMobile = isMobileCompanionMode();
   return `<details class="codex-pop-menu is-right is-${direction} vault-action-menu">
     <summary class="vault-more-btn" aria-label="Tùy chọn tệp" title="Tùy chọn tệp">${icon("ellipsis", 14)}</summary>
     <div class="codex-pop-card vault-action-pop">
       ${showRead ? `<button type="button" class="codex-pop-item" data-action="vault-open-from-graph" data-path="${esc(filePath)}"><span class="codex-pop-item-main">${icon("book-open-text", 14)}<span>Đọc ghi chú</span></span></button>` : ""}
       <button type="button" class="codex-pop-item" data-action="vault-edit-note" data-path="${esc(filePath)}"><span class="codex-pop-item-main">${icon("square-pen", 14)}<span>Chỉnh sửa ghi chú</span></span></button>
       ${showGraph ? `<button type="button" class="codex-pop-item" data-action="vault-focus-graph" data-path="${esc(filePath)}"><span class="codex-pop-item-main">${icon("waypoints", 14)}<span>Xem trên đồ thị</span></span></button>` : ""}
-      <button type="button" class="codex-pop-item" data-action="open-obsidian" data-path="${esc(filePath)}"><span class="codex-pop-item-main">${icon("arrow-up-right", 14)}<span>Mở trong Obsidian</span></span></button>
+      ${!isMobile ? `<button type="button" class="codex-pop-item" data-action="open-obsidian" data-path="${esc(filePath)}"><span class="codex-pop-item-main">${icon("arrow-up-right", 14)}<span>Mở trong Obsidian</span></span></button>` : ""}
       <div class="codex-pop-sep"></div>
       <button type="button" class="codex-pop-item is-danger" data-action="vault-delete-note" data-path="${esc(filePath)}"><span class="codex-pop-item-main">${icon("delete", 14)}<span>Xóa ghi chú</span></span></button>
     </div>
@@ -74,7 +76,8 @@ export function mountKnowledgeGraphCanvas() {
 
 export function knowledgePage() {
   const vaultPath = view.state?.settings?.vaultPath || "";
-  if (!vaultPath) return `<div class="page-head"><div><h1>Tri thức</h1><p>Kết nối vault để duyệt, chỉnh sửa ghi chú Markdown và xem đồ thị liên kết tri thức trực tiếp trên máy.</p></div></div><section class="empty-state knowledge-empty"><div class="empty-symbol">${icon("book-open-text", 18)}</div><strong>Chưa kết nối Obsidian vault</strong><p>OpenSybau chỉ đọc/ghi thư mục bạn chỉ định; nội dung không được đưa vào prompt tự động.</p><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></section>`;
+  const backBtnMarkup = backContextButtonMarkup();
+  if (!vaultPath) return `<div class="page-head"><div>${backBtnMarkup}<h1>Tri thức</h1><p>Kết nối vault để duyệt, chỉnh sửa ghi chú Markdown và xem đồ thị liên kết tri thức trực tiếp trên máy.</p></div></div><section class="empty-state knowledge-empty"><div class="empty-symbol">${icon("book-open-text", 20)}</div><strong>Chưa kết nối Obsidian vault</strong><p>OpenSybau chỉ đọc/ghi thư mục bạn chỉ định; nội dung không được đưa vào prompt tự động.</p><button class="button primary" data-action="connect-vault">${icon("plus", 15)} Kết nối vault</button></section>`;
 
   const mode = view.vaultViewMode || "files";
   const vaultName = vaultPath.split(/[\\/]/).filter(Boolean).at(-1) || "Obsidian Vault";
@@ -139,6 +142,7 @@ export function knowledgePage() {
   return `<section class="minimal-center-stage" aria-label="Không gian Tri thức">
     <header class="kb-stage-topbar is-knowledge-topbar">
       <div class="kb-topbar-left">
+        ${backBtnMarkup}
         <div class="kb-active-doc-info">
           <strong>${esc(activeFile ? activeFile.name : vaultName)}</strong>
           <small>${activeFile ? `${esc(activeFile.path)} · ${formatNumber(activeFile.size)} B` : `${nodes.length} ghi chú trong Vault`}</small>
@@ -324,9 +328,11 @@ function subagentSectionPage(allSkills, sectionTabsHtml) {
     </div>`;
   }
 
+  const backBtnMarkup = backContextButtonMarkup();
   return `<section class="minimal-center-stage" aria-label="Không gian Hồ sơ Subagent">
     <header class="kb-stage-topbar is-skill-topbar">
       <div class="kb-topbar-left">
+        ${backBtnMarkup}
         <button type="button" class="button quiet small kb-mobile-drawer-btn" data-action="toggle-chat-drawer">${icon("waypoints", 13)}<span>Hồ sơ (${allProfiles.length})</span></button>
         <div class="kb-active-doc-info">
           <strong ${activeProfile ? 'data-localize-skip="true"' : ""}>${esc(activeProfile ? activeProfile.name : "Hồ sơ Subagent")}</strong>
@@ -434,9 +440,11 @@ export function skillPage() {
     </div>`;
   }
 
+  const backBtnMarkup = backContextButtonMarkup();
   return `<section class="minimal-center-stage" aria-label="Không gian Kỹ năng">
     <header class="kb-stage-topbar is-skill-topbar">
       <div class="kb-topbar-left">
+        ${backBtnMarkup}
         <button type="button" class="button quiet small kb-mobile-drawer-btn" data-action="toggle-chat-drawer">${icon("notebook-tabs", 13)}<span>Danh sách (${allSkills.length})</span></button>
         <div class="kb-active-doc-info">
           <strong>${esc(activeSkill ? activeSkill.name : "Thư viện Kỹ năng")}</strong>

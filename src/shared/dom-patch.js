@@ -20,6 +20,24 @@ function nodeKey(node) {
   return undefined;
 }
 
+function preserveInputKey(el, idx) {
+  const pane = el.closest(".multi-chat-pane")?.dataset?.taskId || "";
+  if (el.id) return `id:${pane}:${el.id}`;
+  if (el.dataset?.preserveKey) return `pk:${pane}:${el.dataset.preserveKey}`;
+  if (el.name) return `name:${pane}:${el.closest("form")?.dataset?.form || ""}:${el.name}`;
+  for (const attr of el.getAttributeNames()) {
+    if (attr.startsWith("data-") && attr !== "data-preserve-input") {
+      return `attr:${pane}:${attr}:${el.getAttribute(attr) || ""}`;
+    }
+  }
+  return `idx:${pane}:${idx}`;
+}
+
+function defaultTemplateValue(el) {
+  if (el.tagName === "TEXTAREA") return el.defaultValue ?? el.textContent ?? "";
+  return el.getAttribute("value") ?? "";
+}
+
 // Patch the existing nodes rather than replacing innerHTML. This keeps iframe
 // documents, scroll containers, focus, and native dropdown state alive.
 export function patchHtml(element, html, { background = false } = {}) {
@@ -35,6 +53,13 @@ export function patchHtml(element, html, { background = false } = {}) {
     };
     scrollMap.set(scrollKey(el, idx), entry);
   });
+  const preservedInputs = new Map();
+  [...element.querySelectorAll("input[data-preserve-input], textarea[data-preserve-input]")].forEach((el, idx) => {
+    preservedInputs.set(preserveInputKey(el, idx), {
+      value: el.value,
+      templateValue: defaultTemplateValue(el),
+    });
+  });
   const focused = element.ownerDocument.activeElement;
   const selection = focused && typeof focused.selectionStart === "number"
     ? [focused.selectionStart, focused.selectionEnd, focused.selectionDirection] : null;
@@ -48,6 +73,14 @@ export function patchHtml(element, html, { background = false } = {}) {
     onBeforeElUpdated(from, to) {
       if (background && from.matches(".multi-chat-create-form")) return false;
       if (from.tagName === "DETAILS") to.toggleAttribute("open", from.open);
+      if (from.matches("input[data-preserve-input], textarea[data-preserve-input]")) {
+        const prevTemplateVal = defaultTemplateValue(from);
+        const nextTemplateVal = defaultTemplateValue(to);
+        if (prevTemplateVal === nextTemplateVal && from.value !== nextTemplateVal) {
+          to.value = from.value;
+        }
+        return true;
+      }
       if (background && from.matches("input:not([type=hidden]):not([type=checkbox]):not([type=radio]), textarea, select")) {
         return false;
       }
@@ -60,6 +93,15 @@ export function patchHtml(element, html, { background = false } = {}) {
       return true;
     },
   });
+  if (preservedInputs.size) {
+    [...element.querySelectorAll("input[data-preserve-input], textarea[data-preserve-input]")].forEach((el, idx) => {
+      const saved = preservedInputs.get(preserveInputKey(el, idx));
+      if (!saved) return;
+      if (defaultTemplateValue(el) === saved.templateValue && el.value !== saved.value) {
+        el.value = saved.value;
+      }
+    });
+  }
   [...element.querySelectorAll(SCROLL_SELECTOR)].forEach((el, idx) => {
     const saved = scrollMap.get(scrollKey(el, idx));
     if (!saved) return;

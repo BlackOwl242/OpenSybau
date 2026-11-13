@@ -110,6 +110,8 @@ function ensureRustWorker() {
       shell: false,
     });
     child.unref();
+    child.stdin?.unref?.();
+    child.stdout?.unref?.();
 
     const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
     rl.on("line", (line) => {
@@ -130,6 +132,7 @@ function ensureRustWorker() {
     });
 
     const cleanup = () => {
+      try { rl.close(); } catch {}
       if (rustWorker === child) rustWorker = null;
       for (const [, pending] of pendingWorkerRequests) {
         clearTimeout(pending.timer);
@@ -145,6 +148,20 @@ function ensureRustWorker() {
   } catch {
     rustWorker = null;
     return null;
+  }
+}
+
+export function shutdownRustAccelerator() {
+  const worker = rustWorker;
+  rustWorker = null;
+  for (const [, pending] of pendingWorkerRequests) {
+    clearTimeout(pending.timer);
+    pending.reject(new Error("Rust worker stopped"));
+  }
+  pendingWorkerRequests.clear();
+  if (worker && !worker.killed) {
+    try { worker.stdin?.end?.(); } catch {}
+    try { worker.kill(); } catch {}
   }
 }
 

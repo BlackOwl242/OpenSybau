@@ -51,8 +51,19 @@ export function trackTaskStatusNotifications(tasks = [], { showToast } = {}) {
   }
 }
 
-export async function openGithubCreatePrModal(task, { showModal } = {}) {
+export async function openGithubCreatePrModal(taskOrId, { showModal } = {}) {
+  const task = typeof taskOrId === "string"
+    ? (view.state?.tasks || []).find((t) => t.id === taskOrId)
+    : taskOrId;
   if (!task || typeof showModal !== "function") return;
+  const ws = (view.state?.workspaces || []).find((w) => w.id === task.workspaceId);
+  const gitCache = view.workspaceGitStatus?.[`${task.workspaceId}::${task.id}`]
+    || view.workspaceGitStatus?.[`${task.workspaceId}::`];
+  const branches = gitCache?.branches || ws?.runtime?.branches || [];
+  const defaultBaseBranch = ws?.runtime?.defaultBranch
+    || (branches.includes("main") ? "main" : branches.includes("master") ? "master" : "")
+    || (ws?.runtime?.branch && ws.runtime.branch !== task.worktreeBranch ? ws.runtime.branch : "main");
+
   const defaultTitle = task.code ? `${task.code}: ${task.title}` : task.title;
   const defaultBody = [
     `## Tóm tắt thay đổi (${task.code || "Task"})`,
@@ -68,7 +79,7 @@ export async function openGithubCreatePrModal(task, { showModal } = {}) {
     </label>
     <div class="modal-grid-2">
       <label>Nhánh đích (Base branch)
-        <input name="baseBranch" maxlength="120" placeholder="Mặc định của repo (main / master)" autocomplete="off">
+        <input name="baseBranch" maxlength="120" value="${esc(defaultBaseBranch)}" placeholder="Nhánh đích (vd: main)" autocomplete="off">
       </label>
       <label class="check-row" style="align-self:end;padding-bottom:6px">
         <input type="checkbox" name="draft">

@@ -29,7 +29,7 @@ import { createTaskRunnerService } from "./src/server/task-runner.mjs";
 import { handleProviderSkillRoutes } from "./src/server/routes/provider-skill-routes.mjs";
 import { handleWorkspaceVaultRoutes } from "./src/server/routes/workspace-vault-routes.mjs";
 import { handleTaskRoutes } from "./src/server/routes/task-routes.mjs";
-import { getRustAcceleratorStatus } from "./src/server/rust-accelerator.mjs";
+import { getRustAcceleratorStatus, shutdownRustAccelerator } from "./src/server/rust-accelerator.mjs";
 
 const root = resolve(fileURLToPath(new URL(".", import.meta.url)));
 const host = process.env.WORKBENCH_HOST || "127.0.0.1";
@@ -1021,6 +1021,8 @@ export async function stopWorkbench() {
     ]);
   }
   server = undefined;
+  taskStore?.close?.();
+  shutdownRustAccelerator();
 }
 
 const isDirectRun = Boolean(process.argv[1]) && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

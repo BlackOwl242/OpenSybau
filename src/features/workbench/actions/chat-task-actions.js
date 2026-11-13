@@ -1,6 +1,7 @@
 import { $, esc, setBoundedCache, view } from "../../../shared/state.js";
 import { roleConfig } from "../../../domain/agent-roles.js";
 import { setLanguage } from "../../../shared/i18n.js";
+import { isMobileCompanionMode } from "../../../shared/remote-host.js";
 import { setSavedThemeId } from "../../../shared/themes.js";
 import {
   api,
@@ -24,10 +25,13 @@ import {
 } from "../ui-controls.js";
 import { resizeComposerTextarea } from "../composer.js";
 import {
+  openSkillPickerModal,
+  openSubagentDetailModal,
   openTaskGoalModal,
   openTaskInstructionModal,
   openTaskModal,
   openTaskPermissionsModal,
+  showSubagentProfileCreateModal,
 } from "../modals.js";
 import {
   availableArenaCompetitors,
@@ -38,7 +42,7 @@ import { loadWorkspaceDir } from "../pages/tasks-workspaces-page.js";
 import { loadVaultDir } from "../pages/knowledge-skills-page.js";
 import { openWaveDecomposeModal } from "../pages/flows-memory-page.js";
 
-function syncTaskChatDraft(nextId) {
+export function syncTaskChatDraft(nextId) {
   view.chatDraftsByTask ||= {};
   const currentKey = view.selectedTaskId || view.selected || "__new__";
   view.chatDraftsByTask[currentKey] = view.chatDraft;
@@ -48,27 +52,98 @@ function syncTaskChatDraft(nextId) {
 }
 
 export async function handleChatAndTaskAction(action, id, button) {
+  if (action === "toggle-sidebar-collapse") {
+    view.sidebarCollapsed = !view.sidebarCollapsed;
+    render();
+    return true;
+  }
   if (action === "stop-managed-command") {
-    await api(`/api/tasks/${encodeURIComponent(id)}/terminal/${encodeURIComponent(button.dataset.commandId)}/stop`, { method: "POST" });
+    const targetTaskId = button.dataset.taskId || id || view.selectedTaskId || view.selected;
+    await api(`/api/tasks/${encodeURIComponent(targetTaskId)}/terminal/${encodeURIComponent(button.dataset.commandId)}/stop`, { method: "POST" });
     await refresh(); showToast("Đã gửi yêu cầu dừng lệnh."); return true;
   }
-  if (action === "set-codex-transport") {
-    await api(`/api/tasks/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ codexTransport: button.dataset.transport }) });
-    await refresh(); return true;
+  if (action === "set-codex-transport" || action === "pick-codex-transport") {
+    const rawTransport = button.dataset.transport || "auto";
+    if (id) {
+      const resolved = rawTransport === "auto" ? "app-server" : rawTransport;
+      await api(`/api/tasks/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ codexTransport: resolved }) });
+      await refresh();
+    } else {
+      view.homeCodexTransport = rawTransport;
+      render();
+    }
+    return true;
+  }
+  if (action === "cycle-home-codex-transport") {
+    const order = ["auto", "app-server", "exec"];
+    const curr = view.homeCodexTransport || "auto";
+    view.homeCodexTransport = order[(order.indexOf(curr) + 1) % order.length];
+    render();
+    return true;
+  }
+  if (action === "open-skill-picker") {
+    openSkillPickerModal(id || "");
+    return true;
+  }
+  if (action === "toggle-picker-skill") {
+    const skillId = String(button.dataset.skillId || "").trim();
+    if (skillId) {
+      const current = Array.isArray(view.homeSelectedSkills) ? [...view.homeSelectedSkills] : [];
+      const next = button.checked
+        ? [...new Set([...current, skillId])]
+        : current.filter((s) => s !== skillId);
+      view.homeSelectedSkills = next;
+      const badge = document.querySelector("[data-skill-picker-count]");
+      if (badge) {
+        badge.textContent = next.length > 0 ? `Đã chọn ${next.length} kỹ năng` : "Tự động chọn theo ngữ cảnh";
+      }
+      render({ background: true });
+    }
+    return true;
+  }
+  if (action === "clear-picker-skills") {
+    view.homeSelectedSkills = [];
+    document.querySelectorAll("[data-skill-picker-root] input[type='checkbox'][data-action='toggle-picker-skill']").forEach((cb) => {
+      cb.checked = false;
+    });
+    const badge = document.querySelector("[data-skill-picker-count]");
+    if (badge) badge.textContent = "Tự động chọn theo ngữ cảnh";
+    render({ background: true });
+    return true;
+  }
+  if (action === "open-skill-library") {
+    closeOverlay();
+    if (view.page !== "skills") view.navOriginPage = view.page;
+    view.page = "skills";
+    view.skillsSection = "skills";
+    view.selected = null;
+    render();
+    return true;
   }
   if (action === "steer-active-turn" || action === "resolve-cli-approval") {
-    const task = view.state.tasks.find((item) => item.id === id);
-    const turnId = action === "resolve-cli-approval" ? task?.pendingApprovals?.find((item) => String(item.id) === String(button.dataset.approvalId))?.turnId : task?.liveControl?.turnId;
-    if (!turnId) { showToast("Lượt chạy đã kết thúc."); return true; }
+    const targetTaskId = button.dataset.taskId || id || view.selectedTaskId || view.selected;
+    const task = view.state.tasks.find((item) => item.id === targetTaskId);
+    const approvalItem = action === "resolve-cli-approval"
+      ? task?.pendingApprovals?.find((item) => String(item.id) === String(button.dataset.approvalId))
+      : null;
+    const turnId = action === "resolve-cli-approval"
+      ? (approvalItem?.turnId || task?.liveControl?.turnId)
+      : task?.liveControl?.turnId;
+    if (!turnId || !targetTaskId) { showToast("Lượt chạy đã kết thúc."); return true; }
     let body;
     if (action === "steer-active-turn") {
       showModal("Gửi vào lượt đang chạy", `<label>Chỉ dẫn bổ sung<textarea name="message" required maxlength="50000" rows="4" autofocus></textarea></label><p class="form-note">Tin nhắn được gửi trực tiếp vào lượt Codex hiện tại. Nếu lượt đã kết thúc, hãy dùng ô chat để gửi lượt tiếp theo.</p>`, "Gửi", "task-steer");
       const form = $("#overlay [data-form=task-steer]");
-      form.dataset.id = id; form.dataset.turnId = turnId; form.dataset.requestId = crypto.randomUUID();
+      form.dataset.id = targetTaskId; form.dataset.turnId = turnId; form.dataset.requestId = crypto.randomUUID();
       return true;
-    } else body = { turnId, id: button.dataset.approvalId, decision: button.dataset.decision };
-    await api(`/api/tasks/${encodeURIComponent(id)}/${action === "steer-active-turn" ? "steer" : "approval"}`, { method: "POST", body: JSON.stringify(body) });
-    await refresh(); return true;
+    } else {
+      const decision = button.dataset.decision || "accept";
+      body = { turnId, id: approvalItem?.id ?? button.dataset.approvalId, decision };
+      await api(`/api/tasks/${encodeURIComponent(targetTaskId)}/approval`, { method: "POST", body: JSON.stringify(body) });
+      await refresh();
+      showToast(decision === "decline" ? "Đã từ chối yêu cầu lệnh CLI." : "Đã cho phép thực thi lệnh CLI.");
+      return true;
+    }
   }
   if (action === "refresh-customizations") { await ensureCustomizationInventory(id, true); return true; }
   if (action === "cancel-queued-chat") {
@@ -145,7 +220,7 @@ export async function handleChatAndTaskAction(action, id, button) {
     closeOverlay();
     clearSidebarSearch();
     syncTaskChatDraft(taskId);
-    view.mobileScreen = "session";
+    view.mobileScreen = "home";
     view.mpSessionTab = "chat";
     view.page = "chat";
     view.selected = taskId;
@@ -169,7 +244,7 @@ export async function handleChatAndTaskAction(action, id, button) {
     if (button.dataset.workspaceId) view.homeWorkspaceId = button.dataset.workspaceId;
     else if (!view.homeWorkspaceId && view.state?.workspaces?.[0]?.id) view.homeWorkspaceId = view.state.workspaces[0].id;
     syncTaskChatDraft(null);
-    view.mobileScreen = "session";
+    view.mobileScreen = "home";
     view.mpSessionTab = "chat";
     view.page = "chat";
     view.selected = null;
@@ -184,7 +259,7 @@ export async function handleChatAndTaskAction(action, id, button) {
   }
   if (action === "mp-open-pair") {
     closeOverlay();
-    view.mobileScreen = "page";
+    view.mobileScreen = "home";
     view.page = "settings";
     view.settingsSection = "devices";
     view.selected = null;
@@ -197,17 +272,18 @@ export async function handleChatAndTaskAction(action, id, button) {
   if (action === "mp-open-page") {
     closeOverlay();
     const targetPage = button.dataset.mpPage || "settings";
-    view.mobileScreen = "page";
+    if (view.page === "chat") syncTaskChatDraft(view.selectedTaskId || "");
+    view.mobileScreen = "home";
     view.page = targetPage;
     view.chatDrawerOpen = false;
     if (targetPage === "workspaces") {
       view.activeStageTabId = "chat";
-      const wsExists = view.selected && view.state?.workspaces?.some((w) => w.id === view.selected);
-      if (!wsExists) {
-        view.selected = view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || null;
-        view.workspaceDir = "";
-        view.workspaceEntries = [];
-      }
+      const wsCandidate = view.selectedWorkspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || null;
+      const wsExists = wsCandidate && view.state?.workspaces?.some((w) => w.id === wsCandidate);
+      view.selectedWorkspaceId = wsExists ? wsCandidate : (view.state?.workspaces?.[0]?.id || null);
+      view.selected = view.selectedWorkspaceId;
+    } else if (targetPage === "chat") {
+      view.selected = view.selectedTaskId || null;
     } else {
       view.selected = null;
     }
@@ -631,7 +707,10 @@ export async function handleChatAndTaskAction(action, id, button) {
     if (!confirm(`Xóa vĩnh viễn chat “${task.title}”? Lịch sử chat và bản ghi task sẽ bị xóa; thư mục workspace không bị ảnh hưởng.`)) return true;
     if (!task.archived) await api(`/api/tasks/${encodeURIComponent(id)}/archive`, { method: "POST", body: JSON.stringify({ archived: true }) });
     await api(`/api/tasks/${encodeURIComponent(id)}`, { method: "DELETE" });
-    if (view.selected === id) { view.selected = null; view.page = "chat"; }
+    if (view.selected === id || view.selectedTaskId === id) {
+      view.selected = null;
+      view.selectedTaskId = null;
+    }
     view.taskMenuId = "";
     await refresh();
     showToast("Đã xóa chat vĩnh viễn.");
@@ -662,15 +741,27 @@ export async function handleChatAndTaskAction(action, id, button) {
     return true;
   }
   if (action === "distill-task-skill") {
-    const task = view.state.tasks.find((item) => item.id === (id || view.selected));
+    const targetId = id || view.selectedTaskId || view.selected;
+    const task = view.state.tasks.find((item) => item.id === targetId);
     if (!task) return true;
     const res = await api(`/api/tasks/${encodeURIComponent(task.id)}/distill-skill`, { method: "POST", body: JSON.stringify({}) });
+    view.skillsLoaded = false;
     await refresh({ configuration: true });
     showToast(`Đã đúc kết Skill mới: ${res.skill?.name || "SKILL.md"}`);
     return true;
   }
+  if (action === "distill-task-memory") {
+    const targetId = id || view.selectedTaskId || view.selected;
+    const task = view.state.tasks.find((item) => item.id === targetId);
+    if (!task) return true;
+    const res = await api(`/api/tasks/${encodeURIComponent(task.id)}/distill-memory`, { method: "POST", body: JSON.stringify({}) });
+    await refresh();
+    showToast(`Đã đúc kết bài học vào Bộ nhớ: ${res.memory?.title || task.title}`);
+    return true;
+  }
   if (action === "compact-task-chat") {
-    const task = view.state.tasks.find((item) => item.id === (id || view.selected));
+    const targetId = id || view.selectedTaskId || view.selected;
+    const task = view.state.tasks.find((item) => item.id === targetId);
     if (!task) return true;
     const res = await api(`/api/tasks/${encodeURIComponent(task.id)}/compact`, { method: "POST", body: JSON.stringify({}) });
     await refresh();
@@ -689,10 +780,19 @@ export async function handleChatAndTaskAction(action, id, button) {
   if (action === "wave-status-filter") { view.waveStatusFilter = button.dataset.status || "all"; render(); return true; }
   if (action === "wave-risk-filter") { view.waveRiskFilter = button.dataset.risk || "all"; render(); return true; }
   if (action === "wave-critical-toggle") { view.waveCriticalOnly = !view.waveCriticalOnly; render(); return true; }
+  if (action === "reset-flow-filter") {
+    view.waveStatusFilter = "all";
+    view.waveRiskFilter = "all";
+    view.waveCriticalOnly = false;
+    view.filter = "all";
+    render();
+    return true;
+  }
   if (action === "toggle-home-plan-gate") { view.homePlanGate = !view.homePlanGate; render(); return true; }
   if (action === "cycle-home-max-rounds") { const current = Number(view.homeMaxRounds) || 2; view.homeMaxRounds = current >= 3 ? 1 : current + 1; render(); return true; }
-  if (action === "edit-task-goal") { const task = view.state.tasks.find((item) => item.id === id); if (task) openTaskGoalModal(task); return true; }
-  if (action === "task-permissions") { const task = view.state.tasks.find((item) => item.id === id); if (task) openTaskPermissionsModal(task); return true; }
+  if (action === "edit-task-goal") { const task = view.state.tasks.find((item) => item.id === (id || view.selectedTaskId || view.selected)); if (task) openTaskGoalModal(task); return true; }
+  if (action === "edit-task-instruction") { const task = view.state.tasks.find((item) => item.id === (id || view.selectedTaskId || view.selected)); if (task) openTaskInstructionModal(task); return true; }
+  if (action === "task-permissions") { const task = view.state.tasks.find((item) => item.id === (id || view.selectedTaskId || view.selected)); if (task) openTaskPermissionsModal(task); return true; }
   if (action === "toggle-goal-item") {
     const itemId = button.dataset.goalId;
     const task = view.state.tasks.find((entry) => entry.id === id);
@@ -704,11 +804,17 @@ export async function handleChatAndTaskAction(action, id, button) {
     }
     return true;
   }
-  if (action === "fork-chat") {
+  if (action === "fork-chat" || action === "fork-task-chat") {
     const source = view.state.tasks.find((item) => item.id === id);
     if (source) {
       const result = await api("/api/tasks/" + encodeURIComponent(id) + "/fork", { method: "POST", body: JSON.stringify({ messageId: button.dataset.messageId }) });
-      view.selected = result.task.id; view.page = "chat"; view.chatDraft = "";
+      if (view.page !== "chat") view.navOriginPage = view.page;
+      syncTaskChatDraft(result.task.id);
+      view.selected = result.task.id;
+      view.selectedTaskId = result.task.id;
+      view.page = "chat";
+      view.mobileScreen = "home";
+      view.mpSessionTab = "chat";
       view.chatProvider = result.task.config.chatProvider || source.config?.roles?.plan?.provider || "codex";
       view.chatModel = result.task.config.chatModel || source.config?.roles?.plan?.model || "";
       view.chatEffort = result.task.config.chatEffort || source.config?.roles?.plan?.effort || "";
@@ -757,16 +863,20 @@ export async function handleChatAndTaskAction(action, id, button) {
     }
     return true;
   }
-  if (action === "open-dock-subagents" || action === "inspect-subagent") {
-    const targetId = id || view.selected;
+  if (action === "open-dock-subagents" || action === "inspect-subagent" || action === "open-subagent-detail") {
+    const targetId = id || view.selectedTaskId || view.selected;
     if (targetId) {
-      view.selected = targetId;
-      view.page = "chat";
-      view.chatDrawerOpen = true;
-      view.chatDrawerTab = "subagents";
-      view.selectedDockSubagentId = button.dataset.subId || "";
-      render();
-      void ensureTaskSubagentsDetail(targetId, { force: true });
+      if (view.page !== "chat" || isMobileCompanionMode() || button.closest("#overlay")) {
+        await openSubagentDetailModal(targetId, button.dataset.subId || "");
+      } else {
+        view.selected = targetId;
+        view.selectedTaskId = targetId;
+        view.chatDrawerOpen = true;
+        view.chatDrawerTab = "subagents";
+        view.selectedDockSubagentId = button.dataset.subId || "";
+        render();
+        void ensureTaskSubagentsDetail(targetId, { force: true });
+      }
     }
     return true;
   }
@@ -776,45 +886,73 @@ export async function handleChatAndTaskAction(action, id, button) {
     return true;
   }
   if (action === "refresh-task-subagents") {
-    const targetId = id || view.selected;
+    const targetId = id || view.selectedTaskId || view.selected;
     if (targetId) {
       await ensureTaskSubagentsDetail(targetId, { force: true });
       showToast("Đã làm mới nhật ký Subagent.");
     }
     return true;
   }
-  if (action === "promote-subagent") {
-    const targetId = id || view.selected;
+  if (action === "promote-subagent" || action === "promote-subagent-worktree") {
+    const targetId = id || view.selectedTaskId || view.selected;
     const subId = button.dataset.subId || "";
     if (!targetId || !subId) return true;
     const res = await api(`/api/tasks/${encodeURIComponent(targetId)}/subagents/${encodeURIComponent(subId)}/promote`, {
       method: "POST",
       body: JSON.stringify({}),
     });
+    closeOverlay();
     if (res?.task?.id) {
+      if (view.page !== "chat") view.navOriginPage = view.page;
+      syncTaskChatDraft(res.task.id);
       view.selected = res.task.id;
+      view.selectedTaskId = res.task.id;
       view.page = "chat";
-      view.mobileScreen = "session";
+      view.mobileScreen = "home";
       view.mpSessionTab = "chat";
-      view.chatDraft = "";
     }
     await refresh();
     showToast(`Đã tách Subagent thành Worktree Task độc lập: ${res?.task?.title || "Task mới"}`);
     return true;
   }
-  if (action === "open-subagent-profiles") {
+  if (action === "create-subagent-profile" || action === "open-subagent-profiles") {
+    showSubagentProfileCreateModal();
+    return true;
+  }
+  if (action === "open-subagent-library") {
+    closeOverlay();
+    if (view.page !== "skills") view.navOriginPage = view.page;
     view.page = "skills";
     view.skillsSection = "subagents";
     view.selected = null;
-    view.mobileScreen = "page";
+    view.mobileScreen = "home";
     render();
     await ensureSubagentProfiles("", { force: false });
     render();
     return true;
   }
-  if (action === "task-instruction") { const task = view.state.tasks.find((item) => item.id === id); if (task) openTaskInstructionModal(task); return true; }
-  if (action === "inspect-task" || action === "open-task-flow") { view.selected = id; view.page = "flows"; render(); return true; }
+  if (action === "task-instruction") { const task = view.state.tasks.find((item) => item.id === (id || view.selectedTaskId || view.selected)); if (task) openTaskInstructionModal(task); return true; }
+  if (action === "inspect-task" || action === "open-task-flow") {
+    if (view.page !== "flows") view.navOriginPage = view.page;
+    view.selected = id;
+    view.page = "flows";
+    render();
+    return true;
+  }
   if (action === "back-flows") { view.selected = null; view.page = "flows"; render(); return true; }
-  if (action === "back-chat") { syncTaskChatDraft(id); view.selected = id; view.selectedTaskId = id; view.mpSessionTab = "chat"; view.page = "chat"; render(); return true; }
+  if (action === "back-chat" || action === "open-task-chat") {
+    const targetId = id || button.dataset.taskId || view.selectedTaskId || view.selected;
+    closeOverlay();
+    if (view.page !== "chat") view.navOriginPage = view.page;
+    syncTaskChatDraft(targetId);
+    view.selected = targetId;
+    view.selectedTaskId = targetId;
+    view.mobileScreen = "home";
+    view.mpSessionTab = "chat";
+    view.page = "chat";
+    render();
+    if (action === "open-task-chat") showToast("Đã mở phiên làm việc trong Không gian Chat.");
+    return true;
+  }
   return false;
 }

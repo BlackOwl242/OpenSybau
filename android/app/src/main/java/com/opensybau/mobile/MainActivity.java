@@ -16,6 +16,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -52,7 +53,9 @@ import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
     private static final String APP_ENTRY_URL = "https://appassets.androidplatform.net/assets/public/index.html";
+    private FrameLayout rootLayout;
     private WebView webView;
+    private OpenSybauNativeBridge nativeBridge;
     private String pendingPairingUri = null;
     private boolean pageReady = false;
 
@@ -63,15 +66,16 @@ public class MainActivity extends AppCompatActivity {
 
         captureDeepLinkIntent(getIntent());
 
+        final int initialBgColor = Color.parseColor("#0B0E14");
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
-        getWindow().setStatusBarColor(Color.parseColor("#050507"));
-        getWindow().setNavigationBarColor(Color.parseColor("#050507"));
+        getWindow().setStatusBarColor(initialBgColor);
+        getWindow().setNavigationBarColor(initialBgColor);
 
-        FrameLayout rootLayout = new FrameLayout(this);
-        rootLayout.setBackgroundColor(Color.parseColor("#050507"));
+        rootLayout = new FrameLayout(this);
+        rootLayout.setBackgroundColor(initialBgColor);
 
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.parseColor("#050507"));
+        webView.setBackgroundColor(initialBgColor);
         rootLayout.addView(
             webView,
             new FrameLayout.LayoutParams(
@@ -97,6 +101,13 @@ public class MainActivity extends AppCompatActivity {
             return WindowInsetsCompat.CONSUMED;
         });
 
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                handleAppBackNavigation();
+            }
+        });
+
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -106,13 +117,14 @@ public class MainActivity extends AppCompatActivity {
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.3.4 Capacitor");
+        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.3.9");
 
         webView.clearCache(true);
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
             WebView.setWebContentsDebuggingEnabled(true);
         }
-        webView.addJavascriptInterface(new OpenSybauNativeBridge(), "opensybauAndroid");
+        nativeBridge = new OpenSybauNativeBridge();
+        webView.addJavascriptInterface(nativeBridge, "opensybauAndroid");
 
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
@@ -171,6 +183,7 @@ public class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 pageReady = true;
+                view.evaluateJavascript("document.documentElement.dataset.androidInsets='native';", null);
                 dispatchPendingPairingUri();
             }
         });
@@ -208,21 +221,71 @@ public class MainActivity extends AppCompatActivity {
         ));
     }
 
-    @Override
-    public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
+    private void handleAppBackNavigation() {
+        if (webView == null || !pageReady) {
+            finish();
+            return;
         }
+        webView.evaluateJavascript(
+            "(function(){try{return !!(window.__opensybauHandleBack && window.__opensybauHandleBack());}catch(e){return false;}})()",
+            value -> {
+                if ("true".equalsIgnoreCase(String.valueOf(value).trim())) {
+                    return;
+                }
+                if (webView != null && webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    finish();
+                }
+            }
+        );
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (nativeBridge != null) {
+            nativeBridge.shutdown();
+        }
+        super.onDestroy();
     }
 
     public class OpenSybauNativeBridge {
         private final ExecutorService httpPool = Executors.newCachedThreadPool();
 
+        public void shutdown() {
+            httpPool.shutdownNow();
+        }
+
         @JavascriptInterface
         public String getAppVersion() {
-            return "0.3.4";
+            return "0.3.9";
+        }
+
+        @JavascriptInterface
+        public void setSystemBarTheme(final String bgColorHex, final boolean lightBars) {
+            runOnUiThread(() -> {
+                int parsedColor = Color.parseColor("#0B0E14");
+                try {
+                    if (bgColorHex != null && !bgColorHex.trim().isEmpty()) {
+                        parsedColor = Color.parseColor(bgColorHex.trim());
+                    }
+                } catch (Exception ignored) {}
+                getWindow().setStatusBarColor(parsedColor);
+                getWindow().setNavigationBarColor(parsedColor);
+                if (rootLayout != null) {
+                    rootLayout.setBackgroundColor(parsedColor);
+                }
+                if (webView != null) {
+                    webView.setBackgroundColor(parsedColor);
+                }
+                if (rootLayout != null) {
+                    WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(), rootLayout);
+                    if (controller != null) {
+                        controller.setAppearanceLightStatusBars(lightBars);
+                        controller.setAppearanceLightNavigationBars(lightBars);
+                    }
+                }
+            });
         }
 
         @JavascriptInterface

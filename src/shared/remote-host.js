@@ -311,6 +311,56 @@ export function resolveAuthenticatedMediaUrl(input) {
   return resolved;
 }
 
+function isLoopbackHost(hostname = "") {
+  const lower = String(hostname || "").trim().toLowerCase().replace(/^\[|\]$/g, "");
+  return lower === "localhost" || lower === "127.0.0.1" || lower === "0.0.0.0" || lower === "::1";
+}
+
+export function resolveCompanionPreviewUrl(rawUrl) {
+  const str = String(rawUrl ?? "").trim();
+  if (!str) return String(rawUrl ?? "");
+  if (!isMobileCompanionMode()) return str;
+
+  let pcHostname = "";
+  const activeHost = getActiveRemoteHost();
+  if (activeHost?.url) {
+    try {
+      const parsedHost = new URL(activeHost.url);
+      if (parsedHost.hostname && !isLoopbackHost(parsedHost.hostname)) {
+        pcHostname = parsedHost.hostname;
+      }
+    } catch {}
+  }
+  if (!pcHostname && typeof globalThis.window !== "undefined") {
+    const loc = globalThis.window.location;
+    if (
+      loc
+      && (loc.protocol === "http:" || loc.protocol === "https:")
+      && loc.hostname
+      && loc.hostname.toLowerCase() !== "appassets.androidplatform.net"
+      && !isLoopbackHost(loc.hostname)
+    ) {
+      pcHostname = loc.hostname;
+    }
+  }
+  if (!pcHostname) return str;
+
+  try {
+    const parsedTarget = new URL(str);
+    if (!["http:", "https:"].includes(parsedTarget.protocol)) return str;
+    if (!isLoopbackHost(parsedTarget.hostname)) return str;
+    const hadNoPathSlash = parsedTarget.pathname === "/" && !/^https?:\/\/[^/?#]+\//.test(str);
+    parsedTarget.hostname = pcHostname;
+    const rewritten = parsedTarget.toString();
+    if (hadNoPathSlash && !parsedTarget.search && !parsedTarget.hash) {
+      return rewritten.replace(/\/$/, "");
+    }
+    return rewritten;
+  } catch {
+    return str;
+  }
+}
+
 export function buildRemoteRequestHeaders(extraHeaders = {}, hostOverride = null) {
   const target = hostOverride || getActiveRemoteHost();
   if (!target?.url) return { ...extraHeaders };

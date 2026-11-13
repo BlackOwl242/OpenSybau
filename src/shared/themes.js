@@ -1,16 +1,19 @@
 import { isMobileCompanionMode } from "./remote-host.js";
 
 const THEME_STORAGE_KEY = "opensybau.theme";
+const THEME_STORAGE_V2_KEY = "opensybau.theme.v2";
 const MOBILE_OLED_MIGRATION_KEY = "opensybau.mobile-oled-default.v1";
+const MOBILE_OBSIDIAN_MIGRATION_KEY = "opensybau.mobile-obsidian-default.v2";
 export const DEFAULT_THEME_ID = "obsidian";
-export const MOBILE_DEFAULT_THEME_ID = "carbon-oled";
+export const DEFAULT_MOBILE_THEME_ID = "obsidian";
+export const MOBILE_DEFAULT_THEME_ID = DEFAULT_MOBILE_THEME_ID;
 
 export function isMobileThemeRuntime() {
   return isMobileCompanionMode();
 }
 
 export function getDefaultThemeId() {
-  return isMobileThemeRuntime() ? MOBILE_DEFAULT_THEME_ID : DEFAULT_THEME_ID;
+  return isMobileThemeRuntime() ? DEFAULT_MOBILE_THEME_ID : DEFAULT_THEME_ID;
 }
 
 export const THEME_GROUPS = [
@@ -186,12 +189,20 @@ export function getThemeDefinition(themeId) {
 export function getSavedThemeId() {
   const fallbackId = getDefaultThemeId();
   try {
-    if (isMobileThemeRuntime() && !localStorage.getItem(MOBILE_OLED_MIGRATION_KEY)) {
-      localStorage.setItem(MOBILE_OLED_MIGRATION_KEY, "1");
-      localStorage.setItem(THEME_STORAGE_KEY, MOBILE_DEFAULT_THEME_ID);
-      return MOBILE_DEFAULT_THEME_ID;
+    const rawV2 = localStorage.getItem(THEME_STORAGE_V2_KEY);
+    if (rawV2 && THEME_MAP.has(rawV2)) {
+      return rawV2;
     }
-    const raw = localStorage.getItem(THEME_STORAGE_KEY);
+    let raw = localStorage.getItem(THEME_STORAGE_KEY);
+    if (
+      raw === "carbon-oled" &&
+      localStorage.getItem(MOBILE_OLED_MIGRATION_KEY) === "1" &&
+      !localStorage.getItem(MOBILE_OBSIDIAN_MIGRATION_KEY)
+    ) {
+      localStorage.setItem(MOBILE_OBSIDIAN_MIGRATION_KEY, "1");
+      localStorage.setItem(THEME_STORAGE_KEY, DEFAULT_MOBILE_THEME_ID);
+      raw = DEFAULT_MOBILE_THEME_ID;
+    }
     if (raw && THEME_MAP.has(raw)) {
       return raw;
     }
@@ -203,15 +214,23 @@ export function getSavedThemeId() {
 
 export function applyThemeToDom(themeId) {
   const theme = getThemeDefinition(themeId);
+  const isLight = Boolean(theme.scheme === "light" || theme.isLight);
+  const bgHex = theme.chromeBg || (isLight ? "#f8fafc" : "#101114");
+  const fgHex = isLight ? (theme.chromeSymbol || "#0f172a") : "#e6edf3";
+
   if (typeof document !== "undefined" && document.documentElement) {
     const root = document.documentElement;
     root.dataset.theme = theme.id;
+    root.dataset.wbTheme = theme.id;
     root.dataset.colorScheme = theme.scheme;
+    root.dataset.wbScheme = theme.scheme;
     root.style.colorScheme = theme.scheme;
+    root.style.setProperty("--wb-boot-bg", bgHex);
+    root.style.setProperty("--wb-boot-fg", fgHex);
 
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      metaThemeColor.setAttribute("content", theme.chromeBg);
+      metaThemeColor.setAttribute("content", bgHex);
     }
     const metaColorScheme = document.querySelector('meta[name="color-scheme"]');
     if (metaColorScheme) {
@@ -219,12 +238,18 @@ export function applyThemeToDom(themeId) {
     }
   }
 
+  try {
+    globalThis.window?.opensybauAndroid?.setSystemBarTheme?.(bgHex, isLight);
+  } catch {
+    // ignore native Android bridge errors
+  }
+
   if (typeof window !== "undefined" && window.opensybauDesktop?.setTheme) {
     window.opensybauDesktop
       .setTheme({
         id: theme.id,
         scheme: theme.scheme,
-        bgColor: theme.chromeBg,
+        bgColor: bgHex,
         symbolColor: theme.chromeSymbol,
       })
       .catch(() => {});
@@ -237,6 +262,7 @@ export function setSavedThemeId(themeId) {
   const theme = getThemeDefinition(themeId);
   try {
     localStorage.setItem(THEME_STORAGE_KEY, theme.id);
+    localStorage.removeItem(THEME_STORAGE_V2_KEY);
   } catch {
     // ignore storage errors
   }

@@ -1,6 +1,7 @@
 import { $, view } from "../../../shared/state.js";
 import { providerTitle, workflowRoles } from "../../../domain/agent-roles.js";
-import { api, ensureSubagentProfiles, refresh, render, showToast } from "../runtime.js";
+import { api, closeOverlay, ensureSubagentProfiles, refresh, render, showToast } from "../runtime.js";
+import { submitScheduleForm } from "../schedules-modal.js";
 import { normalizedChatSelection } from "../ui-controls.js";
 import {
   clearComposerAttachments,
@@ -13,6 +14,11 @@ import { ensureHomeArenaSlots } from "../pages/chat-page.js";
 import { apiProviderId } from "../pages/settings-page.js";
 import { loadWorkspaceDir } from "../pages/tasks-workspaces-page.js";
 import { loadVaultDir } from "../pages/knowledge-skills-page.js";
+
+function resolveCodexTransport(rawValue, permissionPreset = "workspace-write") {
+  if (rawValue === "app-server" || rawValue === "exec") return rawValue;
+  return permissionPreset === "full-access" ? "exec" : "app-server";
+}
 
 export async function handleSubmit(event) {
   const form = event.target.closest("[data-modal]");
@@ -43,6 +49,12 @@ export async function handleSubmit(event) {
       if (typedText.length < 6 && !attachments.length) throw new Error("Nhập ít nhất 6 ký tự hoặc đính kèm tệp trước khi gửi.");
       object.attachments = await readComposerAttachments(form);
     }
+    if (form.dataset.form === "schedule-save") {
+      await submitScheduleForm(form, data, object);
+      closeOverlay();
+      render();
+      return;
+    }
     if (form.dataset.form === "task-steer") {
       await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}/steer`, { method: "POST", body: JSON.stringify({ turnId: form.dataset.turnId, requestId: form.dataset.requestId, message: object.message }) });
       showToast("Đã gửi chỉ dẫn vào lượt Codex đang chạy.");
@@ -50,6 +62,7 @@ export async function handleSubmit(event) {
       const created = await api("/api/workspaces", { method: "POST", body: JSON.stringify({ path: object.path }) });
       if (created?.workspace?.id) {
         view.homeWorkspaceId = created.workspace.id;
+        view.selectedWorkspaceId = created.workspace.id;
         view.workspaceOverviewMode = false;
         if (view.page === "workspaces") {
           view.selected = created.workspace.id;
@@ -75,8 +88,11 @@ export async function handleSubmit(event) {
       view.taskMenuId = "";
       showToast("Đã đổi tên chat.");
     } else if (form.dataset.form === "task") {
-      const { taskPresetVersion, taskPresetName, appliedPresetId, appliedPresetVersion, dependsOnTaskId, ...taskInput } = object;
+      const { taskPresetVersion, taskPresetName, appliedPresetId, appliedPresetVersion, dependsOnTaskId, codexTransport, ...taskInput } = object;
       const presetRef = appliedPresetId && appliedPresetVersion ? { id: appliedPresetId, version: Number(appliedPresetVersion) } : null;
+      const permPreset = object.permissionPreset || "workspace-write";
+      const resolvedTransport = resolveCodexTransport(codexTransport || view.homeCodexTransport, permPreset);
+      const selectedSkills = Array.isArray(view.homeSelectedSkills) && view.homeSelectedSkills.length ? [...view.homeSelectedSkills] : "auto";
       const task = await api("/api/tasks", {
         method: "POST",
         body: JSON.stringify({
@@ -87,16 +103,26 @@ export async function handleSubmit(event) {
           maxRounds: Number(object.maxRounds) || 2,
           riskLevel: object.riskLevel || "M",
           qaCommand: object.qaCommand || "",
+          codexTransport: resolvedTransport,
+          skillIds: selectedSkills,
           dependsOn: dependsOnTaskId ? [dependsOnTaskId] : [],
         }),
       });
-      view.selected = task.task.id;
-      view.page = "chat";
-      view.chatProvider = task.task.config.chatProvider || task.task.config.roles?.plan?.provider || "codex";
-      view.chatModel = task.task.config.workflow === "chat-only" ? task.task.config.chatModel : task.task.config.roles?.plan?.model || "";
-      view.chatEffort = task.task.config.workflow === "chat-only" ? task.task.config.chatEffort : task.task.config.roles?.plan?.effort || "";
-      view.chatDraft = "";
-      showToast("Task thật đã vào hàng đợi.");
+      if (["tasks", "flows"].includes(view.page)) {
+        if (view.page === "flows") view.selected = task.task.id;
+        showToast("Đã tạo và khởi chạy công việc.");
+      } else {
+        view.selected = task.task.id;
+        view.selectedTaskId = task.task.id;
+        view.page = "chat";
+        view.mobileScreen = "home";
+        view.mpSessionTab = "chat";
+        view.chatProvider = task.task.config.chatProvider || task.task.config.roles?.plan?.provider || "codex";
+        view.chatModel = task.task.config.workflow === "chat-only" ? task.task.config.chatModel : task.task.config.roles?.plan?.model || "";
+        view.chatEffort = task.task.config.workflow === "chat-only" ? task.task.config.chatEffort : task.task.config.roles?.plan?.effort || "";
+        view.chatDraft = "";
+        showToast("Đã tạo và khởi chạy công việc.");
+      }
     } else if (form.dataset.form === "wave-decompose") {
       const rawLines = String(object.waveSpec || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
       const waveMap = new Map();
@@ -155,8 +181,9 @@ export async function handleSubmit(event) {
         const firstTask = result.tasks?.[0];
         if (firstTask) {
           view.selected = firstTask.id;
+          view.selectedTaskId = firstTask.id;
           view.page = "chat";
-          view.mobileScreen = "session";
+          view.mobileScreen = "home";
           view.mpSessionTab = "chat";
           view.chatDraft = "";
           const liveInput = form.querySelector("textarea[name=prompt], textarea[name=message]");
@@ -172,6 +199,8 @@ export async function handleSubmit(event) {
           model: (!isSplitForm && view.homeChatModel) || object.chatModel,
           effort: (!isSplitForm && view.homeChatEffort) || object.chatEffort,
         });
+        const permPreset = view.homePermissionPreset || object.permissionPreset || "workspace-write";
+        const selectedSkills = Array.isArray(view.homeSelectedSkills) && view.homeSelectedSkills.length ? [...view.homeSelectedSkills] : "auto";
         const payload = {
           ...object,
           chatProvider: object.chatProvider || chatSelection.provider,
@@ -181,7 +210,9 @@ export async function handleSubmit(event) {
           prompt: String(object.prompt || "").trim(),
           workflow,
           isolated: Boolean(view.chatSplitReturnWorkspaceId) || data.has("isolated") || Boolean(view.homeIsolated),
-          permissionPreset: view.homePermissionPreset || object.permissionPreset || "workspace-write",
+          permissionPreset: permPreset,
+          codexTransport: resolveCodexTransport(object.codexTransport || view.homeCodexTransport, permPreset),
+          skillIds: selectedSkills,
           planGate: Boolean(view.homePlanGate),
           maxRounds: Number(view.homeMaxRounds) || 2,
           subagentPolicy: view.homeSubagentPolicy,
@@ -193,8 +224,9 @@ export async function handleSubmit(event) {
         const resolvedModel = workflow === "chat-only" ? task.task.config.chatModel : task.task.config.roles?.plan?.model || task.task.config.chatModel || "";
         const resolvedEffort = workflow === "chat-only" ? task.task.config.chatEffort : task.task.config.roles?.plan?.effort || task.task.config.chatEffort || "";
         view.selected = task.task.id;
+        view.selectedTaskId = task.task.id;
         view.page = "chat";
-        view.mobileScreen = "session";
+        view.mobileScreen = "home";
         view.mpSessionTab = "chat";
         view.chatProvider = resolvedProvider;
         view.chatModel = resolvedModel;
@@ -212,6 +244,7 @@ export async function handleSubmit(event) {
           view.chatSplitTaskIds = [...new Set([...(view.chatSplitTaskIds || []), task.task.id])].slice(-4);
           view.chatSplitActiveTaskId = task.task.id;
           view.selected = null;
+          view.selectedTaskId = null;
           view.chatSplitReturnWorkspaceId = "";
           view.chatSplitCreateOpen = false;
           view.chatSplitCreateDraft = "";
@@ -269,7 +302,12 @@ export async function handleSubmit(event) {
       }
       showToast(view.language === "en" ? `Added to chat queue · position ${result.queuedPosition || 1}.` : `Đã thêm vào hàng đợi chat · vị trí ${result.queuedPosition || 1}.`);
     } else if (form.dataset.form === "task-chat-config") {
-      if (object.codexTransport) await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}`, { method: "PATCH", body: JSON.stringify({ codexTransport: object.codexTransport }) });
+      if (object.codexTransport) {
+        view.homeCodexTransport = object.codexTransport;
+        const cfgTask = (view.state?.tasks || []).find((t) => t.id === form.dataset.id);
+        const resolvedTransport = resolveCodexTransport(object.codexTransport, cfgTask?.permissionPreset || "workspace-write");
+        await api(`/api/tasks/${encodeURIComponent(form.dataset.id)}`, { method: "PATCH", body: JSON.stringify({ codexTransport: resolvedTransport }) });
+      }
       view.chatProvider = object.provider;
       view.chatModel = object.model;
       view.chatEffort = object.effort;
@@ -282,12 +320,33 @@ export async function handleSubmit(event) {
       await api("/api/tasks/" + encodeURIComponent(form.dataset.id), { method: "PATCH", body: JSON.stringify({ permissionPreset: object.permissionPreset }) });
       showToast("Đã cập nhật preset quyền của task.");
     } else if (form.dataset.form === "memory") {
-      await api("/api/memory", { method: "POST", body: JSON.stringify(object) });
+      await api("/api/memory", {
+        method: "POST",
+        body: JSON.stringify({
+          title: object.title,
+          content: object.content,
+          workspaceId: object.workspaceId || "all",
+          kind: object.kind || "lesson",
+          pinned: data.has("pinned") || object.kind === "user-profile",
+        }),
+      });
       showToast("Đã lưu ghi nhớ trên máy.");
+    } else if (form.dataset.form === "memory-edit") {
+      await api(`/api/memory/${encodeURIComponent(form.dataset.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: object.title,
+          content: object.content,
+          kind: object.kind || "lesson",
+          pinned: data.has("pinned"),
+        }),
+      });
+      showToast("Đã cập nhật ghi nhớ.");
     } else if (form.dataset.form === "skill-create") {
       await api("/api/skills", { method: "POST", body: JSON.stringify(object) });
-      view.skillsLoaded = false;
-      view.page = "skills";
+      const result = await api("/api/skills").catch(() => ({ skills: view.skills || [] }));
+      view.skills = result.skills || [];
+      view.skillsLoaded = true;
       showToast("Đã tạo skill trên máy.");
     } else if (form.dataset.form === "subagent-profile-create") {
       const created = await api("/api/subagent-profiles", {
@@ -305,8 +364,6 @@ export async function handleSubmit(event) {
       });
       view.subagentProfilesLoaded = false;
       view.subagentProfileDetailsCache = {};
-      view.page = "skills";
-      view.skillsSection = "subagents";
       if (created?.profile?.id) {
         view.selectedSubagentProfileId = created.profile.id;
         view.subagentProfileDetailsCache[created.profile.id] = created.profile;
@@ -315,34 +372,34 @@ export async function handleSubmit(event) {
       showToast("Đã tạo hồ sơ Subagent mới.");
     } else if (form.dataset.form === "vault") {
       await api("/api/settings", { method: "POST", body: JSON.stringify({ vaultPath: object.vaultPath }) });
-      view.page = "knowledge";
       view.vaultDir = "";
       view.vaultPreview = null;
       showToast("Đã kết nối Obsidian vault.");
     } else if (form.dataset.form === "vault-note-create") {
       const created = await api("/api/vault/file", { method: "POST", body: JSON.stringify({ path: object.notePath, content: object.content, createOnly: true }) });
-      $("#overlay").innerHTML = "";
-      view.page = "knowledge";
-      const folder = created.path.includes("/") ? created.path.slice(0, created.path.lastIndexOf("/")) : "";
-      await loadVaultDir(folder, { keepPreview: true });
-      view.vaultPreview = created;
-      view.vaultEditing = false;
-      view.vaultEditingPath = "";
+      closeOverlay();
+      if (view.page === "knowledge") {
+        const folder = created.path.includes("/") ? created.path.slice(0, created.path.lastIndexOf("/")) : "";
+        await loadVaultDir(folder, { keepPreview: true });
+        view.vaultPreview = created;
+        view.vaultEditing = false;
+        view.vaultEditingPath = "";
+      }
       render();
       showToast("Đã tạo ghi chú tri thức mới.");
       return;
     } else if (form.dataset.form === "github-create-pr") {
-      const taskId = form.dataset.id || view.selected || "";
+      const taskId = form.dataset.id || view.selectedTaskId || view.selected || "";
       const res = await api(`/api/tasks/${encodeURIComponent(taskId)}/github-pr`, {
         method: "POST",
         body: JSON.stringify({
           title: object.title,
           body: object.body,
-          base: object.base || "",
+          baseBranch: String(object.baseBranch || object.base || "").trim(),
           draft: data.has("draft"),
         }),
       });
-      $("#overlay").innerHTML = "";
+      closeOverlay();
       await refresh();
       showToast(res.url ? `Đã tạo Pull Request: ${res.url}` : "Đã tạo Pull Request trên GitHub.");
       return;
@@ -351,7 +408,7 @@ export async function handleSubmit(event) {
     } else {
       return;
     }
-    $("#overlay").innerHTML = "";
+    closeOverlay();
     if (form.dataset.splitChatCreate === "true") render();
     else await refresh({ configuration: form.dataset.form === "api-provider" });
     if (form.dataset.form === "workspace" && view.page === "workspaces" && view.selected) {

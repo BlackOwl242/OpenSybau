@@ -25,27 +25,42 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
 
   const isConnectedRemote = Boolean(activeHost?.url);
   const lanList = info?.lanAddresses || [];
+  const boundPort = info?.port || 4173;
+  const detectedHostPorts = lanList
+    .map((item) => item.hostPort || (item.address ? `${item.address}:${boundPort}` : ""))
+    .filter(Boolean);
   const currentPassword = view.connectionPasswordDraft ?? info?.accessPassword ?? info?.launchers?.suggestedPassword ?? "";
-  const hasSavedPassword = Boolean(info?.authRequired || info?.accessPassword);
+  const allowedHostsValue = view.connectionAllowedHostsDraft !== undefined
+    ? view.connectionAllowedHostsDraft
+    : ((info?.allowedHosts && info.allowedHosts.length)
+        ? info.allowedHosts.join(", ")
+        : detectedHostPorts.join(", "));
   const isScanningLan = Boolean(view.scanningLanHosts);
+  const passVisible = Boolean(view.passwordVisible);
+  const clientPassVisible = Boolean(view.remoteClientPassVisible);
 
   const hostPaneHtml = `<div class="device-connect-pane">
     <div class="device-password-box">
       <div class="device-password-head">
         <div>
           <strong>1. Mật khẩu kết nối cho điện thoại</strong>
-          <small>${info?.lanActive ? `Đang mở kết nối mạng LAN (Cổng ${esc(String(info?.port || 4173))}). Điện thoại dùng mật khẩu này hoặc mã kết nối nhanh bên dưới để ghép nối.` : "Nhập mật khẩu và các địa chỉ máy chủ được phép, sau đó lưu để mở kết nối LAN trong bản production."}</small>
+          <small>${info?.lanActive ? `Đang mở kết nối mạng LAN (Cổng ${esc(String(boundPort))}). Điện thoại dùng mật khẩu này hoặc mã kết nối nhanh bên dưới để ghép nối.` : "Nhập mật khẩu và các địa chỉ máy chủ được phép, sau đó lưu để mở kết nối LAN trong bản production."}</small>
         </div>
       </div>
       <div class="device-input-action-row">
         <input
-          type="text"
+          id="remote-access-pass-input"
+          type="${passVisible ? "text" : "password"}"
+          data-preserve-input="true"
           data-connection-password-input
           value="${esc(currentPassword)}"
           placeholder="Nhập mật khẩu (tối thiểu 16 ký tự)…"
           autocomplete="off"
           spellcheck="false"
         >
+        <button type="button" class="button quiet" data-action="toggle-pass-visibility" title="${passVisible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}" aria-label="${passVisible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}">
+          ${icon(passVisible ? "eye-off" : "eye", 14)}
+        </button>
         <button type="button" class="button quiet" data-action="copy-connection-password">
           ${icon("copy", 13)} Sao chép mật khẩu
         </button>
@@ -56,8 +71,8 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
           ${icon("check", 13)} Lưu mật khẩu
         </button>
       </div>
-      <label class="form-note" style="display:grid;gap:6px;margin-top:12px">Địa chỉ máy chủ được phép (ngăn cách bằng dấu phẩy)<input type="text" data-connection-allowed-hosts value="${esc((info?.allowedHosts || []).join(", "))}" placeholder="192.168.1.5:4173" autocomplete="off" spellcheck="false"></label>
-      ${!info?.lanActive && lanList.length ? `<p class="form-note">Địa chỉ trên máy này: ${lanList.map((item) => `<code>${esc(item.hostPort || "")}</code>`).join(", ")}</p>` : ""}
+      <label class="form-note" style="display:grid;gap:6px;margin-top:12px">Địa chỉ máy chủ được phép (ngăn cách bằng dấu phẩy)<input id="remote-host-allowlist-input" type="text" data-preserve-input="true" data-connection-allowed-hosts value="${esc(allowedHostsValue)}" placeholder="192.168.1.5:4173" autocomplete="off" spellcheck="false"></label>
+      ${!info?.lanActive && lanList.length ? `<p class="form-note">Địa chỉ mạng LAN phát hiện trên máy này: ${lanList.map((item) => `<code>${esc(item.hostPort || "")}</code>`).join(", ")}</p>` : ""}
     </div>
 
     <div class="device-qr-panel" ${info?.lanActive ? "" : "hidden"}>
@@ -142,7 +157,7 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
     <div class="device-quick-pair-box">
       <label>Cách 1: Dán mã kết nối nhanh từ máy tính
         <div class="device-input-action-row">
-          <input type="text" data-orca-quick-pair-input placeholder="Dán mã opensybau://connect?... vào đây" value="${esc(draft.quickPair || "")}" autocomplete="off" spellcheck="false">
+          <input id="remote-quick-pair-input" type="text" data-preserve-input="true" data-orca-quick-pair-input placeholder="Dán mã opensybau://connect?... vào đây" value="${esc(draft.quickPair || "")}" autocomplete="off" spellcheck="false">
           <button type="button" class="button quiet" data-action="paste-quick-pair">${icon("clipboard", 13)} Dán</button>
           <button type="button" class="button primary" data-action="apply-quick-pair">${icon("check", 13)} Kết nối ngay</button>
         </div>
@@ -157,20 +172,25 @@ export function renderDeviceConnectSettingsSection({ hidden = false } = {}) {
       </div>
       <div class="modal-grid-2">
         <label>Địa chỉ IP máy tính (PC)
-          <input type="text" data-orca-host-url value="${esc(draft.url || "")}" placeholder="Ví dụ: 192.168.1.15:4173" autocomplete="off" spellcheck="false">
+          <input id="remote-client-url-input" type="text" data-preserve-input="true" data-orca-host-url value="${esc(draft.url || "")}" placeholder="Ví dụ: 192.168.1.15:4173" autocomplete="off" spellcheck="false">
         </label>
         <label>Mật khẩu kết nối trên PC
-          <input type="text" data-orca-host-pass value="${esc(draft.password || "")}" placeholder="Nhập mật khẩu hiển thị trên máy tính" autocomplete="off" spellcheck="false">
+          <div class="device-input-action-row">
+            <input id="remote-client-pass-input" type="${clientPassVisible ? "text" : "password"}" data-preserve-input="true" data-orca-host-pass value="${esc(draft.password || "")}" placeholder="Nhập mật khẩu hiển thị trên máy tính" autocomplete="off" spellcheck="false">
+            <button type="button" class="button quiet" data-action="toggle-client-pass-visibility" title="${clientPassVisible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}" aria-label="${clientPassVisible ? "Ẩn mật khẩu" : "Hiện mật khẩu"}">
+              ${icon(clientPassVisible ? "eye-off" : "eye", 14)}
+            </button>
+          </div>
         </label>
       </div>
       <details class="device-advanced-details">
         <summary>Tùy chọn thêm (Tên gợi nhớ & tài khoản)</summary>
         <div class="modal-grid-2">
           <label>Tên gợi nhớ máy tính
-            <input type="text" data-orca-host-name value="${esc(draft.name || "")}" placeholder="Ví dụ: Máy tính bàn ở nhà" autocomplete="off">
+            <input id="remote-client-name-input" type="text" data-preserve-input="true" data-orca-host-name value="${esc(draft.name || "")}" placeholder="Ví dụ: Máy tính bàn ở nhà" autocomplete="off">
           </label>
           <label>Tài khoản (mặc định: opensybau)
-            <input type="text" data-orca-host-user value="${esc(draft.username || "opensybau")}" placeholder="opensybau" autocomplete="off" spellcheck="false">
+            <input id="remote-client-user-input" type="text" data-preserve-input="true" data-orca-host-user value="${esc(draft.username || "opensybau")}" placeholder="opensybau" autocomplete="off" spellcheck="false">
           </label>
         </div>
       </details>

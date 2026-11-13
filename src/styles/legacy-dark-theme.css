@@ -1,3 +1,4 @@
+@layer legacy {
 :root {
   color-scheme: dark;
   --ink: var(--wb-ink);
@@ -20,7 +21,7 @@ body,
 }
 
 body {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body.launch-home,
@@ -368,18 +369,18 @@ body.launch-home .main {
 }
 
 .skill-search {
-  color: var(--wb-ink) !important;
-  background: var(--wb-raised) !important;
-  border-color: var(--wb-raised) !important;
+  color: var(--wb-ink);
+  background: var(--wb-raised);
+  border-color: var(--wb-raised);
 }
 
 .skill-search > span,
 .skill-search small {
-  color: var(--wb-muted) !important;
+  color: var(--wb-muted);
 }
 
 .skill-search input {
-  color: var(--wb-ink-strong) !important;
+  color: var(--wb-ink-strong);
 }
 
 .skill-manager-row {
@@ -419,7 +420,7 @@ body.launch-home .main {
 .orchestration-activity-head small,
 .orchestration-node-card > header small {
   color: var(--wb-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .orchestration-canvas-head h3,
@@ -470,7 +471,7 @@ body.launch-home .main {
 
 .orchestration-node-card > header > span,
 .orchestration-event > div > header strong {
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .orchestration-node-main h3 {
@@ -540,7 +541,7 @@ body.launch-home .main {
 .orchestration-stage-results summary,
 .orchestration-event-details summary {
   color: var(--wb-accent);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .orchestration-node-details pre,
@@ -823,4 +824,5 @@ button[aria-busy="true"] {
   .task-orchestration-page > .conversation-top {
     align-items: flex-start;
   }
+}
 }

@@ -9,7 +9,7 @@
   },
   "private": true,
   "license": "MIT",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -27,6 +27,7 @@
     "test:ui": "npm run build && node scripts/test-observability-ui.mjs",
     "test:drawers": "node scripts/test-narrow-drawers.mjs",
     "test:mobile": "node scripts/test-mobile-pages.mjs",
+    "test:e2e": "node scripts/test-workbench-e2e.mjs",
     "test": "node scripts/test-200-subagents.mjs && node scripts/test-quota-windows.mjs && node scripts/test-installer-env.cjs && node scripts/test-switch-account.mjs && node scripts/test-subagent-observability.mjs && node scripts/test-chat-queue.mjs && node scripts/test-managed-terminal.mjs && node scripts/test-codex-app-server.mjs && node scripts/test-customization-inventory.mjs && node scripts/test-agent-control.mjs && node scripts/test-workspace-scheduler.mjs",
     "start": "node scripts/run.mjs production",
     "desktop:dev": "npm run build && electron .",
@@ -43,7 +44,6 @@
   },
   "devDependencies": {
     "@fontsource-variable/nunito-sans": "^5.3.0",
-    "@hugeicons/core-free-icons": "^4.3.5",
     "@preact/preset-vite": "^2.10.6",
     "electron": "^42.0.0",
     "electron-builder": "^26.0.12",

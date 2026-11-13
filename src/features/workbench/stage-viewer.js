@@ -1,7 +1,29 @@
 import { esc, icon, view } from "../../shared/state.js";
-import { resolveRemoteUrl } from "../../shared/remote-host.js";
+import * as remoteHost from "../../shared/remote-host.js";
 import { formatCompactBytes, renderCsvTableMarkup, renderMarkdown } from "./markdown.js";
 import { renderHtmlElementCommentPopoverMarkup } from "./html-inspector.js";
+
+const { isMobileCompanionMode, resolveRemoteUrl } = remoteHost;
+
+function rewriteLivePreviewUrl(rawUrl) {
+  const clean = String(rawUrl || "").trim();
+  if (!clean || !isMobileCompanionMode()) return clean;
+  if (typeof remoteHost.resolveCompanionPreviewUrl === "function") {
+    return remoteHost.resolveCompanionPreviewUrl(clean);
+  }
+  try {
+    const activeHost = remoteHost.getActiveRemoteHost?.();
+    if (!activeHost?.url) return clean;
+    const hostUrl = new URL(activeHost.url);
+    const parsed = new URL(clean);
+    if (["localhost", "127.0.0.1", "[::1]"].includes(parsed.hostname.toLowerCase())) {
+      parsed.hostname = hostUrl.hostname;
+      parsed.protocol = hostUrl.protocol;
+      return parsed.href;
+    }
+  } catch {}
+  return clean;
+}
 
 let cachedDockTreePaths = null;
 let cachedDockTreeKey = "";
@@ -379,10 +401,21 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
   const hasDiffContent = Boolean(tab.diffData?.diff && String(tab.diffData.diff).trim());
   const isShowingChanges = Boolean((tab.showChanges || isAllChanges) && mode === "code");
 
+  const isMobile = isMobileCompanionMode();
   const isWebBrowser = isLiveUrl || ((ext === ".html" || ext === ".htm") && mode === "preview");
+  const effectiveLiveUrl = isLiveUrl ? rewriteLivePreviewUrl(tab.liveUrl) : "";
   const rawUrl = isLiveUrl
-    ? `${tab.liveUrl}${tab.liveUrl.includes("?") ? "&" : "?"}_t=${tab.loadedAt || 0}`
+    ? `${effectiveLiveUrl}${effectiveLiveUrl.includes("?") ? "&" : "?"}_t=${tab.loadedAt || 0}`
     : resolveRemoteUrl(`/api/workspaces/${encodeURIComponent(tab.workspaceId)}/raw/${tab.path.split("/").map(encodeURIComponent).join("/")}?${tab.taskId ? `taskId=${encodeURIComponent(tab.taskId)}&` : ""}t=${tab.loadedAt || 0}`);
+  let liveDisplayHost = "localhost";
+  let liveDisplayPath = `/${tab.path}`;
+  if (isLiveUrl && effectiveLiveUrl) {
+    try {
+      const u = new URL(effectiveLiveUrl);
+      liveDisplayHost = u.host;
+      liveDisplayPath = u.pathname + u.search;
+    } catch {}
+  }
   const sizeBadge = file?.size !== undefined ? formatCompactBytes(file.size) : "";
 
   let diffModel = null;
@@ -428,7 +461,7 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
         ${parsedFiles.map((df) => `<section class="codex-all-diff-card">
           <header class="codex-all-diff-head">
             <button type="button" class="codex-all-diff-file-btn" data-action="dock-open-workspace-file" data-workspace-id="${esc(tab.workspaceId)}" data-id="${esc(tab.taskId || "")}" data-path="${esc(df.path)}" data-show-changes="true">
-              <span class="codex-git-badge is-modified">M↓</span>
+              <span class="codex-git-badge is-modified">M</span>
               <strong data-localize-skip="true">${esc(df.path)}</strong>
             </button>
             <small class="codex-all-diff-stats">
@@ -551,10 +584,10 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
             const rowCls = row.type === "add" ? "is-add" : row.type === "del" ? "is-del" : "";
             const lineKey = `code:${tab.id}:${lineNum}:${row.type}`;
             const isCommenting = commentTarget?.key === lineKey;
-            return `<div class="orca-code-row ${rowCls} ${isCommenting ? "is-commenting" : ""}" ${anchorAttr} data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}">
+            return `<div class="orca-code-row stage-code-row ${rowCls} ${isCommenting ? "is-commenting" : ""}" ${anchorAttr} data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}">
               <span class="orca-code-ln">${lineNum}</span>
-              <code class="orca-code-text orca-diff-code" data-localize-skip="true">${highlightSourceLine(row.text, ext)}</code>
-              <span class="diff-comment-trigger">+ Nhận xét</span>
+              <code class="orca-code-text stage-code-text diff-cell-code orca-diff-code" data-localize-skip="true">${highlightSourceLine(row.text, ext)}</code>
+              <span class="diff-comment-trigger">${icon("plus", 11)} <span>Nhận xét</span></span>
             </div>
             ${isCommenting ? `<div class="diff-comment-editor">
               <input type="text" data-stage-line-comment-input placeholder="Nhập yêu cầu cho Agent tại dòng ${lineNum} của ${esc(tab.name)}…" autocomplete="off">
@@ -577,10 +610,10 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
           const lineNum = idx + 1;
           const lineKey = `code:${tab.id}:${lineNum}`;
           const isCommenting = commentTarget?.key === lineKey;
-          return `<div class="orca-code-row ${isCommenting ? "is-commenting" : ""}" data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}">
+          return `<div class="orca-code-row stage-code-row ${isCommenting ? "is-commenting" : ""}" data-action="open-stage-line-comment" data-key="${esc(lineKey)}" data-path="${esc(tab.path)}" data-line="${lineNum}">
             <span class="orca-code-ln">${lineNum}</span>
-            <code class="orca-code-text orca-file-code" data-localize-skip="true">${highlightSourceLine(line, ext)}</code>
-            <span class="diff-comment-trigger">+ Nhận xét</span>
+            <code class="orca-code-text stage-code-text diff-cell-code orca-file-code" data-localize-skip="true">${highlightSourceLine(line, ext)}</code>
+            <span class="diff-comment-trigger">${icon("plus", 11)} <span>Nhận xét</span></span>
           </div>
           ${isCommenting ? `<div class="diff-comment-editor">
             <input type="text" data-stage-line-comment-input placeholder="Nhập yêu cầu cho Agent tại dòng ${lineNum} của ${esc(tab.name)}…" autocomplete="off">
@@ -596,10 +629,10 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
     ? `<div class="orca-viewer-nav is-web-browser">
         <button type="button" class="icon-button orca-viewer-icon" data-action="activate-stage-tab" data-tab-id="chat" title="Quay về cửa sổ Chat">${icon("arrow-left", 13)}</button>
         <button type="button" class="icon-button orca-viewer-icon" data-action="reload-stage-tab" data-tab-id="${esc(tab.id)}" title="Tải lại trang web">${icon("refresh-cw", 12)}</button>
-        <div class="orca-viewer-address is-url-bar" title="${esc(tab.path)}">
+        <div class="orca-viewer-address is-url-bar" title="${esc(effectiveLiveUrl || tab.path)}">
           ${icon("globe", 12)}
-          <span class="orca-address-host">localhost</span>
-          <span class="orca-address-path">/${esc(tab.path)}</span>
+          <span class="orca-address-host" data-localize-skip="true">${esc(liveDisplayHost)}</span>
+          <span class="orca-address-path" data-localize-skip="true">${esc(liveDisplayPath)}</span>
         </div>
       </div>`
     : renderBreadcrumbPillMarkup(tab, activeWs);
@@ -647,17 +680,17 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
                </button>`
         ) : ""}
         ${isShowingChanges && !isAllChanges ? `<button type="button" class="codex-pill-icon-btn is-split-diff ${tab.diffSplit ? "is-active" : ""}" data-action="toggle-stage-diff-split" data-tab-id="${esc(tab.id)}" title="${tab.diffSplit ? "Chuyển sang xem Diff 1 cột (Unified)" : "Chuyển sang xem Diff 2 cột song song (Split)"}">
-          <span class="codex-split-glyph"><i class="is-left"></i><i class="is-right"></i></span>
+          ${icon("columns", 14)}
         </button>` : ""}
         ${!isAllChanges && !isLiveUrl && tab.workspaceId ? `<div class="codex-open-group">
-          <button type="button" class="codex-open-folder-btn" data-action="open-project-folder" data-id="${esc(tab.workspaceId)}" title="Mở thư mục dự án">${icon("folder", 13)}</button>
+          ${isMobile ? "" : `<button type="button" class="codex-open-folder-btn" data-action="open-project-folder" data-id="${esc(tab.workspaceId)}" title="Mở thư mục dự án">${icon("folder", 13)}</button>`}
           <details class="codex-pop-menu is-right is-down">
             <summary class="codex-open-menu-trigger" title="Tùy chọn mở hoặc chỉnh sửa tệp">
               <span>Mở</span>
               ${icon("chevron-down", 11)}
             </summary>
             <div class="codex-pop-card">
-              <button type="button" class="codex-pop-item" data-action="open-project-folder" data-id="${esc(tab.workspaceId)}"><span class="codex-pop-item-main">${icon("folder-open", 13)}<span>Mở trong Explorer</span></span></button>
+              ${isMobile ? "" : `<button type="button" class="codex-pop-item" data-action="open-project-folder" data-id="${esc(tab.workspaceId)}"><span class="codex-pop-item-main">${icon("folder-open", 13)}<span>Mở trong Explorer</span></span></button>`}
               ${hasEditView ? `<button type="button" class="codex-pop-item" data-action="stage-tab-mode" data-tab-id="${esc(tab.id)}" data-mode="edit"><span class="codex-pop-item-main">${icon("square-pen", 13)}<span>Chỉnh sửa trực tiếp</span></span></button>` : ""}
               <button type="button" class="codex-pop-item" data-action="copy-stage-file-path" data-path="${esc(tab.path)}"><span class="codex-pop-item-main">${icon("copy", 13)}<span>Sao chép đường dẫn</span></span></button>
               <button type="button" class="codex-pop-item" data-action="copy-stage-file-content" data-tab-id="${esc(tab.id)}"><span class="codex-pop-item-main">${icon("clipboard", 13)}<span>Sao chép nội dung tệp</span></span></button>
@@ -750,12 +783,12 @@ export function renderDockTreeLevel(node, depth, {
     html += `<li class="orca-tree-item is-file ${isSelected ? "is-selected" : ""} ${statusCls}">
       <button type="button" class="orca-tree-row ${isSelected ? "is-selected" : ""}" style="padding-left:${padLeft + 14}px" data-action="${esc(fileAction)}" ${workspaceId ? `data-workspace-id="${esc(workspaceId)}"` : ""} ${taskId ? `data-id="${esc(taskId)}"` : ""} data-path="${esc(file.path)}" ${openInChangesAttr} title="${esc(file.path)}">
         ${gitInfo
-          ? `<span class="codex-git-badge is-${esc(gitInfo.statusKind || "modified")}" data-localize-skip="true">${esc(gitInfo.badge || "M↓")}</span>`
+          ? `<span class="codex-git-badge is-${esc(gitInfo.statusKind || "modified")}" data-localize-skip="true">${esc(String(gitInfo.badge || "M").replace(/↓/g, "") || "M")}</span>`
           : `<span class="orca-tree-icon">${icon(fIcon, 13)}</span>`}
         <span class="orca-tree-label ${statusCls}" data-localize-skip="true">${esc(file.name)}</span>
       </button>
-      ${showStageButtons && gitInfo ? `<button type="button" class="codex-stage-btn ${gitInfo.unstaged ? "is-stage" : "is-staged"}" data-action="git-toggle-stage" data-stage-action="${gitInfo.unstaged ? "stage" : "unstage"}" data-workspace-id="${esc(workspaceId)}" data-id="${esc(taskId)}" data-path="${esc(file.path)}" title="${gitInfo.unstaged ? "Stage tệp (+)" : "Đã stage · Bấm để bỏ stage"}">
-        <span>${gitInfo.unstaged ? "+" : "·"}</span>
+      ${showStageButtons && gitInfo ? `<button type="button" class="codex-stage-btn ${gitInfo.unstaged ? "is-stage" : "is-staged"}" data-action="git-toggle-stage" data-stage-action="${gitInfo.unstaged ? "stage" : "unstage"}" data-workspace-id="${esc(workspaceId)}" data-id="${esc(taskId)}" data-path="${esc(file.path)}" title="${gitInfo.unstaged ? "Stage tệp" : "Đã stage · Bấm để bỏ stage"}">
+        ${icon(gitInfo.unstaged ? "plus" : "minus", 12)}
       </button>` : ""}
       ${showMention && !showStageButtons ? `<button type="button" class="orca-tree-quick" data-action="mention-drawer-file" data-path="${esc(file.path)}" title="Chèn @${esc(file.path)} vào khung chat">@</button>` : ""}
       ${showVaultMenu && typeof vaultNoteOptionsMenu === "function" ? vaultNoteOptionsMenu(file.path, { showRead: view.vaultViewMode === "graph", showGraph: view.vaultViewMode !== "graph", direction: "down" }) : ""}

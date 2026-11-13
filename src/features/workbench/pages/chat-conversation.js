@@ -1,4 +1,4 @@
-import { $, esc, fmtDate, formatNumber, icon, statuses, tokenCount, view } from "../../../shared/state.js";
+import { $, backContextButtonMarkup, esc, fmtDate, formatNumber, icon, statuses, tokenCount, view } from "../../../shared/state.js";
 import { providerTitle, roleConfig } from "../../../domain/agent-roles.js";
 import { renderMarkdown } from "../markdown.js";
 import { dockFileIconName } from "../stage-viewer.js";
@@ -220,7 +220,7 @@ export function taskInlineToolStream(task) {
             <span class="chat-tool-icon">${icon(iconName, 12)}</span>
             <span class="chat-tool-badge">${esc(badge)}</span>
             <code class="chat-tool-text" title="${esc(rawText)}">${esc(displayCmd)}</code>
-            ${ev.exitCode !== undefined && ev.exitCode !== null ? `<span class="chat-tool-exit ${ev.exitCode === 0 ? "is-ok" : "is-fail"}">${ev.exitCode === 0 ? "✓" : `exit ${ev.exitCode}`}</span>` : ""}
+            ${ev.exitCode !== undefined && ev.exitCode !== null ? `<span class="chat-tool-exit ${ev.exitCode === 0 ? "is-ok" : "is-fail"}">${ev.exitCode === 0 ? icon("check", 11) : `exit ${ev.exitCode}`}</span>` : ""}
           </div>`;
         }).join("")}
       </div>
@@ -451,7 +451,33 @@ export function attachChatOutlineListeners() {
   });
 }
 
-export function taskConversationPage(taskId = view.selected, options = {}) {
+export function taskCliApprovalBannerMarkup(task) {
+  const pending = Array.isArray(task?.pendingApprovals) ? task.pendingApprovals : [];
+  if (!pending.length) return "";
+  return `<section class="cli-approval-banner" role="region" aria-label="Yêu cầu phê duyệt lệnh CLI">
+    ${pending.map((item) => {
+      const commandLabel = item.command || item.reason || item.method || "Thao tác cần bạn xác nhận trước khi tiếp tục";
+      const scopeLabel = item.grantRoot || item.cwd || "";
+      const files = Array.isArray(item.files) ? item.files : [];
+      return `<article class="cli-approval-card" data-key="cli-approval-${esc(task.id)}-${esc(item.id)}">
+        <header class="cli-approval-head">
+          <span class="cli-approval-badge">${icon("alert-triangle", 14)}<span>Chờ phê duyệt CLI</span></span>
+          ${item.tool || item.method ? `<small class="cli-approval-method" data-localize-skip="true">${esc(item.tool || item.method)}</small>` : ""}
+        </header>
+        <code class="cli-approval-cmd" data-localize-skip="true">${esc(commandLabel)}</code>
+        ${scopeLabel ? `<small class="cli-approval-cwd" data-localize-skip="true">${item.grantRoot ? "Thư mục cấp quyền: " : "Thư mục thực thi: "}${esc(scopeLabel)}</small>` : ""}
+        ${files.length ? `<div class="cli-approval-files">${files.slice(0, 4).map((f) => `<details class="cli-approval-file"><summary data-localize-skip="true">${esc(f.path)}</summary><pre data-localize-skip="true">${esc(f.diff || "CLI chưa cung cấp bản xem trước diff.")}</pre></details>`).join("")}</div>` : ""}
+        <div class="cli-approval-actions">
+          <button type="button" class="button primary small" data-action="resolve-cli-approval" data-id="${esc(task.id)}" data-task-id="${esc(task.id)}" data-approval-id="${esc(item.id)}" data-decision="accept">${icon("check", 14)}<span>Cho phép</span></button>
+          <button type="button" class="button secondary small" data-action="resolve-cli-approval" data-id="${esc(task.id)}" data-task-id="${esc(task.id)}" data-approval-id="${esc(item.id)}" data-decision="acceptForSession">${icon("shield-check", 14)}<span>Luôn cho phép phiên này</span></button>
+          <button type="button" class="button danger small" data-action="resolve-cli-approval" data-id="${esc(task.id)}" data-task-id="${esc(task.id)}" data-approval-id="${esc(item.id)}" data-decision="decline">${icon("x", 14)}<span>Từ chối</span></button>
+        </div>
+      </article>`;
+    }).join("")}
+  </section>`;
+}
+
+export function taskConversationPage(taskId = view.selectedTaskId || view.selected, options = {}) {
   const task = view.state.tasks.find((item) => item.id === taskId);
   if (!task) return "";
   const workflow = task.config?.workflow || "codex-antigravity";
@@ -651,8 +677,22 @@ export function taskConversationPage(taskId = view.selected, options = {}) {
   const composerMarkup = options.locked
     ? `<div class="multi-chat-locked">Chat này chưa có worktree riêng để chạy song song an toàn. Tạo chat mới với “Tách Git worktree riêng”.</div>`
     : `<form class="chat-composer" data-modal data-form="task-chat" data-id="${esc(task.id)}">${composerAttachmentsMarkup(`task:${task.id}`)}<div class="composer-input-wrap"><textarea name="message" class="chat-input" maxlength="50000" rows="1" placeholder="${busy || queuedTurns.length || hasActiveChatMessage ? (view.language === "en" ? "Send another message; it will wait in the queue…" : "Gửi tin nhắn tiếp theo; agent sẽ xử lý theo hàng đợi…") : "Nhắn tiếp trong cuộc trò chuyện này…"}">${esc(options.draft ?? view.chatDraft)}</textarea><div class="mention-popover" data-mention-popover hidden></div></div><input type="hidden" name="provider" value="${esc(provider)}"><input type="hidden" name="model" value="${esc(model?.id || "")}"><input type="hidden" name="effort" value="${esc(effort)}"><footer class="chat-composer-controls"><div class="composer-add-wrap">${composerAddMenu("message", task.id)}${composerPermissionMenuMarkup(task.permissionPreset || "workspace-write", "task", task.id)}${composerSubagentMenuMarkup(task.subagentPolicy, { scope: "task", taskId: task.id, workspaceId: task.workspaceId, isolated: Boolean(task.isolated) })}</div><div class="home-composer-actions"><div class="codex-inline-model-bar"><details class="codex-pop-menu is-up is-right" data-pop-id="task-model-${esc(task.id)}"><summary class="codex-inline-trigger is-model" title="Chọn Agent & Model"><span>${esc(activeTaskModelLabel)}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-model-list"><div class="codex-pop-head">Agent & Model</div><div class="codex-pop-scroll">${taskAgentItems.join("")}</div></div></details><details class="codex-pop-menu is-up is-right" data-pop-id="task-effort-${esc(task.id)}"><summary class="codex-inline-trigger is-effort" title="Mức suy luận"><span>${esc(formatEffortLabel(effort))}</span>${icon("chevron-down", 12)}</summary><div class="codex-pop-card is-effort-list"><div class="codex-pop-head">Mức suy luận</div><div class="codex-pop-scroll">${activeEfforts.map((ef) => `<button type="button" class="codex-pop-item ${ef === effort ? "is-selected" : ""}" data-action="pick-task-chat-effort" data-id="${esc(task.id)}" data-effort="${esc(ef)}"><span class="codex-pop-item-main"><span>${esc(formatEffortLabel(ef))}</span></span>${ef === effort ? icon("check", 13) : ""}</button>`).join("")}</div></div></details></div>${busy ? `<button class="button ghost chat-send-button chat-stop-button" type="button" data-action="stop-task" data-id="${esc(task.id)}" aria-label="${view.language === "en" ? "Stop" : "Dừng"}" title="${view.language === "en" ? "Stop task" : "Dừng tác vụ"}">${icon("square", 13)}</button><button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>` : `<button class="button primary chat-send-button" type="submit" aria-label="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" title="${view.language === "en" ? "Send message to queue" : "Gửi tin nhắn vào hàng đợi"}" ${canSend ? "" : "disabled"}>${icon("arrow-up-right", 16)}</button>`}</div></footer></form>`;
+  const approvalBannerMarkup = taskCliApprovalBannerMarkup(task);
+  const backBtnMarkup = !options.splitPane ? backContextButtonMarkup() : "";
+  const canDistillOrCompact = !options.splitPane && !busy && ((task.chatMessages?.length || 0) >= 2 || Boolean(task.implementation || task.plan || task.review));
+  const sessionToolsBar = (backBtnMarkup || canDistillOrCompact)
+    ? `<div class="chat-session-context-bar">
+        <div class="chat-session-context-left">${backBtnMarkup}</div>
+        ${canDistillOrCompact ? `<div class="chat-session-context-actions">
+          <button type="button" class="btn ghost sm" data-action="compact-task-chat" data-id="${esc(task.id)}" title="Nén bớt lịch sử hội thoại dài để tiết kiệm ngữ cảnh">${icon("minimize-2", 14)}<span>Nén ngữ cảnh</span></button>
+          <button type="button" class="btn ghost sm" data-action="distill-task-memory" data-id="${esc(task.id)}" title="Đúc kết bài học hoặc quy tắc từ phiên này vào Bộ nhớ dự án">${icon("sparkles", 14)}<span>Đúc kết Bài học</span></button>
+          <button type="button" class="btn ghost sm" data-action="distill-task-skill" data-id="${esc(task.id)}" title="Đúc kết quy trình giải quyết thành Kỹ năng tái sử dụng">${icon("book-open-text", 14)}<span>Đúc kết Kỹ năng</span></button>
+        </div>` : ""}
+      </div>`
+    : "";
   return `<section class="task-conversation-page is-unified-chat ${options.splitPane ? "is-split-pane" : ""}" aria-label="Cuộc trò chuyện">
       <section class="task-chat-pane conversation-chat-pane">
+        ${sessionToolsBar}
         ${outlineMarkup}
         <div class="chat-thread" id="${threadId}" data-task-id="${esc(task.id)}" aria-live="polite">
           <div class="chat-thread-stream">
@@ -663,6 +703,7 @@ export function taskConversationPage(taskId = view.selected, options = {}) {
             ${busy && !messages.some((message) => message.status === "running") ? `<div class="chat-empty-note">${esc(taskProgress(task))}…</div>` : ""}
           </div>
         </div>
+        ${approvalBannerMarkup}
         ${composerMarkup}
       </section>
   </section>`;

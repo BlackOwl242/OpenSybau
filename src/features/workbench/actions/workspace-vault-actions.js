@@ -191,7 +191,18 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
     showToast("Đã cập nhật hạn mức Codex, Antigravity và Claude Code.");
     return true;
   }
+  if (action === "toggle-pass-visibility") {
+    view.passwordVisible = !view.passwordVisible;
+    render();
+    return true;
+  }
+  if (action === "toggle-client-pass-visibility") {
+    view.remoteClientPassVisible = !view.remoteClientPassVisible;
+    render();
+    return true;
+  }
   if (action === "open-orca-connect") {
+    if (view.page !== "settings") view.navOriginPage = view.page;
     view.page = "settings";
     view.settingsSection = "devices";
     view.selected = null;
@@ -339,8 +350,12 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
       });
       view.connectionInfo = probe.info || view.connectionInfo;
       view.streamConnected = true;
+      view.page = "chat";
+      view.mobileScreen = "home";
+      view.navOriginPage = null;
       connectEventStream();
       await refresh({ configuration: true });
+      render();
       showToast(`Đã kết nối tới ${saved.name} (${probe.latencyMs}ms)!`);
       return true;
     }
@@ -386,12 +401,16 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
     });
     view.connectionInfo = probe.info || view.connectionInfo;
     view.streamConnected = true;
+    view.page = "chat";
+    view.mobileScreen = "home";
+    view.navOriginPage = null;
     connectEventStream();
     await refresh({ configuration: true });
+    render();
     showToast(`Đã kết nối tới máy chủ ${saved.name} (${probe.latencyMs}ms)!`);
     return true;
   }
-  if (action === "connect-saved-host") {
+  if (action === "connect-saved-host" || action === "connect-remote-host") {
     const target = getSavedRemoteHosts().find((item) => item.id === id);
     if (!target) return true;
     const probe = await probeRemoteHost(target);
@@ -410,8 +429,12 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
     });
     view.connectionInfo = probe.info || view.connectionInfo;
     view.streamConnected = true;
+    view.page = "chat";
+    view.mobileScreen = "home";
+    view.navOriginPage = null;
     connectEventStream();
     await refresh({ configuration: true });
+    render();
     showToast(`Đã chuyển sang máy chủ ${saved.name} (${probe.latencyMs}ms)!`);
     return true;
   }
@@ -625,7 +648,21 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
     view.projectMenuId = ""; await refresh(); showToast(`${result.archived} chat đã chuyển vào Đã lưu trữ.`);
     return true;
   }
-  if (action === "open-workspace") { await loadWorkspaceDir(id, ""); return true; }
+  if (action === "open-workspace" || action === "pick-workspace") {
+    view.selectedWorkspaceId = id;
+    view.homeWorkspaceId = id;
+    if (button?.dataset?.openChat === "true") {
+      if (view.page !== "chat") view.navOriginPage = view.page;
+      view.page = "chat";
+      view.selected = view.selectedTaskId || null;
+      render();
+      return true;
+    }
+    await loadWorkspaceDir(id, "");
+    const pickedWs = (view.state?.workspaces || []).find((w) => w.id === id);
+    if (pickedWs) showToast(`Đã chọn dự án làm việc: ${pickedWs.name}`);
+    return true;
+  }
   if (action === "back-projects") { view.workspaceOverviewMode = true; view.activeStageTabId = "chat"; view.page = "workspaces"; render(); return true; }
   if (action === "workspace-dir") { await loadWorkspaceDir(view.selected, button.dataset.path || ""); return true; }
   if (action === "workspace-up") { const parent = view.workspaceDir.split("/").filter(Boolean).slice(0, -1).join("/"); await loadWorkspaceDir(view.selected, parent); return true; }
@@ -910,11 +947,29 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
       await api(`/api/workspaces/${encodeURIComponent(id)}`, { method: "DELETE" });
       view.projectMenuId = "";
       if (view.homeWorkspaceId === id) view.homeWorkspaceId = "";
+      if (view.selectedWorkspaceId === id) view.selectedWorkspaceId = null;
       if (view.page === "workspaces" && view.selected === id) {
         view.selected = null; view.workspaceDir = ""; view.workspaceEntries = []; view.workspaceLoadedKey = ""; view.filePreview = null;
       }
       await refresh();
     }
+    return true;
+  }
+  if (action === "toggle-pin-memory") {
+    const mem = (view.state?.memories || []).find((m) => m.id === id);
+    if (!mem) return true;
+    const nextPinned = !mem.pinned;
+    await api(`/api/memory/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ pinned: nextPinned }),
+    });
+    await refresh();
+    showToast(nextPinned ? "Đã ghim quy tắc vào ngữ cảnh ưu tiên (Tier-1 USER.md)." : "Đã bỏ ghim quy tắc khỏi Tier-1.");
+    return true;
+  }
+  if (action === "edit-memory") {
+    const mem = (view.state?.memories || []).find((m) => m.id === id);
+    if (mem) showMemoryModal(mem);
     return true;
   }
   if (action === "delete-memory") {

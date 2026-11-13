@@ -116,6 +116,33 @@ export function createTaskRunnerService({
         task.worktreeBranch = branchName;
         task.worktreeBaseHead = baseHead.code === 0 ? (baseHead.stdout || "").trim() : null;
         task.worktreeCleaned = false;
+        try {
+          const wtConfigPath = resolve(repoRoot, ".opensybau", "worktree.json");
+          if (existsSync(wtConfigPath)) {
+            const wtCfg = JSON.parse(await fs.readFile(wtConfigPath, "utf8"));
+            const copyFiles = Array.isArray(wtCfg?.copyFiles) ? wtCfg.copyFiles.slice(0, 24) : [];
+            for (const relItem of copyFiles) {
+              const safeRel = safeRelativePath(String(relItem || ""));
+              if (!safeRel) continue;
+              const srcFile = resolve(repoRoot, safeRel);
+              const dstFile = resolve(worktreeRoot, safeRel);
+              if (within(repoRoot, srcFile) && within(worktreeRoot, dstFile) && existsSync(srcFile)) {
+                const st = await fs.lstat(srcFile).catch(() => null);
+                if (st?.isFile() && st.size <= 2 * 1024 * 1024) {
+                  await fs.mkdir(resolve(dstFile, ".."), { recursive: true });
+                  await fs.copyFile(srcFile, dstFile);
+                }
+              }
+            }
+            if (wtCfg?.linkNodeModules === true) {
+              const srcNm = resolve(repoRoot, "node_modules");
+              const dstNm = resolve(worktreeRoot, "node_modules");
+              if (existsSync(srcNm) && !existsSync(dstNm)) {
+                await fs.symlink(srcNm, dstNm, process.platform === "win32" ? "junction" : "dir").catch(() => {});
+              }
+            }
+          }
+        } catch {}
         const selectedSubdirectory = relative(repoRoot, info.path);
         cwd = selectedSubdirectory ? resolve(worktreeRoot, selectedSubdirectory) : worktreeRoot;
         assertTaskActive(task);

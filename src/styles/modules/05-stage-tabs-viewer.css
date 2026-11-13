@@ -6,26 +6,27 @@
   --stage-split-ratio: 48%;
 }
 
-.wb-topbar.orca-tabbar {
-  display: flex !important;
-  align-items: stretch !important;
-  justify-content: space-between !important;
-  height: 36px !important;
-  min-height: 36px !important;
-  padding: 0 8px 0 0 !important;
-  background: var(--wb-code-bg) !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6.5%, transparent) !important;
-  gap: 8px !important;
+html .wb-topbar.orca-tabbar,
+html.desktop-glass .wb-topbar.orca-tabbar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 8px 0 0;
+  background: var(--wb-code-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6.5%, transparent);
+  gap: 8px;
   user-select: none;
 }
 
 .orca-tabbar-scroll {
-  display: flex !important;
-  align-items: stretch !important;
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
 }
 
@@ -35,41 +36,41 @@
 
 .orca-tab {
   position: relative;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 7px !important;
-  height: 100% !important;
-  max-width: 220px !important;
-  min-width: 96px !important;
-  padding: 0 12px !important;
-  background: transparent !important;
-  border: 0 !important;
-  border-right: 1px solid color-mix(in srgb, var(--wb-tint) 5.5%, transparent) !important;
-  border-top: 2px solid transparent !important;
-  color: var(--wb-muted) !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 100%;
+  max-width: 220px;
+  min-width: 96px;
+  padding: 0 12px;
+  background: transparent;
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--wb-tint) 5.5%, transparent);
+  border-top: 2px solid transparent;
+  color: var(--wb-muted);
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
   flex: 0 0 auto;
 }
 
 .orca-tab:hover {
-  background: color-mix(in srgb, var(--wb-tint) 3%, transparent) !important;
-  color: var(--wb-ink) !important;
+  background: color-mix(in srgb, var(--wb-tint) 3%, transparent);
+  color: var(--wb-ink);
 }
 
 .orca-tab.is-active {
-  background: var(--wb-panel-header) !important;
-  color: var(--wb-ink-strong) !important;
-  border-top-color: var(--wb-ink-strong) !important;
-  font-weight: 560 !important;
+  background: var(--wb-panel-header);
+  color: var(--wb-ink-strong);
+  border-top-color: var(--wb-ink-strong);
+  font-weight: 560;
 }
 
 .orca-tab.is-split-pinned {
-  background: color-mix(in srgb, var(--wb-tint) 4%, transparent) !important;
-  color: var(--wb-ink) !important;
-  border-top-color: color-mix(in srgb, var(--wb-tint) 45%, transparent) !important;
+  background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
+  color: var(--wb-ink);
+  border-top-color: color-mix(in srgb, var(--wb-tint) 45%, transparent);
 }
 
 .orca-tab-title {
@@ -87,7 +88,7 @@
   border-radius: 4px;
   background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
   color: var(--wb-ink);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -141,57 +142,57 @@
 }
 
 .orca-tabbar-actions {
-  display: flex !important;
-  align-items: center !important;
-  gap: 4px !important;
-  flex: 0 0 auto !important;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
 }
 
 .wb-top-icon.is-active {
-  background: color-mix(in srgb, var(--wb-tint) 12%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
+  background: color-mix(in srgb, var(--wb-tint) 12%, transparent);
+  color: var(--wb-ink-strong);
 }
 
 /* Stage Split-Pane & Full Tab Stage */
 #content.is-orca-tab-stage {
-  padding: 0 !important;
-  overflow: hidden !important;
-  display: flex !important;
-  flex-direction: column !important;
-  height: 100% !important;
-  min-height: 0 !important;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
 }
 
 .orca-stage-split-layout {
-  display: grid !important;
-  grid-template-columns: minmax(280px, var(--stage-split-ratio, 48%)) 10px minmax(320px, 1fr) !important;
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  overflow: hidden !important;
+  display: grid;
+  grid-template-columns: minmax(280px, var(--stage-split-ratio, 48%)) 10px minmax(320px, 1fr);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .orca-stage-pane {
-  display: flex !important;
-  flex-direction: column !important;
-  min-width: 0 !important;
-  min-height: 0 !important;
-  height: 100% !important;
-  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .orca-stage-pane.is-primary {
-  overflow-y: auto !important;
-  background: var(--wb-panel-header) !important;
+  overflow-y: auto;
+  background: var(--wb-panel-header);
 }
 
 .orca-stage-pane.is-primary > .task-conversation-page {
-  height: 100% !important;
+  height: 100%;
 }
 
 .orca-stage-pane.is-primary > .command-home {
-  min-height: 100% !important;
-  padding: 20px 16px !important;
+  min-height: 100%;
+  padding: 20px 16px;
 }
 
 .orca-stage-split-resizer {
@@ -201,7 +202,7 @@
   background: color-mix(in srgb, var(--wb-tint) 5.5%, transparent);
   cursor: col-resize;
   transition: background 120ms ease;
-  z-index: 15;
+  z-index: var(--wb-z-sticky);
 }
 
 .orca-stage-split-resizer:hover {
@@ -210,13 +211,13 @@
 
 /* File Viewer & Sub-Toolbar */
 .orca-file-viewer {
-  display: flex !important;
-  flex-direction: column !important;
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  background: var(--wb-code-bg) !important;
-  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: var(--wb-code-bg);
+  overflow: hidden;
 }
 
 .orca-viewer-toolbar {
@@ -241,15 +242,15 @@
 }
 
 .orca-viewer-icon {
-  width: 26px !important;
-  height: 26px !important;
-  border-radius: 6px !important;
-  color: var(--wb-muted) !important;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--wb-muted);
 }
 
 .orca-viewer-icon:hover {
-  background: color-mix(in srgb, var(--wb-tint) 7%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
+  background: color-mix(in srgb, var(--wb-tint) 7%, transparent);
+  color: var(--wb-ink-strong);
 }
 
 .orca-viewer-address {
@@ -271,7 +272,7 @@
   border-radius: 4px;
   background: color-mix(in srgb, var(--wb-tint) 9%, transparent);
   color: var(--wb-ink-strong);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.03em;
 }
@@ -285,13 +286,13 @@
   font-family: var(--wb-font-sans);
   font-size: 12px;
   color: var(--wb-ink);
-  background: transparent !important;
-  padding: 0 !important;
+  background: transparent;
+  padding: 0;
 }
 
 .orca-address-size {
   flex: 0 0 auto;
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--wb-subtle);
 }
 
@@ -590,8 +591,8 @@
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--wb-ink);
-  background: transparent !important;
-  padding: 0 !important;
+  background: transparent;
+  padding: 0;
 }
 
 .orca-code-row .diff-comment-trigger {
@@ -612,14 +613,14 @@
 .orca-data-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
+  color: var(--wb-text-primary);
 }
 
 .orca-data-table th,
 .orca-data-table td {
-  padding: 7px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent);
-  border-right: 1px solid color-mix(in srgb, var(--wb-tint) 4%, transparent);
+  padding: 8px 12px;
+  border: 1px solid var(--wb-border-default);
   text-align: left;
   white-space: nowrap;
 }
@@ -627,10 +628,20 @@
 .orca-data-table th {
   position: sticky;
   top: 0;
-  background: var(--wb-panel-header);
-  color: var(--wb-ink-strong);
+  background: var(--wb-surface-2);
+  color: var(--wb-text-primary);
+  font-size: 12px;
   font-weight: 600;
-  z-index: 2;
+  z-index: var(--wb-z-base);
+}
+
+.orca-data-table tbody tr:hover {
+  background: var(--wb-surface-hover);
+}
+
+.orca-data-table :is([data-align="right"], .is-numeric, .num) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .orca-data-table .is-row-num {
@@ -688,7 +699,7 @@
 .conversation-task-id,
 .orchestration-node-details time,
 .orchestration-event time {
-  font-family: var(--wb-font-sans) !important;
+  font-family: var(--wb-font-sans);
 }
 
 .wb-statusbar,
@@ -709,55 +720,55 @@
 .wb-topbar.orca-tabbar,
 .orca-dock-topbar,
 .kb-pane-head {
-  height: 40px !important;
-  min-height: 40px !important;
-  max-height: 40px !important;
-  flex: 0 0 40px !important;
-  box-sizing: border-box !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent) !important;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  flex: 0 0 40px;
+  box-sizing: border-box;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent);
 }
 
 .orca-dock-tab {
-  height: 39px !important;
+  height: 39px;
 }
 
 .orca-tab {
-  height: 39px !important;
-  max-width: 210px !important;
-  min-width: 88px !important;
-  padding: 0 11px !important;
+  height: 39px;
+  max-width: 210px;
+  min-width: 88px;
+  padding: 0 11px;
 }
 
 /* 2. Row 2 Alignment: Lock File Viewer Toolbar, Stage Topbar & Right Dock Subheader to exact 34px single-line height */
 .orca-viewer-toolbar,
 .orca-dock-subheader,
 .kb-stage-topbar {
-  height: 34px !important;
-  min-height: 34px !important;
-  max-height: 34px !important;
-  flex: 0 0 34px !important;
-  padding: 0 12px !important;
-  flex-wrap: nowrap !important;
-  box-sizing: border-box !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
-  background: var(--wb-panel-header) !important;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  flex: 0 0 34px;
+  padding: 0 12px;
+  flex-wrap: nowrap;
+  box-sizing: border-box;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  background: var(--wb-panel-header);
 }
 
 .orca-viewer-nav {
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  flex: 1 1 auto !important;
-  min-width: 0 !important;
-  overflow: hidden !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .orca-viewer-address.is-url-bar {
-  height: 24px !important;
-  padding: 0 8px !important;
-  border-radius: 5px !important;
-  background: color-mix(in srgb, var(--wb-tint) 4%, transparent) !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent) !important;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent);
 }
 
 .orca-viewer-file-meta {
@@ -804,39 +815,39 @@
 }
 
 .orca-viewer-actions {
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  flex: 0 0 auto !important;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
 }
 
 .orca-mode-switch {
-  padding: 2px !important;
-  border-radius: 6px !important;
+  padding: 2px;
+  border-radius: 6px;
 }
 
 .orca-mode-btn {
-  height: 22px !important;
-  padding: 0 8px !important;
-  font-size: 11px !important;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
 }
 
 .orca-viewer-action-btn {
-  height: 24px !important;
-  padding: 0 8px !important;
-  font-size: 11px !important;
-  white-space: nowrap !important;
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 /* 3. Clean Full-Width Inline Line Comment Editor & Diff Rows */
 .diff-line-row {
-  display: grid !important;
-  grid-template-columns: 52px minmax(0, 1fr) auto !important;
-  align-items: baseline !important;
-  padding: 1px 12px 1px 0 !important;
-  font-family: var(--wb-font-mono) !important;
-  font-size: 12.5px !important;
-  line-height: 1.55 !important;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: baseline;
+  padding: 1px 12px 1px 0;
+  font-family: var(--wb-font-mono);
+  font-size: 12.5px;
+  line-height: 1.55;
   cursor: pointer;
 }
 
@@ -873,7 +884,7 @@
 
 .diff-line-row .diff-comment-trigger {
   opacity: 0;
-  font-family: var(--wb-font-sans) !important;
+  font-family: var(--wb-font-sans);
   font-size: 11px;
   color: var(--wb-muted);
   padding: 1px 6px;
@@ -886,89 +897,89 @@
 }
 
 .diff-comment-editor {
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  margin: 6px 16px 8px 52px !important;
-  padding: 8px 10px !important;
-  border-radius: 8px !important;
-  background: var(--wb-panel) !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 12%, transparent) !important;
-  font-family: var(--wb-font-sans) !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 16px 8px 52px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--wb-panel);
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 12%, transparent);
+  font-family: var(--wb-font-sans);
 }
 
 .orca-live-floating-bar,
 .orca-diff-banner {
-  display: none !important;
+  display: none;
 }
 
 .diff-comment-editor input {
-  flex: 1 1 auto !important;
-  min-width: 180px !important;
-  height: 28px !important;
-  padding: 0 10px !important;
-  border-radius: 6px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
-  background: var(--wb-code-bg) !important;
-  color: var(--wb-ink-strong) !important;
-  font-family: var(--wb-font-sans) !important;
-  font-size: 12px !important;
-  outline: none !important;
+  flex: 1 1 auto;
+  min-width: 180px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  background: var(--wb-code-bg);
+  color: var(--wb-ink-strong);
+  font-family: var(--wb-font-sans);
+  font-size: 12px;
+  outline: none;
 }
 
 .diff-comment-editor input:focus {
-  border-color: color-mix(in srgb, var(--wb-tint) 28%, transparent) !important;
+  border-color: color-mix(in srgb, var(--wb-tint) 28%, transparent);
 }
 
 /* 4. Split View Anti-Clipping & Compact Composer Controls */
 .codex-rail-pill {
-  max-width: 200px !important;
-  white-space: nowrap !important;
+  max-width: 200px;
+  white-space: nowrap;
 }
 
 .codex-rail-pill > span {
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  max-width: 155px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 155px;
 }
 
 .orca-stage-pane.is-primary {
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .orca-stage-pane.is-primary .command-home {
-  width: 100% !important;
-  max-width: 100% !important;
-  padding: 20px 14px !important;
-  box-sizing: border-box !important;
+  width: 100%;
+  max-width: 100%;
+  padding: 20px 14px;
+  box-sizing: border-box;
 }
 
 .orca-stage-pane.is-primary .codex-home-stage,
 .orca-stage-pane.is-primary .codex-composer-shell {
-  width: 100% !important;
-  max-width: 100% !important;
-  box-sizing: border-box !important;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .orca-stage-pane.is-primary .codex-context-rail {
-  gap: 8px !important;
-  padding: 6px 2px 0 !important;
-  flex-wrap: wrap !important;
+  gap: 8px;
+  padding: 6px 2px 0;
+  flex-wrap: wrap;
 }
 
 .orca-stage-pane.is-primary .codex-rail-pill {
-  max-width: 150px !important;
+  max-width: 150px;
 }
 
 .orca-stage-pane.is-primary .codex-rail-pill > span {
-  max-width: 112px !important;
+  max-width: 112px;
 }
 
 .orca-stage-pane.is-primary .codex-pop-card {
-  min-width: 190px !important;
-  max-width: min(260px, calc(100vw - 320px)) !important;
+  min-width: 190px;
+  max-width: min(260px, calc(100vw - 320px));
 }
 
 /* ============================================================================
@@ -1001,20 +1012,25 @@ textarea::placeholder,
 .brand-symbol,
 .repo-mark,
 .workflow-node-mark {
-  font-family: var(--wb-font-sans) !important;
+  font-family: var(--wb-font-sans);
 }
 
 /* Fix Memory Modal textarea height (don't inherit 340px skill editor height) */
 .modal[data-form="memory"] textarea[name="content"] {
-  min-height: 110px !important;
-  font-family: var(--wb-font-sans) !important;
-  font-size: 13px !important;
-  line-height: 1.55 !important;
+  min-height: 110px;
+  font-family: var(--wb-font-sans);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
-/* Ensure inline <code> outside code blocks uses the clean system UI font */
+/* Inline <code> outside <pre> uses monospace + subtle tinted pill */
 :not(pre) > code {
-  font-family: var(--wb-font-sans) !important;
+  font-family: var(--wb-font-mono);
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--wb-surface-2);
+  border: 1px solid var(--wb-border-subtle);
 }
 
 /* Inline workspace scope filter pills on Memory page */
@@ -1036,7 +1052,7 @@ textarea::placeholder,
   border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
   background: color-mix(in srgb, var(--wb-tint) 3%, transparent);
   color: var(--wb-muted);
-  font-family: var(--wb-font-sans) !important;
+  font-family: var(--wb-font-sans);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -1059,12 +1075,12 @@ textarea::placeholder,
    ============================================================================ */
 .orca-viewer-toolbar.is-codex-pill-bar {
   position: relative;
-  z-index: 25;
-  overflow: visible !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 8px !important;
+  z-index: var(--wb-z-sticky);
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .codex-breadcrumb-pill {
@@ -1105,11 +1121,11 @@ textarea::placeholder,
 }
 
 .codex-viewer-pills {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  flex-shrink: 0 !important;
-  overflow: visible !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  overflow: visible;
 }
 
 .codex-viewer-pills svg,
@@ -1237,10 +1253,10 @@ textarea::placeholder,
 }
 
 .codex-diff-base-card {
-  min-width: 236px !important;
-  padding: 6px !important;
-  border-radius: 11px !important;
-  z-index: 60 !important;
+  min-width: 236px;
+  padding: 6px;
+  border-radius: 11px;
+  z-index: var(--wb-z-popover);
 }
 
 .codex-diff-base-option {
@@ -1318,17 +1334,17 @@ textarea::placeholder,
 .codex-diff-branch-search input {
   flex: 1;
   min-width: 0;
-  border: 0 !important;
-  background: transparent !important;
-  color: var(--wb-ink-strong) !important;
-  font-size: 11.5px !important;
-  outline: none !important;
-  padding: 0 !important;
+  border: 0;
+  background: transparent;
+  color: var(--wb-ink-strong);
+  font-size: 11.5px;
+  outline: none;
+  padding: 0;
 }
 
 .codex-diff-branch-group-label {
   padding: 2px 4px 0;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--wb-muted);
 }
@@ -1540,7 +1556,7 @@ textarea::placeholder,
   top: 10px;
   float: right;
   margin: 8px 14px 0 0;
-  z-index: 8;
+  z-index: var(--wb-z-base);
   width: 28px;
   height: 28px;
   padding: 0;
@@ -1766,8 +1782,8 @@ textarea::placeholder,
 
 @container file-viewer (max-width: 680px) {
   .orca-viewer-toolbar.is-codex-pill-bar {
-    padding: 0 8px !important;
-    gap: 6px !important;
+    padding: 0 8px;
+    gap: 6px;
   }
 
   .codex-breadcrumb-pill {
@@ -1777,28 +1793,28 @@ textarea::placeholder,
 
   .codex-bc-seg,
   .codex-bc-sep {
-    display: none !important;
+    display: none;
   }
 
   .codex-viewer-pills {
-    gap: 4px !important;
+    gap: 4px;
   }
 
   .codex-pill-btn.is-mode-toggle {
-    width: 26px !important;
-    min-width: 26px !important;
-    height: 26px !important;
-    padding: 0 !important;
-    justify-content: center !important;
-    gap: 0 !important;
+    width: 26px;
+    min-width: 26px;
+    height: 26px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
   }
 
   .codex-pill-btn.is-mode-toggle > span {
-    display: none !important;
+    display: none;
   }
 
   .codex-open-folder-btn {
-    display: none !important;
+    display: none;
   }
 
   .codex-open-menu-trigger {
@@ -1815,12 +1831,12 @@ textarea::placeholder,
   .orca-tabbar-actions [data-action="toggle-stage-split"],
   .orca-tabbar-actions [data-action="toggle-chat-drawer"],
   .orca-tabbar-actions [data-action="open-chat-split"] {
-    display: none !important;
+    display: none;
   }
 
   .orca-viewer-toolbar.is-codex-pill-bar {
-    padding: 0 6px !important;
-    gap: 4px !important;
+    padding: 0 6px;
+    gap: 4px;
   }
 
   .codex-breadcrumb-pill {
@@ -1833,14 +1849,14 @@ textarea::placeholder,
 
   .codex-bc-seg,
   .codex-bc-sep {
-    display: none !important;
+    display: none;
   }
 
   .codex-viewer-pills {
-    flex: 1 1 auto !important;
-    justify-content: flex-end !important;
-    gap: 4px !important;
-    min-width: 0 !important;
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    gap: 4px;
+    min-width: 0;
   }
 
   .codex-pill-btn {
@@ -1850,24 +1866,24 @@ textarea::placeholder,
   }
 
   .codex-pill-btn.is-mode-toggle {
-    width: 26px !important;
-    min-width: 26px !important;
-    height: 26px !important;
-    padding: 0 !important;
-    justify-content: center !important;
-    gap: 0 !important;
+    width: 26px;
+    min-width: 26px;
+    height: 26px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
   }
 
   .codex-pill-btn.is-mode-toggle > span {
-    display: none !important;
+    display: none;
   }
 
   .codex-pill-icon-btn.is-split-diff {
-    display: none !important;
+    display: none;
   }
 
   .codex-open-folder-btn {
-    display: none !important;
+    display: none;
   }
 
   .codex-open-menu-trigger {
@@ -1902,35 +1918,35 @@ textarea::placeholder,
 
   .codex-hunk-step-count {
     padding: 0 3px;
-    font-size: 10.5px;
+    font-size: 11px;
   }
 
   .codex-diff-base-menu > .codex-pop-card {
-    left: auto !important;
-    right: -28px !important;
-    min-width: 216px !important;
-    max-width: calc(100vw - 20px) !important;
+    left: auto;
+    right: -28px;
+    min-width: 216px;
+    max-width: calc(100vw - 20px);
   }
 
   .codex-open-group .codex-pop-card {
-    left: auto !important;
-    right: 0 !important;
-    max-width: calc(100vw - 20px) !important;
+    left: auto;
+    right: 0;
+    max-width: calc(100vw - 20px);
   }
 
   .orca-code-row {
-    grid-template-columns: 36px minmax(0, 1fr) auto !important;
-    padding: 0 8px 0 0 !important;
-    font-size: 11.5px !important;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    padding: 0 8px 0 0;
+    font-size: 11.5px;
   }
 
   .orca-code-ln {
-    padding-right: 8px !important;
-    font-size: 10.5px !important;
+    padding-right: 8px;
+    font-size: 11px;
   }
 
   .orca-markdown-doc {
-    padding: 18px 16px 36px !important;
+    padding: 18px 16px 36px;
   }
 
   .codex-doc-copy-btn {

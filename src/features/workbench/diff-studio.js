@@ -36,6 +36,7 @@ export function renderDiffStudioModal({ showModal } = {}) {
     </div>
     <div class="diff-studio-actions">
       ${wt?.appliedAt ? `<span class="chat-worktree-chip is-merged">${icon("check", 12)} Đã gộp vào nhánh chính</span>` : ""}
+      ${view.page !== "chat" && taskId ? `<button type="button" class="button quiet small" data-action="open-task-chat" data-id="${esc(taskId)}">${icon("message-square", 13)}<span>Mở trong Không gian Chat</span></button>` : ""}
       ${canApplyWt ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(taskId)}">${icon("check", 13)}<span>Gộp Worktree vào dự án</span></button>` : ""}
       ${canDiscardWt ? `<button type="button" class="button quiet small" data-action="discard-worktree" data-id="${esc(taskId)}">${icon("delete", 13)}<span>Hủy Worktree</span></button>` : ""}
     </div>
@@ -71,11 +72,11 @@ export function renderDiffStudioModal({ showModal } = {}) {
         const cls = line.type === "add" ? "diff-row-add" : line.type === "del" ? "diff-row-del" : "diff-row-ctx";
         const prefix = line.type === "add" ? "+" : line.type === "del" ? "-" : " ";
         return `<div class="diff-row-group">
-          <div class="diff-row ${cls} diff-line-annotatable" data-action="open-diff-comment" data-key="${esc(lineKey)}" data-path="${esc(selectedFile.path)}" data-side="${side}" data-line="${esc(lineNo)}" title="Nhấn để thêm nhận xét review tại dòng ${lineNo}">
+          <div class="diff-row orca-diff-row ${cls} diff-line-annotatable" data-action="open-diff-comment" data-key="${esc(lineKey)}" data-path="${esc(selectedFile.path)}" data-side="${side}" data-line="${esc(lineNo)}" title="Nhấn để thêm nhận xét review tại dòng ${lineNo}">
             <span class="diff-ln">${line.oldLine ?? ""}</span>
             <span class="diff-ln">${line.newLine ?? ""}</span>
-            <span class="diff-sign">${prefix}<i class="diff-add-comment-icon">+</i></span>
-            <code class="diff-code orca-diff-code">${esc(line.text) || " "}</code>
+            <span class="diff-sign">${prefix}<i class="diff-add-comment-icon">${icon("plus", 11)}</i></span>
+            <code class="diff-code diff-cell-code orca-diff-code">${esc(line.text) || " "}</code>
           </div>
           ${lineAnns.map((ann) => `<div class="diff-inline-annotation">
             <div class="diff-annotation-head"><strong>Nhận xét dòng ${esc(ann.line)}</strong><button type="button" class="icon-button" data-action="remove-diff-comment" data-comment-id="${esc(ann.id)}" title="Xóa nhận xét">${icon("x", 13)}</button></div>

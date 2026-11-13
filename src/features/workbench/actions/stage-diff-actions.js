@@ -23,23 +23,32 @@ import {
 } from "../stage-tabs.js";
 import {
   openArenaCompareModal,
+  openStageDocModal,
   renderDiffStudioModal,
   showDiffModal,
 } from "../modals.js";
 
 export async function handleStageAndDiffAction(action, id, button, event) {
-  if (action === "show-diff") {
-    const data = await api(`/api/tasks/${encodeURIComponent(id)}/diff`);
-    showDiffModal(data, id);
+  if (action === "show-diff" || action === "open-diff-modal") {
+    const targetId = id || view.selectedTaskId || view.selected;
+    const data = await api(`/api/tasks/${encodeURIComponent(targetId)}/diff`);
+    showDiffModal(data, targetId, button.dataset.path || "");
     return true;
   }
-  if (action === "open-diff-file") {
-    const targetTask = (view.state?.tasks || []).find((item) => item.id === (id || view.selected));
+  if (action === "open-diff-file" || action === "open-stage-file") {
+    const targetId = id || view.selectedTaskId || view.selected;
+    const targetTask = (view.state?.tasks || []).find((item) => item.id === targetId);
+    const filePath = button.dataset.path || "";
+    if (!["chat", "workspaces"].includes(view.page) && targetTask?.id) {
+      const data = await api(`/api/tasks/${encodeURIComponent(targetTask.id)}/diff`);
+      showDiffModal(data, targetTask.id, filePath);
+      return true;
+    }
     await openStageFileTab({
       workspaceId: button.dataset.workspaceId || targetTask?.workspaceId || "",
-      taskId: id || view.selected || "",
-      path: button.dataset.path || "",
-      showChanges: true,
+      taskId: targetId || "",
+      path: filePath,
+      showChanges: action === "open-diff-file" || button.dataset.showChanges === "true",
     });
     return true;
   }
@@ -297,8 +306,8 @@ export async function handleStageAndDiffAction(action, id, button, event) {
     return true;
   }
   if (action === "open-stage-line-comment") {
-    const rowEl = button.closest(".stage-code-line, .stage-diff-line, .orca-diff-row, tr");
-    const domCode = rowEl?.querySelector(".stage-code-text, .stage-diff-code, .orca-diff-code, .orca-file-code, code")?.textContent || "";
+    const rowEl = button.closest(".stage-code-row, .orca-code-row, .diff-row, .orca-diff-row, .stage-code-line, .stage-diff-line, tr");
+    const domCode = rowEl?.querySelector(".stage-code-text, .diff-cell-code, .orca-code-text, .orca-diff-code, .orca-file-code, .stage-diff-code, code")?.textContent || "";
     view.stageLineCommentTarget = {
       key: button.dataset.key || "",
       path: button.dataset.path || "",
@@ -459,8 +468,8 @@ export async function handleStageAndDiffAction(action, id, button, event) {
   }
   if (action === "select-diff-file") { view.diffSelectedFile = button.dataset.path || ""; view.diffAnnotationTarget = null; renderDiffStudioModal(); return true; }
   if (action === "open-diff-comment") {
-    const rowEl = button.closest(".diff-studio-line, .stage-diff-line, .orca-diff-row, tr");
-    const domCode = rowEl?.querySelector(".diff-line-text, .stage-diff-code, .orca-diff-code, code")?.textContent || "";
+    const rowEl = button.closest(".diff-row, .orca-diff-row, .diff-studio-line, .stage-diff-line, tr");
+    const domCode = rowEl?.querySelector(".diff-cell-code, .orca-diff-code, .diff-line-text, .stage-diff-code, code")?.textContent || "";
     view.diffAnnotationTarget = { key: button.dataset.key, path: button.dataset.path, line: button.dataset.line, side: button.dataset.side || "", code: button.dataset.code || domCode };
     renderDiffStudioModal();
     return true;
@@ -506,7 +515,9 @@ export async function handleStageAndDiffAction(action, id, button, event) {
     });
     delete view.diffAnnotations[id];
     closeOverlay();
+    if (view.page !== "chat") view.navOriginPage = view.page;
     view.selected = id;
+    view.selectedTaskId = id;
     view.page = "chat";
     await refresh();
     showToast(`Đã gửi ${anns.length} nhận xét diff cho Agent xử lý!`);
@@ -517,8 +528,10 @@ export async function handleStageAndDiffAction(action, id, button, event) {
     if (!confirm(`Áp dụng toàn bộ thay đổi từ nhánh worktree của “${task?.title || id}” vào thư mục dự án chính?`)) return true;
     const res = await api(`/api/tasks/${encodeURIComponent(id)}/apply-worktree`, { method: "POST", body: JSON.stringify({ cleanup: false }) });
     closeOverlay();
-    view.selected = id;
-    view.page = "chat";
+    if (view.page === "chat") {
+      view.selected = id;
+      view.selectedTaskId = id;
+    }
     await refresh();
     const count = (res.appliedFiles || res.task?.appliedFiles || []).length;
     showToast(`Đã gộp ${count} tệp từ worktree vào dự án chính!`);
@@ -658,19 +671,28 @@ export async function handleStageAndDiffAction(action, id, button, event) {
     return true;
   }
   if (action === "open-stage-doc") {
-    const task = view.state.tasks.find((item) => item.id === (id || view.selected));
+    const targetId = id || view.selectedTaskId || view.selected;
+    const task = view.state.tasks.find((item) => item.id === targetId);
+    const docKey = button.dataset.docId || button.dataset.doc || "spec";
     if (task) {
-      view.page = "chat";
-      view.selected = task.id;
-      openStageDocTab(task, button.dataset.docId || "spec");
+      if (view.page !== "chat" || button.closest("#overlay")) {
+        openStageDocModal(task, docKey);
+      } else {
+        view.selected = task.id;
+        view.selectedTaskId = task.id;
+        openStageDocTab(task, docKey);
+      }
     }
     return true;
   }
   if (action === "open-live-url") {
     const rawUrl = button.dataset.url || $("[data-live-url-input]")?.value || "http://localhost:3000";
     view.lastLiveUrl = rawUrl;
-    view.page = "chat";
-    openLiveUrlTab(rawUrl, id || view.selected || "");
+    if (!["chat", "workspaces"].includes(view.page)) {
+      view.navOriginPage = view.page;
+      view.page = "chat";
+    }
+    openLiveUrlTab(rawUrl, id || view.selectedTaskId || view.selected || "");
     return true;
   }
   return false;

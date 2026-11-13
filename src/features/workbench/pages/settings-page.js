@@ -1,4 +1,4 @@
-import { $, esc, icon, view } from "../../../shared/state.js";
+import { $, backContextButtonMarkup, esc, icon, view } from "../../../shared/state.js";
 import { providersForRole, roleConfig, workflowRoles } from "../../../domain/agent-roles.js";
 import { cliConnectionStatus, cliProviderGuides } from "../../../domain/provider-guides.js";
 import { getActiveRemoteHost, isMobileCompanionMode } from "../../../shared/remote-host.js";
@@ -151,17 +151,18 @@ function formatInlineReset(isoTime) {
 
 function renderInlineQuotaWindow(win) {
   if (win.unavailable) return `<div class="wb-quota-window-row is-inline"><div class="wb-quota-window-meta"><span class="wb-quota-window-label"><b>${win.label === "5h" ? "5h" : "7 ngày"}</b></span><span class="wb-quota-unavailable">Chưa có dữ liệu</span></div></div>`;
-  const used = Number(win.usedPercent || 0);
-  const remaining = Number(win.remainingPercent ?? Math.max(0, 100 - used));
-  const tone = used >= 90 ? "critical" : used >= 80 ? "warning" : "normal";
+  const rawUsed = win.usedPercent != null ? Number(win.usedPercent) : (win.remainingPercent != null ? 100 - Number(win.remainingPercent) : 0);
+  const used = Math.max(0, Math.min(100, Math.round(Number.isFinite(rawUsed) ? rawUsed : 0)));
+  const remaining = Math.max(0, 100 - used);
+  const tone = used >= 90 ? "critical" : used >= 75 ? "warning" : "normal";
   const label = String(win.label || "").toLowerCase() === "5h" ? "5h" : ["7d", "weekly"].includes(String(win.label || "").toLowerCase()) ? "7 ngày" : win.label;
   const reset = formatInlineReset(win.resetsAt);
-  return `<div class="wb-quota-window-row is-inline">
+  return `<div class="wb-quota-window-row is-inline" data-settings-target="cli">
     <div class="wb-quota-window-meta">
       <span class="wb-quota-window-label"><b>${esc(label)}</b>${reset ? ` · <em class="wb-quota-reset">${esc(reset)}</em>` : ""}</span>
-      <strong class="wb-quota-pct is-${tone}" data-localize-skip="true">${remaining}%</strong>
+      <strong class="wb-quota-pct is-${tone}" style="font-variant-numeric:tabular-nums">Đã dùng ${used}% · Còn ${remaining}%</strong>
     </div>
-    <div class="wb-quota-bar"><i class="wb-quota-fill is-${tone}" style="width:${Math.max(3, remaining)}%"></i></div>
+    <div class="wb-quota-bar"><i class="wb-quota-fill is-${tone}" style="width:${used}%"></i></div>
   </div>`;
 }
 
@@ -191,13 +192,17 @@ export function settingsPage() {
     const status = cliConnectionStatus(connector);
     const action = mobileDisconnected
       ? `<button class="button quiet small" type="button" data-action="settings-nav" data-section="devices">Kết nối máy tính</button>`
-      : status.tone === "missing"
-        ? window.opensybauDesktop?.supportsCliInstall
-          ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${esc(agent.id)}" ${view.cliInstallProvider ? "disabled" : ""}>${view.cliInstallProvider === agent.id ? "Đang cài đặt…" : "Cài CLI"}</button>`
-          : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
-        : status.tone === "ready"
-          ? `<button class="button quiet small" type="button" data-action="provider-cli-switch-account" data-id="${esc(agent.id)}">Đổi tài khoản</button>`
-          : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Đăng nhập</button>`;
+      : isMobile
+        ? (status.tone === "ready"
+          ? `<span class="wb-quota-plan-badge">Sẵn sàng trên PC</span>`
+          : cliRefreshButton("Đăng nhập trên PC · Quét lại"))
+        : status.tone === "missing"
+          ? window.opensybauDesktop?.supportsCliInstall
+            ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${esc(agent.id)}" ${view.cliInstallProvider ? "disabled" : ""}>${view.cliInstallProvider === agent.id ? "Đang cài đặt…" : "Cài CLI"}</button>`
+            : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
+          : status.tone === "ready"
+            ? `<button class="button quiet small" type="button" data-action="provider-cli-switch-account" data-id="${esc(agent.id)}">Đổi tài khoản</button>`
+            : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Đăng nhập</button>`;
     const detail = mobileDisconnected
       ? "Chưa kết nối với máy tính (PC). Ghép nối với PC để đồng bộ CLI và hạn mức."
       : status.tone === "ready"
@@ -261,8 +266,10 @@ export function settingsPage() {
   const showSection = (id) => searchQuery ? matchesSettingsSection(id, searchQuery) : (activeSection === "all" || activeSection === id);
   const anyVisibleSection = SETTINGS_NAV_ITEMS.some((item) => item.id !== "all" && showSection(item.id));
 
+  const backBtnMarkup = backContextButtonMarkup();
   return `<div class="page-head">
     <div>
+      ${backBtnMarkup}
       <h1>Cài đặt</h1>
       <p>${isMobile ? "Tùy chỉnh giao diện, ghép nối với máy tính (PC) và quản lý nguồn AI trên máy chủ." : "Tùy chỉnh giao diện, chọn model AI mặc định và kết nối với điện thoại."}</p>
     </div>
@@ -304,7 +311,7 @@ export function settingsPage() {
     <section class="settings-card provider-setup-card" id="settings-api" data-settings-section="api" ${showSection("api") ? "" : "hidden"}><header><div><h2>Kết nối API & Model cục bộ</h2><p>Dùng thêm khóa API (OpenAI, Gemini, Claude) hoặc model chạy qua Ollama, LM Studio.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa thêm nguồn API nào</strong><p>Bấm Thêm nguồn nếu bạn muốn dùng API key riêng hoặc kết nối Ollama / LM Studio.</p></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div></section>
     ${renderDeviceConnectSettingsSection({ hidden: !showSection("devices") })}
     <section class="settings-card concurrency-card" id="settings-concurrency" data-settings-section="concurrency" ${showSection("concurrency") ? "" : "hidden"}><header><div><h2>Số công việc chạy cùng lúc</h2><p>${isMobile ? "Giới hạn số công việc AI được phép chạy song song trên máy tính (PC)." : "Giới hạn số công việc AI được phép chạy song song trên máy."}</p></div></header>
-      <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">−</button><strong id="parallel-value">${maxConcurrent}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">+</button></div></div>
+      <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">${icon("minus", 14)}</button><strong id="parallel-value" style="font-variant-numeric:tabular-nums">${maxConcurrent}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">${icon("plus", 14)}</button></div></div>
     </section>
     <section class="empty-state settings-search-empty" data-settings-search-empty ${searchQuery && !anyVisibleSection ? "" : "hidden"}>
       <div class="empty-symbol">${icon("search", 18)}</div>
@@ -331,6 +338,7 @@ export function showApiProviderModal(provider = null) {
 }
 
 export function showCliProviderModal() {
+  const isMobile = isMobileCompanionMode();
   const rows = cliProviderGuides.map((agent) => {
     const connector = view.connectors?.[agent.id];
     const status = cliConnectionStatus(connector);
@@ -339,12 +347,14 @@ export function showCliProviderModal() {
       ? `${modelCount} model khả dụng${connector?.version && connector.version !== "unavailable" ? ` · ${connector.version}` : ""}`
       : status.tone === "missing" ? agent.installHelp : connector?.error || agent.summary;
     const primary = status.tone === "missing"
-      ? window.opensybauDesktop?.supportsCliInstall
+      ? (!isMobile && window.opensybauDesktop?.supportsCliInstall
         ? `<button class="button quiet small" type="button" data-action="provider-cli-install" data-id="${esc(agent.id)}">Cài CLI</button>`
-        : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`
+        : `<a class="button quiet small" href="${esc(agent.url)}" target="_blank" rel="noreferrer">Hướng dẫn cài</a>`)
       : status.tone === "ready"
         ? cliRefreshButton("Đã kết nối · quét lại")
-        : `<button class="button primary small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">${icon("square-terminal", 13)} ${status.tone === "needs-action" && connector?.authenticated ? "Mở CLI để kiểm tra" : "Đăng nhập"}</button>`;
+        : isMobile
+          ? cliRefreshButton("Đăng nhập trên PC · Quét lại")
+          : `<button class="button primary small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">${icon("square-terminal", 13)} ${status.tone === "needs-action" && connector?.authenticated ? "Mở CLI để kiểm tra" : "Đăng nhập"}</button>`;
     const docsUrl = status.tone === "missing" ? agent.url : agent.authUrl || agent.url;
     const instructions = status.tone === "missing"
       ? `<div class="cli-connect-login"><span>Cài đặt CLI</span><small>${esc(agent.installHelp)}</small></div>`

@@ -118,7 +118,7 @@
 }
 .codex-subagent-sec-label {
   padding: 0 8px;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -184,7 +184,7 @@
   padding: 1px 5px;
   border-radius: 5px;
   border: 1px solid color-mix(in srgb, var(--wb-tint) 12%, transparent);
-  font-size: 10px;
+  font-size: 11px;
   color: color-mix(in srgb, var(--wb-tint) 64%, transparent);
   white-space: nowrap;
 }
@@ -336,7 +336,7 @@ body .orca-dock-tabs { scrollbar-width: auto; }
   border-radius: 5px;
   background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
   color: color-mix(in srgb, var(--wb-tint) 66%, transparent);
-  font-size: 10.5px;
+  font-size: 11px;
   white-space: nowrap;
 }
 .subagent-metrics {
@@ -349,7 +349,7 @@ body .orca-dock-tabs { scrollbar-width: auto; }
   white-space: nowrap;
 }
 .subagent-status-tag {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   padding: 1px 6px;
   border-radius: 999px;
@@ -472,7 +472,7 @@ body .orca-dock-tabs { scrollbar-width: auto; }
   white-space: nowrap;
 }
 .dock-subagent-head-main small {
-  font-size: 10.5px;
+  font-size: 11px;
   color: color-mix(in srgb, var(--wb-tint) 52%, transparent);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -491,7 +491,7 @@ body .orca-dock-tabs { scrollbar-width: auto; }
   gap: 4px;
 }
 .dock-subagent-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -527,13 +527,13 @@ body .orca-dock-tabs { scrollbar-width: auto; }
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 2px;
-  font-size: 10.5px;
+  font-size: 11px;
   line-height: 1.4;
 }
 .dock-subagent-ev strong {
   color: var(--wb-ink-strong);
   font-family: var(--wb-font-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 .dock-subagent-ev code {
   color: var(--wb-ink);
@@ -619,4 +619,10 @@ body .orca-dock-tabs { scrollbar-width: auto; }
   justify-content: center;
   gap: 8px;
   margin-top: 4px;
+}
+
+.dock-subagent-count,
+.dock-subagent-time,
+.subagent-stat-value {
+  font-variant-numeric: tabular-nums;
 }

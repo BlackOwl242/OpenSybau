@@ -54,7 +54,7 @@ export class CodexAppServer {
   respond(id, result) { if (this.failure) throw this.failure; this.child.stdin.write(`${JSON.stringify({ id, result })}\n`); }
   isActiveTurn(threadId, turnId) { return Boolean(turnId && !this.failure && (threadId === this.threadId ? turnId === this.turnId : this.childThreads.has(threadId) && this.activeTurns.get(threadId) === turnId)); }
   async initialize() {
-    await this.request("initialize", { clientInfo: { name: "opensybau", version: "0.3.6" } });
+    await this.request("initialize", { clientInfo: { name: "opensybau", version: "0.3.9" } });
     this.child.stdin.write(`${JSON.stringify({ method: "initialized" })}\n`);
   }
   steer(text, expectedTurnId, key) {

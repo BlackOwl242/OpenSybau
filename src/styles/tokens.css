@@ -1,12 +1,18 @@
+@layer legacy, tokens, shell, modules, palettes, mobile;
+
+@layer tokens {
 /* OpenSybau Multi-Theme Token System (Dark, Antigravity Chromatic, and Light) */
 :root,
 html[data-theme="obsidian"],
-html.desktop-glass[data-theme="obsidian"] {
+html[data-wb-theme="obsidian"],
+html.desktop-glass[data-theme="obsidian"],
+html.desktop-glass[data-wb-theme="obsidian"] {
   color-scheme: dark;
-  font-family: "Nunito Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Nunito Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 
+  /* Core dark surfaces (Obsidian default — never pure #000000) */
   --wb-tint: #ffffff;
   --wb-bg: #18191b;
   --wb-rail: #171819;
@@ -17,43 +23,113 @@ html.desktop-glass[data-theme="obsidian"] {
   --wb-surface-soft: #202123;
   --wb-panel-header: #1f2022;
   --wb-raised: #303235;
+  --wb-surface-2: var(--wb-raised);
+  --wb-surface-3: color-mix(in srgb, var(--wb-raised) 82%, var(--wb-tint) 10%);
+  --wb-surface-elevated: var(--wb-surface-2);
+  --wb-surface-raised: var(--wb-raised);
+  --wb-surface-subtle: var(--wb-surface-soft);
+  --wb-bg-primary: var(--wb-bg);
+  --wb-bg-secondary: var(--wb-panel);
+  --wb-bg-tertiary: var(--wb-surface-soft);
+  --wb-bg-elevated: var(--wb-surface-elevated);
+
+  /* Interactive & border tokens */
   --wb-hover: rgba(255, 255, 255, 0.065);
-  --wb-line: rgba(255, 255, 255, 0.075);
-  --wb-border-subtle: rgba(255, 255, 255, 0.08);
-  --wb-border-strong: rgba(255, 255, 255, 0.14);
+  --wb-surface-hover: var(--wb-hover);
+  --wb-line: rgba(255, 255, 255, 0.08);
+  --wb-line-soft: rgba(255, 255, 255, 0.055);
+  --wb-border-default: var(--wb-line);
+  --wb-border: var(--wb-border-default);
+  --wb-border-subtle: rgba(255, 255, 255, 0.085);
+  --wb-border-strong: rgba(255, 255, 255, 0.15);
+  --wb-border-accent: color-mix(in srgb, var(--wb-accent) 40%, var(--wb-border-subtle));
   --wb-field: #1e1f21;
   --wb-control: rgba(255, 255, 255, 0.06);
   --wb-control-hover: rgba(255, 255, 255, 0.1);
-  --wb-green-soft: rgba(74, 222, 128, 0.1);
-  --wb-green-raised: rgba(74, 222, 128, 0.16);
-  --wb-blue-soft: rgba(96, 165, 250, 0.11);
-  --wb-blue-raised: rgba(96, 165, 250, 0.17);
+
+  /* Semantic status & tint tokens */
+  --wb-green: #86efac;
+  --wb-green-soft: rgba(74, 222, 128, 0.11);
+  --wb-green-raised: rgba(74, 222, 128, 0.17);
+  --wb-blue-soft: rgba(96, 165, 250, 0.12);
+  --wb-blue-raised: rgba(96, 165, 250, 0.18);
+  --wb-red: #ff6568;
   --wb-red-soft: rgba(248, 113, 113, 0.12);
-  --wb-amber-soft: rgba(251, 191, 36, 0.11);
-  --wb-overlay: rgba(0, 0, 0, 0.58);
+  --wb-amber: #fbbf24;
+  --wb-amber-soft: rgba(251, 191, 36, 0.12);
+  --wb-overlay: rgba(0, 0, 0, 0.6);
+
+  /* Ink & text hierarchy */
   --wb-ink: #e4e4e7;
   --wb-ink-strong: #fafafa;
   --wb-muted: #9898a2;
+  --wb-subtle: #71717b;
   --wb-ink-muted: var(--wb-muted);
-  --wb-bg-elevated: var(--wb-surface);
-  --wb-subtle: #6e6e78;
+  --wb-ink-faint: var(--wb-subtle);
+  --wb-text-primary: var(--wb-ink-strong);
+  --wb-text-secondary: var(--wb-muted);
+  --wb-text: var(--wb-text-primary);
+  --wb-text-muted: var(--wb-text-secondary);
+
+  /* Accent & semantic aliases */
   --wb-accent: #f4f4f5;
   --wb-accent-fg: #09090b;
+  --wb-accent-soft: color-mix(in srgb, var(--wb-accent) 14%, transparent);
   --wb-primary-bg: #f4f4f5;
   --wb-primary-fg: #09090b;
+  --wb-success: var(--wb-green);
+  --wb-success-soft: var(--wb-green-soft);
+  --wb-danger: var(--wb-red);
+  --wb-danger-soft: var(--wb-red-soft);
+  --wb-warn: var(--wb-amber);
+  --wb-warn-soft: var(--wb-amber-soft);
+
+  /* Chat & code surfaces */
   --wb-user-bubble-bg: #1a3a66;
   --wb-user-bubble-border: rgba(96, 152, 235, 0.24);
   --wb-user-bubble-fg: #f1f5f9;
   --wb-code-bg: #1b1c1e;
-  --wb-green: #86efac;
-  --wb-red: #ff6568;
-  --wb-amber: #fbbf24;
-  --wb-font-mono: "SF Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
-  --wb-font-sans: "Nunito Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --wb-term-bg: var(--wb-code-bg);
+  --wb-term-fg: #d4d8e8;
+  --wb-term-muted: #7c849b;
+  --wb-term-prompt: #4ade80;
+  --wb-term-cmd: #f8fafc;
+
+  /* Font families */
+  --wb-font-mono: "JetBrains Mono", "Cascadia Code", "Fira Code", ui-monospace, SFMono-Regular, Consolas, monospace;
+  --wb-font-sans: "Nunito Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: var(--wb-font-mono);
+  --font-sans: var(--wb-font-sans);
   --sans: var(--wb-font-sans);
   --mono: var(--wb-font-mono);
 
-  /* Semantic tokens */
+  /* Fixed Typography Scale (DESIGN.md §3 — minimum floor 11px) */
+  --wb-font-page: 22px;
+  --wb-font-h2: 17px;
+  --wb-font-section: 15px;
+  --wb-font-h4: 13.5px;
+  --wb-font-body: 13.5px;
+  --wb-font-meta: 12px;
+  --wb-font-caption: 11.5px;
+  --wb-font-micro: 11px;
+  --wb-line-body: 1.55;
+
+  /* 6-Tier Semantic Z-Index Scale */
+  --wb-z-base: 1;
+  --wb-z-sticky: 20;
+  --wb-z-nav: 80;
+  --wb-z-drawer: 200;
+  --wb-z-popover: 400;
+  --wb-z-modal: 700;
+  --wb-z-toast: 900;
+
+  /* Safe-area inset tokens (browser default; zeroed when native Android insets active) */
+  --wb-safe-top: env(safe-area-inset-top, 0px);
+  --wb-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --wb-safe-left: env(safe-area-inset-left, 0px);
+  --wb-safe-right: env(safe-area-inset-right, 0px);
+
+  /* Legacy & shadcn compatibility tokens */
   --background: var(--wb-main);
   --foreground: var(--wb-ink-strong);
   --card: var(--wb-panel);
@@ -71,12 +147,24 @@ html.desktop-glass[data-theme="obsidian"] {
   --destructive: var(--wb-red);
   --border: var(--wb-line);
   --ink: var(--wb-ink);
-  --line: var(--wb-line);
+  --line: var(--wb-border-default);
   --panel: var(--wb-panel);
+  --panel-soft: var(--wb-surface-subtle);
   --surface: var(--wb-surface);
   --surface-raised: var(--wb-raised);
+  --bg-surface: var(--wb-panel);
+  --bg-elevated: var(--wb-surface-elevated);
   --text: var(--wb-ink);
+  --text-primary: var(--wb-text-primary);
   --text-muted: var(--wb-muted);
+  --border-subtle: var(--wb-border-subtle);
+  --accent-soft: var(--wb-accent-soft);
+  --warn-soft: var(--wb-amber-soft);
+  --danger: var(--wb-red);
+  --ok: var(--wb-green);
+  --warn: var(--wb-amber);
+  --err: var(--wb-red);
+  --chart-fill: var(--wb-accent-soft);
   --input: var(--wb-border-subtle);
   --ring: var(--wb-border-strong);
   --chart-1: #60a5fa;
@@ -94,35 +182,45 @@ html.desktop-glass[data-theme="obsidian"] {
   --sidebar-border: var(--wb-line);
   --sidebar-ring: var(--ring);
 
-  --wb-font-body: 13.5px;
-  --wb-font-caption: 11.5px;
-  --wb-font-section: 17px;
-  --wb-font-page: 26px;
-  --wb-line-body: 1.58;
-
   color: var(--foreground);
   background: var(--background);
 }
 
-/* 2. Carbon OLED (Pure Pitch Black) */
+/* Native Android WebView already applies system bar insets to rootLayout in MainActivity.java */
+html[data-android-insets="native"] {
+  --wb-safe-top: 0px;
+  --wb-safe-bottom: 0px;
+  --wb-safe-left: 0px;
+  --wb-safe-right: 0px;
+}
+
+/* 2. Carbon OLED (Calibrated Deep Charcoal — anti-smear OLED hierarchy, never #000000) */
 html[data-theme="carbon-oled"],
-html.desktop-glass[data-theme="carbon-oled"] {
+html[data-wb-theme="carbon-oled"],
+html.desktop-glass[data-theme="carbon-oled"],
+html.desktop-glass[data-wb-theme="carbon-oled"] {
   color-scheme: dark;
   --wb-tint: #ffffff;
-  --wb-bg: #000000;
-  --wb-rail: #000000;
-  --wb-sidebar: #050507;
-  --wb-main: #020203;
-  --wb-panel: #09090c;
-  --wb-surface: #0d0e12;
-  --wb-surface-soft: #060608;
-  --wb-panel-header: #060709;
-  --wb-raised: #121318;
-  --wb-hover: rgba(255, 255, 255, 0.08);
-  --wb-line: rgba(255, 255, 255, 0.11);
-  --wb-border-subtle: rgba(255, 255, 255, 0.11);
-  --wb-border-strong: rgba(255, 255, 255, 0.22);
-  --wb-field: #0c0d11;
+  --wb-bg: #050608;
+  --wb-rail: #050608;
+  --wb-sidebar: #0c0e14;
+  --wb-main: #050608;
+  --wb-panel: #0c0e14;
+  --wb-surface: #0c0e14;
+  --wb-surface-soft: #090b10;
+  --wb-panel-header: #090b10;
+  --wb-raised: #131720;
+  --wb-surface-2: #131720;
+  --wb-surface-3: #1a202c;
+  --wb-surface-elevated: #131720;
+  --wb-hover: rgba(255, 255, 255, 0.075);
+  --wb-line: rgba(255, 255, 255, 0.09);
+  --wb-line-soft: rgba(255, 255, 255, 0.06);
+  --wb-border-default: rgba(255, 255, 255, 0.09);
+  --wb-border: rgba(255, 255, 255, 0.09);
+  --wb-border-subtle: rgba(255, 255, 255, 0.09);
+  --wb-border-strong: rgba(255, 255, 255, 0.18);
+  --wb-field: #0c0e14;
   --wb-control: rgba(255, 255, 255, 0.07);
   --wb-control-hover: rgba(255, 255, 255, 0.13);
   --wb-ink: #ededf0;
@@ -130,18 +228,20 @@ html.desktop-glass[data-theme="carbon-oled"] {
   --wb-muted: #9ca3af;
   --wb-subtle: #6b7280;
   --wb-accent: #ffffff;
-  --wb-accent-fg: #000000;
+  --wb-accent-fg: #050608;
   --wb-primary-bg: #ffffff;
-  --wb-primary-fg: #000000;
-  --wb-user-bubble-bg: #18181b;
-  --wb-user-bubble-border: rgba(255, 255, 255, 0.2);
+  --wb-primary-fg: #050608;
+  --wb-user-bubble-bg: #141926;
+  --wb-user-bubble-border: rgba(255, 255, 255, 0.18);
   --wb-user-bubble-fg: #ffffff;
-  --wb-code-bg: #040406;
+  --wb-code-bg: #080a0f;
 }
 
 /* 3. Antigravity Cosmic (Deep Cosmic Navy + Indigo & Electric Cyan) */
 html[data-theme="antigravity"],
-html.desktop-glass[data-theme="antigravity"] {
+html[data-wb-theme="antigravity"],
+html.desktop-glass[data-theme="antigravity"],
+html.desktop-glass[data-wb-theme="antigravity"] {
   color-scheme: dark;
   --wb-tint: #c7d2fe;
   --wb-bg: #060913;
@@ -176,7 +276,9 @@ html.desktop-glass[data-theme="antigravity"] {
 
 /* 4. Tokyo Night (Storm Navy + Neon Blue & Lavender) */
 html[data-theme="tokyo-night"],
-html.desktop-glass[data-theme="tokyo-night"] {
+html[data-wb-theme="tokyo-night"],
+html.desktop-glass[data-theme="tokyo-night"],
+html.desktop-glass[data-wb-theme="tokyo-night"] {
   color-scheme: dark;
   --wb-tint: #c0caf5;
   --wb-bg: #101118;
@@ -197,7 +299,7 @@ html.desktop-glass[data-theme="tokyo-night"] {
   --wb-control-hover: rgba(122, 162, 247, 0.21);
   --wb-ink: #c0caf5;
   --wb-ink-strong: #e2e8f0;
-  --wb-muted: #7aa2f7;
+  --wb-muted: #8995c9;
   --wb-subtle: #565f89;
   --wb-accent: #7aa2f7;
   --wb-accent-fg: #11121a;
@@ -211,7 +313,9 @@ html.desktop-glass[data-theme="tokyo-night"] {
 
 /* 5. Synthwave Pulse (Cyberpunk Violet + Rose Neon) */
 html[data-theme="synthwave"],
-html.desktop-glass[data-theme="synthwave"] {
+html[data-wb-theme="synthwave"],
+html.desktop-glass[data-theme="synthwave"],
+html.desktop-glass[data-wb-theme="synthwave"] {
   color-scheme: dark;
   --wb-tint: #f5d0fe;
   --wb-bg: #0c0514;
@@ -246,7 +350,9 @@ html.desktop-glass[data-theme="synthwave"] {
 
 /* 6. Catppuccin Mocha (Warm Mocha + Pastel Mauve) */
 html[data-theme="catppuccin"],
-html.desktop-glass[data-theme="catppuccin"] {
+html[data-wb-theme="catppuccin"],
+html.desktop-glass[data-theme="catppuccin"],
+html.desktop-glass[data-wb-theme="catppuccin"] {
   color-scheme: dark;
   --wb-tint: #cdd6f4;
   --wb-bg: #11111b;
@@ -281,7 +387,9 @@ html.desktop-glass[data-theme="catppuccin"] {
 
 /* 7. Emerald Matrix (Deep Forest + Emerald Mint) */
 html[data-theme="emerald"],
-html.desktop-glass[data-theme="emerald"] {
+html[data-wb-theme="emerald"],
+html.desktop-glass[data-theme="emerald"],
+html.desktop-glass[data-wb-theme="emerald"] {
   color-scheme: dark;
   --wb-tint: #a7f3d0;
   --wb-bg: #040b09;
@@ -316,7 +424,9 @@ html.desktop-glass[data-theme="emerald"] {
 
 /* 8. Rosé Pine (Velvet Wine + Rose & Love) */
 html[data-theme="rose-pine"],
-html.desktop-glass[data-theme="rose-pine"] {
+html[data-wb-theme="rose-pine"],
+html.desktop-glass[data-theme="rose-pine"],
+html.desktop-glass[data-wb-theme="rose-pine"] {
   color-scheme: dark;
   --wb-tint: #e0def4;
   --wb-bg: #12101b;
@@ -351,7 +461,9 @@ html.desktop-glass[data-theme="rose-pine"] {
 
 /* 9. Amber Forge (Warm Obsidian + Filament Gold) */
 html[data-theme="amber-forge"],
-html.desktop-glass[data-theme="amber-forge"] {
+html[data-wb-theme="amber-forge"],
+html.desktop-glass[data-theme="amber-forge"],
+html.desktop-glass[data-wb-theme="amber-forge"] {
   color-scheme: dark;
   --wb-tint: #fde68a;
   --wb-bg: #0d0a05;
@@ -386,7 +498,9 @@ html.desktop-glass[data-theme="amber-forge"] {
 
 /* 10. Nordic Aurora (Arctic Slate + Frost Cyan) */
 html[data-theme="nordic"],
-html.desktop-glass[data-theme="nordic"] {
+html[data-wb-theme="nordic"],
+html.desktop-glass[data-theme="nordic"],
+html.desktop-glass[data-wb-theme="nordic"] {
   color-scheme: dark;
   --wb-tint: #e5e9f0;
   --wb-bg: #171b24;
@@ -419,9 +533,9 @@ html.desktop-glass[data-theme="nordic"] {
   --wb-code-bg: #191e28;
 }
 
-/* 11. Daylight Frost (Crisp Snow Light + Royal Blue) */
-html[data-theme="daylight"],
-html.desktop-glass[data-theme="daylight"] {
+/* Base Light Scheme Defaults (shared across all light palettes) */
+html[data-color-scheme="light"],
+html[data-wb-scheme="light"] {
   color-scheme: light;
   --wb-tint: #0f172a;
   --wb-bg: #e2e8f0;
@@ -432,12 +546,95 @@ html.desktop-glass[data-theme="daylight"] {
   --wb-surface: #f1f5f9;
   --wb-surface-soft: #f1f5f9;
   --wb-panel-header: #f8fafc;
-  --wb-raised: #e2e8f0;
+  --wb-raised: #e8eef5;
+  --wb-surface-2: #eef2f7;
+  --wb-surface-3: #e2e8f0;
+  --wb-surface-elevated: #ffffff;
+  --wb-surface-raised: #e8eef5;
+  --wb-surface-subtle: #f4f7fa;
+  --wb-bg-primary: var(--wb-main);
+  --wb-bg-secondary: var(--wb-panel);
+  --wb-bg-tertiary: #edf2f7;
+  --wb-hover: rgba(15, 23, 42, 0.06);
+  --wb-surface-hover: var(--wb-hover);
+  --wb-line: rgba(15, 23, 42, 0.1);
+  --wb-line-soft: rgba(15, 23, 42, 0.065);
+  --wb-border-default: var(--wb-line);
+  --wb-border: var(--wb-border-default);
+  --wb-border-subtle: rgba(15, 23, 42, 0.11);
+  --wb-border-strong: rgba(15, 23, 42, 0.22);
+  --wb-border-accent: color-mix(in srgb, var(--wb-accent) 36%, var(--wb-border-subtle));
+  --wb-field: #ffffff;
+  --wb-control: rgba(15, 23, 42, 0.055);
+  --wb-control-hover: rgba(15, 23, 42, 0.1);
+  --wb-green: #15803d;
+  --wb-green-soft: rgba(22, 163, 74, 0.12);
+  --wb-green-raised: rgba(22, 163, 74, 0.2);
+  --wb-blue-soft: rgba(37, 99, 235, 0.12);
+  --wb-blue-raised: rgba(37, 99, 235, 0.2);
+  --wb-red: #dc2626;
+  --wb-red-soft: rgba(220, 38, 38, 0.12);
+  --wb-amber: #d97706;
+  --wb-amber-soft: rgba(217, 119, 6, 0.14);
+  --wb-overlay: rgba(15, 23, 42, 0.44);
+  --wb-ink: #1e293b;
+  --wb-ink-strong: #0f172a;
+  --wb-muted: #475569;
+  --wb-subtle: #64748b;
+  --wb-accent: #2563eb;
+  --wb-accent-fg: #ffffff;
+  --wb-accent-soft: color-mix(in srgb, var(--wb-accent) 13%, transparent);
+  --wb-primary-bg: #2563eb;
+  --wb-primary-fg: #ffffff;
+  --wb-success: var(--wb-green);
+  --wb-success-soft: var(--wb-green-soft);
+  --wb-user-bubble-bg: #dbeafe;
+  --wb-user-bubble-border: rgba(37, 99, 235, 0.28);
+  --wb-user-bubble-fg: #0f172a;
+  --wb-code-bg: #f1f5f9;
+  --wb-term-bg: #f1f5f9;
+  --wb-term-fg: #1e293b;
+  --wb-term-muted: #64748b;
+  --wb-term-prompt: #15803d;
+  --wb-term-cmd: #0f172a;
+  --chart-1: #2563eb;
+  --chart-2: #4f46e5;
+  --chart-3: #15803d;
+  --chart-4: #d97706;
+  --chart-5: #dc2626;
+}
+
+/* 11. Daylight Frost (Crisp Snow Light + Royal Blue; also Alabaster alias) */
+html[data-theme="daylight"],
+html[data-wb-theme="daylight"],
+html[data-theme="alabaster"],
+html[data-wb-theme="alabaster"],
+html.desktop-glass[data-theme="daylight"],
+html.desktop-glass[data-wb-theme="daylight"],
+html.desktop-glass[data-theme="alabaster"],
+html.desktop-glass[data-wb-theme="alabaster"] {
+  color-scheme: light;
+  --wb-tint: #0f172a;
+  --wb-bg: #e2e8f0;
+  --wb-rail: #e2e8f0;
+  --wb-sidebar: #f1f5f9;
+  --wb-main: #ffffff;
+  --wb-panel: #f8fafc;
+  --wb-surface: #f1f5f9;
+  --wb-surface-soft: #f1f5f9;
+  --wb-panel-header: #f8fafc;
+  --wb-raised: #e8eef5;
+  --wb-surface-2: #eef2f7;
+  --wb-surface-3: #e2e8f0;
+  --wb-surface-elevated: #ffffff;
+  --wb-surface-subtle: #f4f7fa;
+  --wb-bg-tertiary: #edf2f7;
   --wb-hover: rgba(15, 23, 42, 0.06);
   --wb-line: rgba(15, 23, 42, 0.1);
+  --wb-line-soft: rgba(15, 23, 42, 0.065);
   --wb-border-subtle: rgba(15, 23, 42, 0.11);
   --wb-border-strong: rgba(37, 99, 235, 0.32);
-  --wb-field: #f8fafc;
+  --wb-field: #ffffff;
   --wb-control: rgba(15, 23, 42, 0.055);
   --wb-control-hover: rgba(15, 23, 42, 0.1);
   --wb-green-soft: rgba(22, 163, 74, 0.12);
@@ -459,14 +656,29 @@ html.desktop-glass[data-theme="daylight"] {
   --wb-user-bubble-border: rgba(37, 99, 235, 0.28);
   --wb-user-bubble-fg: #0f172a;
   --wb-code-bg: #f1f5f9;
+  --wb-term-bg: #f1f5f9;
+  --wb-term-fg: #1e293b;
+  --wb-term-muted: #64748b;
+  --wb-term-prompt: #15803d;
+  --wb-term-cmd: #0f172a;
   --wb-green: #15803d;
   --wb-red: #dc2626;
   --wb-amber: #d97706;
 }
 
-/* 12. Editorial Stone (Bauhaus Warm Cream — OpenSybau Heritage Light) */
+/* 12. Editorial Stone (Bauhaus Warm Cream; also Paper Ink & Warm Linen aliases) */
 html[data-theme="warm-stone"],
-html.desktop-glass[data-theme="warm-stone"] {
+html[data-wb-theme="warm-stone"],
+html[data-theme="paper-ink"],
+html[data-wb-theme="paper-ink"],
+html[data-theme="warm-linen"],
+html[data-wb-theme="warm-linen"],
+html.desktop-glass[data-theme="warm-stone"],
+html.desktop-glass[data-wb-theme="warm-stone"],
+html.desktop-glass[data-theme="paper-ink"],
+html.desktop-glass[data-wb-theme="paper-ink"],
+html.desktop-glass[data-theme="warm-linen"],
+html.desktop-glass[data-wb-theme="warm-linen"] {
   color-scheme: light;
   --wb-tint: #1c1917;
   --wb-bg: #e4ddd3;
@@ -478,11 +690,17 @@ html.desktop-glass[data-theme="warm-stone"] {
   --wb-surface-soft: #efe9e0;
   --wb-panel-header: #f3ede4;
   --wb-raised: #e7dfd3;
+  --wb-surface-2: #ece5da;
+  --wb-surface-3: #e3dacd;
+  --wb-surface-elevated: #fdfbf7;
+  --wb-surface-subtle: #f5f0e8;
+  --wb-bg-tertiary: #ebe4d8;
   --wb-hover: rgba(28, 25, 23, 0.065);
   --wb-line: rgba(28, 25, 23, 0.11);
+  --wb-line-soft: rgba(28, 25, 23, 0.07);
   --wb-border-subtle: rgba(28, 25, 23, 0.12);
   --wb-border-strong: rgba(28, 25, 23, 0.26);
-  --wb-field: #f3ede4;
+  --wb-field: #fdfbf7;
   --wb-control: rgba(28, 25, 23, 0.06);
   --wb-control-hover: rgba(28, 25, 23, 0.11);
   --wb-green-soft: rgba(22, 163, 74, 0.12);
@@ -504,6 +722,11 @@ html.desktop-glass[data-theme="warm-stone"] {
   --wb-user-bubble-border: rgba(28, 25, 23, 0.2);
   --wb-user-bubble-fg: #141413;
   --wb-code-bg: #efe9e0;
+  --wb-term-bg: #efe9e0;
+  --wb-term-fg: #292524;
+  --wb-term-muted: #78716c;
+  --wb-term-prompt: #15803d;
+  --wb-term-cmd: #141413;
   --wb-green: #15803d;
   --wb-red: #b91c1c;
   --wb-amber: #b45309;
@@ -511,7 +734,9 @@ html.desktop-glass[data-theme="warm-stone"] {
 
 /* 13. Sakura Daylight (Blossom White + Ruby Rose) */
 html[data-theme="sakura-light"],
-html.desktop-glass[data-theme="sakura-light"] {
+html[data-wb-theme="sakura-light"],
+html.desktop-glass[data-theme="sakura-light"],
+html.desktop-glass[data-wb-theme="sakura-light"] {
   color-scheme: light;
   --wb-tint: #3f1d2b;
   --wb-bg: #f1dfe7;
@@ -523,11 +748,17 @@ html.desktop-glass[data-theme="sakura-light"] {
   --wb-surface-soft: #f9ebf1;
   --wb-panel-header: #faf0f4;
   --wb-raised: #f3dfe8;
+  --wb-surface-2: #f7e6ee;
+  --wb-surface-3: #f0dae4;
+  --wb-surface-elevated: #ffffff;
+  --wb-surface-subtle: #fbf0f5;
+  --wb-bg-tertiary: #f6e4ec;
   --wb-hover: rgba(136, 19, 55, 0.065);
   --wb-line: rgba(136, 19, 55, 0.11);
+  --wb-line-soft: rgba(136, 19, 55, 0.07);
   --wb-border-subtle: rgba(136, 19, 55, 0.12);
   --wb-border-strong: rgba(225, 29, 72, 0.3);
-  --wb-field: #faf0f4;
+  --wb-field: #ffffff;
   --wb-control: rgba(136, 19, 55, 0.055);
   --wb-control-hover: rgba(136, 19, 55, 0.1);
   --wb-green-soft: rgba(22, 163, 74, 0.12);
@@ -549,7 +780,13 @@ html.desktop-glass[data-theme="sakura-light"] {
   --wb-user-bubble-border: rgba(225, 29, 72, 0.24);
   --wb-user-bubble-fg: #27101a;
   --wb-code-bg: #f9ebf1;
+  --wb-term-bg: #f9ebf1;
+  --wb-term-fg: #3f1d2b;
+  --wb-term-muted: #754658;
+  --wb-term-prompt: #15803d;
+  --wb-term-cmd: #27101a;
   --wb-green: #15803d;
   --wb-red: #e11d48;
   --wb-amber: #d97706;
+}
 }

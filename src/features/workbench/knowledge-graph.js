@@ -53,6 +53,7 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
   let pulsePhase = 0;
   let rafId = 0;
   let cooling = 1.0;
+  const reducedMotion = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
 
   const resize = () => {
     const rect = canvas.getBoundingClientRect();
@@ -131,9 +132,7 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
     if (!draggedNode) cooling *= 0.985;
   };
 
-  const draw = () => {
-    stepPhysics();
-    pulsePhase = (pulsePhase + 0.006) % 1;
+  const renderGraphFrame = ({ showPulses = !reducedMotion } = {}) => {
     const rect = canvas.getBoundingClientRect();
     const w = rect.width;
     const h = rect.height;
@@ -176,7 +175,7 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
       }
       ctx.stroke();
 
-      if (isHighlighted || (!activeId && e.kind === "link")) {
+      if (showPulses && (isHighlighted || (!activeId && e.kind === "link"))) {
         const t = (pulsePhase + (idx * 0.23)) % 1;
         const px = a.x + (b.x - a.x) * t;
         const py = a.y + (b.y - a.y) * t;
@@ -237,6 +236,12 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
     }
 
     ctx.restore();
+  };
+
+  const draw = () => {
+    stepPhysics();
+    pulsePhase = (pulsePhase + 0.006) % 1;
+    renderGraphFrame({ showPulses: true });
     rafId = requestAnimationFrame(draw);
   };
 
@@ -268,6 +273,7 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
       view.vaultGraphPositions.set(draggedNode.id, { x: world.x, y: world.y });
       cooling = Math.max(cooling, 0.25);
       canvas.style.cursor = "grabbing";
+      if (reducedMotion) renderGraphFrame({ showPulses: false });
       return;
     }
     if (isPanning) {
@@ -275,10 +281,15 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
       camX = e.clientX - panStartX;
       camY = e.clientY - panStartY;
       canvas.style.cursor = "grabbing";
+      if (reducedMotion) renderGraphFrame({ showPulses: false });
       return;
     }
+    const prevHover = hoveredNode;
     hoveredNode = findNodeAt(sx, sy);
     canvas.style.cursor = hoveredNode ? "pointer" : "grab";
+    if (reducedMotion && hoveredNode !== prevHover) {
+      renderGraphFrame({ showPulses: false });
+    }
   };
 
   const onPointerUp = (e) => {
@@ -289,12 +300,14 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
       const targetPath = draggedNode.path;
       draggedNode = null;
       if (loadVaultPreview) void loadVaultPreview(targetPath);
+      if (reducedMotion) renderGraphFrame({ showPulses: false });
       return;
     }
     draggedNode = null;
     isPanning = false;
     hoveredNode = findNodeAt(sx, sy);
     canvas.style.cursor = hoveredNode ? "pointer" : "grab";
+    if (reducedMotion) renderGraphFrame({ showPulses: false });
   };
 
   const onDblClick = (e) => {
@@ -310,10 +323,15 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.12 : 0.9;
     camZoom = Math.max(0.35, Math.min(2.8, camZoom * factor));
+    if (reducedMotion) renderGraphFrame({ showPulses: false });
   };
 
   const onReset = () => {
     camX = 0; camY = 0; camZoom = 1; cooling = 0.8;
+    if (reducedMotion) {
+      for (let s = 0; s < 80; s += 1) stepPhysics();
+      renderGraphFrame({ showPulses: false });
+    }
   };
 
   canvas.addEventListener("pointerdown", onPointerDown);
@@ -324,10 +342,24 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
   canvas.dataset.resetReady = "1";
   canvas._resetCamera = onReset;
 
-  rafId = requestAnimationFrame(draw);
+  const roStatic = reducedMotion
+    ? new ResizeObserver(() => {
+        resize();
+        renderGraphFrame({ showPulses: false });
+      })
+    : null;
+  if (roStatic) roStatic.observe(canvas);
+
+  if (reducedMotion) {
+    for (let s = 0; s < 120; s += 1) stepPhysics();
+    renderGraphFrame({ showPulses: false });
+  } else {
+    rafId = requestAnimationFrame(draw);
+  }
   neuralGraphCleanup = () => {
     cancelAnimationFrame(rafId);
     ro.disconnect();
+    if (roStatic) roStatic.disconnect();
     canvas.removeEventListener("pointerdown", onPointerDown);
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);

@@ -10,38 +10,47 @@
 html,
 body,
 #root {
-  background: transparent !important;
+  background: transparent;
 }
 
 .wb-app-shell {
-  grid-template-rows: 38px minmax(0, 1fr) !important;
-  grid-template-columns: 52px minmax(0, 1fr) !important;
-  background: var(--wb-bg) !important;
-  backdrop-filter: blur(32px) saturate(145%) !important;
-  -webkit-backdrop-filter: blur(32px) saturate(145%) !important;
+  grid-template-rows: 38px minmax(0, 1fr);
+  grid-template-columns: 52px minmax(0, 1fr);
+  background: var(--wb-bg);
+  backdrop-filter: blur(32px) saturate(145%);
+  -webkit-backdrop-filter: blur(32px) saturate(145%);
 }
 .wb-app-shell.has-context-sidebar {
-  grid-template-columns: 52px 256px minmax(0, 1fr) !important;
+  grid-template-columns: 52px 256px minmax(0, 1fr);
 }
 .wb-app-shell.has-page-sidebar {
-  grid-template-columns: 52px 256px minmax(0, 1fr) !important;
+  grid-template-columns: 52px 256px minmax(0, 1fr);
 }
 .wb-app-shell.has-both-sidebars {
-  grid-template-columns: 52px 256px 256px minmax(0, 1fr) !important;
+  grid-template-columns: 52px 256px 256px minmax(0, 1fr);
+}
+.wb-app-shell.is-sidebar-collapsed.has-context-sidebar {
+  grid-template-columns: 52px minmax(0, 1fr);
+}
+.wb-app-shell.is-sidebar-collapsed.has-both-sidebars {
+  grid-template-columns: 52px 256px minmax(0, 1fr);
+}
+.wb-app-shell.is-sidebar-collapsed > .wb-context-sidebar {
+  display: none;
 }
 
 /* Codex Top Window Chrome Bar (38px draggable titlebar) */
 .wb-window-chrome {
-  grid-column: 1 / -1 !important;
-  height: 38px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  padding: 0 144px 0 8px !important;
-  background: transparent !important;
+  grid-column: 1 / -1;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 144px 0 8px;
+  background: transparent;
   -webkit-app-region: drag;
   user-select: none;
-  z-index: 100;
+  z-index: var(--wb-z-nav);
 }
 .wb-window-chrome-left,
 .wb-window-chrome-right {
@@ -50,8 +59,8 @@ body,
   gap: 2px;
   -webkit-app-region: no-drag;
 }
-.wb-window-chrome.is-web { padding-right: 8px !important; }
-.wb-window-chrome.is-desktop { padding-right: 144px !important; }
+.wb-window-chrome.is-web { padding-right: 8px; }
+.wb-window-chrome.is-desktop { padding-right: 144px; }
 .wb-chrome-icon {
   width: 26px;
   height: 26px;
@@ -111,7 +120,7 @@ body,
   font-size: 11px;
   font-weight: 550;
   cursor: pointer;
-  transition: all 120ms ease;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 .wb-chrome-pill:hover:not(:disabled) {
   background: color-mix(in srgb, var(--wb-tint) 10%, transparent);
@@ -123,107 +132,107 @@ body,
 
 /* 2. Far-Left Icon Rail (Translucent Frosted Glass) */
 .wb-rail {
-  background: transparent !important;
-  border-right: 0 !important;
-  padding: 6px 6px 12px !important;
-  gap: 8px !important;
+  background: transparent;
+  border-right: 0;
+  padding: 6px 6px 12px;
+  gap: 8px;
 }
 .wb-mark {
-  width: 34px !important;
-  height: 34px !important;
-  border: 0 !important;
-  border-radius: 10px !important;
-  background: color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
-  box-shadow: none !important;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  color: var(--wb-ink-strong);
+  box-shadow: none;
 }
 .wb-mark:hover {
-  background: color-mix(in srgb, var(--wb-tint) 13%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
+  background: color-mix(in srgb, var(--wb-tint) 13%, transparent);
+  color: var(--wb-ink-strong);
 }
 .wb-rail-group {
-  border-bottom: 0 !important;
-  padding-bottom: 4px !important;
-  gap: 4px !important;
+  border-bottom: 0;
+  padding-bottom: 4px;
+  gap: 4px;
 }
 .wb-rail-link {
-  width: 36px !important;
-  height: 36px !important;
-  color: color-mix(in srgb, var(--wb-tint) 54%, transparent) !important;
-  border-radius: 10px !important;
+  width: 36px;
+  height: 36px;
+  color: color-mix(in srgb, var(--wb-tint) 54%, transparent);
+  border-radius: 10px;
 }
 .wb-rail-link:hover {
-  color: var(--wb-ink-strong) !important;
-  background: color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
+  color: var(--wb-ink-strong);
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
 }
 .wb-rail-link.is-active {
-  color: var(--wb-ink-strong) !important;
-  background: color-mix(in srgb, var(--wb-tint) 13%, transparent) !important;
+  color: var(--wb-ink-strong);
+  background: color-mix(in srgb, var(--wb-tint) 13%, transparent);
 }
 .wb-rail-link.is-active::before {
-  display: none !important;
+  display: none;
 }
 .wb-avatar {
-  width: 30px !important;
-  height: 30px !important;
-  border-radius: 999px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
-  background: color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
-  color: color-mix(in srgb, var(--wb-tint) 72%, transparent) !important;
-  font-size: 10.5px !important;
-  font-weight: 600 !important;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  color: color-mix(in srgb, var(--wb-tint) 72%, transparent);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 /* 3. Rounded Inner Frame & Frosted Glass Left Sidebar (Codex Style) */
 .wb-context-sidebar,
 .wb-page-sidebar {
-  margin: 0 0 8px 0 !important;
-  background: var(--wb-sidebar) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border-top: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  border-left: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  border-right: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent) !important;
-  border-top-left-radius: 14px !important;
-  border-bottom-left-radius: 14px !important;
+  margin: 0 0 8px 0;
+  background: var(--wb-sidebar);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-top: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent);
+  border-top-left-radius: 14px;
+  border-bottom-left-radius: 14px;
   overflow: hidden;
 }
 html.desktop-glass .wb-context-sidebar,
 html.desktop-glass .wb-page-sidebar {
-  background: var(--wb-sidebar) !important;
-  backdrop-filter: blur(28px) saturate(150%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(150%) !important;
+  background: var(--wb-sidebar);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
 }
 .wb-app-shell.has-both-sidebars .wb-page-sidebar {
-  border-left: 0 !important;
-  border-top-left-radius: 0 !important;
-  border-bottom-left-radius: 0 !important;
+  border-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 .wb-main {
-  margin: 0 8px 8px 0 !important;
-  background: var(--wb-main) !important;
-  border-top: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  border-right: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  border-left: 0 !important;
-  border-top-right-radius: 14px !important;
-  border-bottom-right-radius: 14px !important;
+  margin: 0 8px 8px 0;
+  background: var(--wb-main);
+  border-top: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  border-left: 0;
+  border-top-right-radius: 14px;
+  border-bottom-right-radius: 14px;
   overflow: hidden;
 }
 .wb-app-shell:not(.has-context-sidebar):not(.has-page-sidebar) .wb-main {
-  border-left: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  border-radius: 14px !important;
+  border-left: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  border-radius: 14px;
 }
 .wb-page-content {
-  background: transparent !important;
+  background: transparent;
 }
 
 /* 4. Borderless Codex Sidebar Header, Collapsible Search, & Ghost Rows */
 .wb-sidebar-header {
-  height: 46px !important;
-  padding: 6px 12px 2px 14px !important;
-  justify-content: space-between !important;
+  height: 46px;
+  padding: 6px 12px 2px 14px;
+  justify-content: space-between;
 }
 .wb-sidebar-brand {
   display: inline-flex;
@@ -270,17 +279,17 @@ html.desktop-glass .wb-page-sidebar {
 
 /* Search bar is hidden unless toggled open or query active */
 .wb-sidebar-search {
-  display: none !important;
-  height: 32px !important;
-  margin: 4px 10px 4px !important;
-  padding: 0 10px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
-  border-radius: 8px !important;
-  background: color-mix(in srgb, var(--wb-tint) 5%, transparent) !important;
-  color: color-mix(in srgb, var(--wb-tint) 60%, transparent) !important;
+  display: none;
+  height: 32px;
+  margin: 4px 10px 4px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--wb-tint) 5%, transparent);
+  color: color-mix(in srgb, var(--wb-tint) 60%, transparent);
 }
 .wb-sidebar-search[data-open="true"] {
-  display: flex !important;
+  display: flex;
 }
 .wb-sidebar-search input,
 .wb-sidebar-search input:focus,
@@ -291,52 +300,52 @@ html.desktop-glass .wb-page-sidebar {
 .wb-page-content .skill-search input,
 .wb-page-content .skill-search input:focus,
 .wb-page-content .skill-search input:focus-visible {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  outline: none !important;
-  box-shadow: none !important;
-  background: transparent !important;
-  color: var(--wb-ink-strong) !important;
-  font-size: 12.5px !important;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--wb-ink-strong);
+  font-size: 12.5px;
 }
 
 /* Borderless Ghost "New chat" row */
 .wb-new-chat {
-  width: calc(100% - 16px) !important;
-  height: 34px !important;
-  margin: 2px 8px 8px !important;
-  padding: 0 10px !important;
-  border: 0 !important;
-  border-radius: 8px !important;
-  background: transparent !important;
-  color: var(--wb-ink) !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
-  transition: background-color 120ms ease, color 120ms ease !important;
+  width: calc(100% - 16px);
+  height: 34px;
+  margin: 2px 8px 8px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--wb-ink);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 .wb-new-chat:hover {
-  background: color-mix(in srgb, var(--wb-tint) 7%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
+  background: color-mix(in srgb, var(--wb-tint) 7%, transparent);
+  color: var(--wb-ink-strong);
 }
 
 /* Clean Title-Case Sidebar Section Headings (Pinned, Projects >, Recents) */
 .wb-side-heading,
 .wb-recent-heading,
 .wb-archived-heading {
-  min-height: 26px !important;
-  margin-top: 12px !important;
-  padding: 0 10px !important;
-  border-top: 0 !important;
-  color: color-mix(in srgb, var(--wb-tint) 46%, transparent) !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  letter-spacing: -0.01em !important;
-  text-transform: none !important;
+  min-height: 26px;
+  margin-top: 12px;
+  padding: 0 10px;
+  border-top: 0;
+  color: color-mix(in srgb, var(--wb-tint) 46%, transparent);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-transform: none;
 }
 .wb-side-heading-btn {
   display: inline-flex;
@@ -376,93 +385,93 @@ html.desktop-glass .wb-page-sidebar {
   font-size: 12.5px;
 }
 .wb-task-item {
-  border-radius: 8px !important;
+  border-radius: 8px;
 }
 .wb-task-item:hover,
 .wb-task-item:focus-within {
-  background: color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
 }
 .wb-task-link {
-  padding: 6px 10px !important;
-  border-radius: 8px !important;
+  padding: 6px 10px;
+  border-radius: 8px;
 }
 .wb-task-link:hover {
-  background: transparent !important;
+  background: transparent;
 }
 .wb-task-item.is-selected {
-  background: color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
+  background: color-mix(in srgb, var(--wb-tint) 10%, transparent);
 }
 .wb-task-item.is-selected .wb-task-link {
-  background: transparent !important;
+  background: transparent;
 }
 
 /* 5. TopBar & StatusBar inside .wb-main */
 .wb-topbar {
-  height: 44px !important;
-  background: transparent !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
-  padding: 0 14px !important;
+  height: 44px;
+  background: transparent;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  padding: 0 14px;
 }
 .wb-topbar.is-home-topbar {
-  border-bottom: 0 !important;
-  height: 38px !important;
+  border-bottom: 0;
+  height: 38px;
 }
 body .wb-top-icon {
-  width: 30px !important;
-  height: 30px !important;
-  border: 0 !important;
-  border-radius: 8px !important;
-  background: transparent !important;
-  color: color-mix(in srgb, var(--wb-tint) 62%, transparent) !important;
-  box-shadow: none !important;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--wb-tint) 62%, transparent);
+  box-shadow: none;
 }
 body .wb-top-icon:hover {
-  background: color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  color: var(--wb-ink-strong);
 }
 .wb-statusbar {
-  height: 22px !important;
-  background: transparent !important;
-  border-top: 0 !important;
-  color: color-mix(in srgb, var(--wb-tint) 42%, transparent) !important;
-  font-size: 11px !important;
-  padding: 0 14px !important;
+  height: 22px;
+  background: transparent;
+  border-top: 0;
+  color: color-mix(in srgb, var(--wb-tint) 42%, transparent);
+  font-size: 11px;
+  padding: 0 14px;
 }
 
 /* 6. Codex Home Stage: Balanced Center Emblem Hero + Bottom-Docked Two-Tier Composer */
 .wb-page-content.is-home {
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: stretch !important;
-  padding: 0 28px 12px !important;
-  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: stretch;
+  padding: 0 28px 12px;
+  overflow: hidden;
 }
 .wb-page-content .command-home {
-  flex: 1 !important;
-  min-height: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  width: 100% !important;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 .wb-page-content .command-stage {
-  flex: 1 !important;
-  min-height: 0 !important;
-  width: min(740px, 100%) !important;
-  margin: 0 auto !important;
-  padding: 14px 0 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  justify-content: space-between !important;
-  align-items: center !important;
+  flex: 1;
+  min-height: 0;
+  width: min(740px, 100%);
+  margin: 0 auto;
+  padding: 14px 0 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
 }
 .wb-page-content .home-welcome {
-  margin: auto 0 !important;
+  margin: auto 0;
   transform: translateY(8px);
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  gap: 16px !important;
-  text-align: center !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
 }
 .codex-hero-emblem {
   width: 48px;
@@ -475,12 +484,14 @@ body .wb-top-icon:hover {
   display: inline-grid;
   place-items: center;
 }
-.wb-page-content .home-welcome h1 {
-  color: var(--wb-ink-strong) !important;
-  font-size: clamp(24px, 2.5vw, 28px) !important;
-  font-weight: 500 !important;
-  letter-spacing: -0.022em !important;
-  margin: 0 !important;
+.wb-page-content .home-welcome h1,
+.home-hero-title {
+  color: var(--wb-text-primary);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin: 0;
 }
 
 /* Two-Tier Stacked Composer (.codex-composer-stack) */
@@ -505,8 +516,10 @@ body .wb-top-icon:hover {
   position: relative;
 }
 .home-composer:has([open]),
-.chat-composer:has([open]) {
-  z-index: 40 !important;
+.chat-composer:has([open]),
+.wb-page-content .home-composer:has([open]),
+.wb-page-content .task-conversation-page .chat-composer:has([open]) {
+  z-index: var(--wb-z-popover);
 }
 .codex-rail-bar {
   display: flex;
@@ -554,58 +567,60 @@ body .wb-top-icon:hover {
 
 /* Mode tabs inside the right of the top rail — higher specificity than .wb-page-content .home-mode-tab */
 .wb-page-content .codex-rail-right .home-mode-tab {
-  height: 27px !important;
-  min-height: 27px !important;
-  display: inline-flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  gap: 6px !important;
-  padding: 0 10px !important;
-  border: 0 !important;
-  border-radius: 7px !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: color-mix(in srgb, var(--wb-tint) 56%, transparent) !important;
-  font-size: 12.5px !important;
-  font-weight: 500 !important;
+  height: 27px;
+  min-height: 27px;
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  box-shadow: none;
+  color: color-mix(in srgb, var(--wb-tint) 56%, transparent);
+  font-size: 12.5px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background-color 120ms ease, color 120ms ease !important;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 .wb-page-content .codex-rail-right .home-mode-tab:hover:not(:disabled) {
-  color: var(--wb-ink-strong) !important;
-  background: color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
-  border: 0 !important;
+  color: var(--wb-ink-strong);
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  border: 0;
 }
 .wb-page-content .codex-rail-right .home-mode-tab.active {
-  color: var(--wb-ink-strong) !important;
-  background: color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
-  border: 0 !important;
-  box-shadow: none !important;
+  color: var(--wb-ink-strong);
+  background: color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  border: 0;
+  box-shadow: none;
 }
 
 /* Tier 2: Main Smart Composer Pill Card (.home-composer) */
-.wb-page-content .home-composer,
-.wb-page-content .task-conversation-page .chat-composer {
+html .wb-page-content .home-composer,
+html.desktop-glass .wb-page-content .home-composer,
+html .wb-page-content .task-conversation-page .chat-composer,
+html.desktop-glass .wb-page-content .task-conversation-page .chat-composer {
   position: relative;
-  z-index: 4;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 10px !important;
-  padding: 14px 18px 11px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 9%, transparent) !important;
-  border-radius: 22px !important;
-  background: var(--wb-raised) !important;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 color-mix(in srgb, var(--wb-tint) 4%, transparent) !important;
-  transition: border-color 140ms ease, box-shadow 140ms ease !important;
+  z-index: var(--wb-z-base);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 18px 11px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 9%, transparent);
+  border-radius: 22px;
+  background: var(--wb-raised);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 color-mix(in srgb, var(--wb-tint) 4%, transparent);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 .wb-page-content .task-conversation-page .chat-composer {
-  width: min(760px, calc(100% - 36px)) !important;
-  margin: 6px auto 8px !important;
+  width: min(760px, calc(100% - 36px));
+  margin: 6px auto 8px;
 }
 .wb-page-content .home-composer:focus-within,
 .wb-page-content .task-conversation-page .chat-composer:focus-within {
-  border-color: color-mix(in srgb, var(--wb-tint) 16%, transparent) !important;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 color-mix(in srgb, var(--wb-tint) 4%, transparent) !important;
+  border-color: color-mix(in srgb, var(--wb-tint) 16%, transparent);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), inset 0 1px 0 color-mix(in srgb, var(--wb-tint) 4%, transparent);
 }
 .composer-input-wrap {
   position: relative;
@@ -622,56 +637,56 @@ body .wb-top-icon:hover {
 .composer-input-wrap > textarea,
 .composer-input-wrap > textarea:focus,
 .composer-input-wrap > textarea:focus-visible {
-  width: 100% !important;
-  min-height: 28px !important;
-  max-height: 200px !important;
-  padding: 2px 2px !important;
-  margin: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  outline: none !important;
-  box-shadow: none !important;
-  background: transparent !important;
-  color: var(--wb-ink-strong) !important;
-  font-size: 14.5px !important;
-  line-height: 1.5 !important;
-  resize: none !important;
+  width: 100%;
+  min-height: 28px;
+  max-height: 200px;
+  padding: 2px 2px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  color: var(--wb-ink-strong);
+  font-size: 14.5px;
+  line-height: 1.5;
+  resize: none;
 }
 .wb-page-content .home-composer textarea::placeholder,
 .wb-page-content .chat-composer textarea::placeholder {
-  color: color-mix(in srgb, var(--wb-tint) 38%, transparent) !important;
+  color: color-mix(in srgb, var(--wb-tint) 38%, transparent);
 }
 
 /* 7. Smart Composer Bottom Action Bar & Upward-Opening Codex Popover Menus */
 .wb-page-content .home-composer-controls,
 .wb-page-content .chat-composer-controls {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 8px !important;
-  padding-top: 2px !important;
-  border-top: 0 !important;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 2px;
+  border-top: 0;
 }
 .composer-add-wrap,
 .home-composer-actions {
-  display: inline-flex !important;
-  flex-wrap: wrap !important;
-  align-items: center !important;
-  gap: 4px !important;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
 }
 .composer-add > summary {
-  width: 30px !important;
-  height: 30px !important;
-  border: 0 !important;
-  border-radius: 999px !important;
-  background: transparent !important;
-  color: color-mix(in srgb, var(--wb-tint) 72%, transparent) !important;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--wb-tint) 72%, transparent);
 }
 .composer-add > summary:hover,
 .composer-add[open] > summary {
-  background: color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  color: var(--wb-ink-strong);
 }
 .codex-footer-btn {
   height: 30px;
@@ -764,82 +779,82 @@ body .wb-top-icon:hover {
   gap: 3px;
 }
 .wb-page-content .codex-perm-option {
-  width: 100% !important;
-  height: auto !important;
-  min-height: 0 !important;
-  display: grid !important;
-  grid-template-columns: 22px minmax(0, 1fr) 18px !important;
-  align-items: flex-start !important;
-  justify-content: stretch !important;
-  gap: 10px !important;
-  padding: 9px 10px !important;
-  border: 0 !important;
-  border-radius: 11px !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: var(--wb-ink) !important;
-  text-align: left !important;
-  white-space: normal !important;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 18px;
+  align-items: flex-start;
+  justify-content: stretch;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--wb-ink);
+  text-align: left;
+  white-space: normal;
   cursor: pointer;
-  transition: background-color 120ms ease, color 120ms ease !important;
+  transition: background-color 120ms ease, color 120ms ease;
 }
 .wb-page-content .codex-perm-option:hover {
-  background: color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  color: var(--wb-ink-strong);
 }
 .wb-page-content .codex-perm-option.is-selected {
-  background: color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  color: var(--wb-ink-strong);
 }
 .codex-perm-option-icon {
-  display: inline-grid !important;
-  place-items: center !important;
-  width: 20px !important;
-  height: 20px !important;
-  margin-top: 2px !important;
-  color: color-mix(in srgb, var(--wb-tint) 80%, transparent) !important;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--wb-tint) 80%, transparent);
 }
 .codex-perm-option-body {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: flex-start !important;
-  gap: 3px !important;
-  min-width: 0 !important;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
 }
 .codex-perm-option-body strong {
-  display: block !important;
-  font-size: 13.5px !important;
-  font-weight: 600 !important;
-  line-height: 1.28 !important;
-  color: inherit !important;
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.28;
+  color: inherit;
 }
 .codex-perm-option-body small {
-  display: block !important;
-  font-size: 12px !important;
-  font-weight: 430 !important;
-  line-height: 1.38 !important;
-  color: color-mix(in srgb, var(--wb-tint) 52%, transparent) !important;
-  white-space: normal !important;
+  display: block;
+  font-size: 12px;
+  font-weight: 430;
+  line-height: 1.38;
+  color: color-mix(in srgb, var(--wb-tint) 52%, transparent);
+  white-space: normal;
 }
 .codex-perm-option-check {
-  display: inline-grid !important;
-  place-items: center !important;
-  width: 18px !important;
-  height: 20px !important;
-  margin-top: 1px !important;
-  color: var(--wb-ink-strong) !important;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 20px;
+  margin-top: 1px;
+  color: var(--wb-ink-strong);
 }
 .wb-page-content .codex-perm-option.is-full-access {
-  color: var(--wb-amber) !important;
+  color: var(--wb-amber);
 }
 .wb-page-content .codex-perm-option.is-full-access .codex-perm-option-icon,
 .wb-page-content .codex-perm-option.is-full-access .codex-perm-option-check {
-  color: var(--wb-amber) !important;
+  color: var(--wb-amber);
 }
 .wb-page-content .codex-perm-option.is-full-access:hover,
 .wb-page-content .codex-perm-option.is-full-access.is-selected {
-  background: rgba(249, 115, 22, 0.12) !important;
-  color: var(--wb-amber) !important;
+  background: rgba(249, 115, 22, 0.12);
+  color: var(--wb-amber);
 }
 
 .codex-inline-model-bar {
@@ -892,11 +907,13 @@ body .wb-top-icon:hover {
   background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
   color: var(--wb-ink-strong);
 }
-.codex-pop-card {
+.codex-pop-card,
+.composer-pop {
   position: absolute;
   bottom: calc(100% + 8px);
   left: 0;
-  z-index: 60;
+  z-index: var(--wb-z-popover);
+  overflow-y: hidden;
   min-width: 224px;
   max-width: 300px;
   padding: 6px;
@@ -918,8 +935,8 @@ body .wb-top-icon:hover {
   min-width: 152px;
 }
 .codex-pop-card.is-effort-list .codex-pop-scroll {
-  overflow: visible;
-  max-height: none;
+  overflow-y: auto;
+  max-height: 220px;
 }
 .codex-pop-head {
   padding: 4px 10px 3px;
@@ -931,7 +948,7 @@ body .wb-top-icon:hover {
 .codex-pop-group-label {
   padding: 6px 10px 2px;
   color: color-mix(in srgb, var(--wb-tint) 38%, transparent);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -1042,32 +1059,32 @@ body .wb-top-icon:hover {
 /* Monochrome White Circular Action Button */
 .wb-page-content .home-submit,
 .wb-page-content .chat-send-button {
-  width: 32px !important;
-  height: 32px !important;
-  min-width: 32px !important;
-  min-height: 32px !important;
-  padding: 0 !important;
-  display: inline-grid !important;
-  place-items: center !important;
-  border: 1px solid var(--wb-primary-bg) !important; border-radius: 9999px !important; background: var(--wb-primary-bg) !important; color: var(--wb-primary-fg) !important;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--wb-primary-bg); border-radius: 9999px; background: var(--wb-primary-bg); color: var(--wb-primary-fg);
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
-  transform: none !important;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transform: none;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease;
 }
 .wb-page-content .home-submit:hover:not(:disabled),
 .wb-page-content .chat-send-button:hover:not(:disabled) {
-  border-color: var(--wb-primary-bg) !important; background: var(--wb-primary-bg) !important; color: var(--wb-primary-fg) !important;
-  transform: none !important;
+  border-color: var(--wb-primary-bg); background: var(--wb-primary-bg); color: var(--wb-primary-fg);
+  transform: none;
 }
 .wb-page-content .home-submit:disabled,
 .wb-page-content .chat-send-button:disabled {
-  border-color: transparent !important;
-  background: color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  color: color-mix(in srgb, var(--wb-tint) 30%, transparent) !important;
-  box-shadow: none !important;
-  opacity: 0.75 !important;
-  transform: none !important;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  color: color-mix(in srgb, var(--wb-tint) 30%, transparent);
+  box-shadow: none;
+  opacity: 0.75;
+  transform: none;
 }
 
 /* 8. Multi-Slot Arena Strip inside Top Context Rail */
@@ -1100,8 +1117,8 @@ body .wb-top-icon:hover {
   font-weight: 600;
 }
 .home-arena-title small {
-  color: color-mix(in srgb, var(--wb-tint) 50%, transparent) !important;
-  font-size: 11px !important;
+  color: color-mix(in srgb, var(--wb-tint) 50%, transparent);
+  font-size: 11px;
 }
 .home-arena-presets {
   display: flex;
@@ -1159,22 +1176,22 @@ body .wb-top-icon:hover {
   color: var(--wb-ink);
   font-family: var(--wb-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 650;
 }
 .arena-slot-select {
-  height: 26px !important;
-  min-height: 26px !important;
-  padding: 0 7px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  border-radius: 6px !important;
-  background: var(--wb-surface-soft) !important;
-  color: var(--wb-ink-strong) !important;
-  font-size: 11.5px !important;
+  height: 26px;
+  min-height: 26px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  border-radius: 6px;
+  background: var(--wb-surface-soft);
+  color: var(--wb-ink-strong);
+  font-size: 11.5px;
 }
 .arena-slot-select.is-model {
-  font-family: var(--wb-font-sans) !important;
-  font-size: 11.5px !important;
+  font-family: var(--wb-font-sans);
+  font-size: 11.5px;
 }
 .arena-slot-icon {
   width: 26px;
@@ -1187,7 +1204,7 @@ body .wb-top-icon:hover {
   background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
   color: var(--wb-muted);
   cursor: pointer;
-  transition: all 120ms ease;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 .arena-slot-icon:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--wb-tint) 18%, transparent);
@@ -1226,114 +1243,114 @@ body *:not(.wb-rail-nav) {
 }
 
 *::-webkit-scrollbar {
-  width: 5px !important;
-  height: 5px !important;
+  width: 5px;
+  height: 5px;
 }
 
 *::-webkit-scrollbar-button {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 *::-webkit-scrollbar-track,
 *::-webkit-scrollbar-track-piece,
 *::-webkit-scrollbar-corner {
-  background: transparent !important;
-  border: 0 !important;
+  background: transparent;
+  border: 0;
 }
 
 *::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--wb-tint) 16%, transparent) !important;
-  border: 0 !important;
-  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--wb-tint) 16%, transparent);
+  border: 0;
+  border-radius: 999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--wb-tint) 30%, transparent) !important;
+  background: color-mix(in srgb, var(--wb-tint) 30%, transparent);
 }
 
 *::-webkit-scrollbar-thumb:active {
-  background: color-mix(in srgb, var(--wb-tint) 42%, transparent) !important;
+  background: color-mix(in srgb, var(--wb-tint) 42%, transparent);
 }
 
 /* 9.2 Proportional, Well-Contained Modal Dialogs */
 #overlay .modal-backdrop,
 .wb-page-content .composer-config-modal,
 .desktop-setup-overlay {
-  padding: 24px 16px !important;
-  background: var(--wb-overlay) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
-  display: grid !important;
-  place-items: center !important;
+  padding: 24px 16px;
+  background: var(--wb-overlay);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
 }
 
 #overlay .modal,
 .wb-page-content .composer-config-dialog,
 .desktop-setup-dialog {
-  width: min(640px, calc(100vw - 32px)) !important;
-  max-width: 640px !important;
-  max-height: min(860px, calc(100dvh - 48px)) !important;
-  margin: auto !important;
-  padding: 0 !important;
-  gap: 0 !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
-  border-radius: 16px !important;
-  background: var(--wb-panel) !important;
-  color: var(--wb-ink-strong) !important;
+  width: min(640px, calc(100vw - 32px));
+  max-width: 640px;
+  max-height: min(860px, calc(100dvh - 48px));
+  margin: auto;
+  padding: 0;
+  gap: 0;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  border-radius: 16px;
+  background: var(--wb-panel);
+  color: var(--wb-ink-strong);
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.72),
     0 4px 16px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
-  overflow: hidden !important;
+    inset 0 1px 0 color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  overflow: hidden;
 }
 
 #overlay .modal-head,
 .wb-page-content .composer-config-dialog > .app-dialog-header,
 .desktop-setup-dialog > .app-dialog-header {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 12px !important;
-  margin: 0 !important;
-  padding: 20px 24px 12px !important;
-  border: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  padding: 20px 24px 12px;
+  border: 0;
 }
 
 #overlay .modal-head small,
 .wb-page-content .composer-config-head small {
   display: block;
   margin-bottom: 2px;
-  color: color-mix(in srgb, var(--wb-tint) 42%, transparent) !important;
-  font-size: 10px !important;
-  font-weight: 650 !important;
-  letter-spacing: 0.06em !important;
+  color: color-mix(in srgb, var(--wb-tint) 42%, transparent);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 #overlay .modal-head h2,
 .wb-page-content .composer-config-dialog > header h2,
 .desktop-setup-dialog > header h2 {
-  margin: 0 !important;
-  color: var(--wb-ink-strong) !important;
-  font-size: 18px !important;
-  font-weight: 640 !important;
-  line-height: 1.25 !important;
-  letter-spacing: -0.015em !important;
+  margin: 0;
+  color: var(--wb-ink-strong);
+  font-size: 18px;
+  font-weight: 640;
+  line-height: 1.25;
+  letter-spacing: -0.015em;
 }
 
 #overlay .modal-body,
 .wb-page-content .composer-config-dialog > .app-dialog-content,
 .desktop-setup-dialog .app-dialog-content {
-  display: grid !important;
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   align-items: start;
-  gap: 16px !important;
-  padding: 12px 24px 20px !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+  gap: 16px;
+  padding: 12px 24px 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .modal-grid-2 {
@@ -1352,31 +1369,31 @@ body *:not(.wb-rail-nav) {
 #overlay .modal-actions,
 .wb-page-content .composer-config-dialog > .app-dialog-footer,
 .desktop-setup-actions {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  gap: 8px !important;
-  margin: 0 !important;
-  padding: 12px 24px 20px !important;
-  border: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 24px 20px;
+  border: 0;
 }
 
-#overlay .modal.arena-compare-modal { width: min(1080px, calc(100vw - 32px)) !important; max-width: 1080px !important; }
-#overlay .modal.diff-studio-modal { width: min(1220px, calc(100vw - 32px)) !important; max-width: 1220px !important; }
-#overlay .diff-studio-modal > .modal-body { display: flex !important; flex-direction: column; align-items: stretch; overflow: hidden !important; }
+#overlay .modal.arena-compare-modal { width: min(1080px, calc(100vw - 32px)); max-width: 1080px; }
+#overlay .modal.diff-studio-modal { width: min(1220px, calc(100vw - 32px)); max-width: 1220px; }
+#overlay .diff-studio-modal > .modal-body { display: flex; flex-direction: column; align-items: stretch; overflow: hidden; }
 #overlay .diff-studio-modal.is-empty { height: auto; }
 #overlay .modal .diff-empty-state { margin: 0; color: var(--wb-muted); }
 #overlay .modal .error-detail-content pre,
 #overlay .modal .skill-source { max-height: none; overflow: visible; }
-#overlay .modal[data-form="task"] { width: min(860px, calc(100vw - 32px)) !important; max-width: 860px !important; }
-.desktop-setup-dialog { width: min(680px, calc(100vw - 32px)) !important; max-width: 680px !important; }
+#overlay .modal[data-form="task"] { width: min(860px, calc(100vw - 32px)); max-width: 860px; }
+.desktop-setup-dialog { width: min(680px, calc(100vw - 32px)); max-width: 680px; }
 .app-dialog-shell { font-family: var(--wb-font-sans); font-size: 13px; line-height: 1.55; }
 .app-dialog-shell > .app-dialog-header small,
 .desktop-setup-eyebrow { display: none; }
 .app-dialog-shell .app-dialog-content > :first-child { margin-top: 0; }
 .app-dialog-shell .app-dialog-content > :last-child { margin-bottom: 0; }
-:is(#overlay .modal, .wb-page-content .composer-config-dialog, .desktop-setup-dialog).app-dialog-shell > .app-dialog-content > * { margin-block: 0 !important; }
-.app-dialog-shell .app-dialog-content :is(small,.task-preset-note) { font-size: 12px !important; line-height: 1.5 !important; }
+:is(#overlay .modal, .wb-page-content .composer-config-dialog, .desktop-setup-dialog).app-dialog-shell > .app-dialog-content > * { margin-block: 0; }
+.app-dialog-shell .app-dialog-content :is(small,.task-preset-note) { font-size: 12px; line-height: 1.5; }
 .app-dialog-shell .app-dialog-content .task-preset-tools > header { align-items: flex-start; flex-wrap: wrap; gap: 4px 12px; }
 .app-dialog-shell .app-dialog-content .task-preset-tools > header strong,
 .app-dialog-shell .app-dialog-content .task-skill-auto strong,
@@ -1394,32 +1411,32 @@ body *:not(.wb-rail-nav) {
 #overlay .modal .app-dialog-content h4 { font-size: 14px; line-height: 1.4; font-weight: 600; margin: 12px 0 6px; }
 #overlay .modal .app-dialog-content :is(h5,h6) { font-size: 13px; line-height: 1.5; font-weight: 600; margin: 12px 0 6px; }
 #overlay .modal .app-dialog-content p { font-family: inherit; font-size: 13px; line-height: 1.6; }
-#overlay .modal .app-dialog-content .form-note { padding: 0 !important; background: transparent !important; border: 0 !important; color: var(--wb-muted) !important; font-size: 12px !important; line-height: 1.6 !important; }
+#overlay .modal .app-dialog-content .form-note { padding: 0; background: transparent; border: 0; color: var(--wb-muted); font-size: 12px; line-height: 1.6; }
 #overlay .modal .app-dialog-content label { margin: 0; }
 :is(#overlay .modal, .wb-page-content .composer-config-dialog, .desktop-setup-dialog).app-dialog-shell :is(.button, .button.small) {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  min-height: 32px !important; height: auto !important; margin: 0;
-  padding: 6px 12px !important; border-radius: 7px !important;
-  font-family: var(--wb-font-sans) !important; font-size: 12px !important; line-height: 18px !important; font-weight: 550 !important; white-space: normal !important;
+  min-height: 32px; height: auto; margin: 0;
+  padding: 6px 12px; border-radius: 7px;
+  font-family: var(--wb-font-sans); font-size: 12px; line-height: 18px; font-weight: 550; white-space: normal;
 }
 .app-dialog-shell > .app-dialog-header :is(.icon-button,.wb-top-icon) {
-  width: 28px !important; min-width: 28px; height: 28px !important; min-height: 28px;
-  flex: 0 0 auto; padding: 0 !important; border: 0 !important; background: transparent !important;
+  width: 28px; min-width: 28px; height: 28px; min-height: 28px;
+  flex: 0 0 auto; padding: 0; border: 0; background: transparent;
 }
 /* Match configuration dropdowns to the shared in-app model picker. */
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-select-field { display: grid; min-width: 0; gap: 6px; color: var(--wb-ink); font-size: 12px; font-weight: 550; }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-select { display: block; width: 100%; min-width: 0; }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-select > .codex-inline-trigger {
   width: 100%; height: 38px; justify-content: space-between; padding: 0 11px;
-  border: 1px solid var(--wb-border-subtle) !important; border-radius: 8px;
-  background: var(--wb-field) !important; color: var(--wb-ink-strong) !important;
+  border: 1px solid var(--wb-border-subtle); border-radius: 8px;
+  background: var(--wb-field); color: var(--wb-ink-strong);
   font-family: var(--wb-font-sans); font-size: 12px; font-weight: 500; text-align: left;
 }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-select > .codex-inline-trigger:hover,
-:is(.composer-config-dialog, .multi-chat-create-form) .home-config-select[open] > .codex-inline-trigger { border-color: var(--wb-border-strong) !important; background: var(--wb-hover) !important; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-select[open] > .codex-inline-trigger { border-color: var(--wb-border-strong); background: var(--wb-hover); }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-select-card {
   right: 0; left: 0; width: 100%; min-width: 0; max-width: none; padding: 5px;
-  border: 1px solid var(--wb-border-subtle) !important; border-radius: 10px; background: var(--wb-panel) !important;
+  border: 1px solid var(--wb-border-subtle); border-radius: 10px; background: var(--wb-panel);
 }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-select-card .codex-pop-scroll { max-height: 178px; gap: 2px; }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-select-card .codex-pop-item {
@@ -1427,39 +1444,39 @@ body *:not(.wb-rail-nav) {
   font-family: var(--wb-font-sans); font-size: 12px; text-align: left;
 }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-select-card .codex-pop-item:disabled { opacity: .42; cursor: not-allowed; }
-.composer-config-dialog .home-security-grid { grid-template-columns: minmax(0, 1fr) !important; }
+.composer-config-dialog .home-security-grid { grid-template-columns: minmax(0, 1fr); }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission { display: grid; min-width: 0; gap: 6px; color: var(--wb-ink); font-size: 12px; font-weight: 550; }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu { display: block; width: 100%; }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu > .codex-perm-pill {
   width: 100%; height: 38px; justify-content: flex-start; gap: 9px;
-  padding: 0 11px; border: 1px solid var(--wb-border-subtle) !important; border-radius: 8px;
-  background: var(--wb-field) !important; color: var(--wb-ink-strong);
+  padding: 0 11px; border: 1px solid var(--wb-border-subtle); border-radius: 8px;
+  background: var(--wb-field); color: var(--wb-ink-strong);
   font-family: var(--wb-font-sans); font-size: 12px; font-weight: 550;
 }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu > .codex-perm-pill:hover,
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu[open] > .codex-perm-pill {
-  border-color: var(--wb-border-strong) !important; background: var(--wb-hover) !important;
+  border-color: var(--wb-border-strong); background: var(--wb-hover);
 }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu > .codex-perm-pill > span { flex: 1; text-align: left; }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu > .codex-perm-pill.is-full-access {
-  border-color: rgba(249,115,22,.22) !important; background: rgba(249,115,22,.1) !important; color: var(--wb-amber);
+  border-color: rgba(249,115,22,.22); background: rgba(249,115,22,.1); color: var(--wb-amber);
 }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu > .codex-perm-pill.is-full-access:hover,
-:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu[open] > .codex-perm-pill.is-full-access { background: rgba(249,115,22,.17) !important; color: var(--wb-amber); }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu[open] > .codex-perm-pill.is-full-access { background: rgba(249,115,22,.17); color: var(--wb-amber); }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .is-permission-card {
-  top: calc(100% + 6px) !important; bottom: auto !important; width: 100%; min-width: 0; max-width: none;
+  top: calc(100% + 6px); bottom: auto; width: 100%; min-width: 0; max-width: none;
   max-height: 220px; padding: 7px; gap: 3px; overflow: hidden;
-  border: 1px solid var(--wb-border-subtle) !important; background: var(--wb-panel) !important;
+  border: 1px solid var(--wb-border-subtle); background: var(--wb-panel);
 }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-header { padding: 2px 8px; }
 :is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-list { max-height: 178px; overflow-y: auto; gap: 2px; }
-:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option { padding: 6px 8px !important; gap: 8px !important; border-radius: 8px !important; }
-:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option-body { gap: 2px !important; }
-:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option-body strong { font-size: 12.5px !important; }
-:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option-body small { font-size: 11.5px !important; line-height: 1.3 !important; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option { padding: 6px 8px; gap: 8px; border-radius: 8px; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option-body { gap: 2px; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option-body strong { font-size: 12.5px; }
+:is(.composer-config-dialog, .multi-chat-create-form) .home-config-permission-menu .codex-perm-option-body small { font-size: 11.5px; line-height: 1.3; }
 .composer-config-dialog .home-isolation-row {
-  grid-column: 1 / -1; min-width: 0; min-height: 60px; align-items: center !important;
-  gap: 10px !important; margin: 0 !important; padding: 11px 13px !important; border-radius: 8px;
+  grid-column: 1 / -1; min-width: 0; min-height: 60px; align-items: center;
+  gap: 10px; margin: 0; padding: 11px 13px; border-radius: 8px;
 }
 .composer-config-dialog .home-isolation-row input[type="checkbox"] {
   appearance: none; -webkit-appearance: none; flex: 0 0 auto; width: 16px; height: 16px; margin: 0;
@@ -1475,57 +1492,57 @@ body *:not(.wb-rail-nav) {
 .composer-config-dialog .home-isolation-row input[type="checkbox"]:focus-visible { outline: 1px solid var(--wb-border-strong); outline-offset: 2px; }
 .composer-config-dialog .home-isolation-row input[type="checkbox"]:disabled { opacity: .45; cursor: not-allowed; }
 .composer-config-dialog .home-isolation-row > span { min-width: 0; gap: 3px; }
-.composer-config-dialog .home-isolation-row strong { font-size: 12px !important; line-height: 1.35; }
-.composer-config-dialog .home-isolation-row small { font-size: 11px !important; line-height: 1.4 !important; }
+.composer-config-dialog .home-isolation-row strong { font-size: 12px; line-height: 1.35; }
+.composer-config-dialog .home-isolation-row small { font-size: 11px; line-height: 1.4; }
 @media(max-width:560px) {
-  #overlay .modal-backdrop { padding: 12px 8px !important; }
-  #overlay .modal, .wb-page-content .composer-config-dialog, .desktop-setup-dialog { max-height: calc(100dvh - 24px) !important; }
+  #overlay .modal-backdrop { padding: 12px 8px; }
+  #overlay .modal, .wb-page-content .composer-config-dialog, .desktop-setup-dialog { max-height: calc(100dvh - 24px); }
   #overlay .modal-head, #overlay .modal-body, #overlay .modal-actions,
   .wb-page-content .composer-config-dialog > .app-dialog-header,
   .wb-page-content .composer-config-dialog > .app-dialog-content,
   .wb-page-content .composer-config-dialog > .app-dialog-footer,
-  .desktop-setup-dialog > .app-dialog-header, .desktop-setup-dialog > .app-dialog-content, .desktop-setup-dialog > .app-dialog-footer { padding-left: 16px !important; padding-right: 16px !important; }
+  .desktop-setup-dialog > .app-dialog-header, .desktop-setup-dialog > .app-dialog-content, .desktop-setup-dialog > .app-dialog-footer { padding-left: 16px; padding-right: 16px; }
 }
 
 /* Compact inner blocks inside modals */
 #overlay .provider-cli-entry {
-  display: grid !important;
-  grid-template-columns: 28px minmax(0, 1fr) auto !important;
-  align-items: center !important;
-  gap: 10px !important;
-  padding: 9px 11px !important;
-  border: 1px solid var(--wb-border-subtle) !important;
-  border-radius: 11px !important;
-  background: var(--wb-surface-soft) !important;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid var(--wb-border-subtle);
+  border-radius: 11px;
+  background: var(--wb-surface-soft);
 }
 
 #overlay .provider-cli-entry .provider-connect-icon {
-  width: 28px !important;
-  height: 28px !important;
-  border-radius: 7px !important;
-  background: color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
-  color: var(--wb-ink) !important;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  color: var(--wb-ink);
 }
 
 #overlay .provider-cli-entry strong {
-  font-size: 12.5px !important;
-  color: var(--wb-ink-strong) !important;
+  font-size: 12.5px;
+  color: var(--wb-ink-strong);
 }
 
 #overlay .provider-cli-entry p {
-  margin: 1px 0 0 !important;
-  font-size: 11.5px !important;
-  line-height: 1.35 !important;
-  color: color-mix(in srgb, var(--wb-tint) 56%, transparent) !important;
+  margin: 1px 0 0;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--wb-tint) 56%, transparent);
 }
 
 #overlay .provider-presets {
-  display: grid !important;
-  gap: 7px !important;
-  padding: 9px 11px !important;
-  border: 1px solid var(--wb-border-subtle) !important;
-  border-radius: 11px !important;
-  background: var(--wb-surface-soft) !important;
+  display: grid;
+  gap: 7px;
+  padding: 9px 11px;
+  border: 1px solid var(--wb-border-subtle);
+  border-radius: 11px;
+  background: var(--wb-surface-soft);
 }
 
 #overlay .provider-presets-head {
@@ -1537,47 +1554,47 @@ body *:not(.wb-rail-nav) {
 }
 
 #overlay .provider-presets-head > span {
-  font-size: 11.5px !important;
-  font-weight: 600 !important;
-  color: color-mix(in srgb, var(--wb-tint) 72%, transparent) !important;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--wb-tint) 72%, transparent);
 }
 
 #overlay .provider-key-links {
-  display: inline-flex !important;
-  flex-wrap: wrap !important;
-  gap: 10px !important;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 #overlay .provider-key-links a {
-  font-size: 11px !important;
-  color: var(--wb-accent) !important;
-  text-decoration: none !important;
+  font-size: 11px;
+  color: var(--wb-accent);
+  text-decoration: none;
 }
 
 #overlay .provider-key-links a:hover {
-  color: var(--wb-accent) !important;
-  text-decoration: underline !important;
+  color: var(--wb-accent);
+  text-decoration: underline;
 }
 
 #overlay .provider-model-field {
-  display: grid !important;
-  gap: 6px !important;
+  display: grid;
+  gap: 6px;
 }
 
 #overlay .provider-model-field > button {
-  justify-self: start !important;
+  justify-self: start;
 }
 
 #overlay .form-note,
 .wb-page-content .form-note {
-  margin: 0 !important;
-  padding: 7px 10px !important;
-  border: 1px solid var(--wb-border-subtle) !important;
-  border-radius: 9px !important;
-  background: var(--wb-surface-soft) !important;
-  color: var(--wb-muted) !important;
-  font-size: 11.5px !important;
-  line-height: 1.4 !important;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--wb-border-subtle);
+  border-radius: 9px;
+  background: var(--wb-surface-soft);
+  color: var(--wb-muted);
+  font-size: 11.5px;
+  line-height: 1.4;
 }
 
 /* 9.3 Unified Form Labels, Inputs, Selects, Textareas & Modal Surfaces */
@@ -1588,10 +1605,11 @@ body *:not(.wb-rail-nav) {
 .wb-project-menu,
 .wb-task-menu,
 .codex-pop-card,
+.codex-pop-card.is-permission-card,
 .wb-theme-pop-card {
-  background: var(--wb-panel) !important;
-  border-color: var(--wb-border-subtle) !important;
-  color: var(--wb-ink-strong) !important;
+  background: var(--wb-panel);
+  border-color: var(--wb-border-subtle);
+  color: var(--wb-ink-strong);
 }
 
 #overlay .modal .task-preset-tools,
@@ -1604,9 +1622,9 @@ body *:not(.wb-rail-nav) {
 .wb-page-content .composer-config-dialog .agent-role-card,
 .wb-page-content .composer-config-dialog .home-isolation-row,
 .multi-chat-create-form .chat-agent-card {
-  background: var(--wb-surface-soft) !important;
-  border: 1px solid var(--wb-border-subtle) !important;
-  color: var(--wb-ink) !important;
+  background: var(--wb-surface-soft);
+  border: 1px solid var(--wb-border-subtle);
+  color: var(--wb-ink);
 }
 
 #overlay .modal label,
@@ -1615,19 +1633,19 @@ body *:not(.wb-rail-nav) {
 .wb-page-content .settings-card label {
   display: grid;
   gap: 5px;
-  color: var(--wb-ink) !important;
-  font-size: 12px !important;
-  font-weight: 560 !important;
+  color: var(--wb-ink);
+  font-size: 12px;
+  font-weight: 560;
 }
 
 #overlay .modal label small,
 .wb-page-content .composer-config-dialog label small,
 .multi-chat-create-form label small,
 .wb-page-content .settings-card label small {
-  color: var(--wb-muted) !important;
-  font-size: 11px !important;
-  font-weight: 450 !important;
-  line-height: 1.35 !important;
+  color: var(--wb-muted);
+  font-size: 11px;
+  font-weight: 450;
+  line-height: 1.35;
 }
 
 #overlay .modal input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
@@ -1646,16 +1664,16 @@ body *:not(.wb-rail-nav) {
 .desktop-setup-dialog select,
 .desktop-setup-dialog textarea {
   width: 100%;
-  border: 1px solid var(--wb-border-subtle) !important;
-  border-radius: 9px !important;
-  background: var(--wb-field) !important;
-  color: var(--wb-ink-strong) !important;
-  padding: 7px 10px !important;
-  font-size: 12.5px !important;
-  line-height: 1.4 !important;
-  box-shadow: none !important;
-  outline: none !important;
-  transition: border-color 120ms ease, background-color 120ms ease !important;
+  border: 1px solid var(--wb-border-subtle);
+  border-radius: 9px;
+  background: var(--wb-field);
+  color: var(--wb-ink-strong);
+  padding: 7px 10px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  box-shadow: none;
+  outline: none;
+  transition: border-color 120ms ease, background-color 120ms ease;
 }
 
 #overlay .modal input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
@@ -1666,13 +1684,13 @@ body *:not(.wb-rail-nav) {
 .multi-chat-create-form select,
 .wb-page-content .settings-card input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 .wb-page-content .settings-card select {
-  min-height: 36px !important;
+  min-height: 36px;
 }
 
 #overlay .modal textarea,
 .wb-page-content .composer-config-dialog textarea,
 .multi-chat-create-form textarea {
-  min-height: 68px !important;
+  min-height: 68px;
   resize: vertical;
 }
 
@@ -1691,203 +1709,203 @@ body *:not(.wb-rail-nav) {
 .desktop-setup-dialog input:focus,
 .desktop-setup-dialog select:focus,
 .desktop-setup-dialog textarea:focus {
-  outline: none !important;
-  border-color: var(--wb-border-strong) !important;
-  box-shadow: none !important;
-  background: var(--wb-field) !important;
+  outline: none;
+  border-color: var(--wb-border-strong);
+  box-shadow: none;
+  background: var(--wb-field);
 }
 
 /* Single unified input container for Source Folders (.source-folder-row) */
 #overlay .modal .source-folder-list {
-  display: grid !important;
-  gap: 6px !important;
-  border: 0 !important;
-  background: transparent !important;
-  overflow: visible !important;
+  display: grid;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  overflow: visible;
 }
 
 #overlay .modal .source-folder-row {
   min-width: 0;
-  min-height: 36px !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  padding: 0 6px 0 11px !important;
-  border: 1px solid var(--wb-border-subtle) !important;
-  border-radius: 9px !important;
-  background: var(--wb-field) !important;
-  color: var(--wb-muted) !important;
-  transition: border-color 120ms ease !important;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 11px;
+  border: 1px solid var(--wb-border-subtle);
+  border-radius: 9px;
+  background: var(--wb-field);
+  color: var(--wb-muted);
+  transition: border-color 120ms ease;
 }
 
 #overlay .modal .source-folder-row:focus-within {
-  border-color: var(--wb-border-strong) !important;
+  border-color: var(--wb-border-strong);
 }
 
 #overlay .modal .source-folder-row input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
 #overlay .modal .source-folder-row input:focus {
-  min-width: 0 !important;
-  flex: 1 1 auto !important;
-  height: 34px !important;
-  min-height: 34px !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  outline: none !important;
-  color: var(--wb-ink-strong) !important;
-  font-size: 12.5px !important;
+  min-width: 0;
+  flex: 1 1 auto;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  color: var(--wb-ink-strong);
+  font-size: 12.5px;
 }
 
 /* 9.4 Unified Button System Across Modals, Settings, and Views */
 body .wb-page-content .button:not(.home-submit):not(.chat-send-button),
 body #overlay .button,
 body .desktop-setup-dialog .button {
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  gap: 6px !important;
-  height: 32px !important;
-  min-height: 32px !important;
-  padding: 0 12px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
-  border-radius: 8px !important;
-  background: color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
-  color: var(--wb-ink) !important;
-  font-size: 12.5px !important;
-  font-weight: 540 !important;
-  line-height: 1 !important;
-  text-decoration: none !important;
-  white-space: nowrap !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  color: var(--wb-ink);
+  font-size: 12.5px;
+  font-weight: 540;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
-  transform: none !important;
-  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease !important;
+  transform: none;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
 body .wb-page-content .button:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
 body #overlay .button:hover:not(:disabled),
 body .desktop-setup-dialog .button:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--wb-tint) 18%, transparent) !important;
-  background: color-mix(in srgb, var(--wb-tint) 11%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
-  transform: none !important;
+  border-color: color-mix(in srgb, var(--wb-tint) 18%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 11%, transparent);
+  color: var(--wb-ink-strong);
+  transform: none;
 }
 
 body .wb-page-content .button.small:not(.home-submit):not(.chat-send-button),
 body #overlay .button.small,
 body .desktop-setup-dialog .button.small {
-  height: 27px !important;
-  min-height: 27px !important;
-  padding: 0 9px !important;
-  border-radius: 7px !important;
-  font-size: 11.5px !important;
+  height: 27px;
+  min-height: 27px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 11.5px;
 }
 
 body .wb-page-content .button.quiet:not(.home-submit):not(.chat-send-button),
 body #overlay .button.quiet,
 body .desktop-setup-dialog .button.quiet {
-  border-color: color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  background: color-mix(in srgb, var(--wb-tint) 4%, transparent) !important;
-  color: var(--wb-ink) !important;
+  border-color: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
+  color: var(--wb-ink);
 }
 
 body .wb-page-content .button.quiet:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
 body #overlay .button.quiet:hover:not(:disabled),
 body .desktop-setup-dialog .button.quiet:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--wb-tint) 16%, transparent) !important;
-  background: color-mix(in srgb, var(--wb-tint) 9%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
-  transform: none !important;
+  border-color: color-mix(in srgb, var(--wb-tint) 16%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 9%, transparent);
+  color: var(--wb-ink-strong);
+  transform: none;
 }
 
 body .wb-page-content .button.primary:not(.home-submit):not(.chat-send-button),
 body #overlay .button.primary,
 body .desktop-setup-dialog .button.primary {
-  border-color: var(--wb-primary-bg) !important; background: var(--wb-primary-bg) !important; color: var(--wb-primary-fg) !important;
-  font-weight: 600 !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+  border-color: var(--wb-primary-bg); background: var(--wb-primary-bg); color: var(--wb-primary-fg);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 body .wb-page-content .button.primary:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
 body #overlay .button.primary:hover:not(:disabled),
 body .desktop-setup-dialog .button.primary:hover:not(:disabled) {
-  border-color: var(--wb-primary-bg) !important; background: var(--wb-primary-bg) !important; color: var(--wb-primary-fg) !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
-  transform: none !important;
+  border-color: var(--wb-primary-bg); background: var(--wb-primary-bg); color: var(--wb-primary-fg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transform: none;
 }
 
 body .wb-page-content .button.danger:not(.home-submit):not(.chat-send-button),
 body #overlay .button.danger {
-  border-color: rgba(248, 113, 113, 0.3) !important;
-  background: rgba(239, 68, 68, 0.14) !important;
-  color: var(--wb-red) !important;
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--wb-red);
 }
 
 body .wb-page-content .button.danger:not(.home-submit):not(.chat-send-button):hover:not(:disabled),
 body #overlay .button.danger:hover:not(:disabled) {
-  border-color: rgba(248, 113, 113, 0.5) !important;
-  background: rgba(239, 68, 68, 0.24) !important;
-  color: var(--wb-red) !important;
-  transform: none !important;
+  border-color: rgba(248, 113, 113, 0.5);
+  background: rgba(239, 68, 68, 0.24);
+  color: var(--wb-red);
+  transform: none;
 }
 
 body .wb-page-content .button:disabled,
 body #overlay .button:disabled,
 body .desktop-setup-dialog .button:disabled {
-  opacity: 0.42 !important;
-  box-shadow: none !important;
-  cursor: not-allowed !important;
-  transform: none !important;
+  opacity: 0.42;
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
 }
 
 /* Unified Icon Buttons (Close Modal ×, Toolbar Actions) */
 body .wb-page-content .icon-button,
 body #overlay .icon-button,
 body .desktop-setup-dialog .icon-button {
-  width: 28px !important;
-  height: 28px !important;
-  min-width: 28px !important;
-  min-height: 28px !important;
-  padding: 0 !important;
-  display: inline-grid !important;
-  place-items: center !important;
-  border: 1px solid transparent !important;
-  border-radius: 8px !important;
-  background: transparent !important;
-  color: color-mix(in srgb, var(--wb-tint) 56%, transparent) !important;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--wb-tint) 56%, transparent);
   cursor: pointer;
-  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease !important;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 
 body .wb-page-content .icon-button:hover:not(:disabled),
 body #overlay .icon-button:hover:not(:disabled),
 body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
+  background: color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  color: var(--wb-ink-strong);
 }
 
 /* Unified Settings Cards & Concurrency Stepper */
 .wb-page-content .settings-card {
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  border-radius: 14px !important;
-  background: var(--wb-surface-soft) !important;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--wb-tint) 4%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  border-radius: 14px;
+  background: var(--wb-surface-soft);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--wb-tint) 4%, transparent);
 }
 
 .wb-page-content .concurrency-setting > div button {
-  width: 28px !important;
-  height: 28px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
-  border-radius: 7px !important;
-  background: color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
-  transition: background-color 120ms ease, border-color 120ms ease !important;
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  color: var(--wb-ink-strong);
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 
 .wb-page-content .concurrency-setting > div button:hover {
-  border-color: color-mix(in srgb, var(--wb-tint) 20%, transparent) !important;
-  background: color-mix(in srgb, var(--wb-tint) 12%, transparent) !important;
+  border-color: color-mix(in srgb, var(--wb-tint) 20%, transparent);
+  background: color-mix(in srgb, var(--wb-tint) 12%, transparent);
 }
 
 /* /* ============================================================================
@@ -1900,21 +1918,21 @@ body .desktop-setup-dialog .icon-button:hover:not(:disabled) {
 }
 
 .wb-rail-count {
-  position: absolute !important;
-  top: 3px !important;
-  right: 2px !important;
-  bottom: auto !important;
-  min-width: 15px !important;
-  height: 14px !important;
-  padding: 0 3.5px !important;
-  border: 1.5px solid var(--wb-panel) !important;
-  border-radius: 999px !important;
-  background: var(--wb-raised) !important;
-  color: var(--wb-ink) !important;
-  font-size: 8.5px !important;
-  font-weight: 650 !important;
-  line-height: 11px !important;
-  letter-spacing: -0.02em !important;
+  position: absolute;
+  top: 3px;
+  right: 2px;
+  bottom: auto;
+  min-width: 15px;
+  height: 14px;
+  padding: 0 3.5px;
+  border: 1.5px solid var(--wb-panel);
+  border-radius: 999px;
+  background: var(--wb-raised);
+  color: var(--wb-ink);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 11px;
+  letter-spacing: -0.02em;
   pointer-events: none;
 }
 
@@ -2037,40 +2055,40 @@ summary:hover svg.lucide-animated .la-dot-3 {
 .codex-pop-menu.is-down > .codex-pop-card,
 .vault-head-menu > .codex-pop-card,
 .vault-action-menu:not(.is-up) > .codex-pop-card {
-  top: calc(100% + 6px) !important;
-  bottom: auto !important;
-  z-index: 260 !important;
-  transform-origin: top right !important;
+  top: calc(100% + 6px);
+  bottom: auto;
+  z-index: var(--wb-z-popover);
+  transform-origin: top right;
 }
 
 /* Ordinary dropdowns open below their trigger. Composer rail & footer menus always open upward. */
 .codex-pop-menu:not(.is-up):not(:has(.codex-pop-card.is-model-list)):not(:has(.codex-pop-card.is-effort-list)) > .codex-pop-card,
 .agent-role-picker[data-role-field="agent"] > .codex-pop-card {
-  top: calc(100% + 6px) !important;
-  bottom: auto !important;
-  transform-origin: top left !important;
+  top: calc(100% + 6px);
+  bottom: auto;
+  transform-origin: top left;
 }
 
 .codex-rail-bar .codex-pop-menu > .codex-pop-card,
 .home-composer-controls .codex-pop-menu > .codex-pop-card,
 .chat-composer-controls .codex-pop-menu > .codex-pop-card {
-  bottom: calc(100% + 8px) !important;
-  top: auto !important;
-  z-index: 260 !important;
-  transform-origin: bottom left !important;
+  bottom: calc(100% + 8px);
+  top: auto;
+  z-index: var(--wb-z-popover);
+  transform-origin: bottom left;
 }
 
 .codex-rail-bar .codex-pop-menu.is-right > .codex-pop-card,
 .home-composer-controls .codex-pop-menu.is-right > .codex-pop-card,
 .chat-composer-controls .codex-pop-menu.is-right > .codex-pop-card {
-  transform-origin: bottom right !important;
+  transform-origin: bottom right;
 }
 
 .vault-action-menu.is-up > .codex-pop-card {
-  bottom: calc(100% + 6px) !important;
-  top: auto !important;
-  z-index: 260 !important;
-  transform-origin: bottom right !important;
+  bottom: calc(100% + 6px);
+  top: auto;
+  z-index: var(--wb-z-popover);
+  transform-origin: bottom right;
 }
 
 .vault-head-menu > summary,
@@ -2084,7 +2102,7 @@ summary:hover svg.lucide-animated .la-dot-3 {
 }
 
 .vault-action-pop {
-  min-width: 184px !important;
-  z-index: 260 !important;
+  min-width: 184px;
+  z-index: var(--wb-z-popover);
 }
 

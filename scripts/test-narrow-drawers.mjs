@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { join, resolve } from "node:path";
 import { within } from "../src/server/fs-security.mjs";
@@ -23,7 +23,7 @@ try {
   const click=async(selector)=>{const rect=await evaluate(`(()=>{let e=document.querySelector(${JSON.stringify(selector)});if(!e)return null;let r=e.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2,hit=document.elementFromPoint(x,y);return {x,y,hit:hit===e||e.contains(hit),outer:hit?.outerHTML.slice(0,180)}})()`);assert.ok(rect?.hit,`${selector} is covered: ${JSON.stringify(rect)}`);await cdp("Input.dispatchMouseEvent",{type:"mousePressed",x:rect.x,y:rect.y,button:"left",clickCount:1});await cdp("Input.dispatchMouseEvent",{type:"mouseReleased",x:rect.x,y:rect.y,button:"left",clickCount:1});};
   await cdp("Page.enable");await cdp("Page.addScriptToEvaluateOnNewDocument",{source:`window.opensybauDesktop={isDesktop:true};localStorage.setItem('opensybau.setup-v3','done');localStorage.setItem('opensybau.desktop-setup-v2','done');`});
   await cdp("Emulation.setDeviceMetricsOverride",{width:1600,height:900,deviceScaleFactor:1,mobile:false});await cdp("Page.navigate",{url});
-  await waitFor("!!document.querySelector('.wb-topbar [data-action=toggle-chat-drawer]') || !!document.querySelector('.orca-right-dock')");
+  await waitFor("(!!document.querySelector('.wb-topbar [data-action=toggle-chat-drawer]') || !!document.querySelector('.orca-right-dock')) && (!document.querySelector('.wb-boot-splash') || Number(getComputedStyle(document.querySelector('.wb-boot-splash')).opacity) < 0.01)");
   if(!await evaluate("!!document.querySelector('.orca-right-dock')"))await click('.wb-topbar [data-action=toggle-chat-drawer]');
   await waitFor("!!document.querySelector('[data-right-dock-resizer]')");
   const drag=await evaluate(`(()=>{const e=document.querySelector('[data-right-dock-resizer]'),r=e.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+100,width:document.querySelector('.orca-right-dock').getBoundingClientRect().width}})()`);
@@ -31,7 +31,7 @@ try {
   assert.ok((await evaluate("document.querySelector('.orca-right-dock').getBoundingClientRect().width"))>drag.width+50,'right dock did not resize');
   const tabsScroll=await evaluate(`(()=>{const bar=document.querySelector('.orca-dock-tabs');window.__testDockTabs=bar.innerHTML;for(let i=0;i<20;i++)bar.appendChild(bar.firstElementChild.cloneNode(true));bar.scrollLeft=bar.scrollWidth;return {overflowX:getComputedStyle(bar).overflowX,overflowY:getComputedStyle(bar).overflowY,scrollbar:getComputedStyle(bar).scrollbarWidth,left:bar.scrollLeft,max:bar.scrollWidth-bar.clientWidth}})()`);
   assert.equal(tabsScroll.overflowX,'auto');assert.equal(tabsScroll.overflowY,'hidden');assert.notEqual(tabsScroll.scrollbar,'none');assert.ok(tabsScroll.max>0&&tabsScroll.left>0,JSON.stringify(tabsScroll));
-  const scrollShot=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(baseDir,"dock-scrollbar-check.png"),Buffer.from(scrollShot.data,"base64"));await evaluate("document.querySelector('.orca-dock-tabs').innerHTML=window.__testDockTabs");
+  const scrollShot=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(testDir,"dock-scrollbar-check.png"),Buffer.from(scrollShot.data,"base64"));await evaluate("document.querySelector('.orca-dock-tabs').innerHTML=window.__testDockTabs");
   await click('.orca-dock-tab[data-tab="terminal"]');await waitFor("!!document.querySelector('[data-action=open-live-url]')");
   await click('.orca-right-dock [data-action=open-live-url]');await waitFor("!!document.querySelector('[data-stage-split-resizer]') && !!document.querySelector('iframe.orca-live-frame')");
   const split=await evaluate(`(()=>{const r=document.querySelector('[data-stage-split-resizer]').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+100,before:document.querySelector('.orca-stage-pane.is-primary').getBoundingClientRect().width}})()`);
@@ -60,12 +60,12 @@ try {
       if(!await evaluate("!!document.querySelector('.orca-right-dock')")) await click(".wb-window-chrome-right [data-action=toggle-chat-drawer]");
       await waitFor("!!document.querySelector('.orca-right-dock')");
       assert.match(await evaluate("getComputedStyle(document.querySelector('.orca-right-dock')).backgroundColor"),/^rgb\(/);
-      if(width===375&&theme==="obsidian"){const screenshot=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(baseDir,"drawer-right-check.png"),Buffer.from(screenshot.data,"base64"));}
+      if(width===375&&theme==="obsidian"){const screenshot=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(testDir,"drawer-right-check.png"),Buffer.from(screenshot.data,"base64"));}
       await click(".orca-dock-tabs button");
       await click(".wb-sidebar-toggle-btn");await waitFor("!!document.querySelector('.wb-context-sidebar.is-mobile-open') && document.querySelector('.wb-context-sidebar').getBoundingClientRect().left >= -1");
       assert.equal(await evaluate("getComputedStyle(document.querySelector('.orca-right-dock')).visibility"),"hidden");
       assert.match(await evaluate("getComputedStyle(document.querySelector('.wb-context-sidebar')).backgroundColor"),/^rgb\(/);
-      if(width===375&&theme==="obsidian"){const screenshot=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(baseDir,"drawer-left-check.png"),Buffer.from(screenshot.data,"base64"));}
+      if(width===375&&theme==="obsidian"){const screenshot=await cdp("Page.captureScreenshot",{format:"png"});await fs.writeFile(join(testDir,"drawer-left-check.png"),Buffer.from(screenshot.data,"base64"));}
       await click(".wb-window-chrome-right [data-action=toggle-chat-drawer]");
       await waitFor("!document.querySelector('.wb-context-sidebar.is-mobile-open') && getComputedStyle(document.querySelector('.orca-right-dock')).visibility==='visible'");
       await click(".wb-window-chrome-right [data-action=toggle-language]");
@@ -97,5 +97,13 @@ try {
   assert.equal(await fs.readFile(join(workspace,"example.js"),"utf8"),"export const marker = 2;\n");
   console.log("Actual app: opaque drawers, title controls, tabs, sidebar switching and opening/editing/saving a real workspace file passed.");
 } finally {
-  ws?.close();chrome?.kill();await stopWorkbench();assert.ok(within(baseDir,testDir)&&testDir!==baseDir);await fs.rm(testDir,{recursive:true,force:true,maxRetries:10,retryDelay:200});
+  try { ws?.close(); } catch {}
+  try { chrome?.stderr?.destroy(); } catch {}
+  if (chrome?.pid) {
+    if (process.platform === "win32") spawnSync("taskkill", ["/PID", String(chrome.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+    else try { chrome.kill("SIGKILL"); } catch {}
+  }
+  await stopWorkbench();
+  assert.ok(within(baseDir, testDir) && testDir !== baseDir);
+  await fs.rm(testDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 }

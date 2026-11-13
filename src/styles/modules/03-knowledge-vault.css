@@ -4,11 +4,11 @@
 .wb-page-content.is-knowledge-detail,
 .wb-page-content:has(> .knowledge-orca-shell),
 .wb-page-content:has(> .minimal-center-stage) {
-  padding: 0 !important;
-  overflow: hidden !important;
-  display: flex !important;
-  flex-direction: column !important;
-  scrollbar-gutter: auto !important;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  scrollbar-gutter: auto;
 }
 
 .knowledge-orca-shell {
@@ -40,38 +40,38 @@
     grid-template-columns: 220px minmax(0, 1fr);
   }
   .knowledge-orca-shell .kb-sidebar-right {
-    display: none !important;
+    display: none;
   }
 }
 
 /* Shared Pane Header (44px) */
 .kb-pane-head,
 .kb-stage-topbar {
-  height: 44px !important;
-  min-height: 44px !important;
-  flex: 0 0 44px !important;
-  padding: 0 12px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 8px !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent) !important;
-  background: var(--wb-surface-soft) !important;
-  overflow: visible !important;
+  height: 44px;
+  min-height: 44px;
+  flex: 0 0 44px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 6%, transparent);
+  background: var(--wb-surface-soft);
+  overflow: visible;
 }
 
 /* 1. Left Vault Explorer Sidebar (.kb-sidebar-left) */
 .kb-sidebar-left {
-  min-width: 0 !important;
-  min-height: 0 !important;
-  height: 100% !important;
-  display: flex !important;
-  flex-direction: column !important;
-  border: 0 !important;
-  border-right: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent) !important;
-  border-radius: 0 !important;
-  background: var(--wb-surface-soft) !important;
-  overflow: visible !important;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--wb-tint) 7%, transparent);
+  border-radius: 0;
+  background: var(--wb-surface-soft);
+  overflow: visible;
 }
 
 .kb-vault-brand {
@@ -109,8 +109,8 @@
 }
 
 .kb-vault-meta small {
-  font-size: 10.5px !important;
-  color: color-mix(in srgb, var(--wb-tint) 42%, transparent) !important;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--wb-tint) 42%, transparent);
   white-space: nowrap;
 }
 
@@ -122,31 +122,31 @@
 }
 
 .kb-search {
-  margin: 8px 10px 4px !important;
-  height: 30px !important;
-  min-height: 30px !important;
-  padding: 0 9px !important;
-  border-radius: 7px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent) !important;
-  background: var(--wb-surface-soft) !important;
+  margin: 8px 10px 4px;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 8%, transparent);
+  background: var(--wb-surface-soft);
 }
 
 .kb-breadcrumbs {
-  padding: 4px 10px 6px !important;
-  font-size: 11px !important;
-  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 5%, transparent) !important;
+  padding: 4px 10px 6px;
+  font-size: 11px;
+  border-bottom: 1px solid color-mix(in srgb, var(--wb-tint) 5%, transparent);
 }
 
 .kb-file-list {
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
-  max-height: none !important;
-  overflow-y: auto !important;
-  overflow-x: visible !important;
-  padding: 6px 8px !important;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 2px !important;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overflow-x: visible;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .vault-file-item {
@@ -166,17 +166,17 @@
 }
 
 .vault-file-item .file-row {
-  background: transparent !important;
-  border: 0 !important;
-  min-height: 30px !important;
-  padding: 4px 8px !important;
-  grid-template-columns: 15px minmax(0, 1fr) auto !important;
-  gap: 7px !important;
+  background: transparent;
+  border: 0;
+  min-height: 30px;
+  padding: 4px 8px;
+  grid-template-columns: 15px minmax(0, 1fr) auto;
+  gap: 7px;
 }
 
 .vault-file-item.is-selected .file-row strong {
-  color: var(--wb-ink-strong) !important;
-  font-weight: 600 !important;
+  color: var(--wb-ink-strong);
+  font-weight: 600;
 }
 
 .kb-degree-pill {
@@ -184,19 +184,19 @@
   height: 16px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--wb-tint) 7%, transparent);
-  color: color-mix(in srgb, var(--wb-tint) 55%, transparent) !important;
+  color: color-mix(in srgb, var(--wb-tint) 55%, transparent);
   font-family: var(--wb-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 10px !important;
+  font-size: 11px;
   display: inline-grid;
   place-items: center;
 }
 
 .vault-file-item .vault-action-menu > summary.vault-more-btn {
-  width: 24px !important;
-  height: 24px !important;
-  min-width: 24px !important;
-  min-height: 24px !important;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
   opacity: 0;
   transition: opacity 120ms ease, background-color 120ms ease;
 }
@@ -215,8 +215,8 @@
 .kb-new-note-wide {
   width: 100%;
   justify-content: center;
-  height: 28px !important;
-  min-height: 28px !important;
+  height: 28px;
+  min-height: 28px;
 }
 
 /* 2. Center Main Stage (.kb-stage-center) */
@@ -239,9 +239,9 @@
 
 .kb-pane-toggle.is-active,
 .kb-inspector-toggle.is-active {
-  background: color-mix(in srgb, var(--wb-tint) 9%, transparent) !important;
-  color: var(--wb-ink-strong) !important;
-  border-color: color-mix(in srgb, var(--wb-tint) 16%, transparent) !important;
+  background: color-mix(in srgb, var(--wb-tint) 9%, transparent);
+  color: var(--wb-ink-strong);
+  border-color: color-mix(in srgb, var(--wb-tint) 16%, transparent);
 }
 
 .kb-active-doc-info {
@@ -262,8 +262,8 @@
 }
 
 .kb-active-doc-info small {
-  font-size: 11px !important;
-  color: color-mix(in srgb, var(--wb-tint) 42%, transparent) !important;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--wb-tint) 42%, transparent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -372,25 +372,25 @@
 }
 
 .kb-markdown-doc {
-  padding: 0 !important;
-  font-size: 14px !important;
-  line-height: 1.72 !important;
-  color: var(--wb-ink) !important;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1.72;
+  color: var(--wb-ink);
 }
 
 .kb-markdown-doc h1 {
-  font-size: 21px !important;
-  margin-top: 0 !important;
+  font-size: 21px;
+  margin-top: 0;
   letter-spacing: -0.02em;
 }
 
 .kb-markdown-doc h2 {
-  font-size: 17px !important;
-  margin-top: 1.4em !important;
+  font-size: 17px;
+  margin-top: 1.4em;
 }
 
 .kb-markdown-doc h3 {
-  font-size: 15px !important;
+  font-size: 15px;
 }
 
 .vault-editor-wrap.kb-editor-wrap {
@@ -405,22 +405,22 @@
 .vault-editor-textarea {
   flex: 1 1 auto;
   width: 100%;
-  min-height: 0 !important;
-  height: 100% !important;
-  padding: 14px 16px !important;
-  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent) !important;
-  border-radius: 10px !important;
-  background: var(--wb-surface-soft) !important;
-  color: var(--wb-ink-strong) !important;
-  font-family: var(--wb-font-mono) !important;
-  font-size: 13px !important;
-  line-height: 1.65 !important;
-  resize: none !important;
+  min-height: 0;
+  height: 100%;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--wb-tint) 10%, transparent);
+  border-radius: 10px;
+  background: var(--wb-surface-soft);
+  color: var(--wb-ink-strong);
+  font-family: var(--wb-font-mono);
+  font-size: 13px;
+  line-height: 1.65;
+  resize: none;
 }
 
 .vault-editor-textarea:focus {
-  outline: none !important;
-  border-color: color-mix(in srgb, var(--wb-tint) 24%, transparent) !important;
+  outline: none;
+  border-color: color-mix(in srgb, var(--wb-tint) 24%, transparent);
 }
 
 .vault-editor-foot {
@@ -522,8 +522,8 @@
 }
 
 .kb-graph-legend small {
-  color: color-mix(in srgb, var(--wb-tint) 42%, transparent) !important;
-  font-size: 10.5px !important;
+  color: color-mix(in srgb, var(--wb-tint) 42%, transparent);
+  font-size: 11px;
 }
 
 .kb-dot {
@@ -619,8 +619,8 @@
 
 .kb-inspector-note-head small {
   font-family: var(--wb-font-sans);
-  font-size: 11px !important;
-  color: color-mix(in srgb, var(--wb-tint) 45%, transparent) !important;
+  font-size: 11px;
+  color: color-mix(in srgb, var(--wb-tint) 45%, transparent);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -633,10 +633,10 @@
 }
 
 .kb-quick-actions .button.small {
-  height: 25px !important;
-  min-height: 25px !important;
-  padding: 0 8px !important;
-  font-size: 11px !important;
+  height: 25px;
+  min-height: 25px;
+  padding: 0 8px;
+  font-size: 11px;
 }
 
 .kb-inspector-section {
@@ -656,9 +656,9 @@
 }
 
 .kb-section-label {
-  color: color-mix(in srgb, var(--wb-tint) 46%, transparent) !important;
-  font-size: 10.5px !important;
-  font-weight: 620 !important;
+  color: color-mix(in srgb, var(--wb-tint) 46%, transparent);
+  font-size: 11px;
+  font-weight: 620;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -671,7 +671,7 @@
   color: var(--wb-ink);
   font-family: var(--wb-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 10px;
+  font-size: 11px;
   display: inline-grid;
   place-items: center;
 }
@@ -720,8 +720,8 @@
 }
 
 .neural-connection-list small {
-  color: color-mix(in srgb, var(--wb-tint) 42%, transparent) !important;
-  font-size: 10.5px !important;
+  color: color-mix(in srgb, var(--wb-tint) 42%, transparent);
+  font-size: 11px;
 }
 
 .kb-outline-list {
@@ -778,7 +778,7 @@
 }
 
 .kb-stat-grid span {
-  font-size: 10.5px;
+  font-size: 11px;
   color: color-mix(in srgb, var(--wb-tint) 45%, transparent);
 }
 
@@ -801,10 +801,10 @@
 }
 
 .kb-mini-markdown {
-  padding: 2px 0 0 !important;
-  font-size: 12px !important;
-  line-height: 1.58 !important;
-  color: color-mix(in srgb, var(--wb-tint) 82%, transparent) !important;
+  padding: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.58;
+  color: color-mix(in srgb, var(--wb-tint) 82%, transparent);
   max-height: 280px;
   overflow-y: auto;
 }
@@ -812,15 +812,15 @@
 .kb-mini-markdown h1,
 .kb-mini-markdown h2,
 .kb-mini-markdown h3 {
-  font-size: 13px !important;
-  margin: 0.4em 0 !important;
+  font-size: 13px;
+  margin: 0.4em 0;
 }
 
 .neural-muted {
   margin: 0;
-  color: color-mix(in srgb, var(--wb-tint) 42%, transparent) !important;
-  font-size: 11.5px !important;
-  line-height: 1.45 !important;
+  color: color-mix(in srgb, var(--wb-tint) 42%, transparent);
+  font-size: 11.5px;
+  line-height: 1.45;
 }
 
 .file-preview-empty-actions {

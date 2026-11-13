@@ -1,9 +1,10 @@
-import { esc, fmtDate, icon, statuses, view } from "../../../shared/state.js";
+import { backContextButtonMarkup, esc, fmtDate, icon, statuses, view } from "../../../shared/state.js";
 import { computeWaveDag, orchestrationNodes, parseReviewFindings, pipelineStepperData } from "../../../domain/task-flow.js";
 import { providerTitle, roleConfig } from "../../../domain/agent-roles.js";
 import { showModal } from "../runtime.js";
 import { homeSelectField, taskProgress, workflowSummary } from "../ui-controls.js";
 import { showWorkspaceModal } from "../modals.js";
+import { renderSchedulesSectionMarkup } from "../schedules-modal.js";
 import { taskDetails } from "./tasks-workspaces-page.js";
 
 export function workflowNodes(task) {
@@ -112,7 +113,7 @@ export function missionControlStepperMarkup(task, { compact = false } = {}) {
     ${planGateBanner}
     ${compact
       ? (cyclesRows ? `<details class="mc-cycles-Region" ${data.awaitingGate || data.findings.blocking > 0 ? "open" : ""}>
-          <summary class="mc-cycles-summary"><span>Chi tiết các bước thực hiện (${data.cycles.length} bước) & Tài liệu (5)</span>${icon("chevron-down", 13)}</summary>
+          <summary class="mc-cycles-summary"><span>Chi tiết các bước thực hiện (${data.cycles.length} bước) & Tài liệu (${(data.stageDocuments || []).length})</span>${icon("chevron-down", 13)}</summary>
           <div class="mc-cycles-list">${cyclesRows}</div>
           ${docsBar}
         </details>` : docsBar)
@@ -175,17 +176,20 @@ export function workflowPage() {
     }
     return true;
   });
-  const dag = computeWaveDag(tasks.length ? tasks : allTasks);
+  const summaryDag = computeWaveDag(allTasks);
+  const dag = computeWaveDag(tasks);
+  const backBtnMarkup = backContextButtonMarkup();
+  const schedulesCount = Array.isArray(view.schedules) ? view.schedules.length : 0;
 
-  const needsLookHtml = dag.needsLookTasks.length ? `<section class="mc-needs-look-banner" aria-label="Cần bạn xử lý">
+  const needsLookHtml = summaryDag.needsLookTasks.length ? `<section class="mc-needs-look-banner" aria-label="Cần bạn xử lý">
     <header class="mc-needs-look-head">
       <div>
-        <span class="mc-badge is-attention">${icon("shield-check", 12)} CẦN BẠN DUYỆT · ${dag.needsLookTasks.length}</span>
+        <span class="mc-badge is-attention">${icon("shield-check", 12)} CẦN BẠN DUYỆT · ${summaryDag.needsLookTasks.length}</span>
         <strong>Các công việc đang chờ bạn quyết định (Duyệt kế hoạch, Gộp vào dự án, hoặc Xem lỗi)</strong>
       </div>
     </header>
     <div class="mc-needs-look-grid">
-      ${dag.needsLookTasks.map((t) => {
+      ${summaryDag.needsLookTasks.map((t) => {
         const stepper = pipelineStepperData(t);
         const isGate = t.status === "awaiting_approval";
         const canMerge = t.isolated && !t.worktreeMissing && !t.worktreeCleaned && !t.worktreeAppliedAt && (t.artifacts || []).length > 0 && t.status === "done";
@@ -200,7 +204,7 @@ export function workflowPage() {
           <div class="mc-needs-look-actions">
             ${isGate ? `<button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(t.id)}">${icon("check", 12)}<span>Duyệt & Chạy</span></button><button type="button" class="button quiet small" data-action="open-stage-doc" data-id="${esc(t.id)}" data-doc-id="plan">Xem kế hoạch</button>` : ""}
             ${canMerge ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(t.id)}">${icon("check", 12)}<span>Gộp vào dự án</span></button>` : ""}
-            <button type="button" class="button quiet small" data-action="back-chat" data-id="${esc(t.id)}">Mở Chat</button>
+            <button type="button" class="button quiet small" data-action="open-task-chat" data-id="${esc(t.id)}">Mở Chat</button>
             <button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(t.id)}">Chi tiết</button>
           </div>
         </article>`;
@@ -217,12 +221,12 @@ export function workflowPage() {
 
   const toolbarHtml = `<div class="mc-board-toolbar">
     <div class="mc-counter-strip">
-      <span class="mc-counter-pill ${dag.counters.forYou > 0 ? "is-attention" : ""}"><strong>${dag.counters.forYou}</strong> cần bạn duyệt</span>
-      <span class="mc-counter-pill ${dag.counters.running > 0 ? "is-running" : ""}"><strong>${dag.counters.running}</strong> đang chạy</span>
-      <span class="mc-counter-pill"><strong>${dag.counters.inReview}</strong> đang kiểm tra</span>
-      <span class="mc-counter-pill"><strong>${dag.counters.ready}</strong> sẵn sàng</span>
-      <span class="mc-counter-pill ${dag.counters.blocked > 0 ? "is-blocked" : ""}"><strong>${dag.counters.blocked}</strong> chờ đợt trước</span>
-      <span class="mc-counter-pill is-done"><strong>${dag.counters.done}</strong> hoàn tất</span>
+      <span class="mc-counter-pill ${summaryDag.counters.forYou > 0 ? "is-attention" : ""}"><strong>${summaryDag.counters.forYou}</strong> cần bạn duyệt</span>
+      <span class="mc-counter-pill ${summaryDag.counters.running > 0 ? "is-running" : ""}"><strong>${summaryDag.counters.running}</strong> đang chạy</span>
+      <span class="mc-counter-pill"><strong>${summaryDag.counters.inReview}</strong> đang kiểm tra</span>
+      <span class="mc-counter-pill"><strong>${summaryDag.counters.ready}</strong> sẵn sàng</span>
+      <span class="mc-counter-pill ${summaryDag.counters.blocked > 0 ? "is-blocked" : ""}"><strong>${summaryDag.counters.blocked}</strong> chờ đợt trước</span>
+      <span class="mc-counter-pill is-done"><strong>${summaryDag.counters.done}</strong> hoàn tất</span>
     </div>
     <div class="mc-filter-strip" role="tablist" aria-label="Bộ lọc trạng thái công việc">
       <span class="mc-filter-label">Hiển thị:</span>
@@ -230,19 +234,12 @@ export function workflowPage() {
     </div>
   </div>`;
 
-  return `<div class="page-head">
-    <div>
-      <h1>Tiến trình công việc</h1>
-      <p>Theo dõi từng bước làm việc của AI từ lúc lên kế hoạch, viết code, kiểm tra lại cho đến khi chạy thử và gộp vào dự án.</p>
-    </div>
-    ${allTasks.length ? `<div class="page-head-actions">
-      <button class="button quiet" data-action="open-wave-decompose">${icon("workflow", 15)} <span>Giao việc theo đợt</span></button>
-      <button class="button primary" data-action="new-task">${icon("plus", 15)} <span>Giao việc mới</span></button>
-    </div>` : ""}
-  </div>
-  ${needsLookHtml}
-  ${toolbarHtml}
-  ${allTasks.length ? `<section class="workflow-board mc-wave-board" data-wave-dag-board>
+  const stationDocMap = { "plan-review": "plan", you: "plan", build: "impl", "code-review": "review", qa: "qa", pr: "impl" };
+  const boardOrEmptyHtml = !allTasks.length
+    ? `<section class="empty-state workflow-empty"><div class="empty-symbol">${icon("workflow", 20)}</div><strong>Chưa có công việc nào đang chạy</strong><p>Khi bạn giao việc hoặc trò chuyện với AI trong dự án, toàn bộ các bước thực hiện sẽ hiển thị trực quan tại đây.</p><div class="workflow-empty-actions"><button type="button" class="button quiet" data-action="open-schedules-modal">${icon("calendar", 15)} <span>Lịch tự động${schedulesCount ? ` (${schedulesCount})` : ""}</span></button><button type="button" class="button quiet" data-action="open-wave-decompose">${icon("workflow", 15)} <span>Giao việc theo đợt</span></button><button type="button" class="button primary" data-action="new-task">${icon("plus", 15)} <span>Giao việc mới</span></button></div></section>`
+    : !tasks.length
+      ? `<section class="empty-state workflow-empty"><div class="empty-symbol">${icon("workflow", 20)}</div><strong>Không có công việc nào khớp bộ lọc hiện tại</strong><p>Đã ẩn ${allTasks.length} công việc thuộc trạng thái khác. Đặt lại bộ lọc để xem toàn bộ tiến trình.</p><div class="workflow-empty-actions"><button type="button" class="button primary" data-action="reset-flow-filter">${icon("refresh-cw", 15)} <span>Xem tất cả công việc</span></button></div></section>`
+      : `<section class="workflow-board mc-wave-board" data-wave-dag-board>
     <svg class="mc-wave-svg-layer" data-wave-dag-svg aria-hidden="true"></svg>
     ${dag.waves.map((wave) => `<div class="mc-wave-column" data-wave-index="${wave.index}">
       <header class="mc-wave-column-head">
@@ -252,11 +249,23 @@ export function workflowPage() {
       <div class="mc-wave-column-body">
         ${wave.tasks.map((task) => {
           const stepper = pipelineStepperData(task);
+          const artifactsCount = (task.artifacts || []).length;
           const wsName = view.state.workspaces.find((workspace) => workspace.id === task.workspaceId)?.name || task.workspacePath;
           const depNames = (task.dependsOn || []).map((depId) => {
             const depTask = allTasks.find((t) => t.id === depId);
             return depTask ? (depTask.code || depTask.title.slice(0, 22)) : depId.slice(0, 6);
           });
+          const singleTrackHtml = stepper.stations.map((st, idx) => {
+            const docId = stationDocMap[st.id] || "spec";
+            const stIcon = st.state === "done" ? "check" : st.state === "failed" ? "x" : st.state === "attention" ? "shield-check" : st.state === "active" ? "refresh-cw" : "circle-dot";
+            return `<div class="mc-station is-${esc(st.state)}">
+              <button type="button" class="mc-station-btn" data-action="${st.id === "pr" && artifactsCount ? "open-diff-modal" : "open-stage-doc"}" data-id="${esc(task.id)}" data-doc-id="${esc(docId)}" title="${esc(st.label)}: ${esc(st.sub)}">
+                <span class="mc-station-dot">${icon(stIcon, 12)}</span>
+                <span class="mc-station-text"><strong>${esc(st.label)}</strong></span>
+              </button>
+              ${idx < stepper.stations.length - 1 ? `<span class="mc-station-line ${st.state === "done" ? "is-done" : ""}"></span>` : ""}
+            </div>`;
+          }).join("");
           return `<article class="workflow-card mc-wave-card status-${esc(task.status)}" data-wave-task-id="${esc(task.id)}">
             <header>
               <div class="mc-card-title-wrap">
@@ -275,16 +284,14 @@ export function workflowPage() {
               </div>
               <span class="pill status-${esc(task.status)}"><i></i>${esc(statuses[task.status] || task.status)}</span>
             </header>
-            <div class="mc-mini-stations">
-              ${stepper.stations.map((st) => `<span class="mc-mini-station is-${esc(st.state)}" title="${esc(st.label)}: ${esc(st.sub)}"><i></i><small>${esc(st.label)}</small></span>`).join("")}
-            </div>
-            <div class="workflow-lane">${workflowNodes(task)}</div>
+            <div class="mc-stations-track is-card-track">${singleTrackHtml}</div>
             ${depNames.length ? `<div class="mc-dep-row">${icon("git-branch", 12)} <span>Chờ xong: ${depNames.map((n) => `<code>${esc(n)}</code>`).join(", ")}</span></div>` : ""}
             <footer>
               <span>${task.config.workflow === "chat-only" ? `Chat · ${esc(providerTitle(view.connectors, task.config.chatProvider))}` : task.config.workflow === "plan-only" ? `${esc(providerTitle(view.connectors, task.config?.roles?.plan?.provider || roleConfig(task.config, "plan")?.provider))} · chỉ lên kế hoạch` : esc(workflowSummary(task))}</span>
               <div class="mc-card-footer-actions">
                 ${task.status === "awaiting_approval" ? `<button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(task.id)}">Duyệt & Chạy</button>` : ""}
-                <button type="button" class="workflow-record-link" data-action="back-chat" data-id="${esc(task.id)}">Chat</button>
+                ${artifactsCount > 0 ? `<button type="button" class="workflow-record-link" data-action="open-diff-modal" data-id="${esc(task.id)}">Review diff (${artifactsCount})</button>` : ""}
+                <button type="button" class="workflow-record-link" data-action="open-task-chat" data-id="${esc(task.id)}">Chat</button>
                 <button class="workflow-record-link" data-action="open-task-flow" data-id="${esc(task.id)}">${icon("workflow", 14)} Xem chi tiết</button>
               </div>
               <time>${fmtDate(task.updatedAt)}</time>
@@ -293,7 +300,24 @@ export function workflowPage() {
         }).join("")}
       </div>
     </div>`).join("")}
-  </section>` : `<section class="empty-state workflow-empty"><strong>Chưa có công việc nào đang chạy</strong><p>Khi bạn giao việc hoặc trò chuyện với AI trong dự án, toàn bộ các bước thực hiện sẽ hiển thị trực quan tại đây.</p><div class="workflow-empty-actions"><button class="button quiet" data-action="open-wave-decompose">${icon("workflow", 15)} <span>Giao việc theo đợt</span></button><button class="button primary" data-action="new-task">${icon("plus", 15)} <span>Giao việc mới</span></button></div></section>`}`;
+  </section>`;
+
+  return `<div class="page-head">
+    <div>
+      ${backBtnMarkup}
+      <h1>Tiến trình công việc</h1>
+      <p>Theo dõi từng bước làm việc của AI từ lúc lên kế hoạch, viết code, kiểm tra lại cho đến khi chạy thử và gộp vào dự án.</p>
+    </div>
+    <div class="page-head-actions">
+      <button type="button" class="button quiet" data-action="open-schedules-modal">${icon("calendar", 15)} <span>Lịch tự động${schedulesCount ? ` (${schedulesCount})` : ""}</span></button>
+      <button type="button" class="button quiet" data-action="open-wave-decompose">${icon("workflow", 15)} <span>Giao việc theo đợt</span></button>
+      <button type="button" class="button primary" data-action="new-task">${icon("plus", 15)} <span>Giao việc mới</span></button>
+    </div>
+  </div>
+  ${needsLookHtml}
+  ${toolbarHtml}
+  ${boardOrEmptyHtml}
+  ${renderSchedulesSectionMarkup({ compact: true })}`;
 }
 
 export function drawWaveDagEdges() {
@@ -334,22 +358,65 @@ export function memoryPage() {
   const workspaces = view.state?.workspaces || [];
   const scopeFilter = view.memoryWorkspaceFilter || "all";
   const sharedCount = notes.filter((m) => m.workspaceId === "all").length;
-  const filteredNotes = notes.filter((m) => {
-    if (scopeFilter === "all") return true;
-    if (scopeFilter === "global") return m.workspaceId === "all";
-    return m.workspaceId === scopeFilter;
-  });
+  const pinnedOrUserCount = notes.filter((m) => m.pinned || m.kind === "user-profile").length;
+  const backBtnMarkup = backContextButtonMarkup();
+  const filteredNotes = notes
+    .filter((m) => {
+      if (scopeFilter === "all") return true;
+      if (scopeFilter === "global") return m.workspaceId === "all";
+      return m.workspaceId === scopeFilter;
+    })
+    .slice()
+    .sort((a, b) => {
+      const aPriority = (a.kind === "user-profile" ? 2 : 0) + (a.pinned ? 1 : 0);
+      const bPriority = (b.kind === "user-profile" ? 2 : 0) + (b.pinned ? 1 : 0);
+      if (bPriority !== aPriority) return bPriority - aPriority;
+      return Date.parse(b.updatedAt || b.createdAt || "") - Date.parse(a.updatedAt || a.createdAt || "");
+    });
+
+  const renderMemoryCard = (m) => {
+    const isUserRule = m.kind === "user-profile";
+    const isPitfall = m.kind === "pitfall";
+    const isPinned = Boolean(m.pinned || isUserRule);
+    const kindBadge = isUserRule
+      ? `<span class="mc-badge is-attention">${icon("pin", 11)} USER.md · Quy tắc cá nhân</span>`
+      : isPitfall
+        ? `<span class="mc-badge is-blocking">${icon("alert-triangle", 11)} Lỗi cần tránh</span>`
+        : `<span class="mc-badge">${icon("sparkles", 11)} Bài học dự án</span>`;
+    const pinBadge = m.pinned && !isUserRule
+      ? `<span class="mc-badge is-passed">${icon("pin", 11)} Đã ghim Tier-1</span>`
+      : "";
+    const wsLabel = m.workspaceId === "all"
+      ? "Dùng chung mọi dự án"
+      : esc(workspaces.find((w) => w.id === m.workspaceId)?.name || "Workspace đã gỡ");
+    return `<article class="memory-card ${isPinned ? "is-pinned-memory" : ""} ${isUserRule ? "is-user-rule" : ""}">
+      <div class="memory-card-head">
+        <div class="memory-card-title-group">
+          <div class="memory-card-badges">${kindBadge}${pinBadge}</div>
+          <strong>${esc(m.title)}</strong>
+          <small>${wsLabel} · ${fmtDate(m.updatedAt || m.createdAt)}</small>
+        </div>
+        <div class="memory-card-actions">
+          <button type="button" class="icon-button ${m.pinned ? "is-active" : ""}" data-action="toggle-pin-memory" data-id="${esc(m.id)}" title="${m.pinned ? "Bỏ ghim khỏi ngữ cảnh ưu tiên" : "Ghim vào ngữ cảnh ưu tiên (Tier-1)"}" aria-label="${m.pinned ? "Bỏ ghim" : "Ghim ghi nhớ"}">${icon("pin", 15)}</button>
+          <button type="button" class="icon-button" data-action="edit-memory" data-id="${esc(m.id)}" title="Chỉnh sửa ghi nhớ" aria-label="Chỉnh sửa ghi nhớ">${icon("square-pen", 15)}</button>
+          <button type="button" class="icon-button" data-action="delete-memory" data-id="${esc(m.id)}" title="Xóa ghi nhớ" aria-label="Xóa ghi nhớ">${icon("x", 16)}</button>
+        </div>
+      </div>
+      <p>${esc(m.content)}</p>
+    </article>`;
+  };
 
   return `<div class="page-head">
     <div>
+      ${backBtnMarkup}
       <h1>Bộ nhớ</h1>
-      <p>Ghi chú lưu trong máy này. Task chỉ nhận tối đa ba ghi chú có từ khóa phù hợp.</p>
+      <p>Quy tắc cá nhân (<code>USER.md</code>) và ghi nhớ đã ghim luôn được ưu tiên nạp ở Tier-1; bài học dự án được chọn tự động theo ngữ cảnh BM25.</p>
     </div>
     ${notes.length ? `<div class="page-head-actions"><button class="button primary" data-action="new-memory">${icon("plus", 15)} <span>Thêm ghi nhớ</span></button></div>` : ""}
   </div>
   <div class="flow-summary">
     <div><small>Đang hiển thị</small><strong>${filteredNotes.length}</strong></div>
-    <div><small>Dùng chung</small><strong>${sharedCount}</strong></div>
+    <div><small>Đã ghim / USER.md</small><strong>${pinnedOrUserCount}</strong></div>
     <div><small>Tổng ghi nhớ</small><strong>${notes.length}</strong></div>
   </div>
   <div class="list-toolbar">
@@ -364,18 +431,11 @@ export function memoryPage() {
     <span>${notes.length} ghi nhớ đã lưu trên máy này</span>
   </div>
   ${filteredNotes.length ? `<section class="memory-list">
-    ${filteredNotes.map((m) => `<article class="memory-card">
-      <div>
-        <strong>${esc(m.title)}</strong>
-        <small>${m.workspaceId === "all" ? "Dùng chung" : esc(workspaces.find((w) => w.id === m.workspaceId)?.name || "Workspace đã gỡ")} · ${fmtDate(m.createdAt)}</small>
-      </div>
-      <p>${esc(m.content)}</p>
-      <button class="icon-button" data-action="delete-memory" data-id="${esc(m.id)}" title="Xóa ghi nhớ" aria-label="Xóa ghi nhớ">${icon("x", 16)}</button>
-    </article>`).join("")}
+    ${filteredNotes.map(renderMemoryCard).join("")}
   </section>` : `<section class="empty-state">
-    <div class="empty-symbol">${icon("brain", 18)}</div>
+    <div class="empty-symbol">${icon("brain", 20)}</div>
     <strong>Chưa có ghi nhớ lưu</strong>
-    <p>Mọi ghi nhớ đều bắt đầu từ nội dung bạn tự lưu. OpenSybau không bịa dữ liệu hoặc tự lấy toàn bộ vault vào prompt.</p>
+    <p>Mọi ghi nhớ đều bắt đầu từ nội dung bạn tự lưu hoặc đúc kết từ phiên làm việc. OpenSybau không bịa dữ liệu hoặc tự lấy toàn bộ vault vào prompt.</p>
     <button class="button primary" data-action="new-memory">${icon("plus", 15)} Thêm ghi nhớ</button>
   </section>`}`;
 }

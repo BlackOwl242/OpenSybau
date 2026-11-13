@@ -44,6 +44,15 @@ export const view = {
   settingsSupported: false,
   streamConnected: false,
   selected: null,
+  selectedTaskId: null,
+  selectedWorkspaceId: null,
+  navOriginPage: null,
+  sidebarCollapsed: false,
+  commandPaletteOpen: false,
+  commandPaletteQuery: "",
+  commandPaletteIndex: 0,
+  commandPaletteResults: null,
+  commandPaletteLoading: false,
   chatSplitWorkspaceId: "",
   chatSplitTaskIds: [],
   chatSplitActiveTaskId: "",
@@ -75,13 +84,18 @@ export const view = {
   homeChatEffort: "",
   homeRoles: {},
   homeWorkspaceId: "",
+  homeIsolated: isMobileCompanionMode() ? true : false,
+  homeCodexTransport: "auto",
+  homeSelectedSkills: [],
   homeConfigOpen: false,
   homeArenaProviders: ["codex", "antigravity", "claude"],
   homeArenaSlots: [],
   chatDrawerOpen: true,
-  chatDrawerTab: "",
+  chatDrawerTab: "files",
   chatDrawerFilter: "",
   chatDrawerPreview: null,
+  passwordVisible: false,
+  remoteClientPassVisible: false,
   stageTabs: [],
   activeStageTabId: "chat",
   stageSplit: false,
@@ -161,6 +175,26 @@ export { formatNumber };
 export function tokenCount(usage) {
   if (!usage || typeof usage !== "object") return 0;
   return Number(usage.total_tokens ?? ((usage.input_tokens || usage.prompt_tokens || 0) + (usage.output_tokens || usage.completion_tokens || 0))) || 0;
+}
+
+export function pageDisplayTitle(page) {
+  const labels = {
+    chat: "Không gian Chat",
+    tasks: "Công việc",
+    flows: "Tiến trình",
+    workspaces: "Dự án",
+    knowledge: "Tri thức",
+    skills: "Kỹ năng",
+    memory: "Bộ nhớ",
+    settings: "Cài đặt",
+  };
+  return labels[page] || "trang trước";
+}
+
+export function backContextButtonMarkup() {
+  if (!view.navOriginPage || view.navOriginPage === view.page) return "";
+  const originLabel = pageDisplayTitle(view.navOriginPage);
+  return `<button type="button" class="btn ghost sm button quiet small back-context-btn" data-action="return-prev-page">${icon("arrow-left", 14)}<span>Quay lại ${esc(originLabel)}</span></button>`;
 }
 
 export function setBoundedCache(obj, key, value, maxKeys = 60) {

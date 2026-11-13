@@ -2,10 +2,16 @@ import { $, view } from "../../../shared/state.js";
 import { roleConfig } from "../../../domain/agent-roles.js";
 import { positionHtmlCommentMenu } from "../html-inspector.js";
 import { api, closeOverlay, ensureSubagentProfiles, refresh, render, showToast } from "../runtime.js";
+import {
+  closeCommandPalette,
+  executeCommandPaletteIndex,
+  openCommandPalette,
+} from "../command-palette.js";
+import { handleScheduleAction, syncSchedulesFromServer } from "../schedules-modal.js";
 import { clearSidebarSearch } from "../pages/chat-page.js";
 import { loadWorkspaceDir } from "../pages/tasks-workspaces-page.js";
 import { loadVaultDir } from "../pages/knowledge-skills-page.js";
-import { handleChatAndTaskAction } from "./chat-task-actions.js";
+import { handleChatAndTaskAction, syncTaskChatDraft } from "./chat-task-actions.js";
 import { handleStageAndDiffAction } from "./stage-diff-actions.js";
 import { handleWorkspaceVaultSettingsAction } from "./workspace-vault-actions.js";
 
@@ -81,27 +87,51 @@ export async function handleWorkbenchClick(event) {
   if (event.target.matches?.(".home-config-backdrop")) { view.homeConfigOpen = false; render(); return; }
   if (event.target.matches?.(".task-chat-config-backdrop")) { view.chatConfigOpen = false; render(); return; }
 
+  const cliSettingsTarget = event.target.closest?.("[data-settings-target='cli'], [data-action='open-cli-settings']");
+  if (cliSettingsTarget) {
+    event.preventDefault();
+    document.querySelectorAll(".wb-status-usage[open], .codex-pop-menu[open]").forEach((el) => el.removeAttribute("open"));
+    closeOverlay();
+    if (view.page === "chat") syncTaskChatDraft(view.selectedTaskId || "");
+    if (view.page !== "settings") view.navOriginPage = view.page;
+    view.settingsSection = "cli";
+    view.page = "settings";
+    view.mobileScreen = "home";
+    view.selected = null;
+    render();
+    void refresh({ configuration: true });
+    requestAnimationFrame(() => {
+      document.getElementById("cli-setup")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    return;
+  }
+
   const page = event.target.closest("[data-page]");
   if (page) {
     event.preventDefault();
+    if (view.page === "chat") syncTaskChatDraft(view.selectedTaskId || "");
     closeOverlay();
     view.projectMenuId = "";
+    view.taskMenuId = "";
+    view.navOriginPage = null;
     view.page = page.dataset.page;
-    view.mobileScreen = view.page === "chat" ? (view.selected ? "session" : "home") : "page";
+    view.mobileScreen = "home";
     if (view.page === "workspaces") {
       view.activeStageTabId = "chat";
-      const wsExists = view.selected && view.state?.workspaces?.some((w) => w.id === view.selected);
-      if (!wsExists) {
-        view.selected = view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || null;
-        view.workspaceDir = "";
-        view.workspaceEntries = [];
-      }
-    } else if (view.page !== "chat") {
+      const wsCandidate = view.selectedWorkspaceId || view.homeWorkspaceId || view.state?.workspaces?.[0]?.id || null;
+      const wsExists = wsCandidate && view.state?.workspaces?.some((w) => w.id === wsCandidate);
+      view.selectedWorkspaceId = wsExists ? wsCandidate : (view.state?.workspaces?.[0]?.id || null);
+      view.selected = view.selectedWorkspaceId;
+    } else if (view.page === "chat") {
+      view.selected = view.selectedTaskId || null;
+      view.chatDraft = view.chatDraftsByTask?.[view.selectedTaskId || "__new__"] || "";
+    } else {
       view.selected = null;
     }
     view.filePreview = null;
     render();
     if (view.page === "settings") void refresh({ configuration: true });
+    if (["tasks", "flows"].includes(view.page)) void syncSchedulesFromServer({ silent: true });
     try {
       if (view.page === "workspaces" && view.selected) await loadWorkspaceDir(view.selected, view.workspaceDir || "");
       if (view.page === "knowledge" && view.state.settings.vaultPath) await loadVaultDir("");
@@ -123,11 +153,17 @@ export async function handleWorkbenchClick(event) {
 
   const task = event.target.closest("[data-task]");
   if (task) {
-    const selectedTask = view.state.tasks.find((item) => item.id === task.dataset.task);
+    const nextId = task.dataset.task || "";
+    const selectedTask = view.state.tasks.find((item) => item.id === nextId);
+    syncTaskChatDraft(nextId);
     clearSidebarSearch();
-    view.selected = task.dataset.task;
+    if (view.page !== "chat" && !task.closest(".wb-context-sidebar, .wb-side-scroll, .mp-sidebar")) {
+      view.navOriginPage = view.page;
+    }
+    view.selected = nextId;
+    view.selectedTaskId = nextId;
     view.page = "chat";
-    view.mobileScreen = "session";
+    view.mobileScreen = "home";
     view.mpSessionTab = "chat";
     view.projectMenuId = "";
     view.taskMenuId = "";
@@ -136,7 +172,6 @@ export async function handleWorkbenchClick(event) {
     view.chatProvider = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatProvider || "codex" : selectedTask?.config?.chatProvider || roleConfig(selectedTask?.config, "plan").provider || "codex";
     view.chatModel = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatModel || "" : selectedTask?.config?.chatModel || roleConfig(selectedTask?.config, "plan").model || "";
     view.chatEffort = selectedTask?.config.workflow === "chat-only" ? selectedTask.config.chatEffort || "" : selectedTask?.config?.chatEffort || roleConfig(selectedTask?.config, "plan").effort || "";
-    view.chatDraft = "";
     render();
     return;
   }
@@ -156,6 +191,7 @@ export async function handleWorkbenchClick(event) {
   const workspace = event.target.closest("[data-workspace]");
   if (workspace) {
     clearSidebarSearch();
+    view.selectedWorkspaceId = workspace.dataset.workspace;
     await loadWorkspaceDir(workspace.dataset.workspace, "").catch((error) => showToast(error.message));
     return;
   }
@@ -177,8 +213,10 @@ export async function handleWorkbenchClick(event) {
   const action = button.dataset.action;
   const id = button.dataset.id;
   const keepPopOpen = Boolean(
-    button.closest(".codex-subagent-menu")
-    && ["pick-subagent-mode", "toggle-subagent-readonly", "toggle-codex-multi-v2", "toggle-subagent-profile"].includes(action)
+    (button.closest(".codex-subagent-menu")
+      && ["pick-subagent-mode", "toggle-subagent-readonly", "toggle-codex-multi-v2", "toggle-subagent-profile"].includes(action))
+    || (button.closest("[data-pop-id='home-mode']")
+      && ["toggle-home-plan-gate", "cycle-home-max-rounds"].includes(action)),
   );
   if (!keepPopOpen) {
     button.closest(".codex-pop-menu")?.removeAttribute("open");
@@ -187,6 +225,27 @@ export async function handleWorkbenchClick(event) {
   if (!button.closest(".wb-task-item") && view.taskMenuId) view.taskMenuId = "";
 
   try {
+    if (action === "open-command-palette") { openCommandPalette(); return; }
+    if (action === "close-command-palette") {
+      if (event.target === button || button.tagName === "BUTTON") { closeCommandPalette(); render(); }
+      return;
+    }
+    if (action === "exec-command-palette-item") {
+      executeCommandPaletteIndex(Number(button.dataset.paletteIndex || 0));
+      return;
+    }
+    if (action === "return-prev-page") {
+      const origin = view.navOriginPage || "chat";
+      view.navOriginPage = null;
+      if (typeof window.__opensybauNavigate === "function") {
+        window.__opensybauNavigate(origin);
+      } else {
+        view.page = origin;
+        render();
+      }
+      return;
+    }
+    if (await handleScheduleAction(action, id, button)) return;
     if (await handleChatAndTaskAction(action, id, button, event)) return;
     if (await handleStageAndDiffAction(action, id, button, event)) return;
     await handleWorkspaceVaultSettingsAction(action, id, button, event);

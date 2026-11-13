@@ -1,16 +1,65 @@
 import { h } from "preact";
 import { Icon } from "../../shared/ui/Icon.jsx";
+import { BrandLogo } from "../../shared/ui/BrandLogo.jsx";
 import { compactChatTitle } from "../../shared/chat-labels.js";
 
+function resolveAttentionTasks(snapshot) {
+  if (Array.isArray(snapshot?.attentionTasks)) return snapshot.attentionTasks;
+  const tasks = (snapshot?.state?.tasks || []).filter((t) => !t.archived);
+  return tasks.filter(
+    (t) =>
+      t.status === "awaiting_approval"
+      || (Array.isArray(t.pendingApprovals) && t.pendingApprovals.length > 0)
+      || t.status === "failed"
+  );
+}
+
+function attentionReasonMeta(task) {
+  const approvalCount = Array.isArray(task?.pendingApprovals) ? task.pendingApprovals.length : 0;
+  if (approvalCount > 0) {
+    return {
+      icon: "shield-alert",
+      tone: "warn",
+      label: approvalCount > 1 ? `Chờ cấp quyền (${approvalCount})` : "Chờ cấp quyền CLI",
+    };
+  }
+  if (task?.status === "awaiting_approval") {
+    return {
+      icon: "clock",
+      tone: "warn",
+      label: "Chờ duyệt PLAN.md",
+    };
+  }
+  return {
+    icon: "alert-triangle",
+    tone: "danger",
+    label: "Lỗi thực thi",
+  };
+}
+
 function TaskMenu({ task, archived = false }) {
-  return <div class="wb-task-menu" role="menu" aria-label={`Thao tác với ${task.title}`}>
-    <button role="menuitem" data-action="rename-task" data-id={task.id}><Icon name="square-pen" size={14} />Đổi tên</button>
-    {!archived ? <button role="menuitem" data-action="toggle-task-pin" data-id={task.id}><Icon name="pin" size={14} />{task.pinned ? "Bỏ ghim" : "Ghim"}</button> : null}
-    <button role="menuitem" data-action={archived ? "restore-task" : "archive-task"} data-id={task.id}><Icon name={archived ? "archive-restore" : "archive"} size={14} />{archived ? "Khôi phục" : "Lưu trữ"}</button>
-    <button role="menuitem" data-action="copy-task-prompt" data-id={task.id}><Icon name="copy" size={14} />Sao chép yêu cầu</button>
-    <div class="wb-task-menu-divider" />
-    <button class="is-danger" role="menuitem" data-action="delete-chat" data-id={task.id}><Icon name="delete" size={14} />Xóa vĩnh viễn</button>
-  </div>;
+  return (
+    <div class="wb-task-menu" role="menu" aria-label={`Thao tác với ${task.title}`}>
+      <button type="button" role="menuitem" data-action="rename-task" data-id={task.id}>
+        <Icon name="square-pen" size={14} />Đổi tên
+      </button>
+      {!archived ? (
+        <button type="button" role="menuitem" data-action="toggle-task-pin" data-id={task.id}>
+          <Icon name="pin" size={14} />{task.pinned ? "Bỏ ghim" : "Ghim"}
+        </button>
+      ) : null}
+      <button type="button" role="menuitem" data-action={archived ? "restore-task" : "archive-task"} data-id={task.id}>
+        <Icon name={archived ? "archive-restore" : "archive"} size={14} />{archived ? "Khôi phục" : "Lưu trữ"}
+      </button>
+      <button type="button" role="menuitem" data-action="copy-task-prompt" data-id={task.id}>
+        <Icon name="copy" size={14} />Sao chép yêu cầu
+      </button>
+      <div class="wb-task-menu-divider" />
+      <button type="button" class="is-danger" role="menuitem" data-action="delete-chat" data-id={task.id}>
+        <Icon name="delete" size={14} />Xóa vĩnh viễn
+      </button>
+    </div>
+  );
 }
 
 function fmtRelative(value) {
@@ -26,71 +75,166 @@ function TaskLink({ task, selected, archived = false, taskMenuId = "", menuKey =
   const menuOpen = taskMenuId === menuKey;
   const relTime = fmtRelative(task.updatedAt || task.createdAt);
 
-  return <div class={`wb-task-item ${selected === task.id ? "is-selected" : ""} ${archived ? "is-archived" : ""} is-status-${task.status || "done"}`}>
-    <button class="wb-task-link" data-task={task.id} title={task.title} aria-current={selected === task.id ? "page" : undefined}>
-      <span class={`wb-task-dot is-${task.status || "done"}`} aria-hidden="true" />
-      <span class="wb-task-copy">
-        <span class="wb-task-title-row">
-          {task.pinned ? <Icon name="pin" size={11} /> : null}
-          <strong>{compactChatTitle(task)}</strong>
-          {relTime ? <time class="wb-task-time">{relTime}</time> : null}
+  return (
+    <div class={`wb-task-item ${selected === task.id ? "is-selected" : ""} ${archived ? "is-archived" : ""} is-status-${task.status || "done"}`}>
+      <button
+        type="button"
+        class="wb-task-link"
+        data-task={task.id}
+        title={task.title}
+        aria-current={selected === task.id ? "page" : undefined}
+      >
+        <span class={`wb-task-dot is-${task.status || "done"}`} aria-hidden="true" />
+        <span class="wb-task-copy">
+          <span class="wb-task-title-row">
+            {task.pinned ? <Icon name="pin" size={14} /> : null}
+            <strong data-localize-skip="true">{compactChatTitle(task)}</strong>
+            {relTime ? (
+              <time class="wb-task-time" style={{ fontVariantNumeric: "tabular-nums" }}>
+                {relTime}
+              </time>
+            ) : null}
+          </span>
         </span>
-      </span>
-    </button>
-    <div class="wb-task-actions">
-      <button class="wb-task-action" data-action="toggle-task-menu" data-id={task.id} data-key={menuKey} aria-expanded={menuOpen} title="Thao tác chat" aria-label={`Thao tác chat ${task.title}`}><Icon name="ellipsis" size={16} /></button>
+      </button>
+      <div class="wb-task-actions">
+        <button
+          type="button"
+          class="wb-task-action"
+          data-action="toggle-task-menu"
+          data-id={task.id}
+          data-key={menuKey}
+          aria-expanded={menuOpen}
+          title="Thao tác chat"
+          aria-label={`Thao tác chat ${task.title}`}
+        >
+          <Icon name="ellipsis" size={16} />
+        </button>
+      </div>
+      {menuOpen ? <TaskMenu task={task} archived={archived} /> : null}
     </div>
-    {menuOpen ? <TaskMenu task={task} archived={archived} /> : null}
-  </div>;
+  );
+}
+
+function AttentionTaskRow({ task, workspace, selected }) {
+  const meta = attentionReasonMeta(task);
+  return (
+    <div class={`wb-task-item wb-attention-item ${selected === task.id ? "is-selected" : ""} is-tone-${meta.tone}`}>
+      <button
+        type="button"
+        class="wb-task-link wb-attention-link"
+        data-task={task.id}
+        title={`${compactChatTitle(task)} · ${meta.label}`}
+        aria-current={selected === task.id ? "page" : undefined}
+      >
+        <span class={`wb-attention-icon is-${meta.tone}`} aria-hidden="true">
+          <Icon name={meta.icon} size={14} />
+        </span>
+        <span class="wb-task-copy">
+          <span class="wb-task-title-row">
+            <strong data-localize-skip="true">{compactChatTitle(task)}</strong>
+          </span>
+          <small class={`wb-attention-reason is-${meta.tone}`}>
+            {workspace?.name ? <span data-localize-skip="true">{workspace.name} · </span> : null}
+            <span>{meta.label}</span>
+          </small>
+        </span>
+      </button>
+    </div>
+  );
 }
 
 function ProjectMenu({ workspace }) {
-  return <div class="wb-project-menu" role="menu" aria-label={`Thao tác với ${workspace.name}`}>
-    <button role="menuitem" data-action="open-workspace" data-id={workspace.id}><Icon name="folder-code" size={14} />Mở không gian dự án</button>
-    <button role="menuitem" data-action="open-chat-split" data-workspace-id={workspace.id}><Icon name="columns-2" size={14} />Mở nhiều chat song song</button>
-    <div class="wb-project-menu-divider" />
-    <button role="menuitem" data-action="toggle-project-pin" data-id={workspace.id}><Icon name="pin" size={14} />{workspace.pinned ? "Bỏ ghim" : "Ghim"}</button>
-    <button role="menuitem" data-action="edit-project" data-id={workspace.id}><Icon name="settings-2" size={14} />Sửa dự án</button>
-    <button role="menuitem" data-action="edit-project-section" data-id={workspace.id}><Icon name="list" size={14} />Section <Icon name="chevron-right" size={13} /></button>
-    <button role="menuitem" data-action="open-project-folder" data-id={workspace.id}><Icon name="folder-open" size={14} />Mở trong Explorer</button>
-    <button role="menuitem" data-action="archive-workspace-chats" data-id={workspace.id}><Icon name="archive" size={14} />Lưu trữ chat</button>
-    <div class="wb-project-menu-divider" />
-    <button class="is-danger" role="menuitem" data-action="remove-workspace" data-id={workspace.id}><Icon name="x" size={14} />Gỡ dự án</button>
-  </div>;
+  return (
+    <div class="wb-project-menu" role="menu" aria-label={`Thao tác với ${workspace.name}`}>
+      <button type="button" role="menuitem" data-action="open-workspace" data-id={workspace.id}>
+        <Icon name="folder-code" size={14} />Mở không gian dự án
+      </button>
+      <button type="button" role="menuitem" data-action="open-chat-split" data-workspace-id={workspace.id}>
+        <Icon name="columns-2" size={14} />Mở nhiều chat song song
+      </button>
+      <div class="wb-project-menu-divider" />
+      <button type="button" role="menuitem" data-action="toggle-project-pin" data-id={workspace.id}>
+        <Icon name="pin" size={14} />{workspace.pinned ? "Bỏ ghim" : "Ghim"}
+      </button>
+      <button type="button" role="menuitem" data-action="edit-project" data-id={workspace.id}>
+        <Icon name="settings-2" size={14} />Sửa dự án
+      </button>
+      <button type="button" role="menuitem" data-action="edit-project-section" data-id={workspace.id}>
+        <Icon name="list" size={14} />Section <Icon name="chevron-right" size={14} />
+      </button>
+      <button type="button" role="menuitem" data-action="open-project-folder" data-id={workspace.id}>
+        <Icon name="folder-open" size={14} />Mở trong Explorer
+      </button>
+      <button type="button" role="menuitem" data-action="archive-workspace-chats" data-id={workspace.id}>
+        <Icon name="archive" size={14} />Lưu trữ chat
+      </button>
+      <div class="wb-project-menu-divider" />
+      <button type="button" class="is-danger" role="menuitem" data-action="remove-workspace" data-id={workspace.id}>
+        <Icon name="x" size={14} />Gỡ dự án
+      </button>
+    </div>
+  );
 }
 
 function FanoutFleetGroup({ fanoutId, tasks, selected, collapsedFanouts = [], taskMenuId }) {
   const expanded = !collapsedFanouts.includes(fanoutId);
   const first = tasks[0];
-  const rawTitle = String(first?.title || "Đa luồng Agent").replace(/^\[#\d+\s+[^\]]+\]\s*/, "").replace(/\s*\[[^\]]+\]\s*$/, "");
+  const rawTitle = String(first?.title || "Đa luồng Agent")
+    .replace(/^\[#\d+\s+[^\]]+\]\s*/, "")
+    .replace(/\s*\[[^\]]+\]\s*$/, "");
   const runningCount = tasks.filter((t) => ["running", "queued"].includes(t.status)).length;
   const hasSelected = tasks.some((t) => t.id === selected);
   const groupStatus = runningCount > 0 ? "running" : tasks.some((t) => t.status === "failed") ? "failed" : "done";
 
-  return <div class={`wb-fanout-group ${expanded ? "is-expanded" : ""} ${hasSelected ? "has-selected" : ""}`} key={`fanout:${fanoutId}`}>
-    <div class="wb-fanout-head">
-      <button type="button" class="wb-fanout-toggle" data-action="toggle-fanout-group" data-fanout-id={fanoutId} aria-expanded={expanded} title={`${rawTitle} · ${tasks.length} nhánh song song`}>
-        <span class={`wb-project-chevron ${expanded ? "is-expanded" : ""}`}><Icon name="chevron-right" size={12} /></span>
-        <span class={`wb-task-dot is-${groupStatus}`} aria-hidden="true" />
-        <strong class="wb-fanout-title">{rawTitle}</strong>
-      </button>
-      <div class="wb-fanout-actions">
-        <button type="button" class="wb-task-action" data-action="compare-fanout" data-fanout-id={fanoutId} title="So sánh Đa luồng & Chọn bản thắng" aria-label="So sánh Đa luồng">
-          <Icon name="list-checks" size={14} />
+  return (
+    <div class={`wb-fanout-group ${expanded ? "is-expanded" : ""} ${hasSelected ? "has-selected" : ""}`} key={`fanout:${fanoutId}`}>
+      <div class="wb-fanout-head">
+        <button
+          type="button"
+          class="wb-fanout-toggle"
+          data-action="toggle-fanout-group"
+          data-fanout-id={fanoutId}
+          aria-expanded={expanded}
+          title={`${rawTitle} · ${tasks.length} nhánh song song`}
+        >
+          <span class={`wb-project-chevron ${expanded ? "is-expanded" : ""}`}>
+            <Icon name="chevron-right" size={14} />
+          </span>
+          <span class={`wb-task-dot is-${groupStatus}`} aria-hidden="true" />
+          <strong class="wb-fanout-title" data-localize-skip="true">{rawTitle}</strong>
         </button>
+        <div class="wb-fanout-actions">
+          <button
+            type="button"
+            class="wb-task-action"
+            data-action="compare-fanout"
+            data-fanout-id={fanoutId}
+            title="So sánh Đa luồng & Chọn bản thắng"
+            aria-label="So sánh Đa luồng"
+          >
+            <Icon name="list-checks" size={14} />
+          </button>
+        </div>
       </div>
+      {expanded ? (
+        <div class="wb-fanout-children">
+          {tasks.map((task) => (
+            <TaskLink key={task.id} task={task} selected={selected} taskMenuId={taskMenuId} menuKey={`fanout:${task.id}`} />
+          ))}
+        </div>
+      ) : null}
     </div>
-    {expanded ? <div class="wb-fanout-children">
-      {tasks.map((task) => <TaskLink key={task.id} task={task} selected={selected} taskMenuId={taskMenuId} menuKey={`fanout:${task.id}`} />)}
-    </div> : null}
-  </div>;
+  );
 }
 
 function WorkspaceGroup({ workspace, tasks, selected, activeWorkspaceId, collapsedWorkspaces, collapsedFanouts = [], projectMenuId, taskMenuId }) {
   const expanded = !collapsedWorkspaces.includes(workspace.id);
   const isActiveWorkspace = activeWorkspaceId === workspace.id;
   const activeTasks = tasks.filter((task) => !task.archived);
-  const sortedTasks = [...activeTasks].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
+  const sortedTasks = [...activeTasks].sort(
+    (a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)
+  );
   const menuOpen = projectMenuId === workspace.id;
 
   const groupedEntries = [];
@@ -108,29 +252,95 @@ function WorkspaceGroup({ workspace, tasks, selected, activeWorkspaceId, collaps
     groupedEntries.push({ type: "single", task });
   }
 
-  return <section class={`wb-project-group ${menuOpen ? "has-menu-open" : ""} ${isActiveWorkspace ? "is-active-workspace" : ""}`} key={workspace.id}>
-    <div class="wb-project-row">
-      <button class="wb-project-toggle" data-action="toggle-workspace" data-id={workspace.id} title={workspace.path} aria-expanded={expanded}>
-        <span class={`wb-project-chevron ${expanded ? "is-expanded" : ""}`}><Icon name="chevron-right" size={13} /></span>
-        <Icon name="folder-code" size={15} />
-        <strong>{workspace.name}</strong>
-        {workspace.pinned ? <Icon name="pin" size={12} /> : null}
-      </button>
-      <div class="wb-project-actions">
-        <button class="wb-project-action" data-action="open-chat-split" data-workspace-id={workspace.id} title="Chia khung chat song song" aria-label={`Chia khung chat song song trong ${workspace.name}`}><Icon name="columns-2" size={14} /></button>
-        <button class="wb-project-action" data-action="new-chat" data-workspace-id={workspace.id} title="Chat mới trong dự án" aria-label={`Chat mới trong ${workspace.name}`}><Icon name="plus" size={14} /></button>
-        <button class="wb-project-action" data-action="edit-project" data-id={workspace.id} title="Sửa dự án" aria-label={`Sửa dự án ${workspace.name}`}><Icon name="square-pen" size={14} /></button>
-        <button class="wb-project-action" data-action="toggle-project-menu" data-id={workspace.id} aria-expanded={menuOpen} title="Thao tác dự án" aria-label={`Thao tác dự án ${workspace.name}`}><Icon name="ellipsis" size={15} /></button>
+  return (
+    <section class={`wb-project-group ${menuOpen ? "has-menu-open" : ""} ${isActiveWorkspace ? "is-active-workspace" : ""}`} key={workspace.id}>
+      <div class="wb-project-row">
+        <button type="button" class="wb-project-toggle" data-action="toggle-workspace" data-id={workspace.id} title={workspace.path} aria-expanded={expanded}>
+          <span class={`wb-project-chevron ${expanded ? "is-expanded" : ""}`}>
+            <Icon name="chevron-right" size={14} />
+          </span>
+          <Icon name="folder-code" size={16} />
+          <strong data-localize-skip="true">{workspace.name}</strong>
+          {workspace.pinned ? <Icon name="pin" size={14} /> : null}
+        </button>
+        <div class="wb-project-actions">
+          <button
+            type="button"
+            class="wb-project-action"
+            data-action="open-chat-split"
+            data-workspace-id={workspace.id}
+            title="Chia khung chat song song"
+            aria-label={`Chia khung chat song song trong ${workspace.name}`}
+          >
+            <Icon name="columns-2" size={14} />
+          </button>
+          <button
+            type="button"
+            class="wb-project-action"
+            data-action="new-chat"
+            data-workspace-id={workspace.id}
+            title="Chat mới trong dự án"
+            aria-label={`Chat mới trong ${workspace.name}`}
+          >
+            <Icon name="plus" size={14} />
+          </button>
+          <button
+            type="button"
+            class="wb-project-action"
+            data-action="edit-project"
+            data-id={workspace.id}
+            title="Sửa dự án"
+            aria-label={`Sửa dự án ${workspace.name}`}
+          >
+            <Icon name="square-pen" size={14} />
+          </button>
+          <button
+            type="button"
+            class="wb-project-action"
+            data-action="toggle-project-menu"
+            data-id={workspace.id}
+            aria-expanded={menuOpen}
+            title="Thao tác dự án"
+            aria-label={`Thao tác dự án ${workspace.name}`}
+          >
+            <Icon name="ellipsis" size={16} />
+          </button>
+        </div>
       </div>
-    </div>
-    {menuOpen ? <ProjectMenu workspace={workspace} /> : null}
-    {expanded ? <div class="wb-project-children">
-      {groupedEntries.length ? groupedEntries.map((entry) => entry.type === "fanout"
-        ? <FanoutFleetGroup key={`fanout:${entry.fanoutId}`} fanoutId={entry.fanoutId} tasks={entry.tasks} selected={selected} collapsedFanouts={collapsedFanouts} taskMenuId={taskMenuId} />
-        : <TaskLink key={entry.task.id} task={entry.task} selected={selected} taskMenuId={taskMenuId} menuKey={`workspace:${entry.task.id}`} />
-      ) : <button class="wb-project-new-chat" data-action="new-chat" data-workspace-id={workspace.id}><Icon name="square-terminal" size={14} /><span>Cuộc trò chuyện mới</span></button>}
-    </div> : null}
-  </section>;
+      {menuOpen ? <ProjectMenu workspace={workspace} /> : null}
+      {expanded ? (
+        <div class="wb-project-children">
+          {groupedEntries.length
+            ? groupedEntries.map((entry) =>
+                entry.type === "fanout" ? (
+                  <FanoutFleetGroup
+                    key={`fanout:${entry.fanoutId}`}
+                    fanoutId={entry.fanoutId}
+                    tasks={entry.tasks}
+                    selected={selected}
+                    collapsedFanouts={collapsedFanouts}
+                    taskMenuId={taskMenuId}
+                  />
+                ) : (
+                  <TaskLink
+                    key={entry.task.id}
+                    task={entry.task}
+                    selected={selected}
+                    taskMenuId={taskMenuId}
+                    menuKey={`workspace:${entry.task.id}`}
+                  />
+                )
+              )
+            : (
+              <button type="button" class="wb-project-new-chat" data-action="new-chat" data-workspace-id={workspace.id}>
+                <Icon name="square-terminal" size={14} />
+                <span>Cuộc trò chuyện mới</span>
+              </button>
+            )}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function SideContent({ snapshot }) {
@@ -139,13 +349,19 @@ function SideContent({ snapshot }) {
 
   const workspaces = state.workspaces || [];
   const tasks = state.tasks || [];
+  const selected = snapshot.selectedTaskId || snapshot.selected;
   const collapsedWorkspaces = snapshot.collapsedWorkspaces || [];
+  const workspaceMap = new Map(workspaces.map((ws) => [ws.id, ws]));
   const tasksByWorkspace = new Map();
   tasks.forEach((task) => {
     if (!tasksByWorkspace.has(task.workspaceId)) tasksByWorkspace.set(task.workspaceId, []);
     tasksByWorkspace.get(task.workspaceId).push(task);
   });
-  const sortedWorkspaces = [...workspaces].sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || a.name.localeCompare(b.name));
+
+  const attentionTasks = resolveAttentionTasks(snapshot);
+  const sortedWorkspaces = [...workspaces].sort(
+    (a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || a.name.localeCompare(b.name)
+  );
   const pinnedTasks = [...tasks]
     .filter((task) => !task.archived && task.pinned)
     .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
@@ -157,92 +373,173 @@ function SideContent({ snapshot }) {
     .filter((task) => task.archived)
     .sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt));
 
-  return <>
-    {pinnedTasks.length ? <>
-      <div class="wb-side-heading"><span>Đã ghim</span></div>
-      <div class="wb-side-list wb-recent-list">
-        {pinnedTasks.map((task) => <TaskLink key={task.id} task={task} selected={snapshot.selected} taskMenuId={snapshot.taskMenuId} menuKey={`pinned:${task.id}`} />)}
+  const activeWorkspaceId = snapshot.page === "workspaces" && snapshot.selected
+    ? snapshot.selected
+    : (snapshot.selectedWorkspaceId || snapshot.homeWorkspaceId || sortedWorkspaces[0]?.id || "");
+
+  return (
+    <>
+      {attentionTasks.length > 0 ? (
+        <section class="wb-attention-section" aria-label="Cần xử lý">
+          <div class="wb-side-heading wb-attention-heading">
+            <span class="wb-attention-heading-label">
+              <Icon name="bell" size={14} />
+              <span>Cần xử lý ({attentionTasks.length})</span>
+            </span>
+            <span class="wb-attention-count" style={{ fontVariantNumeric: "tabular-nums" }}>
+              {attentionTasks.length}
+            </span>
+          </div>
+          <div class="wb-side-list wb-attention-list">
+            {attentionTasks.map((task) => (
+              <AttentionTaskRow
+                key={`attn:${task.id}`}
+                task={task}
+                workspace={workspaceMap.get(task.workspaceId)}
+                selected={selected}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {pinnedTasks.length ? (
+        <>
+          <div class="wb-side-heading"><span>Đã ghim</span></div>
+          <div class="wb-side-list wb-recent-list">
+            {pinnedTasks.map((task) => (
+              <TaskLink key={task.id} task={task} selected={selected} taskMenuId={snapshot.taskMenuId} menuKey={`pinned:${task.id}`} />
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      <div class="wb-side-heading wb-projects-heading">
+        <button type="button" class="wb-side-heading-btn" data-action="add-workspace" title="Thêm hoặc quản lý dự án">
+          <span>Dự án</span>
+          <Icon name="chevron-right" size={14} />
+        </button>
+        <button type="button" class="wb-small-icon" data-action="add-workspace" title="Thêm thư mục dự án" aria-label="Thêm thư mục dự án">
+          <Icon name="plus" size={14} />
+        </button>
       </div>
-    </> : null}
+      <div class="wb-side-list wb-workspace-list">
+        {sortedWorkspaces.length ? (
+          sortedWorkspaces.map((workspace) => (
+            <WorkspaceGroup
+              key={workspace.id}
+              workspace={workspace}
+              tasks={tasksByWorkspace.get(workspace.id) || []}
+              selected={selected}
+              activeWorkspaceId={activeWorkspaceId}
+              collapsedWorkspaces={collapsedWorkspaces}
+              collapsedFanouts={snapshot.collapsedFanouts || []}
+              projectMenuId={snapshot.projectMenuId}
+              taskMenuId={snapshot.taskMenuId}
+            />
+          ))
+        ) : (
+          <button type="button" class="wb-side-ghost-empty" data-action="add-workspace">
+            <Icon name="folder-open" size={14} />
+            <span>Thêm thư mục dự án…</span>
+          </button>
+        )}
+      </div>
 
-    <div class="wb-side-heading wb-projects-heading">
-      <button type="button" class="wb-side-heading-btn" data-action="add-workspace" title="Thêm hoặc quản lý dự án">
-        <span>Dự án</span>
-        <Icon name="chevron-right" size={12} />
-      </button>
-      <button class="wb-small-icon" data-action="add-workspace" title="Thêm thư mục dự án" aria-label="Thêm thư mục dự án"><Icon name="plus" size={14} /></button>
-    </div>
-    <div class="wb-side-list wb-workspace-list">
-      {sortedWorkspaces.length ? sortedWorkspaces.map((workspace) => <WorkspaceGroup
-        key={workspace.id}
-        workspace={workspace}
-        tasks={tasksByWorkspace.get(workspace.id) || []}
-        selected={snapshot.selected}
-        activeWorkspaceId={snapshot.page === "workspaces" && snapshot.selected ? snapshot.selected : (snapshot.homeWorkspaceId || sortedWorkspaces[0]?.id || "")}
-        collapsedWorkspaces={collapsedWorkspaces}
-        collapsedFanouts={snapshot.collapsedFanouts || []}
-        projectMenuId={snapshot.projectMenuId}
-        taskMenuId={snapshot.taskMenuId}
-      />) : <button type="button" class="wb-side-ghost-empty" data-action="add-workspace"><Icon name="folder-open" size={14} /><span>Thêm thư mục dự án…</span></button>}
-    </div>
-
-    <div class="wb-side-heading wb-recent-heading"><span>Gần đây</span></div>
-    <div class="wb-side-list wb-recent-list">
-      {recent.length ? recent.map((task) => <TaskLink key={task.id} task={task} selected={snapshot.selected} taskMenuId={snapshot.taskMenuId} menuKey={`recent:${task.id}`} />) : <div class="wb-side-muted-note">Chưa có cuộc trò chuyện</div>}
-    </div>
-    {archived.length ? <>
-      <div class="wb-side-heading wb-archived-heading"><span>Đã lưu trữ</span></div>
-      <div class="wb-side-list wb-recent-list wb-archived-list">{archived.map((task) => <TaskLink key={task.id} task={task} selected={snapshot.selected} archived taskMenuId={snapshot.taskMenuId} menuKey={`archived:${task.id}`} />)}</div>
-    </> : null}
-  </>;
+      <div class="wb-side-heading wb-recent-heading"><span>Gần đây</span></div>
+      <div class="wb-side-list wb-recent-list">
+        {recent.length ? (
+          recent.map((task) => (
+            <TaskLink key={task.id} task={task} selected={selected} taskMenuId={snapshot.taskMenuId} menuKey={`recent:${task.id}`} />
+          ))
+        ) : (
+          <div class="wb-side-muted-note">Chưa có cuộc trò chuyện</div>
+        )}
+      </div>
+      {archived.length ? (
+        <>
+          <div class="wb-side-heading wb-archived-heading"><span>Đã lưu trữ</span></div>
+          <div class="wb-side-list wb-recent-list wb-archived-list">
+            {archived.map((task) => (
+              <TaskLink key={task.id} task={task} selected={selected} archived taskMenuId={snapshot.taskMenuId} menuKey={`archived:${task.id}`} />
+            ))}
+          </div>
+        </>
+      ) : null}
+    </>
+  );
 }
 
 export function ContextSidebar({ snapshot, mobileOpen = false, mobileOnly = false, onNavigate = () => {} }) {
   const hasQuery = Boolean((snapshot.searchQuery || "").trim());
-  return <aside class={`wb-context-sidebar ${mobileOnly ? "is-mobile-only" : ""} ${mobileOpen ? "is-mobile-open" : ""}`} aria-label="Workspace và cuộc trò chuyện" onClick={(event) => {
-    const searchToggle = event.target.closest("[data-toggle-sidebar-search]");
-    if (searchToggle) {
-      const aside = searchToggle.closest(".wb-context-sidebar");
-      const wrap = aside?.querySelector(".wb-sidebar-search");
-      if (wrap) {
-        const nextHidden = !wrap.hasAttribute("data-open") && !hasQuery;
-        if (nextHidden) {
-          wrap.setAttribute("data-open", "true");
-          wrap.querySelector("input")?.focus();
-        } else {
-          wrap.removeAttribute("data-open");
+  return (
+    <aside
+      class={`wb-context-sidebar ${mobileOnly ? "is-mobile-only" : ""} ${mobileOpen ? "is-mobile-open" : ""}`}
+      aria-label="Workspace và cuộc trò chuyện"
+      onClick={(event) => {
+        const searchToggle = event.target.closest("[data-toggle-sidebar-search]");
+        if (searchToggle) {
+          const aside = searchToggle.closest(".wb-context-sidebar");
+          const wrap = aside?.querySelector(".wb-sidebar-search");
+          if (wrap) {
+            const nextHidden = !wrap.hasAttribute("data-open") && !hasQuery;
+            if (nextHidden) {
+              wrap.setAttribute("data-open", "true");
+              wrap.querySelector("input")?.focus();
+            } else {
+              wrap.removeAttribute("data-open");
+            }
+          }
+          return;
         }
-      }
-      return;
-    }
-    if (event.target.closest("[data-page], [data-task], [data-action='new-chat'], [data-action='add-workspace'], [data-action='edit-project']")) onNavigate();
-  }}>
-    <header class="wb-sidebar-header">
-      <button type="button" class="wb-sidebar-brand" data-page="chat">
-        <strong>OpenSybau</strong>
-        <Icon name="chevron-down" size={13} />
-      </button>
-      <div class="wb-sidebar-header-actions">
-        <button class="wb-sidebar-icon-btn" type="button" data-toggle-sidebar-search title="Tìm kiếm cuộc trò chuyện" aria-label="Tìm kiếm">
-          <Icon name="search" size={15} />
+        if (event.target.closest("[data-page], [data-task], [data-action='new-chat'], [data-action='add-workspace'], [data-action='edit-project']")) {
+          onNavigate();
+        }
+      }}
+    >
+      <header class="wb-sidebar-header">
+        <button type="button" class="wb-sidebar-brand" data-page="chat">
+          <BrandLogo clipId="wbSidebarLogo" className="wb-brand-svg" size={16} />
+          <strong>OpenSybau</strong>
         </button>
-        <button class="wb-sidebar-close" type="button" onClick={onNavigate} aria-label="Đóng danh sách"><Icon name="x" size={18} /></button>
+        <div class="wb-sidebar-header-actions">
+          <button
+            class="wb-sidebar-icon-btn"
+            type="button"
+            data-toggle-sidebar-search
+            title="Lọc nhanh cuộc trò chuyện"
+            aria-label="Lọc nhanh cuộc trò chuyện"
+          >
+            <Icon name="search" size={16} />
+          </button>
+          <button class="wb-sidebar-close" type="button" onClick={onNavigate} aria-label="Đóng danh sách">
+            <Icon name="x" size={16} />
+          </button>
+        </div>
+      </header>
+      <label class="wb-sidebar-search" data-open={hasQuery ? "true" : undefined}>
+        <Icon name="search" size={14} />
+        <input
+          data-home-search
+          value={snapshot.searchQuery || ""}
+          placeholder="Tìm cuộc trò chuyện…"
+          autoComplete="off"
+          aria-label="Tìm task, chat hoặc workspace"
+        />
+        <div
+          class="home-search-results wb-search-results"
+          data-home-search-results
+          hidden={!hasQuery}
+          dangerouslySetInnerHTML={{ __html: snapshot.searchResults || "" }}
+        />
+      </label>
+      <button type="button" class="wb-new-chat" data-action="new-chat" data-workspace-id={snapshot.homeWorkspaceId || ""}>
+        <Icon name="square-pen" size={16} />
+        <span>Cuộc trò chuyện mới</span>
+      </button>
+      <div class="wb-side-scroll">
+        <SideContent snapshot={snapshot} />
       </div>
-    </header>
-    <label class="wb-sidebar-search" data-open={hasQuery ? "true" : undefined}>
-      <Icon name="search" size={14} />
-      <input data-home-search value={snapshot.searchQuery || ""} placeholder="Tìm cuộc trò chuyện…" autoComplete="off" aria-label="Tìm task, chat hoặc workspace" />
-      <div
-        class="home-search-results wb-search-results"
-        data-home-search-results
-        hidden={!hasQuery}
-        dangerouslySetInnerHTML={{ __html: snapshot.searchResults || "" }}
-      />
-    </label>
-    <button class="wb-new-chat" data-action="new-chat" data-workspace-id={snapshot.homeWorkspaceId || ""}>
-      <Icon name="square-pen" size={15} />
-      <span>Cuộc trò chuyện mới</span>
-    </button>
-    <div class="wb-side-scroll"><SideContent snapshot={snapshot} /></div>
-  </aside>;
+    </aside>
+  );
 }

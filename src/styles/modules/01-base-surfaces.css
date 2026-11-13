@@ -22,8 +22,8 @@ a:focus-visible, [tabindex]:focus-visible {
 .codex-pop-item:focus-visible,
 .codex-perm-option:focus-visible,
 .wb-theme-pop-item:focus-visible {
-  outline: none !important;
-  background: var(--wb-hover) !important;
+  outline: none;
+  background: var(--wb-hover);
 }
 
 /* Buttons and icon buttons share one shape, focus, and motion scale. */
@@ -131,7 +131,7 @@ body .wb-app-shell select optgroup {
   body .desktop-setup-dialog select option:checked,
   body .wb-app-shell select option:checked {
     color: var(--primary-foreground);
-    background-color: var(--wb-hover) !important;
+    background-color: var(--wb-hover);
   }
   body .wb-page-content select option::checkmark,
   body #overlay select option::checkmark,
@@ -142,7 +142,7 @@ body .wb-app-shell select optgroup {
   body .desktop-setup-dialog select option:hover,
   body .wb-app-shell select option:hover {
     color: var(--foreground);
-    background-color: var(--muted) !important;
+    background-color: var(--muted);
   }
 }
 
@@ -303,7 +303,7 @@ body .wb-app-shell select optgroup {
 .wb-task-item .wb-task-link.is-selected { color: var(--foreground); }
 .wb-project-toggle:focus-visible,
 .wb-task-link:focus-visible,
-.wb-mobile-nav button:focus-visible { outline-color: var(--ring) !important; }
+.wb-mobile-nav button:focus-visible { outline-color: var(--ring); }
 .wb-topbar, .wb-context-sidebar, .wb-page-sidebar { border-color: var(--border); }
 .wb-page-content .path-crumb,
 .wb-page-content .markdown-preview a,
@@ -355,12 +355,12 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 .composer-add > summary:hover,
 .composer-add[open] > summary { border-color: var(--wb-border-strong); background: var(--wb-hover); }
 .composer-add > summary:focus-visible { outline: 1px solid var(--wb-border-strong); outline-offset: 2px; }
-.composer-add-menu { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: 30; width: min(300px, calc(100vw - 38px)); display: grid; gap: 2px; padding: 7px; border: 1px solid var(--wb-border-subtle); border-radius: 12px; color: var(--wb-ink-strong); background: var(--wb-panel); box-shadow: 0 16px 36px #0009; }
+.composer-add-menu { position: absolute; bottom: calc(100% + 10px); left: 0; z-index: var(--wb-z-popover); width: min(300px, calc(100vw - 38px)); display: grid; gap: 2px; padding: 7px; border: 1px solid var(--wb-border-subtle); border-radius: 12px; color: var(--wb-ink-strong); background: var(--wb-panel); box-shadow: 0 16px 36px #0009; }
 .composer-add-menu > strong { padding: 7px 9px 8px; color: var(--wb-muted); font-size: 11px; font-weight: 650; }
 .composer-add-menu > button { min-height: 36px; display: flex; align-items: center; gap: 10px; padding: 6px 9px; border: 0; border-radius: 7px; color: var(--wb-ink); background: transparent; text-align: left; font-size: 12px; cursor: pointer; }
 .composer-add-menu > .composer-file-option { position: relative; min-width: 0; min-height: 36px; display: grid; align-items: center; gap: 2px; padding: 6px 9px; border-radius: 7px; color: var(--wb-ink); cursor: pointer; }
 .composer-add-menu .composer-file-option-label { display: flex; align-items: center; gap: 10px; font-size: 12px; }
-.composer-add-menu > .composer-file-option > small { padding: 0 0 2px 26px; color: var(--wb-amber); font-size: 10px; line-height: 1.45; }
+.composer-add-menu > .composer-file-option > small { padding: 0 0 2px 26px; color: var(--wb-amber); font-size: 11px; line-height: 1.45; }
 .composer-add-menu > label:hover,
 .composer-add-menu > button:hover,
 .composer-add-menu > label:focus-within,
@@ -368,7 +368,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 .composer-add-menu > .composer-file-option .wb-icon,
 .composer-add-menu > button .wb-icon { color: var(--wb-ink); }
 .composer-add-menu input[type="file"] { position: absolute; top: 8px; left: 8px; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.composer-add-menu > small { padding: 8px 9px 5px; border-top: 1px solid var(--wb-line); color: var(--wb-muted); font-size: 10px; line-height: 1.4; }
+.composer-add-menu > small { padding: 8px 9px 5px; border-top: 1px solid var(--wb-line); color: var(--wb-muted); font-size: 11px; line-height: 1.4; }
 .task-conversation-page .task-chat-pane { overflow: visible; }
 @media (max-width: 600px) {
   .composer-add > summary { width: 40px; height: 40px; }
@@ -426,10 +426,10 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 .wb-boot-splash {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--wb-z-toast);
   pointer-events: none;
-  background: var(--wb-bg, #050507);
-  color: var(--wb-ink-strong, #f4f4f5);
+  background: var(--wb-boot-bg, var(--wb-bg, #0b0e14));
+  color: var(--wb-boot-fg, var(--wb-ink-strong, #e6edf3));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -538,7 +538,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 .chat-pipeline-step small {
   font-family: var(--wb-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted-foreground);
 }
 .chat-pipeline-step-dot {
@@ -608,7 +608,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   background: var(--wb-surface);
   color: var(--wb-muted);
   font-family: var(--wb-font-sans);
-  font-size: 9.5px;
+  font-size: 11px;
   line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -625,7 +625,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   background: rgba(129, 201, 164, 0.18);
   border: 1px solid rgba(129, 201, 164, 0.45);
   color: var(--wb-green);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
 }
 .wb-task-dot {
@@ -686,7 +686,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   background: var(--wb-raised);
   border: 1px solid var(--wb-raised);
   color: var(--wb-muted);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.4;
 }
@@ -699,7 +699,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   border: 1px solid rgba(138, 180, 248, 0.3);
   color: var(--wb-accent);
   font-family: var(--wb-font-sans);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.4;
 }
 .wb-wt-badge.is-merged {
@@ -721,7 +721,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   display: block;
   margin-top: 2px;
   color: var(--wb-muted);
-  font-size: 9.5px;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -735,7 +735,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   padding: 1px 6px;
   border-radius: 999px;
   font-family: var(--wb-font-sans);
-  font-size: 9.5px;
+  font-size: 11px;
   background: var(--wb-raised);
   border: 1px solid var(--wb-subtle);
   color: var(--wb-ink);
@@ -790,7 +790,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 }
 .wb-topbar-tab small {
   color: var(--wb-muted);
-  font-size: 9.5px;
+  font-size: 11px;
   font-family: var(--wb-font-sans);
   font-variant-numeric: tabular-nums;
 }
@@ -816,7 +816,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   font-family: var(--wb-font-sans);
   font-variant-numeric: tabular-nums;
   user-select: none;
-  z-index: 4;
+  z-index: var(--wb-z-sticky);
 }
 .wb-status-left,
 .wb-status-right {
@@ -890,7 +890,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
-  z-index: 60;
+  z-index: var(--wb-z-popover);
   width: min(390px, calc(100vw - 24px));
   max-height: min(76vh, 620px);
   overflow-y: auto;
@@ -981,12 +981,12 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   border: 1px solid color-mix(in srgb, var(--wb-accent) 26%, var(--wb-line));
   background: color-mix(in srgb, var(--wb-accent) 13%, var(--wb-control));
   color: var(--wb-ink-strong);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 620;
   letter-spacing: 0.01em;
 }
 .wb-quota-account {
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--wb-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1007,7 +1007,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   padding-top: 4px;
 }
 .wb-quota-group-title {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--wb-muted);
 }
@@ -1042,10 +1042,10 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 }
 .wb-quota-window-label small,
 .wb-quota-window-label .wb-quota-reset {
-  display: inline !important;
-  font-style: normal !important;
-  font-size: 10px !important;
-  color: var(--wb-muted) !important;
+  display: inline;
+  font-style: normal;
+  font-size: 11px;
+  color: var(--wb-muted);
 }
 .wb-quota-pct {
   font-size: 11px;
@@ -1072,7 +1072,8 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   height: 100%;
   border-radius: 999px;
   background: var(--wb-accent);
-  transition: width 0.25s ease;
+  transform-origin: left center;
+  transition: transform 0.18s ease, opacity 0.18s ease;
 }
 .wb-quota-fill.is-warning {
   background: var(--wb-amber);
@@ -1088,7 +1089,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--wb-line);
-  font-size: 10.5px;
+  font-size: 11px;
   color: var(--wb-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -1097,26 +1098,26 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   font-weight: 600;
 }
 .wb-page-content .cli-guide-row {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  gap: 10px !important;
-  padding: 12px 14px !important;
-  border: 1px solid var(--wb-line) !important;
-  border-radius: 10px !important;
-  background: var(--wb-surface-soft) !important;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--wb-line);
+  border-radius: 10px;
+  background: var(--wb-surface-soft);
 }
 .wb-page-content .cli-guide-list {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 10px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .cli-guide-copy {
   min-width: 0;
   width: 100%;
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 8px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .cli-guide-head {
   display: flex;
@@ -1132,21 +1133,21 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   min-width: 0;
 }
 .cli-guide-title > .provider-status-dot {
-  margin: 0 !important;
+  margin: 0;
   flex-shrink: 0;
 }
 .cli-guide-title > .provider-status-dot.ready {
-  background: var(--wb-accent) !important;
-  box-shadow: none !important;
+  background: var(--wb-accent);
+  box-shadow: none;
 }
 .cli-guide-title > .provider-status-dot.missing {
-  background: var(--wb-subtle) !important;
-  box-shadow: none !important;
+  background: var(--wb-subtle);
+  box-shadow: none;
 }
 .cli-guide-sub {
-  margin: 0 !important;
-  font-size: 11px !important;
-  color: var(--wb-muted) !important;
+  margin: 0;
+  font-size: 11px;
+  color: var(--wb-muted);
 }
 .cli-quota-inline {
   min-width: 0;
@@ -1175,8 +1176,8 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 .wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card .user-message-content,
 .wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card .user-message-content p,
 .wb-page-content .task-conversation-page.is-unified-chat .user-bubble-card .user-message-content li {
-  color: var(--wb-user-bubble-fg, var(--wb-ink-strong)) !important;
-  opacity: 1 !important;
+  color: var(--wb-user-bubble-fg, var(--wb-ink-strong));
+  opacity: 1;
 }
 @media (max-width: 740px) {
   .wb-usage-popover { right: -6px; }
@@ -1192,7 +1193,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   border-radius: 4px;
   background: transparent;
   color: var(--wb-muted);
-  font-size: 10.5px;
+  font-size: 11px;
   cursor: pointer;
 }
 .wb-status-btn:hover {
@@ -1246,7 +1247,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   font-size: 11.5px;
   cursor: pointer;
   user-select: none;
-  transition: all 120ms ease;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 .arena-competitor-pill:hover {
   border-color: var(--wb-subtle);
@@ -1260,7 +1261,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 .arena-competitor-pill small {
   color: var(--wb-muted);
   font-family: var(--wb-font-sans);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 /* 5. Task Conversation Arena Banner & Compare Modal */
@@ -1317,10 +1318,10 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 .arena-competitor-card small {
   color: var(--wb-muted);
   font-family: var(--wb-font-sans);
-  font-size: 10px;
+  font-size: 11px;
 }
 .arena-compare-modal {
-  width: min(1240px, 95vw) !important;
+  width: min(1240px, 95vw);
   max-height: 88vh;
   display: flex;
   flex-direction: column;
@@ -1377,7 +1378,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   border: 0;
 }
 .arena-compare-identity { min-width: 0; flex: 1; }
-#overlay .modal .arena-compare-card .arena-compare-identity h3 { margin: 0; font-size: 14px !important; font-weight: 600; line-height: 1.4; }
+#overlay .modal .arena-compare-card .arena-compare-identity h3 { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.4; }
 #overlay .modal .arena-compare-card .arena-compare-identity p { margin: 4px 0 0; color: var(--wb-muted); font-size: 12px; overflow-wrap: anywhere; }
 .arena-compare-status { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; font-size: 12px; color: var(--wb-muted); line-height: 20px; }
 .arena-compare-status.is-failed { color: var(--wb-red); }
@@ -1423,7 +1424,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   color: var(--wb-muted);
   font-family: var(--wb-font-sans);
   font-variant-numeric: tabular-nums;
-  font-size: 10.5px;
+  font-size: 11px;
 }
 .chat-tool-stream-body {
   display: grid;
@@ -1451,7 +1452,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   border-radius: 4px;
   background: var(--wb-raised);
   color: var(--wb-accent);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
 }
 .chat-tool-card.kind-command .chat-tool-badge {
@@ -1474,7 +1475,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   flex: 0 0 auto;
   padding: 1px 5px;
   border-radius: 4px;
-  font-size: 9.5px;
+  font-size: 11px;
 }
 .chat-tool-exit.is-ok {
   color: var(--wb-green);
@@ -1495,7 +1496,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 }
 .chat-tool-artifacts > small {
   color: var(--wb-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .chat-artifact-pill {
   padding: 2px 7px;
@@ -1566,10 +1567,10 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 }
 .chat-drawer-search input {
   width: 100%;
-  border: 0 !important;
+  border: 0;
   outline: 0;
-  background: transparent !important;
-  color: var(--wb-ink) !important;
+  background: transparent;
+  color: var(--wb-ink);
   font-size: 11px;
 }
 .chat-drawer-list {
@@ -1622,7 +1623,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   background: var(--wb-raised);
   color: var(--wb-accent);
   font-family: var(--wb-font-sans);
-  font-size: 10.5px;
+  font-size: 11px;
   cursor: pointer;
   opacity: 0;
 }
@@ -1684,7 +1685,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   position: absolute;
   bottom: calc(100% + 8px);
   left: 0;
-  z-index: 40;
+  z-index: var(--wb-z-popover);
   width: min(420px, 92vw);
   max-height: 260px;
   overflow-y: auto;
@@ -1697,12 +1698,12 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.55);
 }
 .mention-popover[hidden] {
-  display: none !important;
+  display: none;
 }
 .mention-popover-head {
   padding: 4px 8px;
   color: var(--wb-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1735,11 +1736,11 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 
 /* 9. Diff Review Studio Modal */
 .diff-studio-modal {
-  width: min(1220px, 96vw) !important;
+  width: min(1220px, 96vw);
   height: min(86vh, 860px);
   display: flex;
   flex-direction: column;
-  padding: 16px 18px !important;
+  padding: 16px 18px;
 }
 .diff-studio-toolbar {
   display: flex;
@@ -1827,7 +1828,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   display: inline-grid;
   place-items: center;
   border-radius: 4px;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
   background: var(--wb-raised);
   color: var(--wb-accent);
@@ -1844,7 +1845,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   flex: 0 0 auto;
   display: inline-flex;
   gap: 4px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .diff-file-comment-count {
   flex: 0 0 auto;
@@ -1852,7 +1853,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   border-radius: 999px;
   background: var(--wb-accent);
   color: var(--wb-panel);
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 700;
 }
 .diff-viewer-pane {
@@ -1879,7 +1880,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 .diff-Viewer-head small,
 .diff-viewer-head small {
   color: var(--wb-muted);
-  font-size: 10.5px;
+  font-size: 11px;
 }
 .diff-hunk-list {
   flex: 1;
@@ -1894,7 +1895,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   color: var(--wb-accent);
   border-top: 1px solid var(--wb-raised);
   border-bottom: 1px solid var(--wb-raised);
-  font-size: 10.5px;
+  font-size: 11px;
 }
 .diff-row {
   display: grid;
@@ -1924,7 +1925,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 }
 .diff-ln {
   color: var(--wb-subtle);
-  font-size: 10px;
+  font-size: 11px;
   text-align: right;
   padding-right: 6px;
   user-select: none;
@@ -1982,10 +1983,10 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   flex: 1;
   height: 30px;
   padding: 0 8px;
-  border: 1px solid var(--wb-raised) !important;
+  border: 1px solid var(--wb-raised);
   border-radius: 5px;
-  background: var(--wb-panel) !important;
-  color: var(--wb-ink-strong) !important;
+  background: var(--wb-panel);
+  color: var(--wb-ink-strong);
   font-size: 12px;
 }
 
@@ -2011,3 +2012,15 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   }
 }
 
+
+/* Tabular numerals for telemetry, quota & diff counters */
+.wb-status-item,
+.wb-status-quota,
+.wb-status-quota-pill,
+.wb-quota-pct,
+.wb-project-active-count,
+.diff-ln,
+.diff-Viewer-head small,
+.diff-viewer-head small {
+  font-variant-numeric: tabular-nums;
+}

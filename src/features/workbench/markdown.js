@@ -82,9 +82,14 @@ export function buildMarkdown(source) {
       i--;
       const theadHtml = `<thead><tr>${headers.map((h, colIdx) => `<th${["left", "center", "right"].includes(aligns[colIdx]) && aligns[colIdx] !== "left" ? ` style="text-align:${aligns[colIdx]}"` : ""}>${inline(h)}</th>`).join("")}</tr></thead>`;
       const tbodyHtml = bodyRows.length
-        ? `<tbody>${bodyRows.map((row) => `<tr>${headers.map((_, colIdx) => `<td${["left", "center", "right"].includes(aligns[colIdx]) && aligns[colIdx] !== "left" ? ` style="text-align:${aligns[colIdx]}"` : ""}>${inline(row[colIdx] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody>`
+        ? `<tbody>${bodyRows.map((row) => `<tr>${headers.map((_, colIdx) => {
+            const rawCell = String(row[colIdx] ?? "").trim();
+            const isNumeric = aligns[colIdx] === "right" || (/^-?\d[\d.,]*%?$/.test(rawCell) && rawCell.length > 0);
+            const alignAttr = ["left", "center", "right"].includes(aligns[colIdx]) && aligns[colIdx] !== "left" ? ` style="text-align:${aligns[colIdx]}"` : "";
+            return `<td${isNumeric ? ` class="is-num"` : ""}${alignAttr}>${inline(row[colIdx] ?? "")}</td>`;
+          }).join("")}</tr>`).join("")}</tbody>`
         : "";
-      html.push(`<div class="md-table-wrap"><table class="md-table">${theadHtml}${tbodyHtml}</table></div>`);
+      html.push(`<div class="table-scroll-wrap md-table-wrap"><table class="orca-data-table md-table">${theadHtml}${tbodyHtml}</table></div>`);
       continue;
     }
     const heading = line.match(/^(#{1,6})\s+(.+)$/);
@@ -144,27 +149,83 @@ export function filePreviewMarkup(file, title = "Chọn một tệp để xem") 
   return `<header class="file-preview-head"><div><strong>${esc(file.name)}</strong><small>${markdown ? "Markdown" : file.extension || "Tệp văn bản"} · ${formatNumber(file.size)} B · ${fmtDate(file.modifiedAt)}</small></div></header>${body}`;
 }
 
+export function parseRfc4180Csv(content = "", delimiter = ",", maxRows = 200) {
+  const input = String(content || "");
+  if (!input.trim()) return [];
+  const sep = String(delimiter || ",")[0] || ",";
+  const rows = [];
+  let row = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < input.length; i += 1) {
+    const ch = input[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (input[i + 1] === '"') {
+          cell += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cell += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"' && cell.length === 0) {
+      inQuotes = true;
+      continue;
+    }
+    if (ch === sep) {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+    if (ch === "\r" || ch === "\n") {
+      if (ch === "\r" && input[i + 1] === "\n") i += 1;
+      row.push(cell);
+      cell = "";
+      if (row.some((v) => v.trim().length > 0)) {
+        rows.push(row);
+        if (rows.length >= maxRows) return rows;
+      }
+      row = [];
+      continue;
+    }
+    cell += ch;
+  }
+
+  row.push(cell);
+  if (row.some((v) => v.trim().length > 0) && rows.length < maxRows) {
+    rows.push(row);
+  }
+  return rows;
+}
+
 export function renderCsvTableMarkup(content = "", delimiter = ",") {
-  const rows = String(content || "")
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0)
-    .slice(0, 200)
-    .map((line) => line.split(delimiter).map((cell) => cell.trim().replace(/^"|"$/g, "")));
+  const rows = parseRfc4180Csv(content, delimiter, 200);
   if (!rows.length) return `<div class="orca-viewer-empty"><p>Tệp dữ liệu trống.</p></div>`;
   const header = rows[0] || [];
   const bodyRows = rows.slice(1);
-  return `<div class="orca-table-scroll">
+  return `<div class="table-scroll-wrap orca-table-scroll">
     <table class="orca-data-table">
       <thead>
         <tr>
           <th class="is-row-num">#</th>
-          ${header.map((col) => `<th>${esc(col)}</th>`).join("")}
+          ${header.map((col) => `<th>${esc(col.trim())}</th>`).join("")}
         </tr>
       </thead>
       <tbody>
         ${bodyRows.map((cols, idx) => `<tr>
-          <td class="is-row-num">${idx + 1}</td>
-          ${header.map((_, cIdx) => `<td>${esc(cols[cIdx] ?? "")}</td>`).join("")}
+          <td class="is-row-num is-num">${idx + 1}</td>
+          ${header.map((_, cIdx) => {
+            const rawVal = String(cols[cIdx] ?? "");
+            const trimmed = rawVal.trim();
+            const isNum = trimmed.length > 0 && /^-?\d[\d.,]*%?$/.test(trimmed);
+            return `<td${isNum ? ` class="is-num"` : ""}>${esc(rawVal)}</td>`;
+          }).join("")}
         </tr>`).join("")}
       </tbody>
     </table>

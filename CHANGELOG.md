@@ -5,6 +5,30 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.9] - 2026-11-13
+
+### Tiếng Việt
+- **Phân tách chức năng Desktop Host & Mobile Companion (`PRODUCT.md`, `src/shared/remote-host.js`, `android/app/src/main/java/com/opensybau/mobile/MainActivity.java`)**:
+  - Xác lập ranh giới rõ ràng giữa máy trạm điều phối trên PC (quản trị worktree, terminal, cài đặt CLI, cấu hình mạng/bảo mật, duyệt mã chuyên sâu) và ứng dụng đồng hành trên điện thoại (giám sát tiến trình, duyệt/từ chối quyền khẩn cấp, nhập liệu/chỉ dẫn nhanh, theo dõi hạn mức và xem trước qua URL máy chủ LAN).
+  - Bổ sung xử lý nút Back phần cứng trên Android (`OnBackPressedCallback` → `window.__opensybauHandleBack`) và đồng bộ màu thanh trạng thái / thanh điều hướng theo theme (`setSystemBarTheme`), thống nhất theme mặc định Mobile sang `obsidian`.
+- **Chuẩn hóa Hệ thống Thiết kế `@layer` (`DESIGN.md`, `src/styles/`, `src/shared/ui/BrandLogo.jsx`)**:
+  - Tổ chức lại toàn bộ CSS theo kiến trúc `@layer` phân tầng, khóa 6 cấp `--wb-z-*`, phân cấp tiêu đề `H1`–`H4` rõ ràng, căn số `tabular-nums`, dùng component `<BrandLogo>` thống nhất chống trùng `<clipPath>`, thay toàn bộ ký tự/icon rời bằng Lucide SVG và chuẩn hóa thanh quota sang hiển thị **Used-%** (`Đã dùng % · Còn %`).
+- **Điều hướng tại chỗ không nhảy trang & Tính năng Cốt lõi Mới (`src/features/workbench/`, `src/shell/`, `src/server/`)**:
+  - Chặn toàn bộ 19 điểm điều hướng nhảy trang bất ngờ giữa Chat, Composer, Skill Picker, Diff Studio, Quy trình và Cài đặt; giữ nguyên bản nháp soạn thảo khi chọn kỹ năng hoặc xem tham chiếu.
+  - Bổ sung bảng lệnh & tìm kiếm FTS5 toàn cục `Ctrl+K` / `Cmd+K` (`src/features/workbench/command-palette.js`), giao diện Quản lý Lịch chạy Định kỳ trên Git Worktree (`src/features/workbench/schedules-modal.js`), ghim/cập nhật `USER.md` (`PATCH /api/memory/:id`), hỗ trợ `.opensybau/worktree.json` (`copyFiles`, `linkNodeModules`) và bộ kiểm thử E2E Chrome CDP 7 kịch bản (`npm run test:e2e`).
+
+### English
+- **Desktop Host vs. Mobile Companion Separation (`PRODUCT.md`, `src/shared/remote-host.js`, `android/app/src/main/java/com/opensybau/mobile/MainActivity.java`)**:
+  - Formalized the 3-layer product charter and functional boundary between Desktop Host orchestration and Mobile Companion supervision, approval triage, and LAN-host preview (`resolveCompanionPreviewUrl`).
+  - Added Android hardware back navigation (`OnBackPressedCallback` → `window.__opensybauHandleBack`) and native status/navigation bar theme sync (`setSystemBarTheme`), with `obsidian` as the default mobile theme.
+- **Formal `@layer` Design System (`DESIGN.md`, `src/styles/`, `src/shared/ui/BrandLogo.jsx`)**:
+  - Restructured stylesheets into ordered CSS `@layer` tiers with a 6-tier `--wb-z-*` scale, clear `H1`–`H4` typography hierarchy, `tabular-nums` alignment, collision-free `<BrandLogo>`, unified Lucide SVG icons, and standardized Used-% quota bars.
+- **Zero-Jump In-Place Navigation & Core Capabilities (`src/features/workbench/`, `src/shell/`, `src/server/`)**:
+  - Eliminated 19 unexpected cross-page navigation jumps across composer, skill picker, workflows, diff studio, and settings while preserving draft state.
+  - Added global `Ctrl+K` / `Cmd+K` FTS5 search Command Palette (`command-palette.js`), Recurring Git Worktree Schedules modal (`schedules-modal.js`), `USER.md` global memory pinning (`PATCH /api/memory/:id`), safe `.opensybau/worktree.json` bootstrap, and a 7-scenario Chrome CDP E2E suite (`npm run test:e2e`).
+
+---
+
 ## [0.3.8] - 2026-11-12
 
 ### Tiếng Việt

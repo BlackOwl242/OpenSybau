@@ -1565,6 +1565,66 @@ const english = {
   "Nội dung Markdown hồ sơ Subagent…": "Subagent profile Markdown content…",
   "Đang tải cấu hình vai trò Codex…": "Loading Codex role configuration…",
   "Đang tải nội dung hồ sơ Subagent…": "Loading Subagent profile content…",
+  "Tìm kiếm toàn cục & Lệnh nhanh": "Global Search & Command Palette",
+  "Tìm công việc, tin nhắn, bộ nhớ, kỹ năng hoặc chạy lệnh nhanh…": "Search tasks, chats, memories, skills, or run a command…",
+  "Lệnh nhanh": "Quick Commands",
+  "Đang tìm kiếm trong chỉ mục FTS5…": "Searching FTS5 index…",
+  "Không tìm thấy kết quả khớp từ khóa.": "No results matched your query.",
+  "Điều hướng": "Navigate",
+  "Thực thi": "Execute",
+  "Lịch tự động": "Schedules",
+  "Lịch trình Worktree tự động": "Scheduled Worktree Automations",
+  "Tạo lịch tự động": "New Schedule",
+  "Sửa lịch tự động": "Edit Schedule",
+  "Lưu lịch tự động": "Save Schedule",
+  "Chạy ngay": "Run Now",
+  "Chưa có lịch trình tự động nào": "No scheduled automations yet",
+  "Tự động tạo nhánh Git worktree cô lập định kỳ để kiểm tra lỗi, dọn nợ kỹ thuật hoặc tóm tắt thay đổi mà không đụng vào thư mục đang code.": "Run recurring isolated Git worktree tasks to check tests, audit tech debt, or summarize changes without touching your active checkout.",
+  "Tần suất thực thi": "Run Interval",
+  "Số bản lưu tối đa": "Max Retained Runs",
+  "Đang bật": "Enabled",
+  "Tạm dừng": "Paused",
+  "USER.md · Quy tắc cá nhân": "USER.md · Personal Rule",
+  "Lỗi cần tránh": "Pitfall to Avoid",
+  "Bài học dự án": "Project Lesson",
+  "Đã ghim Tier-1": "Pinned Tier-1",
+  "Đã ghim / USER.md": "Pinned / USER.md",
+  "Dùng chung mọi dự án": "Shared across all projects",
+  "Ghim ghi nhớ": "Pin memory",
+  "Bỏ ghim": "Unpin",
+  "Chỉnh sửa ghi nhớ": "Edit memory",
+  "Sửa ghi nhớ": "Edit memory",
+  "Loại ghi nhớ": "Memory kind",
+  "Ghim vào ngữ cảnh ưu tiên (Tier-1)": "Pin to priority context (Tier-1)",
+  "Bỏ ghim khỏi ngữ cảnh ưu tiên": "Unpin from priority context",
+  "Chờ phê duyệt CLI": "Awaiting CLI Approval",
+  "Yêu cầu phê duyệt lệnh CLI": "CLI Command Approval Request",
+  "Cho phép": "Approve",
+  "Luôn cho phép phiên này": "Approve for Session",
+  "Từ chối": "Decline",
+  "Phương thức giao tiếp Codex CLI": "Codex CLI Transport",
+  "Nén ngữ cảnh": "Compact Context",
+  "Nén ngữ cảnh hội thoại": "Compact Conversation Context",
+  "Đúc kết Bài học": "Distill Lesson",
+  "Đúc kết Bài học (Memory)": "Distill Lesson (Memory)",
+  "Đúc kết Kỹ năng": "Distill Skill",
+  "Đúc kết thành Kỹ năng": "Distill into Skill",
+  "Chọn Kỹ năng": "Pick Skills",
+  "Tạo Subagent": "Create Subagent",
+  "Chọn Kỹ năng cho phiên này": "Select Skills for Session",
+  "Tìm kiếm kỹ năng theo tên hoặc mô tả…": "Filter skills by name or description…",
+  "Quản lý thư viện Kỹ năng →": "Manage Skills Library →",
+  "Mở trong Không gian Chat": "Open in Chat Workspace",
+  "Mở Không gian Chat": "Open Chat Workspace",
+  "Nhánh đích (vd: main)": "Target base branch (e.g. main)",
+  "Không có công việc nào khớp bộ lọc hiện tại": "No tasks match the current filter",
+  "Xem tất cả công việc": "Show all tasks",
+  "Chưa phát hiện tùy chỉnh cục bộ": "No local customizations detected",
+  "Đang quét cấu hình dự án…": "Scanning project customizations…",
+  "Đăng nhập trên PC · Quét lại": "Sign in on PC · Rescan",
+  "Sẵn sàng trên PC": "Ready on PC",
+  "Tùy chọn luồng": "Workflow Options",
+  "NHẬT KÝ SỰ KIỆN & ĐẦU RA": "EVENT LOG & OUTPUTS",
 };
 
 const vietnamese = new Map(Object.entries(english).map(([vi, en]) => [en, vi]));
@@ -1697,8 +1757,22 @@ function dynamicTranslation(value, language) {
     match = value.match(/^(\d+)p$/); if (match) return `${match[1]}m`;
     match = value.match(/^(\d+)g$/); if (match) return `${match[1]}h`;
     match = value.match(/^(\d+)n$/); if (match) return `${match[1]}d`;
+    match = value.match(/^Quay lại (.+)$/); if (match) return `Back to ${translateText(match[1], "en")}`;
+    match = value.match(/^Lịch tự động \((\d+)\)$/); if (match) return `Schedules (${match[1]})`;
+    match = value.match(/^Review diff \((\d+)\)$/); if (match) return `Review diff (${match[1]})`;
+    match = value.match(/^Đã dùng (\d+)% · Còn (\d+)%$/); if (match) return `Used ${match[1]}% · Left ${match[2]}%`;
+    match = value.match(/^(\d+) tài liệu Markdown$/); if (match) return `${match[1]} Markdown docs`;
+    match = value.match(/^(\d+) tệp đã sửa$/); if (match) return `${match[1]} modified files`;
+    match = value.match(/^Subagents đã ghi nhận \((\d+)\)$/); if (match) return `Recorded Subagents (${match[1]})`;
+    match = value.match(/^Đã ẩn (\d+) công việc thuộc trạng thái khác\. Đặt lại bộ lọc để xem toàn bộ tiến trình\.$/); if (match) return `${match[1]} tasks in other states are hidden. Reset the filter to view all runs.`;
   } else {
     let match = value.match(/^(\d+) tasks$/i); if (match) return `${match[1]} task`;
+    match = value.match(/^Back to (.+)$/); if (match) return `Quay lại ${translateText(match[1], "vi")}`;
+    match = value.match(/^Schedules \((\d+)\)$/); if (match) return `Lịch tự động (${match[1]})`;
+    match = value.match(/^Used (\d+)% · Left (\d+)%$/); if (match) return `Đã dùng ${match[1]}% · Còn ${match[2]}%`;
+    match = value.match(/^(\d+) Markdown docs$/); if (match) return `${match[1]} tài liệu Markdown`;
+    match = value.match(/^(\d+) modified files$/); if (match) return `${match[1]} tệp đã sửa`;
+    match = value.match(/^Recorded Subagents \((\d+)\)$/); if (match) return `Subagents đã ghi nhận (${match[1]})`;
     match = value.match(/^(\d+)h (\d+)m$/); if (match) return `${match[1]}g ${match[2]}p`;
     match = value.match(/^(\d+)d (\d+)h$/); if (match) return `${match[1]}n ${match[2]}g`;
     match = value.match(/^(\d+)m$/); if (match) return `${match[1]}p`;

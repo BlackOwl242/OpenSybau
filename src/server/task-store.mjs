@@ -452,6 +452,13 @@ export function createTaskStoreService({ taskDir }) {
       return deleteTaskDetailStore(resolve(taskDir, ".."), id);
     },
     searchWorkbench,
+    close: () => {
+      if (ftsDb && typeof ftsDb.close === "function") {
+        try { ftsDb.close(); } catch {}
+      }
+      ftsDb = null;
+      ftsAvailable = false;
+    },
   };
 }
 
