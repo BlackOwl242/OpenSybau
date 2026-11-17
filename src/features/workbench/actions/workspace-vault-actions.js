@@ -141,6 +141,12 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
   if (action === "new-memory") { showMemoryModal(); return true; }
   if (action === "new-skill") { showSkillCreateModal(); return true; }
   if (action === "provider-add") { showApiProviderModal(); return true; }
+  if (action === "provider-add-gemini") {
+    showApiProviderModal();
+    $("#overlay [data-action='provider-preset'][data-preset='gemini']")?.click();
+    $("#overlay input[name='apiKey']")?.focus();
+    return true;
+  }
   if (action === "toggle-sidebar-search") {
     const container = button.closest(".wb-page-sidebar, .wb-context-sidebar") || document;
     const searchLabel = container.querySelector(".wb-sidebar-search");

@@ -5,10 +5,11 @@ import { delimiter, dirname, isAbsolute, resolve } from "node:path";
 import { homedir } from "node:os";
 import { clearExecutableCache, configuredApiProviders, findClaudeCode } from "./provider-registry.mjs";
 import { cliIsInstalled } from "./cli-status.mjs";
-import { findAntigravityCli, parseWindowsRegisteredEnvironmentValue, probeAntigravityCli } from "./antigravity-cli.mjs";
+import { findAntigravityCli, parseWindowsRegisteredEnvironmentValue, probeAntigravityCli, resolveAntigravityExecutionPolicy } from "./antigravity-cli.mjs";
 import { within } from "./fs-security.mjs";
 
 const CLI_CACHE_TTL_MS = 60_000;
+const AGY_PROBE_CACHE_TTL_MS = 15 * 60_000;
 
 export function normalizeDirectoryInput(value) {
   const input = String(value || "").trim();
@@ -39,6 +40,8 @@ export function createCliDiscoveryService({
   let claudeExe = "";
   let modelCache;
   let modelCacheUntil = 0;
+  let agyProbeCache = null;
+  let agyProbeCacheUntil = 0;
   let modelLoadPromise = null;
   let apiProviderRuntime = new Map();
 
@@ -258,10 +261,34 @@ export function createCliDiscoveryService({
     };
   }
 
-  async function loadModelsUncached() {
+  async function loadModelsUncached(force = false) {
+    const apiDefinitions = [];
+    let apiConfigurationError = null;
+    try { apiDefinitions.push(...configuredApiProviders(process.env, savedApiProviders())); }
+    catch (error) { apiConfigurationError = safeError(error); }
+    apiProviderRuntime = new Map(apiDefinitions.filter((definition) => definition.connector.available).map((definition) => [definition.runtime.id, definition.runtime]));
+    const agyPolicy = resolveAntigravityExecutionPolicy(process.env, apiProviderRuntime);
+    const agyExecutableNow = findAntigravity();
+    const canReuseAgy = !force
+      && agyProbeCache
+      && Date.now() < agyProbeCacheUntil
+      && agyProbeCache.executable === agyExecutableNow
+      && (agyProbeCache.authMode || "consumer-oauth") === agyPolicy.authMode;
+    const agyPromise = canReuseAgy
+      ? Promise.resolve(agyProbeCache)
+      : probeAntigravityCli({
+          resolveExecutable: () => findAntigravity(),
+          run,
+          extraArgs: agyPolicy.extraArgs,
+          env: agyPolicy.authMode === "gemini-api-key" ? { ...process.env, ...agyPolicy.extraEnv } : null,
+        }).then((result) => {
+          agyProbeCache = result;
+          agyProbeCacheUntil = Date.now() + AGY_PROBE_CACHE_TTL_MS;
+          return result;
+        });
     const [codex, agy, codexLogin, claude] = await Promise.all([
       run(codexExe, ["debug", "models"], { timeout: 30000, maxBuffer: 32_000_000 }),
-      probeAntigravityCli({ resolveExecutable: () => findAntigravity(), run }),
+      agyPromise,
       run(codexExe, ["login", "status"], { timeout: 10000, maxBuffer: 10000 }),
       claudeExe ? run(claudeExe, [...claudeCommand.prefixArgs, "--version"], { timeout: 10000, maxBuffer: 10000 }) : Promise.resolve({ code: -1, stdout: "", stderr: "Claude Code CLI not found" }),
     ]);
@@ -290,14 +317,9 @@ export function createCliDiscoveryService({
       { id: "opus", name: "Claude Opus · latest", efforts: ["standard", "low", "medium", "high"] },
       { id: "haiku", name: "Claude Haiku · latest", efforts: ["standard", "low", "medium", "high"] },
     ] : [];
-    const apiDefinitions = [];
-    let apiConfigurationError = null;
-    try { apiDefinitions.push(...configuredApiProviders(process.env, savedApiProviders())); }
-    catch (error) { apiConfigurationError = safeError(error); }
-    apiProviderRuntime = new Map(apiDefinitions.filter((definition) => definition.connector.available).map((definition) => [definition.runtime.id, definition.runtime]));
     modelCache = {
       codex: { name: "Codex CLI", kind: "cli", executable: codexExe, available: codexAvailable, authenticated: codexLogin.code === 0, capabilities: { chat: true, plan: true, build: true, review: true }, version: null, error: codexAvailable ? null : safeError(codex.stderr || codexLogin.stderr || "Codex CLI chưa đăng nhập hoặc chưa trả danh sách model."), models: codexModels },
-      antigravity: { name: "Antigravity CLI", kind: "cli", executable: agyExe, installed: agy.installed, available: agyAvailable, authenticated: agy.authenticated, capabilities: { chat: true, plan: true, build: true, review: true }, version: agy.version, error: agy.error ? safeError(agy.error) : null, models: agyModels },
+      antigravity: { name: "Antigravity CLI", kind: "cli", executable: agyExe, installed: agy.installed, available: agyAvailable, authenticated: agy.authenticated, authMode: agy.authMode || agyPolicy.authMode, capabilities: { chat: true, plan: true, build: true, review: true }, version: agy.version, error: agy.error ? safeError(agy.error) : null, models: agyModels },
       claude: { name: "Claude Code", kind: "cli", executable: claudeExe || null, available: claudeAvailable, authenticated: claude.code === 0 ? claudeAuthenticated : false, capabilities: { chat: true, plan: true, build: true, review: true }, version: claude.code === 0 ? claude.stdout.trim() : null, error: claude.code !== 0 ? "Cài Claude Code CLI và đặt CLAUDE_CLI_PATH nếu chưa có trên PATH." : !claudeAuthenticated ? "Claude Code chưa đăng nhập. Mở terminal và chạy claude auth login." : null, models: claudeModels },
       ...Object.fromEntries(apiDefinitions.map((definition) => [definition.runtime.id, definition.connector])),
       apiConfigurationError,
@@ -319,7 +341,7 @@ export function createCliDiscoveryService({
       if (modelLoadPromise) return modelLoadPromise;
     }
     if (force) refreshCliExecutables(true);
-    modelLoadPromise = loadModelsUncached();
+    modelLoadPromise = loadModelsUncached(force);
     try { return await modelLoadPromise; }
     finally { modelLoadPromise = null; }
   }
@@ -345,10 +367,11 @@ export function createCliDiscoveryService({
     getCliExecutables: () => ({ codexExe, agyExe, claudeCommand, claudeExe }),
     setAgyExe: (exe) => { agyExe = exe; },
     setClaudeCommand: (cmd) => { claudeCommand = cmd; claudeExe = cmd.executable; },
-    invalidateModelCache: () => { modelCache = null; modelCacheUntil = 0; },
-    expireModelCache: () => { modelCacheUntil = 0; },
+    invalidateModelCache: () => { modelCache = null; modelCacheUntil = 0; agyProbeCache = null; agyProbeCacheUntil = 0; },
+    expireModelCache: () => { modelCacheUntil = 0; agyProbeCacheUntil = 0; },
     hasApiProvider: (provider) => apiProviderRuntime.has(provider),
     getApiProviderRuntime: (provider) => apiProviderRuntime.get(provider),
+    getApiProviderRuntimes: () => [...apiProviderRuntime.values()],
     refreshCliExecutables,
     openCliLoginTerminal,
     launchCliLogin: openCliLoginTerminal,

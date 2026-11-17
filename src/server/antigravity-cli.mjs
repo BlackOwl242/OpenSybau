@@ -55,18 +55,66 @@ export function parseAntigravityModels(output) {
     }).filter(Boolean);
 }
 
+export const ANTIGRAVITY_OAUTH_WARNING =
+  "Đang dùng đăng nhập OAuth cá nhân của Antigravity CLI. Theo Điều khoản Mục 6 của Antigravity, điều khiển agy từ app bên thứ ba qua OAuth cá nhân có nguy cơ bị tạm ngưng dịch vụ. Nên thêm Gemini API Key để chuyển sang billing riêng an toàn.";
+
+export function resolveAntigravityApiKey(env = process.env, apiProviderRuntimes = []) {
+  const directKey = String(env?.GEMINI_API_KEY || env?.GOOGLE_API_KEY || "").trim();
+  if (directKey) return directKey;
+  const runtimes = apiProviderRuntimes instanceof Map
+    ? [...apiProviderRuntimes.values()]
+    : Array.isArray(apiProviderRuntimes) ? apiProviderRuntimes : [];
+  for (const runtime of runtimes) {
+    if (runtime?.protocol === "gemini" && String(runtime?.apiKey || "").trim()) {
+      return String(runtime.apiKey).trim();
+    }
+  }
+  return "";
+}
+
+export function resolveAntigravityExecutionPolicy(env = process.env, apiProviderRuntimes = []) {
+  const apiKey = resolveAntigravityApiKey(env, apiProviderRuntimes);
+  if (apiKey) {
+    return {
+      allowed: true,
+      authMode: "gemini-api-key",
+      apiKey,
+      extraArgs: ["--settings", JSON.stringify({ modelProvider: "gemini" })],
+      extraEnv: { GEMINI_API_KEY: apiKey },
+    };
+  }
+  return {
+    allowed: true,
+    authMode: "consumer-oauth",
+    apiKey: "",
+    extraArgs: [],
+    extraEnv: {},
+  };
+}
+
 function authenticationFailed(result) {
   return /(?:not (?:logged|signed) in|unauthenticated|authentication (?:required|failed)|please (?:log|sign) in|no saved session|invalid (?:credentials|refresh token)|GEMINI_API_KEY.*(?:not set|missing))/i.test(`${result.stderr || ""}\n${result.stdout || ""}`);
 }
 
-export async function probeAntigravityCli({ resolveExecutable, run, fileExists = existsSync, pause = delay }) {
+export async function probeAntigravityCli({
+  resolveExecutable,
+  run,
+  fileExists = existsSync,
+  pause = delay,
+  extraArgs = [],
+  env = null,
+}) {
   let probe;
   for (let attempt = 0; attempt < 3; attempt++) {
     const executable = resolveExecutable();
     const version = await run(executable, ["--version"], { timeout: 10000, maxBuffer: 10000 });
     const installed = cliIsInstalled(executable, version.code, fileExists);
+    const modelArgs = extraArgs.length ? [...extraArgs, "models"] : ["models"];
+    const modelOpts = env
+      ? { timeout: 30000, maxBuffer: 2_000_000, env }
+      : { timeout: 30000, maxBuffer: 2_000_000 };
     const catalog = installed
-      ? await run(executable, ["models"], { timeout: 30000, maxBuffer: 2_000_000 })
+      ? await run(executable, modelArgs, modelOpts)
       : { code: -1, stdout: "", stderr: version.stderr || "Không tìm thấy agy CLI trên máy." };
     const models = catalog.code === 0 ? parseAntigravityModels(catalog.stdout) : [];
     const available = installed && catalog.code === 0 && models.length > 0;
@@ -74,6 +122,7 @@ export async function probeAntigravityCli({ resolveExecutable, run, fileExists =
     const detail = catalog.stderr?.trim() || catalog.stdout?.trim() || "CLI chưa trả danh sách model.";
     probe = {
       executable, installed, available, authenticated: available ? true : needsLogin ? false : null,
+      authMode: extraArgs.length ? "gemini-api-key" : "consumer-oauth",
       version: version.code === 0 ? version.stdout.trim() : "unavailable", models,
       error: available ? null : !installed ? "Không tìm thấy agy CLI trên máy." : needsLogin ? detail
         : `Đã tìm thấy Antigravity CLI nhưng chưa đọc được model${catalog.timedOut ? " (hết thời gian chờ)" : ""}: ${detail}`,

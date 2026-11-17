@@ -107,7 +107,7 @@ export function createLocalMcpClient({ isWorkspaceTrusted = () => false, cacheTt
       if (!/^[a-z0-9_-]{1,40}$/i.test(serverName) || !spec?.command) continue;
       try {
         const replies = await rpcExchange(serverName, spec, [
-          { id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "opensybau", version: "0.3.11" } } },
+          { id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "opensybau", version: "0.3.12" } } },
           { method: "notifications/initialized" },
           { id: 2, method: "tools/list", params: {} },
         ], 8000);
@@ -137,7 +137,7 @@ export function createLocalMcpClient({ isWorkspaceTrusted = () => false, cacheTt
     if (!spec) return { ok: false, summary: `MCP server not found: ${serverName}`, output: `Error: MCP server "${serverName}" unavailable.` };
     try {
       const replies = await rpcExchange(serverName, spec, [
-        { id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "opensybau", version: "0.3.11" } } },
+        { id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "opensybau", version: "0.3.12" } } },
         { method: "notifications/initialized" },
         { id: 2, method: "tools/call", params: { name: toolName, arguments: args } },
       ], 15_000);

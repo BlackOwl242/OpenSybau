@@ -504,7 +504,7 @@ export function normalizeScheduleProfile(body = {}, stateOrWorkspaces = {}, conn
   const maxRounds = Math.max(1, Math.min(3, Number(body.maxRounds) || (workflow === "codex-antigravity" ? 2 : 1)));
   const planGate = Boolean(body.planGate);
 
-  const defaultProvider = Object.keys(connectors).find((k) => connectors[k]?.available) || "codex";
+  const defaultProvider = Object.keys(connectors).find((k) => connectors[k]?.available && (k !== "antigravity" || connectors[k]?.authMode === "gemini-api-key")) || "codex";
   const defaultModel = connectors[defaultProvider]?.models?.[0]?.id || "test-model";
   const defaultEffort = connectors[defaultProvider]?.models?.[0]?.efforts?.[0] || "standard";
 
@@ -522,6 +522,15 @@ export function normalizeScheduleProfile(body = {}, stateOrWorkspaces = {}, conn
   const chatProvider = String(body.chatProvider || chatRole.provider);
   const chatModel = String(body.chatModel || chatRole.model);
   const chatEffort = String(body.chatEffort || chatRole.effort);
+
+  const scheduledProviders = workflow === "chat-only"
+    ? [chatProvider]
+    : workflow === "plan-only"
+      ? [roles.plan?.provider]
+      : Object.values(roles).map((r) => r?.provider);
+  if (enabled && scheduledProviders.includes("antigravity") && connectors?.antigravity?.authMode !== "gemini-api-key") {
+    throw new Error("Lịch chạy định kỳ không hỗ trợ Antigravity OAuth cá nhân (rủi ro Điều khoản Mục 6). Hãy thêm Gemini API Key hoặc chọn Codex / Claude / API.");
+  }
 
   const nowMs = Date.now();
   return {

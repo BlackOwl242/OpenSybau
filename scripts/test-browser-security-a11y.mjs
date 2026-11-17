@@ -290,6 +290,26 @@ try {
   const topTabRoleCount = await page1.evaluate("document.querySelectorAll('.orca-tabbar-scroll[role=\"tablist\"] [role=\"tab\"]').length");
   assert.ok(topTabRoleCount >= 1, "TopBar must render accessible [role=\"tab\"] buttons");
 
+  // Settings CLI / Antigravity OAuth warning & Gemini API Key preset check
+  await clickEl(page1, '[data-page="settings"]');
+  await page1.waitFor("!!document.querySelector('[data-action=\"settings-nav\"][data-section=\"cli\"]')");
+  await clickEl(page1, '[data-action="settings-nav"][data-section="cli"]');
+  await page1.waitFor("!!document.querySelector('#cli-setup:not([hidden])')");
+  const connectorsSnapshot = await fetch(`${baseUrl}/api/connectors`).then((r) => r.json()).catch(() => ({}));
+  if (connectorsSnapshot?.antigravity?.installed && connectorsSnapshot?.antigravity?.authMode !== "gemini-api-key") {
+    const hasOAuthWarn = await page1.evaluate("Boolean(document.querySelector('#cli-setup .cli-guide-warning') && document.querySelector('#cli-setup [data-action=\"provider-add-gemini\"]'))");
+    assert.equal(hasOAuthWarn, true, "Antigravity OAuth CLI row must render Section 6 warning and Gemini API Key shortcut");
+    await clickEl(page1, '#cli-setup [data-action="provider-add-gemini"]');
+  } else {
+    await clickEl(page1, '[data-action="settings-nav"][data-section="api"]');
+    await page1.waitFor("!!document.querySelector('#settings-api:not([hidden]) [data-action=\"provider-add\"]')");
+    await clickEl(page1, '#settings-api [data-action="provider-add"]');
+    await page1.waitFor("!!document.querySelector('#overlay [data-preset=\"gemini\"]')");
+    await clickEl(page1, '#overlay [data-preset="gemini"]');
+  }
+  await page1.waitFor("document.querySelector('#overlay select[name=\"protocol\"]')?.value === 'gemini'");
+  await clickEl(page1, '#overlay [data-action="close-modal"]');
+
   page1.assertHealthy("page1-final");
   page2.assertHealthy("page2-final");
   console.log("test-browser-security-a11y: PASS");

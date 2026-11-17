@@ -2,7 +2,6 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { randomUUID } from "node:crypto";
 import http from "node:http";
 import https from "node:https";
 
@@ -182,7 +181,7 @@ export async function probeCodexQuota(codexExe, connector) {
         jsonrpc: "2.0",
         id: 1,
         method: "initialize",
-        params: { clientInfo: { name: "opensybau", version: "0.3.11" } },
+        params: { clientInfo: { name: "opensybau", version: "0.3.12" } },
       })}\n`);
     } catch {
       finish(null);
@@ -278,72 +277,6 @@ function discoverRunningAntigravityLs() {
   }
 }
 
-function findStandaloneLanguageServerBinary(home = homedir()) {
-  const candidates = process.platform === "win32"
-    ? [
-        resolve(process.env.LOCALAPPDATA || resolve(home, "AppData/Local"), "Programs/antigravity/resources/bin/language_server.exe"),
-        resolve(home, "AppData/Local/Programs/antigravity/resources/bin/language_server.exe"),
-      ]
-    : [
-        "/usr/share/antigravity/resources/bin/language_server",
-        "/opt/Antigravity/resources/bin/language_server",
-        resolve(home, ".local/share/antigravity/resources/bin/language_server"),
-      ];
-  return candidates.find((p) => existsSync(p)) || "";
-}
-
-async function queryStandaloneAntigravityLs() {
-  const lsBinary = findStandaloneLanguageServerBinary();
-  if (!lsBinary) return null;
-  const csrfToken = `opensybau-${randomUUID()}`;
-  return new Promise((resolvePromise) => {
-    let settled = false;
-    let child;
-    const finish = (val) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      try { child?.kill(); } catch {}
-      resolvePromise(val);
-    };
-    const timer = setTimeout(() => finish(null), 6500);
-    timer.unref?.();
-    try {
-      child = spawn(lsBinary, [
-        "--standalone",
-        "--override_ide_name", "antigravity",
-        "--subclient_type", "hub",
-        "--https_server_port", "0",
-        "--csrf_token", csrfToken,
-        "--app_data_dir", "antigravity",
-        "--api_server_url", "https://generativelanguage.googleapis.com",
-        "--cloud_code_endpoint", "https://daily-cloudcode-pa.googleapis.com",
-      ], { stdio: ["ignore", "ignore", "pipe"], windowsHide: true });
-    } catch {
-      return finish(null);
-    }
-    let stderrBuf = "";
-    let querying = false;
-    child.on("error", () => finish(null));
-    child.on("close", () => finish(null));
-    child.stderr.on("data", async (chunk) => {
-      stderrBuf += chunk.toString();
-      if (querying) return;
-      const httpPortMatch = stderrBuf.match(/listening on random port at (\d+) for HTTP\b/i);
-      if (!httpPortMatch) return;
-      querying = true;
-      const httpPort = Number(httpPortMatch[1]);
-      // Give AuthProvider ~900ms to finish loading local OAuth session
-      await new Promise((r) => setTimeout(r, 950));
-      const [quotaSummary, userStatus] = await Promise.all([
-        callAntigravityLsRpc("http", httpPort, csrfToken, "RetrieveUserQuotaSummary"),
-        callAntigravityLsRpc("http", httpPort, csrfToken, "GetUserStatus"),
-      ]);
-      finish({ quotaSummary, userStatus });
-    });
-  });
-}
-
 function formatAntigravityQuotaPayload(quotaSummary, userStatus) {
   const rawGroups = Array.isArray(quotaSummary?.response?.groups) ? quotaSummary.response.groups : [];
   const groups = rawGroups.map((group) => {
@@ -396,6 +329,16 @@ export async function probeAntigravityQuota(connector) {
   if (!connector?.installed) {
     return { provider: "antigravity", status: "not-installed", error: "Chưa cài đặt Antigravity CLI.", windows: [], groups: [] };
   }
+  if (connector?.authMode === "gemini-api-key") {
+    return {
+      provider: "antigravity",
+      status: "api-key",
+      planType: "Gemini API Key",
+      error: null,
+      windows: [],
+      groups: [],
+    };
+  }
   if (connector.authenticated === false) {
     return { provider: "antigravity", status: "unauthenticated", error: "Chưa đăng nhập Antigravity CLI.", windows: [], groups: [] };
   }
@@ -413,14 +356,11 @@ export async function probeAntigravityQuota(connector) {
       }
     }
   }
-  const standaloneResult = await queryStandaloneAntigravityLs();
-  if (standaloneResult && (standaloneResult.quotaSummary?.response?.groups?.length || standaloneResult.userStatus?.userStatus)) {
-    return formatAntigravityQuotaPayload(standaloneResult.quotaSummary, standaloneResult.userStatus);
-  }
   return {
     provider: "antigravity",
     status: "unavailable",
-    error: "Chưa đọc được hạn mức trực tiếp từ Antigravity.",
+    planType: null,
+    error: "Mở Antigravity IDE trên máy để đọc hạn mức trực tiếp (OpenSybau không tự khởi chạy tiến trình giả lập IDE).",
     windows: [],
     groups: [],
   };
@@ -437,7 +377,7 @@ function fetchAnthropicOauthUsage(accessToken) {
         Authorization: `Bearer ${accessToken}`,
         "anthropic-beta": "oauth-2025-04-20",
         Accept: "application/json",
-        "User-Agent": "opensybau/0.3.11",
+        "User-Agent": "opensybau/0.3.12",
       },
       timeout: 4500,
     }, (res) => {

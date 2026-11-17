@@ -24,6 +24,7 @@ import { trackCodexAppEvent } from "./codex-app-events.mjs";
 import { effectiveCliPermissions } from "../domain/cli-permissions.js";
 import { CliApprovalQueue } from "./cli-approval-queue.mjs";
 import { interruptCommandActivities } from "./tool-activity.mjs";
+import { ANTIGRAVITY_OAUTH_WARNING, resolveAntigravityExecutionPolicy } from "./antigravity-cli.mjs";
 
 export function finishStageRerun(task, status, error = "") {
   const attempt = (task.stageRunHistory || []).find((item) => item.id === task.activeStageRunId);
@@ -207,6 +208,7 @@ export function createTaskStageRunner({
   loadModels,
   getCliExecutables,
   getApiProviderRuntime,
+  getApiProviderRuntimes = null,
   additionalWritableProjectDirs,
   externalWorkspaceContext,
   subagentCatalogService = null,
@@ -214,8 +216,33 @@ export function createTaskStageRunner({
   flushProposedMemoriesFn = null,
   mcpClientService = null,
   otelCollector = null,
+  spawnProcess = spawn,
 }) {
   const managedCommands = new Map();
+  let agyOAuthQueue = Promise.resolve();
+  let agyOAuthLastCompletedAt = 0;
+
+  async function enqueueAntigravityOAuthExecution(task, fn) {
+    const cooldownMs = Math.max(0, Number(process.env.OPENSYBAU_AGY_COOLDOWN_MS ?? 1500));
+    const runTurn = async () => {
+      assertTaskActive(task);
+      if (agyOAuthLastCompletedAt > 0 && cooldownMs > 0) {
+        const elapsed = Date.now() - agyOAuthLastCompletedAt;
+        if (elapsed < cooldownMs) {
+          await new Promise((r) => setTimeout(r, cooldownMs - elapsed));
+          assertTaskActive(task);
+        }
+      }
+      try {
+        return await fn();
+      } finally {
+        agyOAuthLastCompletedAt = Date.now();
+      }
+    };
+    const next = agyOAuthQueue.then(runTurn, runTurn);
+    agyOAuthQueue = next.catch(() => {});
+    return next;
+  }
   function cancelManagedCommand(taskId, commandId) {
     const entry = managedCommands.get(commandId);
     if (!entry || entry.task.id !== taskId || entry.cancelled) return false;
@@ -684,6 +711,7 @@ export function createTaskStageRunner({
     const { codexExe, agyExe, claudeCommand, claudeExe } = getCliExecutables();
     let exe;
     let args;
+    let agyPolicy = null;
     const permissions = effectiveCliPermissions(provider, task.permissionPreset, stage, task.config?.codexTransport);
     if (provider === "codex") {
       exe = codexExe;
@@ -699,9 +727,11 @@ export function createTaskStageRunner({
       ];
     } else if (provider === "antigravity") {
       exe = agyExe;
+      const apiRuntimes = typeof getApiProviderRuntimes === "function" ? getApiProviderRuntimes() : [];
+      agyPolicy = resolveAntigravityExecutionPolicy(process.env, apiRuntimes);
       const modelEffort = selection.model.match(/-(low|medium|high|xhigh|max)$/)?.[1] || selection.effort;
       const additionalDirs = [...new Map([...(task.antigravitySkillDirs || []), ...additionalWritableProjectDirs(task, cwd)].map((directory) => [directory.toLowerCase(), directory])).values()];
-      args = [...additionalDirs.flatMap((directory) => ["--add-dir", directory]), "--prompt", "Follow the complete task instructions supplied on stdin.", "--output-format", "stream-json", "--model", selection.model, "--effort", modelEffort, ...(task.permissionPreset === "full-access" ? ["--dangerously-skip-permissions"] : ["--sandbox"]), "--print-timeout", "0"];
+      args = [...agyPolicy.extraArgs, ...additionalDirs.flatMap((directory) => ["--add-dir", directory]), "--prompt", "Follow the complete task instructions supplied on stdin.", "--output-format", "stream-json", "--model", selection.model, "--effort", modelEffort, ...(task.permissionPreset === "full-access" ? ["--dangerously-skip-permissions"] : ["--sandbox"]), "--print-timeout", "0"];
     } else if (provider === "claude") {
       exe = claudeExe;
       const additionalDirs = additionalWritableProjectDirs(task, cwd);
@@ -827,15 +857,16 @@ export function createTaskStageRunner({
       ? await changedFilesSince(cwd, Date.now() - 86_400_000).catch(() => [])
       : null;
 
-    return new Promise((resolvePromise, rejectPromise) => {
+    const spawnCliChild = () => new Promise((resolvePromise, rejectPromise) => {
       const childEnv = {
         ...process.env,
+        ...(agyPolicy?.extraEnv || {}),
         NO_COLOR: "1",
         ...(task.worktreePort ? { OPENSYBAU_PORT: String(task.worktreePort) } : {}),
         ...(exe === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
       };
       if (exe !== process.execPath) delete childEnv.ELECTRON_RUN_AS_NODE;
-      const child = spawn(exe, args, { cwd, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: childEnv });
+      const child = spawnProcess(exe, args, { cwd, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: childEnv });
       const runInfo = running.get(task.id);
       if (runInfo) runInfo.child = child;
       const stageIdleTimeoutMs = Number(process.env.WORKBENCH_STAGE_TIMEOUT_MS) || 15 * 60 * 1000;
@@ -963,6 +994,13 @@ export function createTaskStageRunner({
       child.stdin.on("error", () => {});
       child.stdin.end(effectivePrompt);
     });
+    if (agyPolicy?.authMode === "consumer-oauth") {
+      return enqueueAntigravityOAuthExecution(task, () => {
+        record(task, `Xếp hàng chạy tuần tự Antigravity CLI (OAuth cá nhân) · ${ANTIGRAVITY_OAUTH_WARNING}`, "warning");
+        return spawnCliChild();
+      });
+    }
+    return spawnCliChild();
   }
 
   return {

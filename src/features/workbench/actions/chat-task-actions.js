@@ -20,9 +20,13 @@ import {
 import {
   applyTaskPreset,
   deleteTaskPreset,
+  ensureAntigravityOAuthConfirmed,
+  isAntigravityConsumerOAuth,
   saveTaskPreset,
+  selectionUsesAntigravityOAuth,
   syncCustomSelect,
 } from "../ui-controls.js";
+import { showApiProviderModal } from "../pages/settings-page.js";
 import { resizeComposerTextarea } from "../composer.js";
 import {
   openSkillPickerModal,
@@ -708,9 +712,42 @@ export async function handleChatAndTaskAction(action, id, button) {
   if (action === "toggle-chat-config") { view.chatConfigOpen = !view.chatConfigOpen; render(); return true; }
   if (action === "close-composer-config") { view.homeConfigOpen = false; view.chatConfigOpen = false; render(); return true; }
   if (action === "stop-task") { await api(`/api/tasks/${encodeURIComponent(id)}/stop`, { method: "POST" }); showToast("Đã gửi lệnh dừng."); await refresh(); return true; }
-  if (action === "rerun-task") { await api(`/api/tasks/${encodeURIComponent(id)}/run`, { method: "POST" }); showToast("Task được đưa lại vào hàng đợi."); await refresh(); return true; }
+  if (action === "rerun-task") {
+    const task = view.state?.tasks?.find((item) => item.id === id);
+    const usesAgyOAuth = task && selectionUsesAntigravityOAuth({
+      workflow: task.config?.workflow || "codex-antigravity",
+      chatProvider: task.config?.chatProvider || "",
+      roles: task.config?.roles || {},
+    });
+    if (usesAgyOAuth) {
+      const ok = await ensureAntigravityOAuthConfirmed({
+        onOpenGeminiSetup: () => {
+          showApiProviderModal();
+          $("#overlay [data-action='provider-preset'][data-preset='gemini']")?.click();
+        },
+      });
+      if (!ok) return true;
+    }
+    await api(`/api/tasks/${encodeURIComponent(id)}/run`, { method: "POST" }); showToast("Task được đưa lại vào hàng đợi."); await refresh(); return true;
+  }
   if (action === "rerun-stage") {
     const stage = button.closest(".stage-rerun-controls")?.querySelector("[data-rerun-stage]")?.value || "";
+    const task = view.state?.tasks?.find((item) => item.id === id);
+    const stageKeys = stage === "plan" ? ["plan"] : stage === "review" ? ["review"] : stage === "build" ? ["build", "review"] : ["plan", "build", "review"];
+    const usesAgyOAuth = task && isAntigravityConsumerOAuth() && (
+      task.config?.workflow === "chat-only"
+        ? task.config?.chatProvider === "antigravity"
+        : stageKeys.some((r) => (task.config?.roles?.[r]?.provider || roleConfig(task.config, r)?.provider) === "antigravity")
+    );
+    if (usesAgyOAuth) {
+      const ok = await ensureAntigravityOAuthConfirmed({
+        onOpenGeminiSetup: () => {
+          showApiProviderModal();
+          $("#overlay [data-action='provider-preset'][data-preset='gemini']")?.click();
+        },
+      });
+      if (!ok) return true;
+    }
     await api(`/api/tasks/${encodeURIComponent(id)}/run`, { method: "POST", body: JSON.stringify({ stage }) });
     showToast(view.language === "en" ? "Task queued from the selected stage." : "Task đã vào hàng đợi từ giai đoạn đã chọn.");
     await refresh();

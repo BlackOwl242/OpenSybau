@@ -1,14 +1,21 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { execFile, execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { join, resolve } from "node:path";
+import { PassThrough } from "node:stream";
 import { promisify } from "node:util";
 import { AcpClient } from "../src/server/acp-client.mjs";
+import { resolveAntigravityExecutionPolicy } from "../src/server/antigravity-cli.mjs";
+import { createCliDiscoveryService } from "../src/server/cli-discovery.mjs";
 import { createLocalMcpClient } from "../src/server/mcp-client.mjs";
 import { createOpenSybauMcpServer, OPENSYBAU_MCP_TOOLS } from "../src/server/mcp-server.mjs";
 import { createOtelTelemetryCollector } from "../src/server/otel-receiver.mjs";
+import { probeAntigravityQuota } from "../src/server/provider-quotas.mjs";
 import { createShadowCheckpoint, getShadowCheckpointDiff, rewindToShadowCheckpoint } from "../src/server/shadow-checkpoints.mjs";
 import { createTaskRunnerService } from "../src/server/task-runner.mjs";
+import { createTaskStageRunner } from "../src/server/task-stage-runner.mjs";
+import { normalizeScheduleProfile } from "../src/server/task-store.mjs";
 import { createWorktreePoolManager, parseSafeWorktreeHookSpec } from "../src/server/worktree-pool.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -365,6 +372,280 @@ rl.on("line", (line) => {
   }, new Map([["otel-t1", otelTask]]));
   assert.equal(ingestRes.accepted, 1);
   assert.equal(otelTask.telemetrySpans.length, 2);
+
+  // 7. Antigravity Terms Section 6 Guardrails & Consumer OAuth Risk Mitigation
+  const prevGeminiKey = process.env.GEMINI_API_KEY;
+  const prevGoogleKey = process.env.GOOGLE_API_KEY;
+  const prevCooldown = process.env.OPENSYBAU_AGY_COOLDOWN_MS;
+  try {
+    delete process.env.GEMINI_API_KEY;
+    delete process.env.GOOGLE_API_KEY;
+    process.env.OPENSYBAU_AGY_COOLDOWN_MS = "40";
+
+    const oauthPolicy = resolveAntigravityExecutionPolicy({}, []);
+    assert.equal(oauthPolicy.allowed, true);
+    assert.equal(oauthPolicy.authMode, "consumer-oauth");
+    assert.deepEqual(oauthPolicy.extraArgs, []);
+    assert.deepEqual(oauthPolicy.extraEnv, {});
+
+    const envKeyPolicy = resolveAntigravityExecutionPolicy({ GEMINI_API_KEY: "AIza-env-123" }, []);
+    assert.equal(envKeyPolicy.allowed, true);
+    assert.equal(envKeyPolicy.authMode, "gemini-api-key");
+    assert.deepEqual(envKeyPolicy.extraArgs, ["--settings", '{"modelProvider":"gemini"}']);
+    assert.deepEqual(envKeyPolicy.extraEnv, { GEMINI_API_KEY: "AIza-env-123" });
+
+    const runtimeKeyPolicy = resolveAntigravityExecutionPolicy({}, [{ protocol: "gemini", apiKey: "AIza-runtime-456" }]);
+    assert.equal(runtimeKeyPolicy.authMode, "gemini-api-key");
+    assert.equal(runtimeKeyPolicy.extraEnv.GEMINI_API_KEY, "AIza-runtime-456");
+
+    const quotasSrc = await fs.readFile(resolve("src/server/provider-quotas.mjs"), "utf8");
+    assert.equal(quotasSrc.includes("queryStandaloneAntigravityLs"), false, "Standalone IDE-impersonating LS spawn must stay removed");
+    assert.equal(quotasSrc.includes("--override_ide_name"), false, "Must not pass --override_ide_name");
+    assert.equal(quotasSrc.includes("GetUserStatus"), true, "Passive IDE quota inspection stays preserved");
+    const apiQuota = await probeAntigravityQuota({ installed: true, authenticated: true, authMode: "gemini-api-key" });
+    assert.equal(apiQuota.status, "api-key");
+
+    // Cache agy models probe across 60s refreshes until expire/force
+    const discoveryDir = join(root, "discovery");
+    await fs.mkdir(discoveryDir, { recursive: true });
+    let agyModelsCalls = 0;
+    const discovery = createCliDiscoveryService({
+      cliPathsFile: join(discoveryDir, "cli-paths.json"),
+      providerConfigFile: join(discoveryDir, "providers.json"),
+      providerSecretsFile: join(discoveryDir, "secrets.json"),
+      getWorkspaces: () => [],
+      loadJson: () => ({}),
+      persistJsonFile: () => {},
+      run: async (_exe, args) => {
+        if (args[0] === "--version") return { code: 0, stdout: "agy 1.5.10", stderr: "" };
+        if (args[0] !== "debug" && args.at(-1) === "models") {
+          agyModelsCalls += 1;
+          return { code: 0, stdout: "gemini-2.5-pro Gemini 2.5 Pro\n", stderr: "" };
+        }
+        return { code: 1, stdout: "", stderr: "" };
+      },
+      git: async () => ({ code: 0, stdout: "", stderr: "" }),
+      safeError: (e) => String(e?.message || e),
+    });
+    discovery.setAgyExe(process.execPath);
+    const firstConnectors = await discovery.loadModels(true);
+    assert.equal(firstConnectors.antigravity.authMode, "consumer-oauth");
+    const callsAfterForce = agyModelsCalls;
+    await discovery.loadModels(false);
+    assert.equal(agyModelsCalls, callsAfterForce, "Short reload should use cached models");
+    discovery.expireModelCache();
+    await discovery.loadModels(false);
+    assert.equal(agyModelsCalls, callsAfterForce + 1, "expireModelCache must refresh agy probe cache");
+
+    // Serialize concurrent consumer-oauth spawns while allowing concurrent gemini-api-key spawns
+    let activeSpawnCount = 0;
+    let maxActiveSpawnCount = 0;
+    const invocations = [];
+    const currentRuntimes = [];
+    const stageState = { workspaces: [{ id: "ws-agy", path: mcpWsDir }], tasks: [] };
+    const agyRunning = new Map();
+    const mkTask = (id) => ({
+      id,
+      workspaceId: "ws-agy",
+      storagePath: taskStorageDir,
+      permissionPreset: "workspace-write",
+      status: "running",
+      events: [],
+      config: { workflow: "chat-only", chatProvider: "antigravity" },
+    });
+    const agyStageRunner = createTaskStageRunner({
+      getState: () => stageState,
+      running: agyRunning,
+      isShuttingDown: () => false,
+      record: (t, msg, kind) => t.events.push({ msg, kind }),
+      schedulePersist: () => {},
+      schedulePublish: () => {},
+      run: async () => ({ code: 0, stdout: "", stderr: "" }),
+      killTree: () => {},
+      loadModels: async () => ({
+        antigravity: {
+          installed: true,
+          available: true,
+          authMode: currentRuntimes.length ? "gemini-api-key" : "consumer-oauth",
+          capabilities: { chat: true, plan: true, build: true, review: true },
+          models: [{ id: "gemini-2.5-pro", efforts: ["medium"] }],
+        },
+      }),
+      getCliExecutables: () => ({ codexExe: "codex", agyExe: "agy", claudeCommand: { executable: "", prefixArgs: [] }, claudeExe: "" }),
+      getApiProviderRuntime: () => null,
+      getApiProviderRuntimes: () => currentRuntimes,
+      additionalWritableProjectDirs: () => [],
+      externalWorkspaceContext: () => "",
+      spawnProcess: (_exe, args, opts) => {
+        activeSpawnCount += 1;
+        maxActiveSpawnCount = Math.max(maxActiveSpawnCount, activeSpawnCount);
+        const startedAt = Date.now();
+        const child = new EventEmitter();
+        child.stdin = new PassThrough();
+        child.stdout = new PassThrough();
+        child.stderr = new PassThrough();
+        child.stdout.setEncoding("utf8");
+        child.stderr.setEncoding("utf8");
+        setTimeout(() => {
+          child.stdout.write(JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "OK" }] } }) + "\n");
+          child.stdout.end();
+          child.stderr.end();
+          activeSpawnCount -= 1;
+          invocations.push({ args, env: opts.env, startedAt, endedAt: Date.now() });
+          child.emit("close", 0);
+        }, 25);
+        return child;
+      },
+    });
+    const t1 = mkTask("agy-oauth-1");
+    const t2 = mkTask("agy-oauth-2");
+    stageState.tasks.push(t1, t2);
+    agyRunning.set(t1.id, { cancelRequested: false });
+    agyRunning.set(t2.id, { cancelRequested: false });
+    const [o1, o2] = await Promise.all([
+      agyStageRunner.spawnStage(t1, "antigravity", "chat-initial", mcpWsDir, "Hello 1", { provider: "antigravity", model: "gemini-2.5-pro", effort: "medium" }),
+      agyStageRunner.spawnStage(t2, "antigravity", "chat-initial", mcpWsDir, "Hello 2", { provider: "antigravity", model: "gemini-2.5-pro", effort: "medium" }),
+    ]);
+    assert.equal(o1, "OK");
+    assert.equal(o2, "OK");
+    assert.equal(maxActiveSpawnCount, 1, "Consumer OAuth agy spawns must serialize strictly (max 1 concurrent)");
+    assert.ok(invocations[1].startedAt - invocations[0].endedAt >= 30, "Cooldown gap must apply between OAuth agy spawns");
+    assert.equal(invocations[0].args.includes("--settings"), false, "Consumer OAuth must not inject Gemini API --settings");
+    assert.equal(invocations[0].env.GEMINI_API_KEY, undefined);
+    assert.ok(t1.events.some((e) => e.kind === "warning" && e.msg.includes("OAuth")));
+
+    // Switch to Gemini API Key runtime -> parallel execution allowed + --settings & GEMINI_API_KEY passed
+    currentRuntimes.push({ protocol: "gemini", apiKey: "AIza-runtime-789" });
+    activeSpawnCount = 0;
+    maxActiveSpawnCount = 0;
+    invocations.length = 0;
+    const k1 = mkTask("agy-key-1");
+    const k2 = mkTask("agy-key-2");
+    stageState.tasks.push(k1, k2);
+    agyRunning.set(k1.id, { cancelRequested: false });
+    agyRunning.set(k2.id, { cancelRequested: false });
+    await Promise.all([
+      agyStageRunner.spawnStage(k1, "antigravity", "chat-initial", mcpWsDir, "Key 1", { provider: "antigravity", model: "gemini-2.5-pro", effort: "medium" }),
+      agyStageRunner.spawnStage(k2, "antigravity", "chat-initial", mcpWsDir, "Key 2", { provider: "antigravity", model: "gemini-2.5-pro", effort: "medium" }),
+    ]);
+    assert.equal(maxActiveSpawnCount, 2, "Gemini API key mode should run concurrently without OAuth serialization");
+    assert.equal(invocations[0].args[0], "--settings");
+    assert.equal(invocations[0].args[1], '{"modelProvider":"gemini"}');
+    assert.equal(invocations[0].env.GEMINI_API_KEY, "AIza-runtime-789");
+
+    // TaskRunner caps auto-fix loops to 1 round when Antigravity OAuth is active
+    let buildCalls = 0;
+    const capState = { workspaces: [{ id: "ws-cap", path: shadowRepoDir }], tasks: [], settings: {} };
+    const capTask = {
+      id: "agy-cap-task",
+      title: "Check loop cap",
+      prompt: "Run one round only under consumer OAuth",
+      workspaceId: "ws-cap",
+      workspacePath: shadowRepoDir,
+      executionPath: shadowRepoDir,
+      storagePath: join(taskStorageDir, "agy-cap-task"),
+      isolated: false,
+      status: "queued",
+      maxRounds: 3,
+      currentRound: 1,
+      permissionPreset: "workspace-write",
+      config: {
+        workflow: "codex-antigravity",
+        roles: {
+          plan: { provider: "codex", model: "gpt-5.4", effort: "medium" },
+          build: { provider: "antigravity", model: "gemini-2.5-pro", effort: "medium" },
+          review: { provider: "codex", model: "gpt-5.4", effort: "medium" },
+        },
+      },
+      events: [],
+      stageMetrics: [],
+      chatMessages: [],
+      chatQueue: [],
+    };
+    await fs.mkdir(capTask.storagePath, { recursive: true });
+    capState.tasks.push(capTask);
+    const capRunning = new Map([[capTask.id, { cancelRequested: false }]]);
+    const capRunner = createTaskRunnerService({
+      taskDir: taskStorageDir,
+      worktreeDir: worktreesBaseDir,
+      getState: () => capState,
+      running: capRunning,
+      busyWorkspaces: new Set(),
+      isolatedWorkspaces: new Map(),
+      isShuttingDown: () => false,
+      persist: () => {},
+      publish: () => {},
+      record: (t, msg, kind) => t.events.push({ msg, kind }),
+      safeError: (e) => String(e?.message || e),
+      git,
+      withGitRepoLock: async (_k, fn) => fn(),
+      inspectWorkspace: async (p) => ({ path: p, isGit: true, head: "HEAD", dirty: false }),
+      loadModels: async () => ({ antigravity: { installed: true, available: true, authMode: "consumer-oauth" } }),
+      relevantMemory: () => [],
+      autoDistillTaskMemory: () => {},
+      skillCatalogService: {
+        loadSkillCatalog: async () => [],
+        resolveSelectedSkills: async () => [],
+        selectTaskSkillsProgressive: () => ({ scoredCandidates: [], skillIds: [], progressiveSkills: [] }),
+        stageAntigravitySkillBundles: async () => [],
+        stageAntigravitySkills: async () => [],
+      },
+      promptService: { makeInitialChatPrompt: () => "p", makeChatPrompt: () => "p", makePrompt: () => "p" },
+      stageRunner: {
+        assertTaskActive: () => {},
+        areTaskDependenciesMet: () => true,
+        runTaskQaCheck: async () => ({ status: "passed", output: "" }),
+        spawnStage: async (_t, _p, stage) => {
+          if (stage === "plan") return "Plan ok";
+          if (stage === "build") { buildCalls += 1; return "Built once"; }
+          if (stage === "review") return "## Blocking\n- BUG-1: Sample blocking issue";
+          return "";
+        },
+      },
+    });
+    await capRunner.executeTask(capTask);
+    assert.equal(buildCalls, 1, "Consumer OAuth pipeline must cap auto-fix loops to 1 round");
+    assert.ok(capTask.events.some((e) => e.msg.includes("maxRounds = 1")));
+
+    // normalizeScheduleProfile blocks enabled Antigravity under OAuth, allows under API Key or paused
+    const schedState = { workspaces: [{ id: "ws-sched", name: "Repo", path: shadowRepoDir }], settings: {} };
+    assert.throws(
+      () => normalizeScheduleProfile({
+        name: "Cron OAuth Block",
+        workspaceId: "ws-sched",
+        prompt: "Run checks automatically on schedule",
+        workflow: "chat-only",
+        chatProvider: "antigravity",
+        enabled: true,
+      }, schedState, { antigravity: { available: true, authMode: "consumer-oauth", models: [{ id: "gemini-2.5-pro", efforts: ["medium"] }] } }),
+      /Mục 6|Gemini API Key/i
+    );
+    const pausedSched = normalizeScheduleProfile({
+      name: "Paused Legacy Schedule",
+      workspaceId: "ws-sched",
+      prompt: "Paused checks on schedule",
+      workflow: "chat-only",
+      chatProvider: "antigravity",
+      enabled: false,
+    }, schedState, { antigravity: { available: true, authMode: "consumer-oauth", models: [{ id: "gemini-2.5-pro", efforts: ["medium"] }] } });
+    assert.equal(pausedSched.enabled, false);
+    const apiSched = normalizeScheduleProfile({
+      name: "Cron With API Key",
+      workspaceId: "ws-sched",
+      prompt: "Run checks safely with API Key",
+      workflow: "chat-only",
+      chatProvider: "antigravity",
+      enabled: true,
+    }, schedState, { antigravity: { available: true, authMode: "gemini-api-key", models: [{ id: "gemini-2.5-pro", efforts: ["medium"] }] } });
+    assert.equal(apiSched.chatProvider, "antigravity");
+  } finally {
+    if (prevGeminiKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = prevGeminiKey;
+    if (prevGoogleKey === undefined) delete process.env.GOOGLE_API_KEY;
+    else process.env.GOOGLE_API_KEY = prevGoogleKey;
+    if (prevCooldown === undefined) delete process.env.OPENSYBAU_AGY_COOLDOWN_MS;
+    else process.env.OPENSYBAU_AGY_COOLDOWN_MS = prevCooldown;
+  }
 
   console.log("test-phase2-checkpoints-phase3: PASS");
 } finally {

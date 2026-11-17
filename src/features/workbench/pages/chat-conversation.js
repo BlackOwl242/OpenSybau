@@ -3,7 +3,7 @@ import { providerTitle, roleConfig } from "../../../domain/agent-roles.js";
 import { renderMarkdown } from "../markdown.js";
 import { dockFileIconName } from "../stage-viewer.js";
 import { ensureWorkspaceFileIndex, render } from "../runtime.js";
-import { formatEffortLabel, taskProgress } from "../ui-controls.js";
+import { formatEffortLabel, isAntigravityConsumerOAuth, antigravityOAuthWarningBanner, taskProgress } from "../ui-controls.js";
 import { composerAddMenu, composerAttachmentsMarkup, composerPermissionMenuMarkup, composerSubagentMenuMarkup } from "../composer.js";
 import { missionControlStepperMarkup } from "./flows-memory-page.js";
 
@@ -737,6 +737,9 @@ export function taskConversationPage(taskId = view.selectedTaskId || view.select
         </div>` : ""}
       </div>`
     : "";
+  const agyChatNoticeMarkup = (!options.locked && provider === "antigravity" && isAntigravityConsumerOAuth())
+    ? antigravityOAuthWarningBanner({ compact: true })
+    : "";
   return `<section class="task-conversation-page is-unified-chat ${options.splitPane ? "is-split-pane" : ""}" aria-label="Cuộc trò chuyện">
       <section class="task-chat-pane conversation-chat-pane">
         ${sessionToolsBar}
@@ -753,6 +756,7 @@ export function taskConversationPage(taskId = view.selectedTaskId || view.select
         ${taskMergeConflictBannerMarkup(task)}
         ${taskProposedSkillsBannerMarkup(task)}
         ${approvalBannerMarkup}
+        ${agyChatNoticeMarkup}
         ${composerMarkup}
       </section>
   </section>`;

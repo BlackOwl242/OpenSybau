@@ -26,6 +26,7 @@ export function createTaskRunnerService({
   git,
   withGitRepoLock,
   inspectWorkspace,
+  loadModels = null,
   relevantMemory,
   autoDistillTaskMemory,
   skillCatalogService,
@@ -291,7 +292,18 @@ export function createTaskRunnerService({
     }
     const buildSelection = stageSelection(task, "build");
     const reviewSelection = stageSelection(task, "review");
-    const maxRounds = Math.max(1, Math.min(3, Number(task.maxRounds) || 1));
+    let maxRounds = Math.max(1, Math.min(3, Number(task.maxRounds) || 1));
+    const agyStages = [planSelection, buildSelection, reviewSelection].some((sel) => sel?.provider === "antigravity");
+    let agyOAuthLimited = false;
+    if (agyStages && maxRounds > 1) {
+      const connectors = typeof loadModels === "function" ? await loadModels().catch(() => null) : null;
+      const agyAuthMode = connectors?.antigravity?.authMode || ((process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) ? "gemini-api-key" : "consumer-oauth");
+      if (agyAuthMode !== "gemini-api-key") {
+        agyOAuthLimited = true;
+        maxRounds = 1;
+        record(task, "Giới hạn vòng tự sửa (maxRounds = 1) vì có stage dùng Antigravity OAuth cá nhân; thêm Gemini API Key để bật tự sửa nhiều vòng.", "warning");
+      }
+    }
     let round = Math.max(1, Number(task.currentRound) || 1);
     let previousReview = task.review || "";
     let previousQaOutput = task.qaResult?.output || "";
@@ -422,6 +434,9 @@ export function createTaskRunnerService({
         );
         round += 1;
         continue;
+      }
+      if (agyOAuthLimited && (findings.blocking > 0 || task.qaResult?.status === "failed") && task.permissionPreset !== "read-only") {
+        record(task, "Còn lỗi blocking sau Round 1. Do đang dùng Antigravity OAuth cá nhân, OpenSybau dừng tự lặp để giảm rủi ro Điều khoản Mục 6 — bạn có thể bấm Chạy lại nếu muốn sửa tiếp.", "warning");
       }
       break;
     }

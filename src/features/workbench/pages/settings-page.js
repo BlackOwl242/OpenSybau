@@ -5,7 +5,7 @@ import { getActiveRemoteHost, isMobileCompanionMode } from "../../../shared/remo
 import { THEMES, THEME_GROUPS, getThemeDefinition } from "../../../shared/themes.js";
 import { renderDeviceConnectSettingsSection } from "../device-connect.js";
 import { cliRefreshButton, showModal } from "../runtime.js";
-import { homeSelectField, roleEditor } from "../ui-controls.js";
+import { antigravityOAuthWarningBanner, homeSelectField, isAntigravityConsumerOAuth, roleEditor, selectionUsesAntigravityOAuth } from "../ui-controls.js";
 import { quotaWindowsWithPeriods } from "../../../shared/quota-windows.js";
 
 export const SETTINGS_NAV_ITEMS = [
@@ -190,7 +190,10 @@ export function settingsPage() {
     const connector = view.connectors?.[agent.id];
     const q = view.quotas?.providers?.[agent.id];
     const status = cliConnectionStatus(connector);
-    const action = mobileDisconnected
+    const isAgy = agent.id === "antigravity";
+    const isAgyApiKey = isAgy && connector?.authMode === "gemini-api-key";
+    const isAgyOAuth = isAgy && Boolean(connector?.installed) && !isAgyApiKey;
+    const baseAction = mobileDisconnected
       ? `<button class="button quiet small" type="button" data-action="settings-nav" data-section="devices">Kết nối máy tính</button>`
       : isMobile
         ? (status.tone === "ready"
@@ -203,12 +206,23 @@ export function settingsPage() {
           : status.tone === "ready"
             ? `<button class="button quiet small" type="button" data-action="provider-cli-switch-account" data-id="${esc(agent.id)}">Đổi tài khoản</button>`
             : `<button class="button quiet small" type="button" data-action="provider-cli-login" data-id="${esc(agent.id)}">Đăng nhập</button>`;
+    const action = !isMobile && !mobileDisconnected && isAgyOAuth
+      ? `${baseAction}<button class="button quiet small" type="button" data-action="provider-add-gemini">Dùng Gemini API Key</button>`
+      : baseAction;
     const detail = mobileDisconnected
       ? "Chưa kết nối với máy tính (PC). Ghép nối với PC để đồng bộ CLI và hạn mức."
       : status.tone === "ready"
         ? `${q?.email ? `${q.email} · ` : ""}${connector.models.length} model`
         : status.tone === "missing" ? connector?.error || agent.installHelp : connector?.installed && connector?.error ? connector.error : agent.summary;
     const planBadge = q?.planType ? `<span class="wb-quota-plan-badge" data-localize-skip="true">${esc(q.planType)}</span>` : "";
+    const modeBadge = isAgyApiKey
+      ? `<span class="cli-guide-status ready">API Key · An toàn</span>`
+      : isAgyOAuth
+        ? `<span class="cli-guide-status needs-action">OAuth cá nhân · Rủi ro Mục 6</span>`
+        : "";
+    const agyWarningNote = isAgyOAuth
+      ? `<small class="cli-guide-warning">Điều khoản Antigravity Mục 6: dùng OAuth cá nhân từ app bên thứ ba có nguy cơ bị tạm ngưng dịch vụ. Khuyến nghị thêm Gemini API Key.</small>`
+      : "";
     return `<article class="cli-guide-row ${status.tone === "ready" ? "is-ready" : ""}">
       <div class="cli-guide-copy">
         <div class="cli-guide-head">
@@ -216,8 +230,10 @@ export function settingsPage() {
             <span class="provider-status-dot ${status.tone === "ready" ? "ready" : "missing"}"></span>
             <strong>${esc(agent.name)}</strong>
             ${planBadge}
+            ${modeBadge}
           </div>
           <small class="cli-guide-sub">${esc(detail)}</small>
+          ${agyWarningNote}
         </div>
         ${renderCliQuotaDetails(agent.id)}
       </div>
@@ -305,6 +321,7 @@ export function settingsPage() {
             ? `<div class="provider-connect-callout"><span class="provider-connect-icon">${icon("plug-zap", 17)}</span><div><strong>Chưa kết nối nguồn AI nào</strong><p>Thêm API/model local hoặc cài, đăng nhập CLI để bắt đầu.</p></div><div><button class="button primary small" type="button" data-action="provider-add">Kết nối API</button><button class="button quiet small" type="button" data-action="provider-connect-cli">Kết nối CLI</button></div></div>`
             : ""}
       <div class="agent-role-grid settings-role-grid">${workflowRoles.map((role) => roleEditor(role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id))).join("")}</div>
+      <div data-agy-oauth-notice>${selectionUsesAntigravityOAuth({ workflow: "codex-antigravity", roles: Object.fromEntries(workflowRoles.map((role) => [role.id, defaults.roles?.[role.id] || roleConfig(defaults, role.id)])) }) ? antigravityOAuthWarningBanner({ compact: true }) : ""}</div>
       ${view.settingsSupported ? "" : `<div class="feature-warning">Server đang chạy phiên bản cũ. Hãy khởi động lại để lưu model mặc định.</div>`}
       <footer class="settings-actions"><button class="button primary" type="submit" ${view.settingsSupported && canSaveRoles ? "" : "disabled"}>Lưu model mặc định</button></footer>
     </section>
@@ -363,7 +380,11 @@ export function showCliProviderModal() {
       : status.tone !== "ready" && status.action === "refresh"
         ? `<div class="cli-connect-login"><span>Kiểm tra kết nối CLI</span><small>CLI đã có trên máy. Bấm Quét lại để thử đọc danh sách model.</small></div>`
         : `<div class="cli-connect-login"><span>Cách đăng nhập</span><code>${esc(agent.loginCommand)}</code><small>${esc(agent.loginHelp)}</small></div>`;
-    return `<article class="cli-connect-card ${esc(status.tone)}"><header><span class="cli-connect-mark">${icon("square-terminal", 17)}</span><div><h3>${esc(agent.name)}</h3><span class="cli-guide-status ${esc(status.tone)}">${esc(status.label)}</span></div></header><p>${esc(detail)}</p>${instructions}<footer>${primary}<a href="${esc(docsUrl)}" target="_blank" rel="noreferrer">Tài liệu chính thức</a></footer></article>`;
+    const isAgyOAuth = agent.id === "antigravity" && connector?.authMode !== "gemini-api-key";
+    const agyModalNote = isAgyOAuth
+      ? `<p class="cli-guide-warning">Lưu ý Điều khoản Antigravity Mục 6: dùng OAuth cá nhân từ app bên thứ ba có nguy cơ bị tạm ngưng dịch vụ. Khuyến nghị <button type="button" class="button quiet small" data-action="provider-add-gemini">Thêm Gemini API Key</button>.</p>`
+      : "";
+    return `<article class="cli-connect-card ${esc(status.tone)}"><header><span class="cli-connect-mark">${icon("square-terminal", 17)}</span><div><h3>${esc(agent.name)}</h3><span class="cli-guide-status ${esc(status.tone)}">${esc(status.label)}</span></div></header><p>${esc(detail)}</p>${instructions}${agyModalNote}<footer>${primary}<a href="${esc(docsUrl)}" target="_blank" rel="noreferrer">Tài liệu chính thức</a></footer></article>`;
   }).join("");
   const body = `<div class="cli-connect-intro"><span class="provider-connect-icon">${icon("workflow", 17)}</span><div><strong>OpenSybau tự dò CLI trên máy chủ</strong><p>CLI đã cài sẽ tự kết nối. Bấm Quét lại nếu vừa cài hoặc đăng nhập.</p></div>${cliRefreshButton()}</div><div class="cli-connect-list">${rows}</div><p class="cli-connect-feedback" role="status" aria-live="polite" hidden></p><p class="form-note">CLI dùng tài khoản riêng, không cần API key. Nếu bạn dùng OpenSybau từ điện thoại, terminal sẽ mở trên máy chủ; hoàn tất đăng nhập tại máy đó rồi bấm Quét lại.</p>`;
   showModal("Thêm / kết nối CLI agent", body, "Xong", "dismiss");

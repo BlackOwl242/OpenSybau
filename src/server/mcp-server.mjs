@@ -129,7 +129,7 @@ export function createOpenSybauMcpServer({
         result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
-          serverInfo: { name: "opensybau-mcp", version: "0.3.11" },
+          serverInfo: { name: "opensybau-mcp", version: "0.3.12" },
         },
       };
     }

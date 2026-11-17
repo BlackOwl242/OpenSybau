@@ -59,7 +59,7 @@ export class AcpClient {
     });
     return this.request("initialize", {
       protocolVersion: 1,
-      clientInfo: { name: "opensybau", version: "0.3.11" },
+      clientInfo: { name: "opensybau", version: "0.3.12" },
       capabilities: { fs: { readTextFile: true, writeTextFile: true } },
     }, 15_000);
   }

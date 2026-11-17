@@ -5,6 +5,24 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.12] - 2026-11-17
+
+### Tiếng Việt
+- **Giảm thiểu rủi ro Điều khoản Antigravity Mục 6 & Cảnh báo 3 lớp (`antigravity-cli.mjs`, `cli-discovery.mjs`, `provider-quotas.mjs`, `task-stage-runner.mjs`, `task-runner.mjs`, `task-store.mjs`, `src/features/workbench/`)**:
+  - Giữ nguyên khả năng chạy `agy` bằng đăng nhập OAuth cá nhân đang có trên máy, đồng thời tự động ưu tiên Gemini API Key (`GEMINI_API_KEY`, `GOOGLE_API_KEY` hoặc nguồn `gemini` trong OpenSybau) qua `--settings '{"modelProvider":"gemini"}'` riêng cho tiến trình con.
+  - Gỡ bỏ tiến trình giả lập Antigravity IDE (`--standalone --override_ide_name antigravity`) khi thăm dò quota; tăng cache danh mục model `agy` lên 15 phút để giảm quét nền.
+  - Bổ sung hàng đợi tuần tự + thời gian nghỉ khi chạy `agy` bằng OAuth cá nhân, giới hạn vòng lặp tự sửa nhiều lượt (`maxRounds = 1`), và vô hiệu hóa lịch chạy nền CRON cho cấu hình Antigravity OAuth.
+  - Bổ sung cảnh báo 3 lớp trên UI (nhãn + nút thêm nhanh Gemini API Key ở Cài đặt, banner ngữ cảnh tại Composer / Task mới / Chat / Vai trò, và hộp thoại xác nhận rủi ro lần đầu trước khi chạy).
+
+### English
+- **Antigravity Terms Section 6 Risk Mitigation & 3-Tier UI Warnings (`antigravity-cli.mjs`, `cli-discovery.mjs`, `provider-quotas.mjs`, `task-stage-runner.mjs`, `task-runner.mjs`, `task-store.mjs`, `src/features/workbench/`)**:
+  - Kept local personal OAuth `agy` execution working while automatically prioritizing configured Gemini API Keys (`GEMINI_API_KEY`, `GOOGLE_API_KEY`, or OpenSybau Gemini providers) via per-child `--settings '{"modelProvider":"gemini"}'`.
+  - Removed standalone IDE-impersonating LS quota spawning (`--standalone --override_ide_name antigravity`) and extended `agy` model catalog caching to 15 minutes across idle refreshes.
+  - Added sequential queueing with cooldown for consumer OAuth `agy` runs, capped autonomous fix loops to 1 round (`maxRounds = 1`), and blocked enabled background CRON schedules on Antigravity consumer OAuth.
+  - Added 3-tier UI warnings (Settings CLI status + Gemini API Key shortcut, contextual composer/modal/chat/role banners, and first-run risk acknowledgement confirmation dialog).
+
+---
+
 ## [0.3.11] - 2026-11-17
 
 ### Tiếng Việt

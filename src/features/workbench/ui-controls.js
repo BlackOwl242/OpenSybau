@@ -136,6 +136,7 @@ export function syncRolePicker(form, roleId, field) {
 
 export function syncRolePickers(form, roleId) {
   for (const field of ["provider", "model", "effort"]) syncRolePicker(form, roleId, field);
+  syncAntigravityNoticeSlot(form);
 }
 
 const roleStationBadgeMap = {
@@ -347,6 +348,7 @@ export function syncWorkflow() {
     }
   }
   if (select.value === "chat-only") syncChatAgentFields(form);
+  syncAntigravityNoticeSlot(form);
 }
 
 export function syncProviderModelControls(form, provider, modelSelector, effortSelector) {
@@ -389,11 +391,150 @@ export function syncEffortForModel(form, modelSelector, effortSelector, provider
 export function syncRoleProvider(form, roleId) {
   const provider = form?.querySelector(`[data-role-provider="${roleId}"]`)?.value || "";
   syncProviderModelControls(form, provider, `[data-role-model="${roleId}"]`, `[data-role-effort="${roleId}"]`);
+  syncAntigravityNoticeSlot(form);
 }
 
 export function syncChatAgentFields(form) {
   const provider = form?.querySelector("[data-chat-agent-provider]")?.value || "";
   syncProviderModelControls(form, provider, "[data-chat-agent-model]", "[data-chat-agent-effort]");
+  syncAntigravityNoticeSlot(form);
+}
+
+export const AGY_OAUTH_ACK_STORAGE_KEY = "opensybau.agy-oauth-ack-v1";
+
+export function isAntigravityConsumerOAuth(connectors = view.connectors) {
+  const conn = connectors?.antigravity;
+  return Boolean(conn?.installed && conn?.authMode !== "gemini-api-key");
+}
+
+export function selectionUsesAntigravityOAuth({
+  workflow = "chat-only",
+  chatProvider = "",
+  roles = {},
+  isArena = false,
+  arenaSlots = [],
+  connectors = view.connectors,
+} = {}) {
+  if (!isAntigravityConsumerOAuth(connectors)) return false;
+  if (isArena) return (arenaSlots || []).some((slot) => slot?.provider === "antigravity");
+  if (workflow === "chat-only") return chatProvider === "antigravity";
+  if (workflow === "plan-only") return roles?.plan?.provider === "antigravity";
+  return ["plan", "build", "review"].some((roleId) => roles?.[roleId]?.provider === "antigravity");
+}
+
+export function antigravityOAuthWarningBanner({ compact = false, id = "" } = {}) {
+  const en = view.language === "en";
+  const text = en
+    ? "Antigravity CLI is using personal OAuth login. Per Antigravity Terms (Section 6), controlling agy via a third-party app with personal OAuth risks service suspension. Add a Gemini API Key to stay safe."
+    : "Antigravity CLI đang dùng đăng nhập OAuth cá nhân — theo Điều khoản Mục 6 của Antigravity, điều khiển agy qua app bên thứ ba có nguy cơ bị khóa dịch vụ. Nên thêm Gemini API Key.";
+  const btnLabel = en ? "Add Gemini API Key" : "Thêm Gemini API Key";
+  return `<div class="agy-oauth-notice${compact ? " is-compact" : ""}"${id ? ` id="${esc(id)}"` : ""} role="note">
+    <span class="agy-oauth-notice-icon" aria-hidden="true">${icon("alert-triangle", 14)}</span>
+    <span class="agy-oauth-notice-copy">${esc(text)}</span>
+    <button type="button" class="button quiet small agy-oauth-key-btn" data-action="provider-add-gemini">${esc(btnLabel)}</button>
+  </div>`;
+}
+
+export function syncAntigravityNoticeSlot(form) {
+  const slot = form?.querySelector("[data-agy-oauth-notice]");
+  if (!slot) return;
+  const workflow = form.querySelector('select[name="workflow"], input[name="workflow"]')?.value
+    || (form.dataset.form === "settings" ? "codex-antigravity" : "chat-only");
+  const chatProvider = form.querySelector("[data-chat-agent-provider]")?.value || "";
+  const roles = {
+    plan: { provider: form.querySelector('[data-role-provider="plan"]')?.value || "" },
+    build: { provider: form.querySelector('[data-role-provider="build"]')?.value || "" },
+    review: { provider: form.querySelector('[data-role-provider="review"]')?.value || "" },
+  };
+  const show = selectionUsesAntigravityOAuth({ workflow, chatProvider, roles });
+  slot.innerHTML = show ? antigravityOAuthWarningBanner({ compact: true }) : "";
+}
+
+export function ensureAntigravityOAuthConfirmed({ onOpenGeminiSetup = null } = {}) {
+  if (typeof document === "undefined") return Promise.resolve(true);
+  try {
+    if (localStorage.getItem(AGY_OAUTH_ACK_STORAGE_KEY) === "1") return Promise.resolve(true);
+  } catch {}
+
+  const en = view.language === "en";
+  const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  document.getElementById("agy-oauth-confirm-layer")?.remove();
+
+  return new Promise((resolvePromise) => {
+    const layer = document.createElement("div");
+    layer.id = "agy-oauth-confirm-layer";
+    layer.className = "modal-backdrop is-agy-confirm";
+    layer.innerHTML = `<div class="modal app-dialog-shell agy-oauth-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="agy-confirm-title" tabindex="-1">
+      <header class="modal-head app-dialog-header">
+        <h2 id="agy-confirm-title">${esc(en ? "Antigravity OAuth Risk Notice (Terms Sec. 6)" : "Cảnh báo Antigravity OAuth (Điều khoản Mục 6)")}</h2>
+        <button type="button" class="icon-button app-dialog-close" data-agy-choice="cancel" aria-label="${esc(en ? "Close" : "Đóng")}" title="${esc(en ? "Close" : "Đóng")}">${icon("x", 16)}</button>
+      </header>
+      <div class="modal-body app-dialog-content agy-oauth-confirm-body">
+        <p>${esc(en
+          ? "Antigravity CLI is currently running with personal Google OAuth (Pro/Ultra/Free). Google's Antigravity Terms Section 6 forbids automated third-party wrapper calls under personal OAuth and may trigger an account suspension."
+          : "Antigravity CLI đang dùng đăng nhập OAuth cá nhân trên máy. Theo Điều khoản Mục 6 của Antigravity, việc chạy agy từ ứng dụng bên thứ ba bằng OAuth cá nhân có nguy cơ bị tạm ngưng hoặc khóa dịch vụ Antigravity.")}</p>
+        <p>${esc(en
+          ? "OpenSybau has automatically queued agy sequentially, capped auto-fix loops to 1 round, and disabled CRON schedules to reduce triggers, but we recommend adding a Gemini API Key (Google AI Studio) for full compliance."
+          : "OpenSybau đã tự động xếp hàng tuần tự, tắt lặp tự sửa nhiều vòng và tắt lịch CRON nền để giảm rủi ro, nhưng bạn vẫn nên thêm Gemini API Key (Google AI Studio) để an toàn tuyệt đối.")}</p>
+      </div>
+      <footer class="modal-actions app-dialog-footer">
+        <button type="button" class="button quiet" data-agy-choice="cancel">${esc(en ? "Cancel" : "Hủy")}</button>
+        <button type="button" class="button secondary" data-agy-choice="gemini">${esc(en ? "Add Gemini API Key" : "Thêm Gemini API Key")}</button>
+        <button type="button" class="button primary" data-agy-choice="proceed">${esc(en ? "I understand, continue anyway" : "Tôi hiểu rủi ro và tiếp tục")}</button>
+      </footer>
+    </div>`;
+
+    let settled = false;
+    const finish = (choice) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKeyDown, true);
+      layer.remove();
+      if (choice === "proceed") {
+        try { localStorage.setItem(AGY_OAUTH_ACK_STORAGE_KEY, "1"); } catch {}
+        if (previousFocus?.isConnected) { try { previousFocus.focus(); } catch {} }
+        resolvePromise(true);
+        return;
+      }
+      if (choice === "gemini" && typeof onOpenGeminiSetup === "function") {
+        onOpenGeminiSetup();
+      } else if (previousFocus?.isConnected) {
+        try { previousFocus.focus(); } catch {}
+      }
+      resolvePromise(false);
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        finish("cancel");
+        return;
+      }
+      if (event.key === "Tab") {
+        const focusables = [...layer.querySelectorAll("button:not([disabled])")];
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    layer.addEventListener("click", (event) => {
+      if (event.target === layer) { finish("cancel"); return; }
+      const btn = event.target.closest("[data-agy-choice]");
+      if (btn) finish(btn.dataset.agyChoice);
+    });
+    document.addEventListener("keydown", onKeyDown, true);
+    document.body.appendChild(layer);
+    layer.querySelector('[data-agy-choice="proceed"]')?.focus();
+  });
 }
 
 export function syncIsolation() {

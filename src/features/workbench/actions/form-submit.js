@@ -2,7 +2,12 @@ import { $, view } from "../../../shared/state.js";
 import { providerTitle, workflowRoles } from "../../../domain/agent-roles.js";
 import { api, closeOverlay, ensureSubagentProfiles, refresh, render, showToast } from "../runtime.js";
 import { submitScheduleForm } from "../schedules-modal.js";
-import { normalizedChatSelection } from "../ui-controls.js";
+import {
+  ensureAntigravityOAuthConfirmed,
+  isAntigravityConsumerOAuth,
+  normalizedChatSelection,
+  selectionUsesAntigravityOAuth,
+} from "../ui-controls.js";
 import {
   clearComposerAttachments,
   composerAttachmentKey,
@@ -11,9 +16,15 @@ import {
 } from "../composer.js";
 import { showWorkspaceModal } from "../modals.js";
 import { ensureHomeArenaSlots } from "../pages/chat-page.js";
-import { apiProviderId } from "../pages/settings-page.js";
+import { apiProviderId, showApiProviderModal } from "../pages/settings-page.js";
 import { loadWorkspaceDir } from "../pages/tasks-workspaces-page.js";
 import { loadVaultDir } from "../pages/knowledge-skills-page.js";
+
+function openGeminiApiModal() {
+  showApiProviderModal();
+  $("#overlay [data-action='provider-preset'][data-preset='gemini']")?.click();
+  $("#overlay input[name='apiKey']")?.focus();
+}
 
 function resolveCodexTransport(rawValue, permissionPreset = "workspace-write") {
   if (rawValue === "app-server" || rawValue === "exec") return rawValue;
@@ -34,7 +45,22 @@ export async function handleSubmit(event) {
   if (!isTaskChat) view.busy = true;
   if (isTaskChat) form.dataset.submitting = "true";
   const submit = $("[type=submit]", form);
+  const initialSubmitLabel = submit ? submit.textContent : "";
   const isIconSubmit = Boolean(submit?.classList.contains("home-submit") || submit?.classList.contains("chat-send-button") || submit?.classList.contains("mp-round-button"));
+  const restoreSubmitButton = () => {
+    if (!submit) return;
+    submit.disabled = false;
+    if (!isIconSubmit) submit.textContent = initialSubmitLabel;
+  };
+  const confirmAgyIfNeeded = async (usesOAuth) => {
+    if (!usesOAuth) return true;
+    const confirmed = await ensureAntigravityOAuthConfirmed({ onOpenGeminiSetup: openGeminiApiModal });
+    if (!confirmed) {
+      restoreSubmitButton();
+      return false;
+    }
+    return true;
+  };
   if (submit) {
     submit.disabled = true;
     if (!isIconSubmit) submit.textContent = "Đang xử lý…";
@@ -93,6 +119,16 @@ export async function handleSubmit(event) {
       const permPreset = object.permissionPreset || "workspace-write";
       const resolvedTransport = resolveCodexTransport(codexTransport || view.homeCodexTransport, permPreset);
       const selectedSkills = Array.isArray(view.homeSelectedSkills) && view.homeSelectedSkills.length ? [...view.homeSelectedSkills] : "auto";
+      const taskUsesAgyOAuth = selectionUsesAntigravityOAuth({
+        workflow: object.workflow || "codex-antigravity",
+        chatProvider: object.chatProvider || "",
+        roles: {
+          plan: { provider: object.planProvider || "" },
+          build: { provider: object.buildProvider || "" },
+          review: { provider: object.reviewProvider || "" },
+        },
+      });
+      if (!(await confirmAgyIfNeeded(taskUsesAgyOAuth))) return;
       const task = await api("/api/tasks", {
         method: "POST",
         body: JSON.stringify({
@@ -138,6 +174,9 @@ export async function handleSubmit(event) {
       }
       const waves = [...waveMap.entries()].sort((a, b) => a[0] - b[0]).map(([index, tasks]) => ({ index, tasks }));
       if (!waves.length) throw new Error("Nhập ít nhất 1 dòng công việc hợp lệ (tối thiểu 6 ký tự).");
+      const defaultRoles = view.state?.settings?.defaults?.roles || {};
+      const waveUsesAgyOAuth = selectionUsesAntigravityOAuth({ workflow: "codex-antigravity", roles: defaultRoles });
+      if (!(await confirmAgyIfNeeded(waveUsesAgyOAuth))) return;
       const res = await api("/api/tasks/decompose", {
         method: "POST",
         body: JSON.stringify({
@@ -158,6 +197,7 @@ export async function handleSubmit(event) {
     } else if (form.dataset.form === "home-task") {
       if (view.homeMode === "arena") {
         const slots = ensureHomeArenaSlots();
+        if (!(await confirmAgyIfNeeded(selectionUsesAntigravityOAuth({ isArena: true, arenaSlots: slots })))) return;
         const competitors = slots.map((slot, idx) => ({
           provider: slot.provider,
           model: slot.model,
@@ -204,6 +244,17 @@ export async function handleSubmit(event) {
         const targetWorkspaceId = view.chatSplitReturnWorkspaceId || object.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id;
         const targetWorkspace = (view.state?.workspaces || []).find((w) => w.id === targetWorkspaceId);
         const canIsolate = Boolean(targetWorkspace?.isGit && targetWorkspace?.head);
+        const homeRoles = {
+          plan: { provider: object.planProvider || view.homeRoles?.plan?.provider || view.state?.settings?.defaults?.roles?.plan?.provider || "" },
+          build: { provider: object.buildProvider || view.homeRoles?.build?.provider || view.state?.settings?.defaults?.roles?.build?.provider || "" },
+          review: { provider: object.reviewProvider || view.homeRoles?.review?.provider || view.state?.settings?.defaults?.roles?.review?.provider || "" },
+        };
+        const homeUsesAgyOAuth = selectionUsesAntigravityOAuth({
+          workflow,
+          chatProvider: object.chatProvider || chatSelection.provider,
+          roles: homeRoles,
+        });
+        if (!(await confirmAgyIfNeeded(homeUsesAgyOAuth))) return;
         const payload = {
           ...object,
           chatProvider: object.chatProvider || chatSelection.provider,
@@ -277,6 +328,7 @@ export async function handleSubmit(event) {
       const provider = splitSel?.provider || object.provider || view.chatProvider || taskCfg?.chatProvider || taskPlanRole?.provider;
       const model = splitSel?.model || object.model || view.chatModel || taskCfg?.chatModel || taskPlanRole?.model;
       const effort = splitSel?.effort || object.effort || view.chatEffort || taskCfg?.chatEffort || taskPlanRole?.effort;
+      if (!(await confirmAgyIfNeeded(provider === "antigravity" && isAntigravityConsumerOAuth()))) return;
       if (!form.closest(".multi-chat-pane")) {
         view.chatProvider = provider;
         view.chatModel = model;

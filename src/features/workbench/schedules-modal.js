@@ -44,6 +44,7 @@ function availableScheduleAgentOptions() {
   const options = [];
   for (const [provId, conn] of Object.entries(view.connectors || {})) {
     if (!conn?.available) continue;
+    if (provId === "antigravity" && conn.authMode !== "gemini-api-key") continue;
     const provName = providerTitle(view.connectors, provId);
     const models = conn.models?.length ? conn.models : [{ id: "", name: provName }];
     for (const m of models) {
@@ -224,9 +225,11 @@ export function openSchedulesModal(editId = "") {
     </div>
   </div>` : "";
 
+  const agyOAuthExcluded = Boolean(view.connectors?.antigravity?.available && view.connectors.antigravity.authMode !== "gemini-api-key");
   const body = `
     ${existingListHtml}
     <p class="form-note">Mỗi chu kỳ sẽ khởi chạy trên một <strong>Git Worktree cô lập</strong> để không bao giờ xung đột với nhánh bạn đang sửa trực tiếp.</p>
+    ${agyOAuthExcluded ? `<p class="feature-warning">Antigravity CLI đang đăng nhập bằng OAuth cá nhân nên không khả dụng cho lịch chạy nền tự động (tránh rủi ro Điều khoản Mục 6). Hãy thêm Gemini API Key trong Cài đặt nếu muốn chạy định kỳ với Antigravity.</p>` : ""}
     ${editing ? `<input type="hidden" name="id" value="${esc(editing.id)}">` : ""}
     <div class="modal-grid-2">
       <label>Tên lịch tự động
