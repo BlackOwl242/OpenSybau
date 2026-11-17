@@ -273,7 +273,9 @@ const probes = [
       ? ["PASS", "Blocks .git/*, .npmrc, .pem, .key, id_rsa, and .env* on /api/workspaces/:id/raw/*"]
       : ["FAIL", "Sensitive files exposed"]],
   ["SA-057", "D3", "JSON Body Size Limit & Content-Type Enforcement", "security-audit", "server.mjs", () =>
-    serverSrc.includes("1_000_000") && serverSrc.includes("415") ? ["PASS", "Enforces 1MB max JSON body (413) and application/json Content-Type (415)"] : ["FAIL", "Missing body guard"]],
+    (serverSrc.includes("2_500_000") || serverSrc.includes("1_000_000")) && serverSrc.includes("413") && serverSrc.includes("415")
+      ? ["PASS", "Enforces 2.5MB UTF-8-safe max JSON body (413) and application/json Content-Type (415)"]
+      : ["FAIL", "Missing body guard"]],
   ["SA-058", "D3", "Atomic File Persistence 0o600 Mode & Git Hooks Blocker", "security-audit", "server.mjs", () =>
     serverSrc.includes("core.hooksPath=__opensybau_disabled_hooks__") && serverSrc.includes("devHtmlCspHeader")
       ? ["PASS", "Enforces 0o600 atomic writes, disables untrusted .git/hooks via core.hooksPath, and sets dev CSP header"]

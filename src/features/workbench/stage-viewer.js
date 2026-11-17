@@ -96,6 +96,7 @@ export function canEditWorkspaceTab(tab) {
   if (!tab || tab.kind === "live-url" || tab.kind === "stage-doc" || tab.kind === "all-changes") return false;
   if (!tab.workspaceId || !tab.path) return false;
   const file = tab.fileData;
+  if (file?.deleted) return false;
   const kind = file?.kind || "text";
   if (kind !== "text") return false;
   const ext = (file?.extension || tab.ext || "").toLowerCase();
@@ -404,9 +405,22 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
   const isMobile = isMobileCompanionMode();
   const isWebBrowser = isLiveUrl || ((ext === ".html" || ext === ".htm") && mode === "preview");
   const effectiveLiveUrl = isLiveUrl ? rewriteLivePreviewUrl(tab.liveUrl) : "";
+  let proxiedLiveUrl = "";
+  if (isLiveUrl && effectiveLiveUrl) {
+    try {
+      const parsedLive = new URL(effectiveLiveUrl);
+      const targetPort = Number(parsedLive.port || (parsedLive.protocol === "https:" ? 443 : 80));
+      const isLoopbackTarget = ["localhost", "127.0.0.1", "[::1]", "::1"].includes(parsedLive.hostname.toLowerCase());
+      if (isLoopbackTarget && parsedLive.protocol === "http:" && targetPort >= 1024 && targetPort <= 65535) {
+        const suffix = `${parsedLive.pathname || "/"}${parsedLive.search ? `${parsedLive.search}&` : "?"}_t=${tab.loadedAt || 0}`;
+        proxiedLiveUrl = resolveRemoteUrl(`/api/design-proxy/${targetPort}${suffix}`);
+      }
+    } catch {}
+  }
   const rawUrl = isLiveUrl
-    ? `${effectiveLiveUrl}${effectiveLiveUrl.includes("?") ? "&" : "?"}_t=${tab.loadedAt || 0}`
+    ? (proxiedLiveUrl || `${effectiveLiveUrl}${effectiveLiveUrl.includes("?") ? "&" : "?"}_t=${tab.loadedAt || 0}`)
     : resolveRemoteUrl(`/api/workspaces/${encodeURIComponent(tab.workspaceId)}/raw/${tab.path.split("/").map(encodeURIComponent).join("/")}?${tab.taskId ? `taskId=${encodeURIComponent(tab.taskId)}&` : ""}t=${tab.loadedAt || 0}`);
+  const designViewport = ["mobile", "tablet"].includes(tab.designViewport) ? tab.designViewport : "desktop";
   let liveDisplayHost = "localhost";
   let liveDisplayPath = `/${tab.path}`;
   if (isLiveUrl && effectiveLiveUrl) {
@@ -458,10 +472,18 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
     } else {
       let hunkCounter = 0;
       bodyHtml = `<div class="orca-code-scroll codex-all-changes-scroll">
-        ${parsedFiles.map((df) => `<section class="codex-all-diff-card">
+        ${parsedFiles.map((df) => {
+          const fileStatus = String(df.status || "modified").toLowerCase();
+          const badgeCls = fileStatus === "added" ? "is-added" : fileStatus === "deleted" ? "is-deleted" : "is-modified";
+          const badgeChar = fileStatus === "added" ? "A" : fileStatus === "deleted" ? "D" : "M";
+          const diffHunks = Array.isArray(df.hunks) && df.hunks.length
+            ? df.hunks
+            : (Array.isArray(df.lines) && df.lines.length ? [{ header: "", lines: df.lines }] : []);
+          const ext = df.path.includes(".") ? `.${df.path.split(".").at(-1)}` : "";
+          return `<section class="codex-all-diff-card">
           <header class="codex-all-diff-head">
             <button type="button" class="codex-all-diff-file-btn" data-action="dock-open-workspace-file" data-workspace-id="${esc(tab.workspaceId)}" data-id="${esc(tab.taskId || "")}" data-path="${esc(df.path)}" data-show-changes="true">
-              <span class="codex-git-badge is-modified">M</span>
+              <span class="codex-git-badge ${badgeCls}">${badgeChar}</span>
               <strong data-localize-skip="true">${esc(df.path)}</strong>
             </button>
             <small class="codex-all-diff-stats">
@@ -470,18 +492,25 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
             </small>
           </header>
           <div class="orca-code-lines is-codex-diff">
-            ${(df.lines || []).map((dl) => {
-              const isHunk = dl.type === "hunk";
-              const hAttr = isHunk ? `id="stage-diff-change-${hunkCounter++}"` : "";
-              const rowCls = dl.type === "add" ? "is-add" : dl.type === "del" ? "is-del" : isHunk ? "is-hunk" : "";
-              const ln = dl.newLine ?? dl.oldLine ?? "";
-              return `<div class="orca-code-row ${rowCls}" ${hAttr}>
+            ${diffHunks.map((hunk) => {
+              const hunkHeadHtml = hunk.header
+                ? `<div class="orca-code-row is-hunk" id="stage-diff-change-${hunkCounter++}"><span class="orca-code-ln">@@</span><code class="orca-code-text" data-localize-skip="true">${esc(hunk.header)}</code></div>`
+                : "";
+              const linesHtml = (hunk.lines || []).map((dl) => {
+                const isHunk = dl.type === "hunk";
+                const hAttr = isHunk ? `id="stage-diff-change-${hunkCounter++}"` : "";
+                const rowCls = dl.type === "add" ? "is-add" : dl.type === "del" ? "is-del" : isHunk ? "is-hunk" : "";
+                const ln = dl.newLine ?? dl.oldLine ?? "";
+                return `<div class="orca-code-row ${rowCls}" ${hAttr}>
                 <span class="orca-code-ln">${ln}</span>
-                <code class="orca-code-text" data-localize-skip="true">${highlightSourceLine(dl.text || "", df.path.includes(".") ? `.${df.path.split(".").at(-1)}` : "")}</code>
+                <code class="orca-code-text" data-localize-skip="true">${highlightSourceLine(dl.text || "", ext)}</code>
               </div>`;
+              }).join("");
+              return `${hunkHeadHtml}${linesHtml}`;
             }).join("")}
           </div>
-        </section>`).join("")}
+        </section>`;
+        }).join("")}
       </div>`;
     }
   } else if (mode === "edit") {
@@ -499,8 +528,13 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
   } else if (mode === "preview") {
     if (isLiveUrl || ext === ".html" || ext === ".htm") {
       const hasPopover = Boolean(view.stageHtmlInspectActive && view.stageHtmlSelectedElement);
-      bodyHtml = `<div class="orca-live-frame-wrap">
-        <iframe class="orca-live-frame" src="${esc(rawUrl)}" title="Xem trực tiếp ${esc(tab.name)}" sandbox="allow-scripts allow-forms allow-popups"></iframe>
+      const vpStyle = designViewport === "mobile"
+        ? "width:390px;max-width:100%;margin:0 auto;border-left:1px solid var(--wb-line);border-right:1px solid var(--wb-line);"
+        : designViewport === "tablet"
+          ? "width:768px;max-width:100%;margin:0 auto;border-left:1px solid var(--wb-line);border-right:1px solid var(--wb-line);"
+          : "";
+      bodyHtml = `<div class="orca-live-frame-wrap is-vp-${designViewport}">
+        <iframe class="orca-live-frame" style="${vpStyle}" src="${esc(rawUrl)}" title="Xem trực tiếp ${esc(tab.name)}" sandbox="allow-scripts allow-forms allow-popups"></iframe>
         <div class="orca-element-comment-layer" data-html-comment-layer ${hasPopover ? "" : "hidden"}>
           ${hasPopover ? renderHtmlElementCommentPopoverMarkup({ formatEffortLabel }) : ""}
         </div>
@@ -557,20 +591,34 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
             const anchorAttr = row.isFirstInBlock && row.changeIdx >= 0 ? `id="stage-diff-change-${row.changeIdx}"` : "";
             const leftCls = row.left.type === "del" ? "is-del" : row.left.type === "gap" ? "is-gap" : "";
             const rightCls = row.right.type === "add" ? "is-add" : row.right.type === "gap" ? "is-gap" : "";
+            const leftKey = row.left.type !== "gap" ? `split:${tab.id}:left:${row.left.ln ?? 0}:${row.left.type}` : "";
+            const rightKey = row.right.type !== "gap" ? `split:${tab.id}:right:${row.right.ln ?? 0}:${row.right.type}` : "";
+            const leftCommenting = Boolean(leftKey && commentTarget?.key === leftKey);
+            const rightCommenting = Boolean(rightKey && commentTarget?.key === rightKey);
+            const activeCommentCell = leftCommenting
+              ? { ln: row.left.ln ?? "", side: "left" }
+              : rightCommenting
+                ? { ln: row.right.ln ?? "", side: "right" }
+                : null;
             return `<div class="codex-split-diff-row" ${anchorAttr}>
-              <div class="codex-split-cell is-left ${leftCls}">
+              <div class="codex-split-cell is-left ${leftCls} ${leftCommenting ? "is-commenting" : ""}" ${leftKey ? `data-action="open-stage-line-comment" data-key="${esc(leftKey)}" data-path="${esc(tab.path)}" data-line="${row.left.ln ?? ""}" title="Nhấp để nhận xét dòng ${row.left.ln ?? ""}"` : ""}>
                 <span class="orca-code-ln">${row.left.ln ?? ""}</span>
                 ${row.left.type === "gap"
                   ? `<div class="codex-diff-hatched-gap"></div>`
                   : `<code class="orca-code-text" data-localize-skip="true">${highlightSourceLine(row.left.text, ext)}</code>`}
               </div>
-              <div class="codex-split-cell is-right ${rightCls}">
+              <div class="codex-split-cell is-right ${rightCls} ${rightCommenting ? "is-commenting" : ""}" ${rightKey ? `data-action="open-stage-line-comment" data-key="${esc(rightKey)}" data-path="${esc(tab.path)}" data-line="${row.right.ln ?? ""}" title="Nhấp để nhận xét dòng ${row.right.ln ?? ""}"` : ""}>
                 <span class="orca-code-ln">${row.right.ln ?? ""}</span>
                 ${row.right.type === "gap"
                   ? `<div class="codex-diff-hatched-gap"></div>`
                   : `<code class="orca-code-text" data-localize-skip="true">${highlightSourceLine(row.right.text, ext)}</code>`}
               </div>
-            </div>`;
+            </div>
+            ${activeCommentCell ? `<div class="diff-comment-editor">
+              <input type="text" data-stage-line-comment-input placeholder="Nhập yêu cầu cho Agent tại dòng ${activeCommentCell.ln} (${activeCommentCell.side === "left" ? "bản cũ" : "bản mới"}) của ${esc(tab.name)}…" autocomplete="off">
+              <button type="button" class="button primary small" data-action="send-stage-line-comment">${icon("arrow-up-right", 12)}<span>Gửi</span></button>
+              <button type="button" class="button quiet small" data-action="cancel-stage-line-comment">Hủy</button>
+            </div>` : ""}`;
           }).join("")}
         </div>
       </div>`;
@@ -644,10 +692,20 @@ export function renderStageFileViewer(tab, { formatEffortLabel } = {}) {
     <header class="orca-viewer-toolbar is-codex-pill-bar">
       ${leftToolbarMarkup}
       <div class="orca-viewer-actions codex-viewer-pills">
+        ${file?.deleted ? `<span class="pill" title="Tệp đã xóa trên working tree; đang hiển thị nội dung HEAD">${icon("history", 12)} Đã xóa · bản HEAD</span>` : ""}
         ${isWebBrowser ? `
+          <div class="codex-viewport-group" role="group" aria-label="Kích thước khung xem Design">
+            <button type="button" class="codex-pill-btn ${designViewport === "desktop" ? "is-active" : ""}" data-action="set-design-viewport" data-tab-id="${esc(tab.id)}" data-viewport="desktop" title="Màn hình Desktop">Desktop</button>
+            <button type="button" class="codex-pill-btn ${designViewport === "tablet" ? "is-active" : ""}" data-action="set-design-viewport" data-tab-id="${esc(tab.id)}" data-viewport="tablet" title="Khung Tablet 768px">768</button>
+            <button type="button" class="codex-pill-btn ${designViewport === "mobile" ? "is-active" : ""}" data-action="set-design-viewport" data-tab-id="${esc(tab.id)}" data-viewport="mobile" title="Khung Mobile 390px">390</button>
+          </div>
           <button type="button" class="codex-pill-btn ${view.stageHtmlInspectActive ? "is-active" : ""}" data-action="toggle-html-inspect" title="Nhấp vào phần tử để gửi nhận xét cho Agent">
             ${icon("message-square-plus", 13)}
             <span>Chọn phần tử</span>
+          </button>
+          <button type="button" class="codex-pill-btn" data-action="capture-design-region" data-tab-id="${esc(tab.id)}" title="Chụp bố cục viewport / phần tử để đính kèm cho AI">
+            ${icon("image", 13)}
+            <span>Chụp vùng</span>
           </button>
         ` : ""}
         ${mode === "edit" ? `

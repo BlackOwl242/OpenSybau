@@ -75,15 +75,22 @@ export function TopBar({ snapshot }) {
             splitTasks.map((item, index) => (
               <div
                 key={item.id}
-                role="tab"
-                aria-selected={(snapshot.chatSplitActiveTaskId || splitTasks[0]?.id) === item.id}
+                role="presentation"
                 class={`orca-tab ${(snapshot.chatSplitActiveTaskId || splitTasks[0]?.id) === item.id ? "is-active" : ""}`}
-                data-action="focus-chat-pane"
-                data-id={item.id}
-                title={item.title}
               >
-                <span class={`wb-task-dot is-${item.status || "done"}`} aria-hidden="true" />
-                <span class="orca-tab-title" data-localize-skip="true">{compactChatTitle(item)}</span>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={(snapshot.chatSplitActiveTaskId || splitTasks[0]?.id) === item.id}
+                  tabindex={(snapshot.chatSplitActiveTaskId || splitTasks[0]?.id) === item.id ? 0 : -1}
+                  class="orca-tab-trigger"
+                  data-action="focus-chat-pane"
+                  data-id={item.id}
+                  title={item.title}
+                >
+                  <span class={`wb-task-dot is-${item.status || "done"}`} aria-hidden="true" />
+                  <span class="orca-tab-title" data-localize-skip="true">{compactChatTitle(item)}</span>
+                </button>
                 <button
                   type="button"
                   class="orca-tab-close"
@@ -101,6 +108,7 @@ export function TopBar({ snapshot }) {
               type="button"
               role="tab"
               aria-selected={isPrimaryActive}
+              tabindex={isPrimaryActive ? 0 : -1}
               class={`orca-tab is-primary-tab ${isPrimaryActive ? "is-active" : ""} ${stageSplit ? "is-split-pinned" : ""}`}
               data-action="activate-stage-tab"
               data-tab-id="chat"
@@ -114,18 +122,26 @@ export function TopBar({ snapshot }) {
           )}
           {stageTabs.map((tab) => {
             const isActive = activeStageTabId === tab.id || (stageSplit && activeStageTabId === "chat" && stageTabs[0]?.id === tab.id);
+            const isDirty = typeof tab.editDraft === "string" && tab.editDraft !== String(tab.fileData?.content ?? "");
             return (
               <div
                 key={tab.id}
-                role="tab"
-                aria-selected={isActive}
+                role="presentation"
                 class={`orca-tab ${isActive ? "is-active" : ""}`}
-                data-action="activate-stage-tab"
-                data-tab-id={tab.id}
-                title={tab.path}
               >
-                <Icon name={tabIconName(tab.ext)} size={14} />
-                <span class="orca-tab-title" data-localize-skip="true">{tab.name}</span>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  tabindex={isActive ? 0 : -1}
+                  class="orca-tab-trigger"
+                  data-action="activate-stage-tab"
+                  data-tab-id={tab.id}
+                  title={isDirty ? `${tab.path} (Chưa lưu)` : tab.path}
+                >
+                  <Icon name={tabIconName(tab.ext)} size={14} />
+                  <span class="orca-tab-title" data-localize-skip="true">{tab.name}{isDirty ? " •" : ""}</span>
+                </button>
                 <button
                   type="button"
                   class="orca-tab-close"

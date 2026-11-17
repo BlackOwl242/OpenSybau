@@ -98,7 +98,36 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
       return true;
     }
     if (request.method === "GET" && workspaceFileMatch[2] === "file") {
-      json(response, 200, await readLocalTextFile(baseRoot, params.get("path") || ""));
+      const requestedFile = params.get("path") || "";
+      try {
+        json(response, 200, await readLocalTextFile(baseRoot, requestedFile));
+      } catch (error) {
+        if (error?.code === "ENOENT") {
+          try {
+            const relClean = resolveWorkspaceRelativePath(baseRoot, requestedFile).split(sep).join("/");
+            const fileName = basename(relClean);
+            if (!relClean || isSensitiveWorkspaceSubpath(relClean) || isSensitiveWorkspaceSubpath(fileName) || !allowedTextFile(fileName)) {
+              throw error;
+            }
+            const headRes = await git(baseRoot, ["show", `HEAD:${relClean}`], { maxBuffer: 5_000_000 });
+            if (headRes.code === 0) {
+              const content = String(headRes.stdout || "");
+              json(response, 200, {
+                path: relClean,
+                name: fileName,
+                content,
+                kind: "text",
+                deleted: true,
+                size: Buffer.byteLength(content, "utf8"),
+                modifiedAt: null,
+                extension: extname(fileName).toLowerCase(),
+              });
+              return true;
+            }
+          } catch {}
+        }
+        json(response, error?.code === "ENOENT" ? 404 : 400, { error: safeError(error) });
+      }
       return true;
     }
     if (request.method === "GET" && workspaceFileMatch[2] === "git-status") {
@@ -248,32 +277,75 @@ export async function handleWorkspaceVaultRoutes(request, response, pathname, ct
         if (stat.size > 50_000_000) { json(response, 413, { error: "Tệp quá lớn để xem trực tiếp." }); return true; }
         const ext = extname(target).toLowerCase();
         const mime = RAW_MIME_MAP[ext] || "text/plain; charset=utf-8";
-        const buf = await fs.readFile(target);
         if (ext === ".html" || ext === ".htm") {
+          const buf = await fs.readFile(target);
           const outBuf = injectOrcaInspectorHtml(buf);
           response.writeHead(200, {
             "Content-Type": mime,
             "Content-Length": outBuf.byteLength,
             "Content-Disposition": "inline",
             "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
             "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-modals allow-popups; default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https: http:;",
+            "Content-Security-Policy": "sandbox allow-scripts allow-forms; default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob:; connect-src 'none';",
           });
-          response.end(outBuf);
+          response.end(request.method === "HEAD" ? undefined : outBuf);
           return true;
         }
         const rawCsp = (ext === ".svg" || ext === ".xml")
-          ? { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data: blob: 'self'" }
-          : {};
+          ? { "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data: blob: 'self'" }
+          : ext === ".pdf"
+            ? { "Content-Security-Policy": "sandbox allow-same-origin; default-src 'none'; object-src 'self'" }
+            : {};
+        const rangeHeader = String(request.headers?.range || "").trim();
+        if (rangeHeader && stat.size > 0) {
+          const rangeMatch = rangeHeader.match(/^bytes=(\d*)-(\d*)$/i);
+          if (!rangeMatch) {
+            response.writeHead(416, { "Content-Range": `bytes */${stat.size}`, "X-Content-Type-Options": "nosniff" }).end();
+            return true;
+          }
+          const rawStart = rangeMatch[1] ? Number(rangeMatch[1]) : 0;
+          const rawEnd = rangeMatch[2] ? Number(rangeMatch[2]) : Math.min(stat.size - 1, rawStart + 2_097_151);
+          const start = rangeMatch[1] === "" ? Math.max(0, stat.size - Number(rangeMatch[2])) : rawStart;
+          const end = rangeMatch[1] === "" ? stat.size - 1 : Math.min(stat.size - 1, rawEnd);
+          if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || start >= stat.size || end < start) {
+            response.writeHead(416, { "Content-Range": `bytes */${stat.size}`, "X-Content-Type-Options": "nosniff" }).end();
+            return true;
+          }
+          const chunkLength = end - start + 1;
+          const sliceBuf = Buffer.allocUnsafe(chunkLength);
+          const fh = await fs.open(target, "r");
+          try {
+            await fh.read(sliceBuf, 0, chunkLength, start);
+          } finally {
+            await fh.close().catch(() => {});
+          }
+          response.writeHead(206, {
+            "Content-Type": mime,
+            "Content-Range": `bytes ${start}-${end}/${stat.size}`,
+            "Accept-Ranges": "bytes",
+            "Content-Length": chunkLength,
+            "Content-Disposition": "inline",
+            "Cache-Control": "no-store",
+            "Referrer-Policy": "no-referrer",
+            "X-Content-Type-Options": "nosniff",
+            ...rawCsp,
+          });
+          response.end(request.method === "HEAD" ? undefined : sliceBuf);
+          return true;
+        }
+        const buf = await fs.readFile(target);
         response.writeHead(200, {
           "Content-Type": mime,
+          "Accept-Ranges": "bytes",
           "Content-Length": buf.byteLength,
           "Content-Disposition": "inline",
           "Cache-Control": "no-store",
+          "Referrer-Policy": "no-referrer",
           "X-Content-Type-Options": "nosniff",
           ...rawCsp,
         });
-        response.end(buf);
+        response.end(request.method === "HEAD" ? undefined : buf);
       } catch (error) {
         json(response, 400, { error: safeError(error) });
       }

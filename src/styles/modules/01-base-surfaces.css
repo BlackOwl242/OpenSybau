@@ -1759,13 +1759,19 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   font-variant-numeric: tabular-nums;
   font-size: 12px;
 }
-.diff-stat-add {
+.diff-stat-add,
+.diff-totals .is-add,
+.diff-file-stats .is-add {
   color: var(--wb-green);
   font-weight: 600;
+  font-style: normal;
 }
-.diff-stat-del {
+.diff-stat-del,
+.diff-totals .is-del,
+.diff-file-stats .is-del {
   color: var(--wb-red);
   font-weight: 600;
+  font-style: normal;
 }
 .diff-studio-actions {
   display: flex;
@@ -1814,7 +1820,8 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   background: var(--wb-raised);
   color: var(--wb-ink-strong);
 }
-.diff-file-path {
+.diff-file-path,
+.diff-file-name {
   min-width: 0;
   flex: 1;
   overflow: hidden;
@@ -1833,13 +1840,19 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   background: var(--wb-raised);
   color: var(--wb-accent);
 }
-.diff-file-status.status-added {
+.diff-file-status.status-added,
+.diff-file-status.is-added {
   color: var(--wb-green);
   background: rgba(129, 201, 164, 0.15);
 }
-.diff-file-status.status-deleted {
+.diff-file-status.status-deleted,
+.diff-file-status.is-deleted {
   color: var(--wb-red);
   background: rgba(242, 139, 130, 0.15);
+}
+.diff-file-status.is-modified {
+  color: var(--wb-accent);
+  background: rgba(138, 180, 248, 0.15);
 }
 .diff-file-stats {
   flex: 0 0 auto;
@@ -1899,7 +1912,7 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 }
 .diff-row {
   display: grid;
-  grid-template-columns: 42px 42px 20px 18px minmax(0, 1fr);
+  grid-template-columns: 42px 42px 34px minmax(0, 1fr);
   align-items: baseline;
   width: 100%;
   padding: 1px 8px;
@@ -1915,11 +1928,13 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
 .diff-row:hover {
   background: color-mix(in srgb, var(--wb-tint) 4%, transparent);
 }
-.diff-row.line-add {
+.diff-row.line-add,
+.diff-row.diff-row-add {
   background: rgba(63, 185, 114, 0.13);
   color: var(--wb-green);
 }
-.diff-row.line-del {
+.diff-row.line-del,
+.diff-row.diff-row-del {
   background: rgba(240, 102, 92, 0.14);
   color: var(--wb-red);
 }
@@ -1931,6 +1946,10 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   user-select: none;
 }
 .diff-sign {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   color: var(--wb-muted);
   text-align: center;
   user-select: none;
@@ -1979,15 +1998,17 @@ html.desktop-glass[data-theme="obsidian"] .wb-page-content .task-conversation-pa
   border-radius: 7px;
   background: var(--wb-raised);
 }
-.diff-inline-editor input {
+.diff-inline-editor input,
+.diff-inline-editor textarea {
   flex: 1;
-  height: 30px;
-  padding: 0 8px;
+  min-height: 30px;
+  padding: 6px 8px;
   border: 1px solid var(--wb-raised);
   border-radius: 5px;
   background: var(--wb-panel);
   color: var(--wb-ink-strong);
   font-size: 12px;
+  resize: vertical;
 }
 
 @media (max-width: 900px) {

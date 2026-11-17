@@ -12,7 +12,6 @@
 .wb-task-dot.is-awaiting_approval,
 .dock-subagent-card .wb-task-dot.is-awaiting_approval {
   background: var(--wb-amber);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--wb-amber) 55%, transparent);
 }
 
 .mc-stepper-card {

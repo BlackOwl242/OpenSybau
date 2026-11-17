@@ -287,6 +287,7 @@ export function settingsPage() {
     </button>`;
     }).join("")}
   </nav>
+  <div class="settings-main-column">
   <form class="settings-form" data-modal data-form="settings">
     <section class="settings-card theme-gallery-card" id="settings-theme" data-settings-section="theme" ${showSection("theme") ? "" : "hidden"}>
       <header>
@@ -309,16 +310,17 @@ export function settingsPage() {
     </section>
     <section class="settings-card cli-setup-card" id="cli-setup" data-settings-section="cli" ${showSection("cli") ? "" : "hidden"}><header><div><h2>Công cụ CLI & Hạn mức</h2><p>${isMobile ? "Trạng thái Codex, Antigravity, Claude Code và hạn mức tài khoản trên máy tính (PC) đang kết nối." : "Tự động nhận diện Codex, Antigravity, Claude Code và kiểm tra hạn mức tài khoản trên máy."}</p></div><div class="page-head-actions"><button class="button quiet small" type="button" data-action="refresh-quotas" ${view.quotasLoading ? "disabled" : ""}>${icon("refresh-cw", 13)} ${view.quotasLoading ? "Đang tải hạn mức..." : "Cập nhật hạn mức"}</button>${cliRefreshButton()}</div></header><div class="cli-guide-list">${cliSetup}</div></section>
     <section class="settings-card provider-setup-card" id="settings-api" data-settings-section="api" ${showSection("api") ? "" : "hidden"}><header><div><h2>Kết nối API & Model cục bộ</h2><p>Dùng thêm khóa API (OpenAI, Gemini, Claude) hoặc model chạy qua Ollama, LM Studio.</p></div><button class="button primary small" type="button" data-action="provider-add">${icon("plus", 14)} Thêm nguồn</button></header><div class="provider-setup-list">${apiSetup || `<div class="provider-empty-state"><strong>Chưa thêm nguồn API nào</strong><p>Bấm Thêm nguồn nếu bạn muốn dùng API key riêng hoặc kết nối Ollama / LM Studio.</p></div>`}${view.connectors?.apiConfigurationError ? `<p class="provider-config-error">${esc(view.connectors.apiConfigurationError)}</p>` : ""}</div></section>
-    ${renderDeviceConnectSettingsSection({ hidden: !showSection("devices") })}
     <section class="settings-card concurrency-card" id="settings-concurrency" data-settings-section="concurrency" ${showSection("concurrency") ? "" : "hidden"}><header><div><h2>Số công việc chạy cùng lúc</h2><p>${isMobile ? "Giới hạn số công việc AI được phép chạy song song trên máy tính (PC)." : "Giới hạn số công việc AI được phép chạy song song trên máy."}</p></div></header>
       <div class="concurrency-setting"><span>Giới hạn hiện tại</span><div><button type="button" data-action="parallel-minus" aria-label="Giảm task chạy đồng thời">${icon("minus", 14)}</button><strong id="parallel-value" style="font-variant-numeric:tabular-nums">${maxConcurrent}</strong><button type="button" data-action="parallel-plus" aria-label="Tăng task chạy đồng thời">${icon("plus", 14)}</button></div></div>
     </section>
-    <section class="empty-state settings-search-empty" data-settings-search-empty ${searchQuery && !anyVisibleSection ? "" : "hidden"}>
-      <div class="empty-symbol">${icon("search", 18)}</div>
-      <strong>Không tìm thấy cài đặt phù hợp</strong>
-      <p>Thử tìm theo tên mục như Giao diện, Model AI, CLI, API, Điện thoại hoặc Hiệu năng.</p>
-    </section>
-  </form>`;
+  </form>
+  ${renderDeviceConnectSettingsSection({ hidden: !showSection("devices") })}
+  <section class="empty-state settings-search-empty" data-settings-search-empty ${searchQuery && !anyVisibleSection ? "" : "hidden"}>
+    <div class="empty-symbol">${icon("search", 18)}</div>
+    <strong>Không tìm thấy cài đặt phù hợp</strong>
+    <p>Thử tìm theo tên mục như Giao diện, Model AI, CLI, API, Điện thoại hoặc Hiệu năng.</p>
+  </section>
+  </div>`;
 }
 
 export function showApiProviderModal(provider = null) {

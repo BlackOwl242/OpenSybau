@@ -899,6 +899,43 @@ document.addEventListener("load", (event) => {
 }, true);
 
 document.addEventListener("keydown", (event) => {
+  if (event.isComposing || event.keyCode === 229) return;
+  const activeDialog = document.querySelector("#overlay [role='dialog'][aria-modal='true'], .desktop-setup-backdrop [role='dialog'][aria-modal='true']");
+  if (event.key === "Tab" && activeDialog) {
+    const focusables = [...activeDialog.querySelectorAll("a[href], button:not([disabled]), input:not([disabled]):not([type='hidden']), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])")]
+      .filter((el) => el.offsetParent !== null);
+    if (focusables.length > 0) {
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !activeDialog.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+        return;
+      }
+      if (!event.shiftKey && (document.activeElement === last || !activeDialog.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+        return;
+      }
+    }
+  }
+  const activeTabButton = event.target?.closest?.('[role="tablist"] [role="tab"]');
+  if (activeTabButton && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+    const tablist = activeTabButton.closest('[role="tablist"]');
+    const tabs = [...(tablist?.querySelectorAll('[role="tab"]:not([disabled])') || [])];
+    const currentIndex = tabs.indexOf(activeTabButton);
+    if (tabs.length > 1 && currentIndex >= 0) {
+      event.preventDefault();
+      let nextIndex = currentIndex;
+      if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabs.length;
+      else if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+      else if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = tabs.length - 1;
+      tabs[nextIndex].focus();
+      tabs[nextIndex].click();
+      return;
+    }
+  }
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
     toggleCommandPalette();
@@ -928,12 +965,25 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   if (event.key === "Escape") {
+    const setupDismiss = document.querySelector(".desktop-setup-backdrop [data-action='dismiss-desktop-setup']");
+    if (setupDismiss) { setupDismiss.click(); return; }
     if (view.stageHtmlSelectedElement) { view.stageHtmlSelectedElement = null; view.stageHtmlCommentDraft = ""; syncHtmlInspectUi(); return; }
     if (view.stageHtmlInspectActive) { view.stageHtmlInspectActive = false; syncHtmlInspectUi(); return; }
     if ($("#overlay")?.children.length > 0) { closeOverlay(); return; }
     const openDetails = [...document.querySelectorAll("details.codex-pop-menu[open], details.composer-add[open], details.wb-status-usage[open], details.vault-action-menu[open]")];
     if (openDetails.length > 0) { openDetails.forEach((el) => el.removeAttribute("open")); return; }
     closeOverlay();
+  }
+  if (event.key === "Enter" && event.target.closest?.("#settings-devices")) {
+    event.preventDefault();
+    if (event.target.matches?.("[data-connection-password-input], #remote-host-allowlist-input")) {
+      document.querySelector("[data-action='save-connection-password']")?.click();
+    } else if (event.target.matches?.("[data-orca-quick-pair-input]")) {
+      document.querySelector("[data-action='apply-quick-pair']")?.click();
+    } else if (event.target.matches?.("[data-orca-host-url], [data-orca-host-pass], [data-orca-host-name], [data-orca-host-user]")) {
+      document.querySelector("[data-action='save-connect-orca-host']")?.click();
+    }
+    return;
   }
   if (event.key === "Enter" && !event.shiftKey && event.target.matches?.("[data-html-element-comment-input]")) {
     event.preventDefault(); document.querySelector("[data-action='send-html-element-comment']")?.click(); return;
@@ -994,6 +1044,10 @@ window.addEventListener("opensybau:pair", async (event) => {
       quickPair: uri,
     };
     view.orcaConnectDraft = draft;
+    const displayHost = draft.name || draft.url;
+    if (typeof window.confirm === "function" && !window.confirm(`Kết nối OpenSybau Mobile tới máy tính "${displayHost}" (${draft.url})?`)) {
+      return;
+    }
     const probe = await probeRemoteHost(draft);
     view.orcaConnectProbeResult = probe;
     if (probe.ok) {

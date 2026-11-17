@@ -321,7 +321,8 @@ export function buildConnectionInfoPayload({
     : primaryLan
       ? primaryLan.url
       : `${protocol}://127.0.0.1:${port}`;
-  const suggestedPassword = accessPassword || generateStrongAccessPassword();
+  const launcherPassword = includePassword ? (accessPassword || generateStrongAccessPassword()) : "<WORKBENCH_ACCESS_PASSWORD>";
+  const suggestedPassword = includePassword ? launcherPassword : "";
   const allowedHostList = lanAddresses.length
     ? lanAddresses.map((item) => item.hostPort).join(",")
     : `192.168.1.20:${port}`;
@@ -343,7 +344,7 @@ export function buildConnectionInfoPayload({
     `$env:WORKBENCH_PORT="${port}"`,
     `$env:WORKBENCH_ALLOWED_HOSTS="${allowedHostList}"`,
     `$env:WORKBENCH_ACCESS_USERNAME="${accessUsername || "opensybau"}"`,
-    `$env:WORKBENCH_ACCESS_PASSWORD="${suggestedPassword}"`,
+    `$env:WORKBENCH_ACCESS_PASSWORD="${launcherPassword}"`,
     `npm run build; npm start`,
   ].join("; ");
 
@@ -353,7 +354,7 @@ export function buildConnectionInfoPayload({
     `WORKBENCH_PORT=${port}`,
     `WORKBENCH_ALLOWED_HOSTS="${allowedHostList}"`,
     `WORKBENCH_ACCESS_USERNAME="${accessUsername || "opensybau"}"`,
-    `WORKBENCH_ACCESS_PASSWORD="${suggestedPassword}"`,
+    `WORKBENCH_ACCESS_PASSWORD="${launcherPassword}"`,
     `npm run build && npm start`,
   ].join(" ");
 

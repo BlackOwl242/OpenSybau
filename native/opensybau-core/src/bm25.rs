@@ -13,7 +13,12 @@ fn is_stop_word(word: &str) -> bool {
 }
 
 fn is_token_char(c: char) -> bool {
-    c.is_alphanumeric() || c == '_' || c == '-'
+    c.is_alphanumeric()
+        || c == '_'
+        || c == '-'
+        || ('\u{0300}'..='\u{036F}').contains(&c)
+        || ('\u{1AB0}'..='\u{1AFF}').contains(&c)
+        || ('\u{1DC0}'..='\u{1DFF}').contains(&c)
 }
 
 pub fn tokenize_terms(text: &str) -> Vec<String> {
@@ -54,7 +59,20 @@ pub fn tokenize_unique(text: &str) -> Vec<String> {
 
 fn has_pitfall_marker(content: &str) -> bool {
     let lower = content.to_ascii_lowercase();
-    lower.contains("[blocking]") || lower.contains("pitfall") || lower.contains("qa")
+    if lower.contains("[blocking]") || lower.contains("pitfall") {
+        return true;
+    }
+    let bytes = lower.as_bytes();
+    for (idx, win) in bytes.windows(2).enumerate() {
+        if win == b"qa" {
+            let prev_ok = idx == 0 || !bytes[idx - 1].is_ascii_alphanumeric();
+            let next_ok = idx + 2 >= bytes.len() || !bytes[idx + 2].is_ascii_alphanumeric();
+            if prev_ok && next_ok {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 pub struct RankedHit {

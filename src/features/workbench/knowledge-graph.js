@@ -45,8 +45,10 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
   let camY = 0;
   let camZoom = 1;
   let hoveredNode = null;
+  let focusedNodeIdx = -1;
   let draggedNode = null;
   let isPanning = false;
+  let activePointerId = null;
   let panStartX = 0;
   let panStartY = 0;
   let pointerMoved = false;
@@ -54,6 +56,8 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
   let rafId = 0;
   let cooling = 1.0;
   const reducedMotion = Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
+  canvas.style.touchAction = "none";
+  if (canvas.tabIndex < 0) canvas.tabIndex = 0;
 
   const resize = () => {
     const rect = canvas.getBoundingClientRect();
@@ -238,11 +242,25 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
     ctx.restore();
   };
 
+  const wakeRender = () => {
+    if (reducedMotion) {
+      renderGraphFrame({ showPulses: false });
+      return;
+    }
+    if (!rafId) rafId = requestAnimationFrame(draw);
+  };
+
   const draw = () => {
-    stepPhysics();
-    pulsePhase = (pulsePhase + 0.006) % 1;
-    renderGraphFrame({ showPulses: true });
-    rafId = requestAnimationFrame(draw);
+    rafId = 0;
+    const isSettled = cooling <= 0.015 && !draggedNode && !isPanning;
+    if (!isSettled) stepPhysics();
+    if (!reducedMotion && (hoveredNode || view.vaultPreview?.path)) {
+      pulsePhase = (pulsePhase + 0.006) % 1;
+    }
+    renderGraphFrame({ showPulses: !isSettled || Boolean(hoveredNode || view.vaultPreview?.path) });
+    if (!isSettled) {
+      rafId = requestAnimationFrame(draw);
+    }
   };
 
   const onPointerDown = (e) => {
@@ -250,15 +268,19 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
     pointerMoved = false;
+    activePointerId = e.pointerId;
+    try { canvas.setPointerCapture?.(e.pointerId); } catch {}
     const hit = findNodeAt(sx, sy);
     if (hit) {
       draggedNode = hit;
+      focusedNodeIdx = simNodes.indexOf(hit);
       cooling = Math.max(cooling, 0.35);
     } else {
       isPanning = true;
       panStartX = e.clientX - camX;
       panStartY = e.clientY - camY;
     }
+    wakeRender();
   };
 
   const onPointerMove = (e) => {
@@ -273,7 +295,7 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
       view.vaultGraphPositions.set(draggedNode.id, { x: world.x, y: world.y });
       cooling = Math.max(cooling, 0.25);
       canvas.style.cursor = "grabbing";
-      if (reducedMotion) renderGraphFrame({ showPulses: false });
+      wakeRender();
       return;
     }
     if (isPanning) {
@@ -281,18 +303,22 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
       camX = e.clientX - panStartX;
       camY = e.clientY - panStartY;
       canvas.style.cursor = "grabbing";
-      if (reducedMotion) renderGraphFrame({ showPulses: false });
+      wakeRender();
       return;
     }
     const prevHover = hoveredNode;
     hoveredNode = findNodeAt(sx, sy);
     canvas.style.cursor = hoveredNode ? "pointer" : "grab";
-    if (reducedMotion && hoveredNode !== prevHover) {
-      renderGraphFrame({ showPulses: false });
+    if (hoveredNode !== prevHover) {
+      wakeRender();
     }
   };
 
   const onPointerUp = (e) => {
+    if (activePointerId !== null) {
+      try { canvas.releasePointerCapture?.(activePointerId); } catch {}
+      activePointerId = null;
+    }
     const rect = canvas.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
@@ -300,14 +326,14 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
       const targetPath = draggedNode.path;
       draggedNode = null;
       if (loadVaultPreview) void loadVaultPreview(targetPath);
-      if (reducedMotion) renderGraphFrame({ showPulses: false });
+      wakeRender();
       return;
     }
     draggedNode = null;
     isPanning = false;
     hoveredNode = findNodeAt(sx, sy);
     canvas.style.cursor = hoveredNode ? "pointer" : "grab";
-    if (reducedMotion) renderGraphFrame({ showPulses: false });
+    wakeRender();
   };
 
   const onDblClick = (e) => {
@@ -323,7 +349,7 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
     e.preventDefault();
     const factor = e.deltaY < 0 ? 1.12 : 0.9;
     camZoom = Math.max(0.35, Math.min(2.8, camZoom * factor));
-    if (reducedMotion) renderGraphFrame({ showPulses: false });
+    wakeRender();
   };
 
   const onReset = () => {
@@ -331,24 +357,57 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
     if (reducedMotion) {
       for (let s = 0; s < 80; s += 1) stepPhysics();
       renderGraphFrame({ showPulses: false });
+    } else {
+      wakeRender();
+    }
+  };
+
+  const onKeyDown = (e) => {
+    if (!simNodes.length) return;
+    if (["ArrowRight", "ArrowDown"].includes(e.key)) {
+      e.preventDefault();
+      focusedNodeIdx = (focusedNodeIdx + 1) % simNodes.length;
+      hoveredNode = simNodes[focusedNodeIdx];
+      canvas.setAttribute("aria-label", `Đang chọn ghi chú: ${hoveredNode.stem || hoveredNode.name}`);
+      wakeRender();
+    } else if (["ArrowLeft", "ArrowUp"].includes(e.key)) {
+      e.preventDefault();
+      focusedNodeIdx = focusedNodeIdx <= 0 ? simNodes.length - 1 : focusedNodeIdx - 1;
+      hoveredNode = simNodes[focusedNodeIdx];
+      canvas.setAttribute("aria-label", `Đang chọn ghi chú: ${hoveredNode.stem || hoveredNode.name}`);
+      wakeRender();
+    } else if ((e.key === "Enter" || e.key === " ") && focusedNodeIdx >= 0 && simNodes[focusedNodeIdx]) {
+      e.preventDefault();
+      if (loadVaultPreview) void loadVaultPreview(simNodes[focusedNodeIdx].path);
+    } else if (e.key === "+" || e.key === "=") {
+      e.preventDefault();
+      camZoom = Math.min(2.8, camZoom * 1.15);
+      wakeRender();
+    } else if (e.key === "-" || e.key === "_") {
+      e.preventDefault();
+      camZoom = Math.max(0.35, camZoom * 0.88);
+      wakeRender();
+    } else if (e.key === "0") {
+      e.preventDefault();
+      onReset();
     }
   };
 
   canvas.addEventListener("pointerdown", onPointerDown);
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
+  window.addEventListener("pointercancel", onPointerUp);
   canvas.addEventListener("dblclick", onDblClick);
   canvas.addEventListener("wheel", onWheel, { passive: false });
+  canvas.addEventListener("keydown", onKeyDown);
   canvas.dataset.resetReady = "1";
   canvas._resetCamera = onReset;
 
-  const roStatic = reducedMotion
-    ? new ResizeObserver(() => {
-        resize();
-        renderGraphFrame({ showPulses: false });
-      })
-    : null;
-  if (roStatic) roStatic.observe(canvas);
+  const roStatic = new ResizeObserver(() => {
+    resize();
+    wakeRender();
+  });
+  roStatic.observe(canvas);
 
   if (reducedMotion) {
     for (let s = 0; s < 120; s += 1) stepPhysics();
@@ -357,13 +416,15 @@ export function mountKnowledgeGraphCanvas({ loadVaultPreview } = {}) {
     rafId = requestAnimationFrame(draw);
   }
   neuralGraphCleanup = () => {
-    cancelAnimationFrame(rafId);
+    if (rafId) cancelAnimationFrame(rafId);
     ro.disconnect();
-    if (roStatic) roStatic.disconnect();
+    roStatic.disconnect();
     canvas.removeEventListener("pointerdown", onPointerDown);
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
     canvas.removeEventListener("dblclick", onDblClick);
     canvas.removeEventListener("wheel", onWheel);
+    canvas.removeEventListener("keydown", onKeyDown);
   };
 }

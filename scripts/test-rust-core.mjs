@@ -9,6 +9,7 @@ import {
   rustBuildVaultGraphAsync,
   rustRankBm25Sync,
   rustScanWorkspaceFilesAsync,
+  rustBuildRepoMapAsync,
 } from "../src/server/rust-accelerator.mjs";
 import { parseUnifiedDiffFiles, parseUnifiedDiffFilesAsync } from "../src/server/diff-parser.mjs";
 import { buildVaultKnowledgeGraph } from "../src/server/vault-service.mjs";
@@ -105,6 +106,14 @@ async function main() {
   assert.ok(Array.isArray(scannedFiles) && scannedFiles.length > 10, "Should scan repository files");
   assert.ok(!scannedFiles.some((f) => f.includes("node_modules") || f.includes(".git/") || f.endsWith(".sqlite")), "Must exclude ignored dirs & sensitive files");
   console.log(`[PASS] Native Rust Workspace Scanner (scan-files): ${scannedFiles.length} safe context files scanned in ${scanMs.toFixed(2)} ms`);
+
+  // 5. Native Tree-Sitter-Style Symbol & Personalized PageRank RepoMap Benchmark
+  const tMap0 = performance.now();
+  const repoMapRes = await rustBuildRepoMapAsync(repoRoot, ["server.mjs"], 1000);
+  const mapMs = performance.now() - tMap0;
+  assert.ok(repoMapRes && typeof repoMapRes.repoMap === "string" && repoMapRes.repoMap.length > 50, "RepoMap must return ranked codebase symbols");
+  assert.ok(repoMapRes.repoMap.length <= 4200, "RepoMap must stay within ~1000 token budget");
+  console.log(`[PASS] Native Rust PageRank RepoMap (repo-map): ${repoMapRes.fileCount} files, ${repoMapRes.symbolCount} symbols in ${mapMs.toFixed(2)} ms`);
 
   const finalStatus = getRustAcceleratorStatus();
   console.log(`\n=== ALL RUST ACCELERATOR TESTS PASSED (workerActive=${finalStatus.workerActive}, totalCalls=${finalStatus.callsTotal}) ===`);

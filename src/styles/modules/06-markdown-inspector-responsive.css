@@ -1676,6 +1676,9 @@ summary:hover svg.lucide-animated .la-eye-outline { transform: scaleY(1.04); }
     border: 0;
     border-radius: 0;
   }
+  .wb-app-shell.is-sidebar-collapsed > .wb-context-sidebar {
+    display: flex;
+  }
   .wb-app-shell .wb-workspace-split,
   .wb-app-shell.has-right-dock .wb-workspace-split {
     grid-template-columns: minmax(0, 1fr);

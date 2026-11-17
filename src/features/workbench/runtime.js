@@ -33,6 +33,7 @@ let cliScanInProgress = false;
 let quotaRefreshPromise = null;
 let events = null;
 let remotePollTimer = null;
+let authRetryBlocked = false;
 
 const runtimeHooks = {
   render: null,
@@ -134,7 +135,11 @@ export async function api(path, options = {}) {
     }),
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+  if (!response.ok) {
+    const err = new Error(data.error || `Request failed (${response.status})`);
+    err.status = response.status;
+    throw err;
+  }
   return data;
 }
 
@@ -265,6 +270,16 @@ export function refresh({ configuration = false, background = false } = {}) {
       }
     } catch (error) {
       refreshAgain = false;
+      if (error?.status === 401 || /401|authentication/i.test(error?.message || "")) {
+        authRetryBlocked = true;
+        if (remotePollTimer) { clearInterval(remotePollTimer); remotePollTimer = null; }
+        view.streamConnected = false;
+        view.remoteAuthError = "Mật khẩu hoặc phiên ghép nối với PC không hợp lệ (401). Mở Kết nối thiết bị để nhập lại mật khẩu mới.";
+        try { events?.close?.(); } catch {}
+        events = null;
+        render();
+        return;
+      }
       if (!view.state && (isAndroidApkRuntime() || getActiveRemoteHost())) {
         view.state = { version: 1, settings: { maxConcurrent: 2, defaults: {}, vaultPath: "", taskPresets: [] }, workspaces: [], tasks: [] };
         view.streamConnected = false;
@@ -461,16 +476,22 @@ export async function ensureWorkspaceGitStatus(workspaceId, taskId = "", { force
   return promise;
 }
 
+let lastModalTriggerEl = null;
+
 export function showModal(title, body, submitLabel, formType = "") {
   const inferred = title === "Task mới" ? "task" : title === "Thêm workspace" ? "workspace" : title === "Ghi nhớ mới" ? "memory" : "dismiss";
   const type = formType || inferred;
   const overlay = $("#overlay");
   if (!overlay) return;
+  if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement && !overlay.contains(document.activeElement)) {
+    lastModalTriggerEl = document.activeElement;
+  }
   overlay.hidden = false;
   view.commandPaletteOpen = false;
-  overlay.innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal app-dialog-shell" role="dialog" aria-modal="true" aria-labelledby="modal-title" data-form="${type}" data-modal><header class="modal-head app-dialog-header"><h2 id="modal-title">${esc(title)}</h2><button type="button" class="icon-button app-dialog-close" data-action="close-modal" aria-label="Đóng" title="Đóng">${icon("x", 16)}</button></header><div class="modal-body app-dialog-content">${body}</div><footer class="modal-actions app-dialog-footer">${type === "dismiss" ? "" : `<button type="button" class="button quiet" data-action="close-modal">Hủy</button>`}<button class="button primary" type="submit">${esc(submitLabel)}</button></footer></form></div>`;
+  overlay.innerHTML = `<div class="modal-backdrop" data-action="close-modal"><form class="modal app-dialog-shell" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1" data-form="${type}" data-modal><header class="modal-head app-dialog-header"><h2 id="modal-title">${esc(title)}</h2><button type="button" class="icon-button app-dialog-close" data-action="close-modal" aria-label="Đóng" title="Đóng">${icon("x", 16)}</button></header><div class="modal-body app-dialog-content">${body}</div><footer class="modal-actions app-dialog-footer">${type === "dismiss" ? "" : `<button type="button" class="button quiet" data-action="close-modal">Hủy</button>`}<button class="button primary" type="submit">${esc(submitLabel)}</button></footer></form></div>`;
   localizeDom(overlay, view.language);
-  $(".modal input, .modal textarea, .modal select")?.focus();
+  const firstFocus = $(".modal input:not([type=hidden]):not([disabled]), .modal textarea:not([disabled]), .modal select:not([disabled]), .modal button:not([disabled])", overlay) || $(".modal", overlay);
+  firstFocus?.focus();
 }
 
 export function showErrorDetails(text) {
@@ -483,7 +504,12 @@ export function showErrorDetails(text) {
 export function closeOverlay() {
   view.commandPaletteOpen = false;
   const overlay = $("#overlay");
+  const hadContent = Boolean(overlay && overlay.children.length > 0);
   if (overlay) overlay.innerHTML = "";
+  if (hadContent && lastModalTriggerEl?.isConnected) {
+    try { lastModalTriggerEl.focus(); } catch {}
+  }
+  lastModalTriggerEl = null;
 }
 
 export const closeModal = closeOverlay;
@@ -559,7 +585,41 @@ export function scanCliProviders(button, { openModal = false } = {}) {
   return cliScanPromise;
 }
 
+function applyTaskStreamDelta(delta) {
+  if (!delta?.patchOnly || !Array.isArray(delta.tasks) || !delta.tasks.length) return false;
+  const tasks = view.state?.tasks;
+  if (!Array.isArray(tasks) || !tasks.length) return false;
+  const byId = new Map(tasks.map((task) => [task.id, task]));
+  for (const patch of delta.tasks) {
+    if (!patch?.id || !byId.has(patch.id)) return false;
+  }
+  for (const patch of delta.tasks) {
+    const task = byId.get(patch.id);
+    if (!task) continue;
+    if (patch.updatedAt) task.updatedAt = patch.updatedAt;
+    if (patch.status) task.status = patch.status;
+    if (patch.phase) task.phase = patch.phase;
+    if (patch.activeStage) task.activeStage = patch.activeStage;
+    task.events ||= [];
+    if (typeof patch.outputAppend === "string" && patch.outputAppend) {
+      const last = task.events.at(-1);
+      if (last?.kind === "output") {
+        last.at = patch.outputAt || patch.updatedAt || last.at;
+        last.text = `${last.text || ""}${patch.outputAppend}`.slice(-24_000);
+      } else {
+        task.events = [...task.events, { at: patch.outputAt || patch.updatedAt || new Date().toISOString(), kind: "output", text: patch.outputAppend.slice(-24_000) }].slice(-250);
+      }
+    } else if (patch.event) {
+      task.events = [...task.events, patch.event].slice(-250);
+    }
+  }
+  render({ background: true });
+  return true;
+}
+
 export function connectEventStream() {
+  authRetryBlocked = false;
+  view.remoteAuthError = "";
   try { events?.close?.(); } catch {}
   events = null;
   if (remotePollTimer) {
@@ -576,12 +636,18 @@ export function connectEventStream() {
     events.addEventListener("update", (ev) => {
       try {
         const payload = JSON.parse(ev.data || "{}");
-        if (payload.type === "subagents") view.subagentProfilesLoaded = false;
-        if (payload.type === "skills") view.skillsLoaded = false;
+        const list = Array.isArray(payload.types) ? payload.types : [payload.type];
+        if (list.includes("subagents")) view.subagentProfilesLoaded = false;
+        if (list.includes("skills")) view.skillsLoaded = false;
+        if (list.every((item) => item === "task") && applyTaskStreamDelta(payload.delta)) {
+          return;
+        }
       } catch {}
       scheduleRefresh(250);
     });
     events.addEventListener("open", () => {
+      authRetryBlocked = false;
+      view.remoteAuthError = "";
       if (remotePollTimer) {
         clearInterval(remotePollTimer);
         remotePollTimer = null;
@@ -592,10 +658,16 @@ export function connectEventStream() {
       if (view.state) scheduleRefresh(0);
     });
     events.addEventListener("error", () => {
+      if (authRetryBlocked) return;
       if (activeHost?.url && !remotePollTimer) {
         remotePollTimer = setInterval(() => {
+          if (authRetryBlocked) {
+            clearInterval(remotePollTimer);
+            remotePollTimer = null;
+            return;
+          }
           if (typeof document === "undefined" || !document.hidden) scheduleRefresh(0);
-        }, 2500);
+        }, 4000);
       }
       if (!view.streamConnected) return;
       view.streamConnected = false;
@@ -610,7 +682,7 @@ export const connectEvents = connectEventStream;
 
 export function startPeriodicRefresh() {
   setInterval(() => {
-    if (document.hidden) return;
+    if (document.hidden || authRetryBlocked) return;
     if (!view.streamConnected || Date.now() - lastSnapshotRefresh >= 60_000) scheduleRefresh(0);
     if (view.page === "settings" && Date.now() - lastConfigurationRefresh > 300_000) {
       void refresh({ configuration: true, background: true });

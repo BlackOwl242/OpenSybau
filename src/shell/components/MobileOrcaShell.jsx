@@ -428,6 +428,10 @@ export function MobileOrcaOverlay({ snapshot }) {
     && snapshot.mobileScreen !== "worktrees"
     && !isViewingFileTab
     && !chatSplit;
+  const isWorktreesScreen = page === "chat"
+    && snapshot.mobileScreen === "worktrees"
+    && !isViewingFileTab
+    && !chatSplit;
 
   // 1. On Home Chat screen: render Mobile Companion Triage Inbox + Sessions + Quota Deck
   if (isHomeChat) {
@@ -611,7 +615,7 @@ export function MobileOrcaOverlay({ snapshot }) {
                         <button
                           type="button"
                           class="button primary small mp-inbox-btn"
-                          data-action="approve-plan"
+                          data-action="approve-plan-gate"
                           data-id={t.id}
                         >
                           <Icon name="check" size={14} />
@@ -940,6 +944,66 @@ export function MobileOrcaOverlay({ snapshot }) {
     );
   }
 
+  if (isWorktreesScreen) {
+    const worktreeTasks = tasks.filter((t) => !t.archived && (t.isolated || t.worktreeBranch || t.branchName));
+    return (
+      <section class="mp-home-shell" aria-label="Git Worktrees">
+        <div class="mp-wl-card">
+          <div class="mp-wl-toolbar">
+            <span class="mp-wl-card-title" style={{ fontVariantNumeric: "tabular-nums" }}>
+              Git Worktrees ({worktreeTasks.length})
+            </span>
+            <button type="button" class="mp-wl-chip" data-action="mp-go-home">
+              <Icon name="arrow-left" size={14} />
+              <span>Quay lại</span>
+            </button>
+          </div>
+          {worktreeTasks.length ? (
+            <div class="mp-wl-list">
+              {worktreeTasks.map((t, idx) => {
+                const ws = workspaces.find((w) => w.id === t.workspaceId);
+                return (
+                  <div class="mp-inbox-card" key={`wt:${t.id}:${idx}`}>
+                    <div class="mp-inbox-card-top">
+                      <span class="mp-inbox-tag">
+                        <Icon name="git-branch" size={13} />
+                        <span data-localize-skip="true">{resolveTaskBranchLabel(t)}</span>
+                      </span>
+                      <strong class="mp-inbox-task-title" data-localize-skip="true">{compactChatTitle(t)}</strong>
+                    </div>
+                    {ws ? (
+                      <div class="mp-inbox-meta" data-localize-skip="true">{ws.name}</div>
+                    ) : null}
+                    <div class="mp-inbox-actions">
+                      <button type="button" class="button primary small mp-inbox-btn" data-task={t.id}>
+                        <Icon name="message-square" size={14} />
+                        <span>Mở phiên</span>
+                      </button>
+                      <button type="button" class="button quiet small mp-inbox-btn" data-action="show-diff" data-id={t.id}>
+                        <Icon name="file-diff" size={14} />
+                        <span>Xem Diff</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div class="mp-wl-empty-row">
+              <div class="mp-wl-empty-text">
+                <strong>Chưa có phiên Git Worktree nào</strong>
+                <span>Bật tùy chọn tách Worktree hoặc chạy Đa luồng trên repository Git đã có commit để xem các nhánh cô lập tại đây.</span>
+              </div>
+              <button type="button" class="button primary small" data-action="mp-go-home">
+                <span>Quay lại Trang chủ</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </section>
+    );
+  }
+
   // 2. On Active Session Screen: Shell ("shell" / "terminal") subtab or PLAN.md ("plan") subtab
   const task = page === "chat" && selectedId ? tasks.find((t) => t.id === selectedId) : null;
   const sessionTab = snapshot.mpSessionTab || "chat";
@@ -1025,7 +1089,7 @@ export function MobileOrcaOverlay({ snapshot }) {
             <button type="button" class="mp-accessory-key" data-action="mp-paste-terminal">Paste</button>
             <button type="button" class="mp-accessory-key" data-action="run-task-qa" data-id={task.id}>Test QA</button>
             {task.status === "awaiting_approval" ? (
-              <button type="button" class="mp-accessory-key is-accent" data-action="approve-plan" data-id={task.id}>
+              <button type="button" class="mp-accessory-key is-accent" data-action="approve-plan-gate" data-id={task.id}>
                 Duyệt Plan
               </button>
             ) : null}
@@ -1072,7 +1136,7 @@ export function MobileOrcaOverlay({ snapshot }) {
             {task.status === "awaiting_approval" ? (
               <div class="mp-plan-gate-bar">
                 <span>Phiên đang chờ duyệt kế hoạch trước khi triển khai code.</span>
-                <button type="button" class="button primary small" data-action="approve-plan" data-id={task.id}>
+                <button type="button" class="button primary small" data-action="approve-plan-gate" data-id={task.id}>
                   <Icon name="check" size={14} /> Duyệt PLAN.md
                 </button>
               </div>

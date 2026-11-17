@@ -15,6 +15,14 @@ const ICON_SRC = join(ROOT, "desktop", "icon.png");
 
 const syncOnly = process.argv.includes("--sync-only");
 const skipWebBuild = process.argv.includes("--skip-web-build");
+const forceDebug = process.argv.includes("--debug");
+const forceRelease = process.argv.includes("--release");
+const hasReleaseKeystore = Boolean(
+  process.env.OPENSYBAU_ANDROID_KEYSTORE
+  && process.env.OPENSYBAU_ANDROID_KEYSTORE_PASSWORD
+  && process.env.OPENSYBAU_ANDROID_KEY_ALIAS
+  && process.env.OPENSYBAU_ANDROID_KEY_PASSWORD,
+);
 
 async function runViteBuild() {
   if (skipWebBuild && existsSync(join(DIST_DIR, "index.html"))) {
@@ -115,10 +123,22 @@ if (syncOnly) {
 
 const toolchain = await detectAndroidToolchain();
 if (toolchain.hasJava && toolchain.hasSdk && toolchain.hasGradle) {
-  console.log("[android] Android SDK & JDK detected. Compiling debug APK...");
+  if (forceRelease && !hasReleaseKeystore) {
+    console.error("[android] --release requested but OPENSYBAU_ANDROID_KEYSTORE / KEYSTORE_PASSWORD / KEY_ALIAS / KEY_PASSWORD env vars are missing.");
+    process.exit(1);
+  }
+  const useRelease = forceRelease || (!forceDebug && hasReleaseKeystore);
+  const gradleTask = useRelease ? "assembleRelease" : "assembleDebug";
+  if (!useRelease) {
+    console.warn("[android] Building unsigned debug APK (set OPENSYBAU_ANDROID_KEYSTORE* env vars or pass --release for signed release APK).");
+  } else {
+    console.log("[android] Android SDK, JDK, and release keystore detected. Compiling signed release APK...");
+  }
   const cmd = toolchain.gradlewPath || (process.platform === "win32" ? "gradle.bat" : "gradle");
-  await execFileAsync(cmd, ["assembleDebug"], { cwd: ANDROID_DIR });
-  const apkSource = join(ANDROID_DIR, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
+  await execFileAsync(cmd, [gradleTask], { cwd: ANDROID_DIR });
+  const apkSource = useRelease
+    ? join(ANDROID_DIR, "app", "build", "outputs", "apk", "release", "app-release.apk")
+    : join(ANDROID_DIR, "app", "build", "outputs", "apk", "debug", "app-debug.apk");
   if (existsSync(apkSource)) {
     const outDir = join(ROOT, "release", "android");
     await mkdir(outDir, { recursive: true });
@@ -130,5 +150,5 @@ if (toolchain.hasJava && toolchain.hasSdk && toolchain.hasGradle) {
 } else {
   console.log("[android] Native Android project & OpenSybau web bundle are 100% synced in ./android.");
   console.log(`[android] Toolchain status: JDK=${toolchain.hasJava ? "ready" : "missing"}, ANDROID_HOME=${toolchain.hasSdk ? "ready" : "missing"}, Gradle=${toolchain.hasGradle ? "ready" : "missing"}.`);
-  console.log("[android] Open ./android in Android Studio or run `gradle assembleDebug` on a machine with Android SDK to output app-debug.apk.");
+  console.log("[android] Open ./android in Android Studio or run `gradle assembleRelease` / `gradle assembleDebug` with Android SDK to output the APK.");
 }

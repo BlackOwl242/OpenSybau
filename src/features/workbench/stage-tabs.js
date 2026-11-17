@@ -26,6 +26,19 @@ function resolveCompanionUrlSafe(rawUrl) {
   }
 }
 
+function isDirtyStageTab(tab) {
+  return Boolean(tab && typeof tab.editDraft === "string" && tab.editDraft !== String(tab.fileData?.content ?? ""));
+}
+
+function evictOldestCleanStageTab(tabs, activeTabId = "") {
+  while (tabs.length > 10) {
+    const cleanIdx = tabs.findIndex((item) => item.id !== activeTabId && !isDirtyStageTab(item));
+    const fallbackIdx = cleanIdx >= 0 ? cleanIdx : tabs.findIndex((item) => item.id !== activeTabId);
+    if (fallbackIdx < 0) break;
+    tabs.splice(fallbackIdx, 1);
+  }
+}
+
 export async function openStageFileTab({
   workspaceId = "",
   taskId = "",
@@ -74,7 +87,7 @@ export async function openStageFileTab({
       loadedAt: Date.now(),
     };
     view.stageTabs.push(tab);
-    if (view.stageTabs.length > 10) view.stageTabs.shift();
+    evictOldestCleanStageTab(view.stageTabs, view.activeStageTabId);
   } else {
     tab.taskId = tId || tab.taskId;
     if (preferredMode) tab.mode = preferredMode;
@@ -129,7 +142,7 @@ export async function openAllChangesStageTab({ workspaceId = "", taskId = "", ba
       loadedAt: Date.now(),
     };
     view.stageTabs.push(tab);
-    if (view.stageTabs.length > 10) view.stageTabs.shift();
+    evictOldestCleanStageTab(view.stageTabs, view.activeStageTabId);
   } else {
     tab.taskId = tId || tab.taskId;
     if (base) tab.diffBase = base;
@@ -270,7 +283,7 @@ export function openStageDocTab(task, docId) {
       loadedAt: Date.now(),
     };
     view.stageTabs.push(tab);
-    if (view.stageTabs.length > 10) view.stageTabs.shift();
+    evictOldestCleanStageTab(view.stageTabs, view.activeStageTabId);
   } else {
     tab.fileData = fileData;
     tab.loadedAt = Date.now();
@@ -337,7 +350,7 @@ export function openLiveUrlTab(rawUrl, taskId = "") {
       loadedAt: Date.now(),
     };
     view.stageTabs.push(tab);
-    if (view.stageTabs.length > 10) view.stageTabs.shift();
+    evictOldestCleanStageTab(view.stageTabs, view.activeStageTabId);
   } else {
     tab.liveUrl = normalizedUrl;
     tab.loadedAt = Date.now();

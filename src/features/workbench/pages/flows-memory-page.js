@@ -174,6 +174,9 @@ export function workflowPage() {
     if (statusFilter === "done") {
       return t.status === "done";
     }
+    if (statusFilter === "cron") {
+      return t.origin === "schedule" || Boolean(t.scheduleId) || String(t.code || "").startsWith("CRON-");
+    }
     return true;
   });
   const summaryDag = computeWaveDag(allTasks);
@@ -203,7 +206,7 @@ export function workflowPage() {
           </div>
           <div class="mc-needs-look-actions">
             ${isGate ? `<button type="button" class="button primary small" data-action="approve-plan-gate" data-id="${esc(t.id)}">${icon("check", 12)}<span>Duyệt & Chạy</span></button><button type="button" class="button quiet small" data-action="open-stage-doc" data-id="${esc(t.id)}" data-doc-id="plan">Xem kế hoạch</button>` : ""}
-            ${canMerge ? `<button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(t.id)}">${icon("check", 12)}<span>Gộp vào dự án</span></button>` : ""}
+            ${canMerge ? `<span class="mc-badge ${t.mergeConflict || stepper.findings.blocking > 0 || t.qaResult?.status === "failed" ? "is-blocking" : "is-passed"}">${t.mergeConflict || stepper.findings.blocking > 0 || t.qaResult?.status === "failed" ? "Checks: Cần xem" : "Checks: Sẵn sàng"}</span><button type="button" class="button primary small" data-action="apply-worktree" data-id="${esc(t.id)}">${icon("check", 12)}<span>Gộp vào dự án</span></button>` : ""}
             <button type="button" class="button quiet small" data-action="open-task-chat" data-id="${esc(t.id)}">Mở Chat</button>
             <button type="button" class="button quiet small" data-action="open-task-flow" data-id="${esc(t.id)}">Chi tiết</button>
           </div>
@@ -217,6 +220,7 @@ export function workflowPage() {
     { id: "attention", label: "Cần chú ý", iconName: "shield-check" },
     { id: "running", label: "Đang chạy", iconName: "refresh-cw" },
     { id: "done", label: "Hoàn tất", iconName: "check" },
+    { id: "cron", label: "CRON", iconName: "calendar" },
   ];
 
   const toolbarHtml = `<div class="mc-board-toolbar">
@@ -412,7 +416,7 @@ export function memoryPage() {
       <h1>Bộ nhớ</h1>
       <p>Quy tắc cá nhân (<code>USER.md</code>) và ghi nhớ đã ghim luôn được ưu tiên nạp ở Tier-1; bài học dự án được chọn tự động theo ngữ cảnh BM25.</p>
     </div>
-    ${notes.length ? `<div class="page-head-actions"><button class="button primary" data-action="new-memory">${icon("plus", 15)} <span>Thêm ghi nhớ</span></button></div>` : ""}
+    ${notes.length ? `<div class="page-head-actions"><button type="button" class="button quiet" data-action="consolidate-memory-dream" title="Gộp các ghi nhớ trùng lặp / gần giống (Dream Consolidation)">${icon("sparkles", 15)} <span>Hợp nhất Dream</span></button><button class="button primary" data-action="new-memory">${icon("plus", 15)} <span>Thêm ghi nhớ</span></button></div>` : ""}
   </div>
   <div class="flow-summary">
     <div><small>Đang hiển thị</small><strong>${filteredNotes.length}</strong></div>

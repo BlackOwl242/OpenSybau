@@ -5,6 +5,30 @@ All notable changes to **OpenSybau** are documented in this file.
 
 ---
 
+## [0.3.11] - 2026-11-17
+
+### Tiếng Việt
+- **Bảo mật, Streaming & Kiến trúc Cốt lõi (`server.mjs`, `src/server/`, `android/`, `public/boot-theme.js`)**:
+  - Vá nhóm lỗi bảo mật & ranh giới tin cậy: chống XSS/SSRF, token media giới hạn phạm vi (`GET /api/auth/media-token`), byte-range streaming `206/416`, đọc `HEAD:` cho tệp Git đã xóa, hỗ trợ keystore ký APK `--release`/`--debug`, và tách CSP sạch không dùng inline script.
+  - Tăng tốc render thời gian thực qua SSE task delta (`applyTaskStreamDelta`), sửa phân tích phản hồi rỗng trong `state-sync.js`, và lưu/phục hồi `roundHistory`, `checkpoints`, `telemetrySpans` qua `detail.json`.
+- **Rust PageRank RepoMap & API Agent Harness (`native/opensybau-core/src/repomap.rs`, `src/server/provider-registry.mjs`, `task-stage-runner.mjs`, `shadow-checkpoints.mjs`)**:
+  - Bổ sung chỉ mục đồ thị mã nguồn PageRank bản địa (`repo-map`) bằng Rust giúp cung cấp ngữ cảnh cấu trúc repository nhanh cho AI.
+  - Chuẩn hóa API tool loop đa lượt (`list_files`, `read_file`, `recall_sessions`, `memory_save`, `propose_skill_patch`, `delegate_subagent` có ghi nhận qua `upsertSubagent`), SSE streaming + retry `429/502/503/529`, Anthropic Tier-1 `cache_control`, Observation Masking chống tràn context, tự kiểm tra cú pháp & rollback, sửa `parseReviewFindings` cho tiêu đề Markdown không có dấu `:`, và hệ thống Shadow Git Checkpoints/Rewind độc lập.
+- **Giao thức Mở, A11y, Thiết kế & Cộng tác (`acp-client.mjs`, `mcp-server.mjs`, `mcp-client.mjs`, `otel-receiver.mjs`, `worktree-pool.mjs`, `src/features/workbench/`)**:
+  - Bổ sung ACP JSON-RPC client, OpenSybau MCP server (`--mcp-stdio` và `POST /api/mcp`), MCP client cục bộ cho `.mcp.json`, OpenTelemetry GenAI spans (`POST /api/otel/v1/traces`), bộ cấp phát cổng `$OPENSYBAU_PORT` & worktree hook an toàn, giải quyết xung đột gộp worktree `theirs`/`ours`, Design Proxy (`/api/design-proxy/:port/*` + chọn viewport `Desktop/768/390` + chụp vùng Electron), bảng Kanban 4 cột, bộ lọc `CRON`, Hợp nhất Dream memory (`consolidateMemoriesDream`), điều hướng bàn phím đầy đủ (Tablist Arrow, Modal focus-trap/restore, IME guard, Knowledge Graph sleep), cùng 4 bộ test tự động mới và CI đa nền tảng.
+
+### English
+- **Security Hardening, Streaming & Resilience (`server.mjs`, `src/server/`, `android/`, `public/boot-theme.js`)**:
+  - Hardened trust boundaries against XSS/SSRF, introduced scoped media tokens (`GET /api/auth/media-token`), HTTP `206/416` range streaming, `HEAD:` snapshot fallback for deleted Git files, release keystore signing flags for Android builds, and externalized CSP-compliant boot theming.
+  - Added incremental SSE task deltas (`applyTaskStreamDelta`), safer empty-body error parsing in `state-sync.js`, and `detail.json` hydration for `roundHistory`, `checkpoints`, and `telemetrySpans`.
+- **Native Rust PageRank RepoMap & API Agent Harness (`native/opensybau-core/src/repomap.rs`, `src/server/provider-registry.mjs`, `task-stage-runner.mjs`, `shadow-checkpoints.mjs`)**:
+  - Added native Rust Personalized PageRank repository map (`repo-map`) injection for external provider context.
+  - Upgraded the API harness with multi-turn native tool calls, `delegate_subagent` lifecycle tracking (`upsertSubagent`), SSE streaming with `429/502/503/529` exponential backoff, Anthropic Tier-1 ephemeral prompt caching, Observation Masking + HTTP 400 overflow retry, atomic syntax validation with rollback, colon-optional Markdown review heading parsing, and isolated Shadow Git Checkpoints & Rewind.
+- **Protocols, Accessibility, Design Studio & Verification (`acp-client.mjs`, `mcp-server.mjs`, `mcp-client.mjs`, `otel-receiver.mjs`, `worktree-pool.mjs`, `src/features/workbench/`)**:
+  - Added ACP stdio JSON-RPC client, opt-in MCP server (`--mcp-stdio` / `POST /api/mcp`) and workspace `.mcp.json` client, OpenTelemetry GenAI span collection/ingestion, worktree `$OPENSYBAU_PORT` pool & safe hooks, `theirs`/`ours` worktree conflict resolution, Cross-Origin Design Proxy (`Desktop/768/390` viewport switcher & Electron region capture), 4-column Tasks Kanban view, `CRON` filters, Memory Dream Consolidation, full WCAG AA contrast + keyboard navigation (modal focus trap/restore, tablist arrows, IME guard, Knowledge Graph idle sleep), plus 4 new test suites and multi-OS GitHub Actions CI/Release workflows.
+
+---
+
 ## [0.3.10] - 2026-11-13
 
 ### Tiếng Việt

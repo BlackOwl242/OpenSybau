@@ -38,11 +38,33 @@ export function renderMarkdown(source) {
   return html;
 }
 
-export function buildMarkdown(source) {
+export function buildMarkdown(source, { wikilinks = false } = {}) {
   const lines = String(source || "").split(/\r?\n/);
   const html = [];
   let paragraph = [], listType = "", codeLines = [], inCode = false, codeIndent = 0;
-  const inline = (text) => esc(text).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>").replace(/\[([^\]]+)\]\(((?:https?:\/\/|obsidian:\/\/|#)[^ ")<>']+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  const inline = (text) => {
+    const tokens = [];
+    const stash = (markup) => {
+      const idx = tokens.length;
+      tokens.push(markup);
+      return `\uE000TOK${idx}\uE001`;
+    };
+    let rendered = esc(text)
+      .replace(/`([^`]+)`/g, (_, code) => stash(`<code>${code}</code>`))
+      .replace(/\[([^\]]+)\]\(((?:https?:\/\/|obsidian:\/\/|#)[^ ")<>']+)\)/g, (_, label, href) => stash(`<a href="${href}" target="_blank" rel="noreferrer">${label}</a>`));
+    if (wikilinks) {
+      rendered = rendered.replace(/\[\[([^\]|#<>\r\n]+)(?:#[^\]|<>\r\n]*)?(?:\|([^\]<>\r\n]+))?\]\]/g, (_, target, alias) => {
+        const cleanTarget = target.trim();
+        const label = (alias || target).trim();
+        return stash(`<button type="button" class="vault-wikilink" data-action="vault-open-wikilink" data-target="${esc(cleanTarget)}" title="Mở liên kết tri thức: ${esc(cleanTarget)}">${icon("file", 12)}<span>${esc(label)}</span></button>`);
+      });
+    }
+    rendered = rendered
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/\uE000TOK(\d+)\uE001/g, (_, idx) => tokens[Number(idx)] ?? "");
+    return rendered;
+  };
   const flushParagraph = () => { if (paragraph.length) { html.push(`<p>${paragraph.map(inline).join("<br>")}</p>`); paragraph = []; } };
   const closeList = () => { if (listType) { html.push(`</${listType}>`); listType = ""; } };
   let headingIdx = 0;
@@ -132,12 +154,7 @@ export function extractMarkdownOutline(source) {
 }
 
 export function renderKnowledgeMarkdown(source) {
-  const baseHtml = renderMarkdown(source);
-  return baseHtml.replace(/\[\[([^\]|#<>\r\n]+)(?:#[^\]|<>\r\n]*)?(?:\|([^\]<>\r\n]+))?\]\]/g, (_, target, alias) => {
-    const label = (alias || target).trim();
-    const cleanTarget = target.trim();
-    return `<button type="button" class="vault-wikilink" data-action="vault-open-wikilink" data-target="${esc(cleanTarget)}" title="Mở liên kết tri thức: ${esc(cleanTarget)}">${icon("file", 12)}<span>${esc(label)}</span></button>`;
-  });
+  return buildMarkdown(source, { wikilinks: true });
 }
 
 export function filePreviewMarkup(file, title = "Chọn một tệp để xem") {

@@ -1,0 +1,52 @@
+name: OpenSybau CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  verify:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build and verify native Rust core
+        run: |
+          npm run rust:build
+          npm run rust:test
+
+      - name: Build Vite production bundle & verify Impeccable CSS
+        run: |
+          npm run build
+          npx impeccable detect --json dist/index.html
+
+      - name: Run unit, integration, security & Phase 2-3 tests
+        run: npm test
+
+      - name: Run browser headless UI, E2E & A11y suites (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          npm run test:ui
+          npm run test:drawers
+          npm run test:mobile
+          npm run test:e2e
+          npm run test:browser-qa

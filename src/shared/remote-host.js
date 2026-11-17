@@ -40,7 +40,26 @@ export function isMobileCompanionMode() {
 }
 
 const pendingNativeHttpRequests = new Map();
+const streamTokenByHost = new Map();
 let nativeHttpSeq = 0;
+
+function recordStreamTokenFromUrl(urlStr, token) {
+  if (!urlStr || !token) return;
+  try {
+    const origin = new URL(urlStr).origin.toLowerCase();
+    streamTokenByHost.set(origin, String(token));
+  } catch {}
+}
+
+export function getCachedStreamToken(hostUrl = "") {
+  const activeUrl = hostUrl || getActiveRemoteHost()?.url || (typeof globalThis.window !== "undefined" ? globalThis.window.location?.origin : "");
+  if (!activeUrl) return "";
+  try {
+    return streamTokenByHost.get(new URL(activeUrl).origin.toLowerCase()) || "";
+  } catch {
+    return "";
+  }
+}
 
 function ensureNativeHttpResultHandler() {
   if (typeof globalThis.window === "undefined") return;
@@ -112,6 +131,8 @@ export async function remoteFetch(url, options = {}) {
     }
     const responseText = String(parsed.body ?? "");
     const etag = String(parsed.etag || "");
+    const streamToken = String(parsed.streamToken || "");
+    if (streamToken) recordStreamTokenFromUrl(targetUrl, streamToken);
     const contentType = String(parsed.contentType || "application/json");
     return {
       ok: Boolean(parsed.ok),
@@ -121,6 +142,7 @@ export async function remoteFetch(url, options = {}) {
           const lower = String(name || "").toLowerCase();
           if (lower === "etag") return etag || null;
           if (lower === "content-type") return contentType || null;
+          if (lower === "x-opensybau-stream-token") return streamToken || null;
           return null;
         },
       },
@@ -132,7 +154,10 @@ export async function remoteFetch(url, options = {}) {
       },
     };
   }
-  return globalThis.fetch(targetUrl, options);
+  const fetchRes = await globalThis.fetch(targetUrl, options);
+  const headerToken = fetchRes.headers?.get?.("X-OpenSybau-Stream-Token");
+  if (headerToken) recordStreamTokenFromUrl(targetUrl, headerToken);
+  return fetchRes;
 }
 
 export function normalizeRemoteHostUrl(rawUrl) {
@@ -285,8 +310,9 @@ export function resolveRemoteUrl(input) {
   const activeHost = getActiveRemoteHost();
   if (!activeHost?.url) return str;
   let resolved = `${activeHost.url.replace(/\/+$/, "")}${str}`;
+  const streamToken = getCachedStreamToken(activeHost.url);
   if (
-    activeHost.password
+    streamToken
     && (
       str.startsWith("/api/events")
       || str.startsWith("/__events")
@@ -295,7 +321,7 @@ export function resolveRemoteUrl(input) {
     && !/[?&]access_token=/.test(resolved)
   ) {
     const sep = resolved.includes("?") ? "&" : "?";
-    resolved = `${resolved}${sep}access_token=${encodeURIComponent(activeHost.password)}`;
+    resolved = `${resolved}${sep}access_token=${encodeURIComponent(streamToken)}`;
   }
   return resolved;
 }
@@ -303,10 +329,11 @@ export function resolveRemoteUrl(input) {
 export function resolveAuthenticatedMediaUrl(input) {
   const resolved = resolveRemoteUrl(input);
   const activeHost = getActiveRemoteHost();
-  if (!activeHost?.url || !activeHost?.password) return resolved;
-  if (!/[?&]access_token=/.test(resolved)) {
+  if (!activeHost?.url) return resolved;
+  const streamToken = getCachedStreamToken(activeHost.url);
+  if (streamToken && !/[?&]access_token=/.test(resolved)) {
     const sep = resolved.includes("?") ? "&" : "?";
-    return `${resolved}${sep}access_token=${encodeURIComponent(activeHost.password)}`;
+    return `${resolved}${sep}access_token=${encodeURIComponent(streamToken)}`;
   }
   return resolved;
 }

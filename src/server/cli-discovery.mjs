@@ -304,9 +304,9 @@ export function createCliDiscoveryService({
     };
     const codexVersion = await run(codexExe, ["--version"], { timeout: 10000 });
     modelCache.codex.installed = cliIsInstalled(codexExe, codexVersion.code);
-    modelCache.claude.installed = cliIsInstalled(claudeExe, claude.code);
+    modelCache.claude.installed = cliIsInstalled(claudeExe, claude.code, undefined, claudeCommand?.prefixArgs?.[0] || "");
     modelCache.codex.version = codexVersion.code === 0 ? codexVersion.stdout.trim() : "unavailable";
-    modelCacheUntil = Date.now() + (agy.installed && !agy.available && agy.authenticated !== false ? 5000 : 60_000);
+    modelCacheUntil = Date.now() + 60_000;
     return modelCache;
   }
 

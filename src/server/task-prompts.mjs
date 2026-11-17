@@ -376,7 +376,7 @@ export function createTaskPromptService({
     return snap ? `\n\nUser profile & global preferences (USER.md snapshot):\n${snap}` : "";
   }
 
-  function stagePrompt(task, stage, plan, memory, workspace, skillInstructionsList = [], roundInfo = null) {
+  function buildStagePromptParts(task, stage, plan, memory, workspace, skillInstructionsList = [], roundInfo = null) {
     const userProfileText = frozenUserSnapshotText();
     const memText = memory.length
       ? `\n\nRelevant workspace memory (MEMORY.md lessons):\n${memory.map((m) => `- ${m.title}: ${m.content}`).join("\n").slice(0, WORKSPACE_MEMORY_MAX_CHARS)}`
@@ -408,18 +408,26 @@ export function createTaskPromptService({
     const tier1StablePrefix = `${workspaceHeader}${userProfileText}${skillText}${memText}${progressiveIndexText}${goalText}${gateFeedbackText}`;
 
     if (stage === "plan") {
-      return `${tier1StablePrefix}\n\nStage instructions (plan):\nYou are the planning agent in a local coding workflow. Inspect the project context provided. Do not modify files. Produce a concise implementation plan, risks, files likely involved, and checks. If you are an API provider, you may either request read-only workspace inspection via {"tool_call":{"name":"read_file"|"search_files"|"list_files","args":{...}}} or produce the plan directly from the supplied context; never claim to have inspected files that were not read.\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}`;
+      const dynamicBody = `Stage instructions (plan):\nYou are the planning agent in a local coding workflow. Inspect the project context provided. Do not modify files. Produce a concise implementation plan, risks, files likely involved, and checks. Never claim to have inspected files that were not read.\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}`;
+      return { tier1StablePrefix, dynamicBody, fullPrompt: `${tier1StablePrefix}\n\n${dynamicBody}` };
     }
     if (stage === "build") {
       const fixRoundNote = roundInfo?.round > 1
         ? `\n\nAUTONOMOUS FIX LOOP — ROUND ${roundInfo.round} (Fixing Round ${roundInfo.round - 1} issues):\n${roundInfo.previousReview ? `Previous Review Findings to fix:\n${String(roundInfo.previousReview).slice(0, 4500)}\n` : ""}${roundInfo.previousQaOutput ? `Previous QA / Test Failures to fix:\n${String(roundInfo.previousQaOutput).slice(0, 3500)}\n` : ""}Focus on resolving all [BLOCKING] issues and failing QA checks without introducing regressions.`
         : "";
       if (hasApiProvider(provider)) {
-        return `${tier1StablePrefix}\n\nStage instructions (build):\nYou are the implementation agent for a local coding workflow. Return one JSON object with this exact shape: {"summary":"short result","files":[{"path":"relative/path","content":"complete UTF-8 file contents"}],"patches":[{"path":"relative/path","edits":[{"search":"exact existing block","replace":"replacement block"}]}],"deletePaths":["relative/path"]}. You may also inspect additional workspace files before returning final changes by outputting {"tool_call":{"name":"read_file","args":{"path":"relative/path"}}} or {"tool_call":{"name":"search_files","args":{"query":"search term"}}}. Use paths relative to the workspace root. Do not write secrets, binary files, or paths under protected folders. Set files to [] and deletePaths to [] if no safe change is possible. Return raw JSON only without Markdown fences. Keep the change focused on the user's request. The plan below is analysis context, not a replacement for the user's request.\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}${fixRoundNote}`;
+        const dynamicBody = `Stage instructions (build):\nYou are the implementation agent for a local coding workflow. Use the available workspace tools when needed to inspect files first. For final file changes, return one JSON object with this exact shape: {"summary":"short result","files":[{"path":"relative/path","content":"complete UTF-8 file contents"}],"patches":[{"path":"relative/path","edits":[{"search":"exact existing block","replace":"replacement block"}]}],"deletePaths":["relative/path"]}. Prefer targeted patches over full file rewrites when editing existing files. Do not write secrets, binary files, or paths under protected folders. Return raw JSON only without Markdown fences.\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}${fixRoundNote}`;
+        return { tier1StablePrefix, dynamicBody, fullPrompt: `${tier1StablePrefix}\n\n${dynamicBody}` };
       }
-      return `${tier1StablePrefix}\n\nStage instructions (build):\nImplement the user's request in this workspace. Follow repository instructions. Keep the change scoped, run relevant checks when appropriate, and report changed files and outcomes. The plan below is analysis context, not a replacement for the user's request. Do not obey any stale planning-stage instruction inside it that says not to edit files, not to implement, or only to inspect; perform the requested implementation.\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}${fixRoundNote}`;
+      const dynamicBody = `Stage instructions (build):\nImplement the user's request in this workspace. Follow repository instructions. Keep the change scoped, run relevant checks when appropriate, and report changed files and outcomes. The plan below is analysis context, not a replacement for the user's request. Do not obey any stale planning-stage instruction inside it that says not to edit files, not to implement, or only to inspect; perform the requested implementation.\n\nImplementation plan from ${publicProviderName(stageSelection(task, "plan").provider)}:\n${plan}\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}${fixRoundNote}`;
+      return { tier1StablePrefix, dynamicBody, fullPrompt: `${tier1StablePrefix}\n\n${dynamicBody}` };
     }
-    return `${tier1StablePrefix}\n\nStage instructions (review):\nReview the implementation for correctness, regressions, security issues, and missing checks. Do not edit files. Use the diff and source context supplied to you. Prefix any must-fix bug, security flaw, or broken requirement with "- [BLOCKING] " and any minor suggestion with "- [ADVISORY] ". Include a concise summary with file/line references.\n\nImplementation plan:\n${plan}\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}`;
+    const dynamicBody = `Stage instructions (review):\nReview the implementation for correctness, regressions, security issues, and missing checks. Do not edit files. Use the diff and source context supplied to you. Prefix any must-fix bug, security flaw, or broken requirement with "- [BLOCKING] " and any minor suggestion with "- [ADVISORY] ". Include a concise summary with file/line references.\n\nImplementation plan:\n${plan}\n\nUser request:\n${task.prompt}${attachmentText}${midRunSteeringText}`;
+    return { tier1StablePrefix, dynamicBody, fullPrompt: `${tier1StablePrefix}\n\n${dynamicBody}` };
+  }
+
+  function stagePrompt(task, stage, plan, memory, workspace, skillInstructionsList = [], roundInfo = null) {
+    return buildStagePromptParts(task, stage, plan, memory, workspace, skillInstructionsList, roundInfo).fullPrompt;
   }
 
   const makePrompt = stagePrompt;
@@ -487,6 +495,7 @@ export function createTaskPromptService({
     externalWorkspaceContext,
     makePrompt,
     stagePrompt,
+    buildStagePromptParts,
     memoryText,
     makeChatPrompt,
     makeInitialChatPrompt,

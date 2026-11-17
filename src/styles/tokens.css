@@ -63,7 +63,7 @@ html.desktop-glass[data-wb-theme="obsidian"] {
   --wb-ink: #e4e4e7;
   --wb-ink-strong: #fafafa;
   --wb-muted: #9898a2;
-  --wb-subtle: #71717b;
+  --wb-subtle: #90909a;
   --wb-ink-muted: var(--wb-muted);
   --wb-ink-faint: var(--wb-subtle);
   --wb-text-primary: var(--wb-ink-strong);
@@ -91,7 +91,7 @@ html.desktop-glass[data-wb-theme="obsidian"] {
   --wb-code-bg: #1b1c1e;
   --wb-term-bg: var(--wb-code-bg);
   --wb-term-fg: #d4d8e8;
-  --wb-term-muted: #7c849b;
+  --wb-term-muted: #929bb2;
   --wb-term-prompt: #4ade80;
   --wb-term-cmd: #f8fafc;
 
@@ -168,7 +168,7 @@ html.desktop-glass[data-wb-theme="obsidian"] {
   --input: var(--wb-border-subtle);
   --ring: var(--wb-border-strong);
   --chart-1: #60a5fa;
-  --chart-2: #818cf8;
+  --chart-2: #3b82f6;
   --chart-3: #86efac;
   --chart-4: #fbbf24;
   --chart-5: #ff6568;
@@ -225,8 +225,8 @@ html.desktop-glass[data-wb-theme="carbon-oled"] {
   --wb-control-hover: rgba(255, 255, 255, 0.13);
   --wb-ink: #ededf0;
   --wb-ink-strong: #ffffff;
-  --wb-muted: #9ca3af;
-  --wb-subtle: #6b7280;
+  --wb-muted: #a1a8b5;
+  --wb-subtle: #949ba8;
   --wb-accent: #ffffff;
   --wb-accent-fg: #050608;
   --wb-primary-bg: #ffffff;
@@ -237,13 +237,13 @@ html.desktop-glass[data-wb-theme="carbon-oled"] {
   --wb-code-bg: #080a0f;
 }
 
-/* 3. Antigravity Cosmic (Deep Cosmic Navy + Indigo & Electric Cyan) */
+/* 3. Antigravity Cosmic (Deep Cosmic Navy + Sapphire Blue) */
 html[data-theme="antigravity"],
 html[data-wb-theme="antigravity"],
 html.desktop-glass[data-theme="antigravity"],
 html.desktop-glass[data-wb-theme="antigravity"] {
   color-scheme: dark;
-  --wb-tint: #c7d2fe;
+  --wb-tint: #cbd5e1;
   --wb-bg: #060913;
   --wb-rail: #070a15;
   --wb-sidebar: #0b1020;
@@ -253,28 +253,28 @@ html.desktop-glass[data-wb-theme="antigravity"] {
   --wb-surface-soft: #0d1324;
   --wb-panel-header: #0b1121;
   --wb-raised: #182342;
-  --wb-hover: rgba(99, 102, 241, 0.15);
-  --wb-line: rgba(129, 140, 248, 0.15);
-  --wb-border-subtle: rgba(129, 140, 248, 0.16);
+  --wb-hover: rgba(54, 82, 217, 0.16);
+  --wb-line: rgba(148, 163, 184, 0.16);
+  --wb-border-subtle: rgba(148, 163, 184, 0.18);
   --wb-border-strong: rgba(56, 189, 248, 0.34);
   --wb-field: #121a31;
-  --wb-control: rgba(99, 102, 241, 0.13);
-  --wb-control-hover: rgba(99, 102, 241, 0.22);
-  --wb-ink: #e0e7ff;
+  --wb-control: rgba(59, 130, 246, 0.14);
+  --wb-control-hover: rgba(59, 130, 246, 0.24);
+  --wb-ink: #e2e8f0;
   --wb-ink-strong: #f8fafc;
-  --wb-muted: #94a3b8;
-  --wb-subtle: #64748b;
-  --wb-accent: #6366f1;
+  --wb-muted: #9eb0c7;
+  --wb-subtle: #8b9bb4;
+  --wb-accent: #3652d9;
   --wb-accent-fg: #ffffff;
-  --wb-primary-bg: #6366f1;
+  --wb-primary-bg: #3652d9;
   --wb-primary-fg: #ffffff;
   --wb-user-bubble-bg: #1e295b;
-  --wb-user-bubble-border: rgba(99, 102, 241, 0.42);
+  --wb-user-bubble-border: rgba(59, 130, 246, 0.42);
   --wb-user-bubble-fg: #eef2ff;
   --wb-code-bg: #070a15;
 }
 
-/* 4. Tokyo Night (Storm Navy + Neon Blue & Lavender) */
+/* 4. Tokyo Night (Storm Navy + Cobalt Blue) */
 html[data-theme="tokyo-night"],
 html[data-wb-theme="tokyo-night"],
 html.desktop-glass[data-theme="tokyo-night"],
@@ -299,8 +299,8 @@ html.desktop-glass[data-wb-theme="tokyo-night"] {
   --wb-control-hover: rgba(122, 162, 247, 0.21);
   --wb-ink: #c0caf5;
   --wb-ink-strong: #e2e8f0;
-  --wb-muted: #8995c9;
-  --wb-subtle: #565f89;
+  --wb-muted: #9aa7d6;
+  --wb-subtle: #8b96c9;
   --wb-accent: #7aa2f7;
   --wb-accent-fg: #11121a;
   --wb-primary-bg: #7aa2f7;
@@ -311,44 +311,44 @@ html.desktop-glass[data-wb-theme="tokyo-night"] {
   --wb-code-bg: #13141c;
 }
 
-/* 5. Synthwave Pulse (Cyberpunk Violet + Rose Neon) */
+/* 5. Synthwave Pulse (Deep Wine + Crimson Neon) */
 html[data-theme="synthwave"],
 html[data-wb-theme="synthwave"],
 html.desktop-glass[data-theme="synthwave"],
 html.desktop-glass[data-wb-theme="synthwave"] {
   color-scheme: dark;
-  --wb-tint: #f5d0fe;
-  --wb-bg: #0c0514;
-  --wb-rail: #0e0618;
-  --wb-sidebar: #140a23;
-  --wb-main: #11081d;
-  --wb-panel: #1b0e2e;
-  --wb-surface: #221238;
-  --wb-surface-soft: #160b26;
-  --wb-panel-header: #130921;
-  --wb-raised: #291644;
-  --wb-hover: rgba(244, 63, 94, 0.15);
-  --wb-line: rgba(216, 180, 254, 0.14);
-  --wb-border-subtle: rgba(216, 180, 254, 0.15);
-  --wb-border-strong: rgba(244, 63, 94, 0.36);
-  --wb-field: #1d1030;
-  --wb-control: rgba(168, 85, 247, 0.14);
-  --wb-control-hover: rgba(244, 63, 94, 0.22);
-  --wb-ink: #f3e8ff;
-  --wb-ink-strong: #fdf4ff;
-  --wb-muted: #c084fc;
-  --wb-subtle: #886ba8;
-  --wb-accent: #f43f5e;
+  --wb-tint: #f8dce6;
+  --wb-bg: #12060f;
+  --wb-rail: #150712;
+  --wb-sidebar: #1c0b18;
+  --wb-main: #180915;
+  --wb-panel: #241020;
+  --wb-surface: #2d1428;
+  --wb-surface-soft: #1d0c1a;
+  --wb-panel-header: #1a0a16;
+  --wb-raised: #361830;
+  --wb-hover: rgba(225, 29, 72, 0.16);
+  --wb-line: rgba(248, 220, 230, 0.14);
+  --wb-border-subtle: rgba(248, 220, 230, 0.16);
+  --wb-border-strong: rgba(225, 29, 72, 0.42);
+  --wb-field: #261122;
+  --wb-control: rgba(225, 29, 72, 0.14);
+  --wb-control-hover: rgba(225, 29, 72, 0.24);
+  --wb-ink: #fce7f3;
+  --wb-ink-strong: #fff1f7;
+  --wb-muted: #e2b6d5;
+  --wb-subtle: #bd94b1;
+  --wb-accent: #e11d48;
   --wb-accent-fg: #ffffff;
-  --wb-primary-bg: #f43f5e;
+  --wb-primary-bg: #e11d48;
   --wb-primary-fg: #ffffff;
-  --wb-user-bubble-bg: #3b1338;
-  --wb-user-bubble-border: rgba(244, 63, 94, 0.4);
+  --wb-user-bubble-bg: #3b132b;
+  --wb-user-bubble-border: rgba(225, 29, 72, 0.44);
   --wb-user-bubble-fg: #ffe4e6;
-  --wb-code-bg: #0c0514;
+  --wb-code-bg: #12060f;
 }
 
-/* 6. Catppuccin Mocha (Warm Mocha + Pastel Mauve) */
+/* 6. Catppuccin Mocha (Warm Mocha + Soft Coral) */
 html[data-theme="catppuccin"],
 html[data-wb-theme="catppuccin"],
 html.desktop-glass[data-theme="catppuccin"],
@@ -374,7 +374,7 @@ html.desktop-glass[data-wb-theme="catppuccin"] {
   --wb-ink: #cdd6f4;
   --wb-ink-strong: #f5e0dc;
   --wb-muted: #a6adc8;
-  --wb-subtle: #6c7086;
+  --wb-subtle: #9399b2;
   --wb-accent: #cba6f7;
   --wb-accent-fg: #11111b;
   --wb-primary-bg: #cba6f7;
@@ -447,8 +447,8 @@ html.desktop-glass[data-wb-theme="rose-pine"] {
   --wb-control-hover: rgba(235, 188, 186, 0.21);
   --wb-ink: #e0def4;
   --wb-ink-strong: #fffaf3;
-  --wb-muted: #908caa;
-  --wb-subtle: #6e6a86;
+  --wb-muted: #aba8c5;
+  --wb-subtle: #908caa;
   --wb-accent: #ebbcba;
   --wb-accent-fg: #191724;
   --wb-primary-bg: #ebbcba;
@@ -521,8 +521,8 @@ html.desktop-glass[data-wb-theme="nordic"] {
   --wb-control-hover: rgba(136, 192, 208, 0.22);
   --wb-ink: #e5e9f0;
   --wb-ink-strong: #eceff4;
-  --wb-muted: #9aa5b8;
-  --wb-subtle: #6c778c;
+  --wb-muted: #a6b2c6;
+  --wb-subtle: #93a0b8;
   --wb-accent: #88c0d0;
   --wb-accent-fg: #171b24;
   --wb-primary-bg: #88c0d0;
@@ -572,15 +572,15 @@ html[data-wb-scheme="light"] {
   --wb-green-raised: rgba(22, 163, 74, 0.2);
   --wb-blue-soft: rgba(37, 99, 235, 0.12);
   --wb-blue-raised: rgba(37, 99, 235, 0.2);
-  --wb-red: #dc2626;
-  --wb-red-soft: rgba(220, 38, 38, 0.12);
-  --wb-amber: #d97706;
-  --wb-amber-soft: rgba(217, 119, 6, 0.14);
+  --wb-red: #b91c1c;
+  --wb-red-soft: rgba(185, 28, 28, 0.12);
+  --wb-amber: #b45309;
+  --wb-amber-soft: rgba(180, 83, 9, 0.14);
   --wb-overlay: rgba(15, 23, 42, 0.44);
   --wb-ink: #1e293b;
   --wb-ink-strong: #0f172a;
   --wb-muted: #475569;
-  --wb-subtle: #64748b;
+  --wb-subtle: #515e72;
   --wb-accent: #2563eb;
   --wb-accent-fg: #ffffff;
   --wb-accent-soft: color-mix(in srgb, var(--wb-accent) 13%, transparent);
@@ -594,14 +594,14 @@ html[data-wb-scheme="light"] {
   --wb-code-bg: #f1f5f9;
   --wb-term-bg: #f1f5f9;
   --wb-term-fg: #1e293b;
-  --wb-term-muted: #64748b;
+  --wb-term-muted: #515e72;
   --wb-term-prompt: #15803d;
   --wb-term-cmd: #0f172a;
   --chart-1: #2563eb;
-  --chart-2: #4f46e5;
+  --chart-2: #0284c7;
   --chart-3: #15803d;
-  --chart-4: #d97706;
-  --chart-5: #dc2626;
+  --chart-4: #b45309;
+  --chart-5: #b91c1c;
 }
 
 /* 11. Daylight Frost (Crisp Snow Light + Royal Blue; also Alabaster alias) */
@@ -647,7 +647,7 @@ html.desktop-glass[data-wb-theme="alabaster"] {
   --wb-ink: #1e293b;
   --wb-ink-strong: #0f172a;
   --wb-muted: #475569;
-  --wb-subtle: #64748b;
+  --wb-subtle: #515e72;
   --wb-accent: #2563eb;
   --wb-accent-fg: #ffffff;
   --wb-primary-bg: #2563eb;
@@ -658,12 +658,12 @@ html.desktop-glass[data-wb-theme="alabaster"] {
   --wb-code-bg: #f1f5f9;
   --wb-term-bg: #f1f5f9;
   --wb-term-fg: #1e293b;
-  --wb-term-muted: #64748b;
+  --wb-term-muted: #515e72;
   --wb-term-prompt: #15803d;
   --wb-term-cmd: #0f172a;
   --wb-green: #15803d;
-  --wb-red: #dc2626;
-  --wb-amber: #d97706;
+  --wb-red: #b91c1c;
+  --wb-amber: #b45309;
 }
 
 /* 12. Editorial Stone (Bauhaus Warm Cream; also Paper Ink & Warm Linen aliases) */
@@ -712,8 +712,8 @@ html.desktop-glass[data-wb-theme="warm-linen"] {
   --wb-overlay: rgba(28, 25, 23, 0.44);
   --wb-ink: #292524;
   --wb-ink-strong: #141413;
-  --wb-muted: #57534e;
-  --wb-subtle: #78716c;
+  --wb-muted: #514d48;
+  --wb-subtle: #57514b;
   --wb-accent: #18181b;
   --wb-accent-fg: #faf7f2;
   --wb-primary-bg: #18181b;
@@ -724,7 +724,7 @@ html.desktop-glass[data-wb-theme="warm-linen"] {
   --wb-code-bg: #efe9e0;
   --wb-term-bg: #efe9e0;
   --wb-term-fg: #292524;
-  --wb-term-muted: #78716c;
+  --wb-term-muted: #57514b;
   --wb-term-prompt: #15803d;
   --wb-term-cmd: #141413;
   --wb-green: #15803d;
@@ -770,23 +770,23 @@ html.desktop-glass[data-wb-theme="sakura-light"] {
   --wb-overlay: rgba(63, 29, 43, 0.4);
   --wb-ink: #3f1d2b;
   --wb-ink-strong: #27101a;
-  --wb-muted: #754658;
-  --wb-subtle: #9d6b7e;
-  --wb-accent: #e11d48;
+  --wb-muted: #6e3e51;
+  --wb-subtle: #78485b;
+  --wb-accent: #be123c;
   --wb-accent-fg: #ffffff;
-  --wb-primary-bg: #e11d48;
+  --wb-primary-bg: #be123c;
   --wb-primary-fg: #ffffff;
   --wb-user-bubble-bg: #fce7f3;
-  --wb-user-bubble-border: rgba(225, 29, 72, 0.24);
+  --wb-user-bubble-border: rgba(190, 18, 60, 0.28);
   --wb-user-bubble-fg: #27101a;
   --wb-code-bg: #f9ebf1;
   --wb-term-bg: #f9ebf1;
   --wb-term-fg: #3f1d2b;
-  --wb-term-muted: #754658;
+  --wb-term-muted: #6e3e51;
   --wb-term-prompt: #15803d;
   --wb-term-cmd: #27101a;
   --wb-green: #15803d;
-  --wb-red: #e11d48;
-  --wb-amber: #d97706;
+  --wb-red: #be123c;
+  --wb-amber: #b45309;
 }
 }

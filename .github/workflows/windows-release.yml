@@ -19,8 +19,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
       - name: Install dependencies
         run: npm ci
+      - name: Build native Rust core
+        run: npm run rust:build
       - name: Build Windows installer
         run: npm run desktop:dist
       - name: Regenerate updater metadata from the final installer
@@ -78,8 +82,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
       - name: Install dependencies
         run: npm ci
+      - name: Build native Rust core
+        run: npm run rust:build
       - name: Build Linux packages
         run: npm run desktop:dist:linux
       - name: Upload Linux build artifacts

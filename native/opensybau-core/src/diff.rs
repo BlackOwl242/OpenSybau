@@ -26,12 +26,15 @@ pub struct DiffFile {
 
 pub fn unquote_git_path(raw: &str) -> String {
     let mut s = raw.trim().to_string();
-    if s.len() >= 2 && s.starts_with('"') && s.ends_with('"') {
+    let was_quoted = s.len() >= 2 && s.starts_with('"') && s.ends_with('"');
+    if was_quoted {
         s = s[1..s.len() - 1].to_string();
     }
+    let before_octal = s.clone();
     // Recover octal sequences where '/' replaced '\' (e.g. /341/273/207 -> \341\273\207)
     s = recover_slash_octal(&s);
-    if !s.contains('\\') {
+    let recovered_octal = s != before_octal;
+    if (!was_quoted && !recovered_octal) || !s.contains('\\') {
         return s;
     }
     let bytes = s.as_bytes();

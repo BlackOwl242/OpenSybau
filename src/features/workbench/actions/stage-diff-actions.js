@@ -1,4 +1,4 @@
-import { $, view } from "../../../shared/state.js";
+import { $, esc, fmtDate, view } from "../../../shared/state.js";
 import { providerTitle, roleConfig } from "../../../domain/agent-roles.js";
 import { defaultFileTabMode } from "../stage-viewer.js";
 import { resolveHtmlCommentAgentSelection, syncHtmlInspectUi } from "../html-inspector.js";
@@ -204,6 +204,11 @@ export async function handleStageAndDiffAction(action, id, button, event) {
   if (action === "close-stage-tab") {
     event.stopPropagation();
     const tabId = button.dataset.tabId || "";
+    const closingTab = (view.stageTabs || []).find((item) => item.id === tabId);
+    const hasUnsaved = Boolean(closingTab && typeof closingTab.editDraft === "string" && closingTab.editDraft !== String(closingTab.fileData?.content ?? ""));
+    if (hasUnsaved && !confirm(`Tab “${closingTab.name || closingTab.path}” có chỉnh sửa chưa lưu. Bạn chắc chắn muốn đóng và bỏ thay đổi?`)) {
+      return true;
+    }
     view.stageTabs = (view.stageTabs || []).filter((item) => item.id !== tabId);
     if (!view.stageTabs.length) {
       view.activeStageTabId = "chat";
@@ -290,6 +295,9 @@ export async function handleStageAndDiffAction(action, id, button, event) {
     closeOverlay();
     view.page = "chat";
     view.selected = null;
+    view.selectedTaskId = null;
+    view.chatSplitWorkspaceId = "";
+    view.mobileScreen = "home";
     if (wsId) view.homeWorkspaceId = wsId;
     view.chatDraft = `Giải quyết GitHub Issue #${num}: ${title}\n${issueUrl ? `URL: ${issueUrl}\n` : ""}${bodyText ? `\nMô tả chi tiết:\n${bodyText}` : ""}`.trim();
     render();
@@ -306,7 +314,9 @@ export async function handleStageAndDiffAction(action, id, button, event) {
     return true;
   }
   if (action === "open-stage-line-comment") {
-    const rowEl = button.closest(".stage-code-row, .orca-code-row, .diff-row, .orca-diff-row, .stage-code-line, .stage-diff-line, tr");
+    const rowEl = button.matches?.(".codex-split-cell")
+      ? button
+      : button.closest(".codex-split-cell, .stage-code-row, .orca-code-row, .diff-row, .orca-diff-row, .stage-code-line, .stage-diff-line, tr");
     const domCode = rowEl?.querySelector(".stage-code-text, .diff-cell-code, .orca-code-text, .orca-diff-code, .orca-file-code, .stage-diff-code, code")?.textContent || "";
     view.stageLineCommentTarget = {
       key: button.dataset.key || "",
@@ -453,6 +463,10 @@ export async function handleStageAndDiffAction(action, id, button, event) {
         });
         view.page = "chat";
         view.selected = created.task.id;
+        view.selectedTaskId = created.task.id;
+        view.chatSplitWorkspaceId = "";
+        view.mobileScreen = "session";
+        if (created.task.workspaceId) view.homeWorkspaceId = created.task.workspaceId;
         view.stageSplit = true;
         await refresh();
         showToast(`Đã tạo tác vụ mới và gửi phần tử <${el.tagName}> cho ${providerTitle(view.connectors, provider)}!`);
@@ -521,6 +535,150 @@ export async function handleStageAndDiffAction(action, id, button, event) {
     view.page = "chat";
     await refresh();
     showToast(`Đã gửi ${anns.length} nhận xét diff cho Agent xử lý!`);
+    return true;
+  }
+  if (action === "set-design-viewport") {
+    const tabId = button.dataset.tabId || view.activeStageTabId;
+    const tab = (view.stageTabs || []).find((item) => item.id === tabId);
+    if (tab) {
+      tab.designViewport = ["mobile", "tablet", "desktop"].includes(button.dataset.viewport) ? button.dataset.viewport : "desktop";
+      render();
+    }
+    return true;
+  }
+  if (action === "capture-design-region") {
+    const iframe = document.querySelector(".orca-live-frame:not(.is-pdf)");
+    const rect = iframe?.getBoundingClientRect?.();
+    const sel = view.stageHtmlSelectedElement;
+    const vp = (view.stageTabs || []).find((t) => t.id === view.activeStageTabId)?.designViewport || "desktop";
+    let capSize = null;
+    if (rect && typeof window.opensybauDesktop?.captureRegion === "function") {
+      const cap = await window.opensybauDesktop.captureRegion({
+        x: rect.left + (sel?.rect?.left || 0),
+        y: rect.top + (sel?.rect?.top || 0),
+        width: sel?.rect?.width || rect.width,
+        height: sel?.rect?.height || Math.min(rect.height, 720),
+      }).catch(() => null);
+      if (cap?.ok) capSize = cap.size;
+    }
+    const summary = sel
+      ? `[Ảnh bố cục vùng chọn] Viewport=${vp} (${Math.round(rect?.width || 0)}×${Math.round(rect?.height || 0)}) · Selector=${sel.selector || sel.tag} · Box=(x=${Math.round(sel.rect?.left || 0)}, y=${Math.round(sel.rect?.top || 0)}, w=${Math.round(sel.rect?.width || 0)}, h=${Math.round(sel.rect?.height || 0)})${capSize ? ` · Snapshot=${capSize.width}×${capSize.height}px` : ""}`
+      : `[Ảnh bố cục Viewport ${vp}] Kích thước=${Math.round(rect?.width || 0)}×${Math.round(rect?.height || 0)}${capSize ? ` · Snapshot=${capSize.width}×${capSize.height}px` : ""} (${iframe?.src || "live preview"})`;
+    view.chatDraft = view.chatDraft ? `${view.chatDraft}\n${summary}` : `${summary}\n`;
+    view.stageSplit = true;
+    render();
+    $(".chat-input")?.focus();
+    showToast(capSize ? `Đã chụp snapshot vùng (${capSize.width}×${capSize.height}px) vào Chat.` : "Đã đính kèm snapshot thông số bố cục vùng xem vào khung Chat.");
+    return true;
+  }
+  if (action === "open-task-telemetry") {
+    const res = await api(`/api/tasks/${encodeURIComponent(id)}/telemetry`);
+    const spans = [...(res.spans || [])].reverse();
+    const totalMs = spans.reduce((s, sp) => s + (Number(sp.durationMs) || 0), 0);
+    const listHtml = spans.length
+      ? `<div class="provider-setup-list">${spans.map((sp) => {
+          const attrs = sp.attributes || {};
+          const tok = (Number(attrs["gen_ai.usage.input_tokens"] || 0) + Number(attrs["gen_ai.usage.output_tokens"] || 0));
+          return `<article class="provider-setup-row">
+            <div>
+              <strong data-localize-skip="true">${esc(sp.name || "span")}</strong>
+              <small data-localize-skip="true">${esc(attrs["gen_ai.system"] || "—")} · ${esc(attrs["gen_ai.request.model"] || "—")} · ${sp.durationMs || 0} ms${tok ? ` · ${tok} tok` : ""}</small>
+            </div>
+            <span class="pill">${esc(sp.status || "OK")}</span>
+          </article>`;
+        }).join("")}</div>`
+      : `<p class="form-note">Chưa ghi nhận span OpenTelemetry GenAI nào cho tác vụ này.</p>`;
+    showModal("Telemetry Waterfall (GenAI Spans)", `<p class="form-note">${spans.length} span · Tổng thời lượng ghi nhận ${totalMs} ms${res.worktreePort ? ` · OPENSYBAU_PORT=${res.worktreePort}` : ""}.</p>${listHtml}`, "Đóng", "dismiss");
+    return true;
+  }
+  if (action === "open-checkpoints-modal") {
+    const task = view.state.tasks.find((item) => item.id === id);
+    if (!task) return true;
+    const res = await api(`/api/tasks/${encodeURIComponent(id)}/checkpoints`);
+    const cps = [...(res.checkpoints || [])].reverse();
+    const listHtml = cps.length
+      ? `<div class="provider-setup-list">${cps.map((cp) => `<article class="provider-setup-row">
+          <div>
+            <strong>${esc(cp.label || cp.stage)}</strong>
+            <small>${esc(fmtDate(cp.createdAt))} · ${cp.fileCount || 0} tệp · <code data-localize-skip="true">${esc((cp.commit || "").slice(0, 7))}</code></small>
+            ${cp.files?.length ? `<small class="muted" data-localize-skip="true">${esc(cp.files.slice(0, 4).join(", "))}${cp.files.length > 4 ? "…" : ""}</small>` : ""}
+          </div>
+          <div class="provider-row-actions">
+            <button type="button" class="button quiet small" data-action="inspect-checkpoint-diff" data-id="${esc(task.id)}" data-cp-id="${esc(cp.id)}">Xem diff</button>
+            <button type="button" class="button quiet small" data-action="rewind-checkpoint" data-id="${esc(task.id)}" data-cp-id="${esc(cp.id)}" data-mode="files-only">Khôi phục tệp</button>
+            <button type="button" class="button primary small" data-action="rewind-checkpoint" data-id="${esc(task.id)}" data-cp-id="${esc(cp.id)}" data-mode="files-and-chat">Tệp + Chat</button>
+          </div>
+        </article>`).join("")}</div>`
+      : `<p class="form-note">Chưa có checkpoint nào được ghi nhận cho tác vụ này.</p>`;
+    showModal("Checkpoints & Hoàn tác (/rewind)", `<p class="form-note">OpenSybau tự động chụp snapshot trước/sau mỗi lượt chỉnh sửa trong kho Git ẩn riêng (không ảnh hưởng nhánh <code>.git</code> chính).</p>${listHtml}<div data-checkpoint-diff-preview></div>`, "Đóng", "dismiss");
+    return true;
+  }
+  if (action === "inspect-checkpoint-diff") {
+    const cpId = button.dataset.cpId || "";
+    const res = await api(`/api/tasks/${encodeURIComponent(id)}/checkpoints/diff?checkpointId=${encodeURIComponent(cpId)}&live=1`);
+    const preview = $("[data-checkpoint-diff-preview]");
+    if (preview) {
+      preview.innerHTML = `<div class="diff-location"><strong>Diff từ ${esc(res.checkpoint?.label || cpId)} tới hiện tại:</strong></div><pre class="diff-content" data-localize-skip="true">${esc(res.diff || "Không có thay đổi nào so với hiện tại.")}</pre>`;
+    }
+    return true;
+  }
+  if (action === "rewind-checkpoint") {
+    const cpId = button.dataset.cpId || "";
+    const mode = button.dataset.mode === "files-and-chat" ? "files-and-chat" : "files-only";
+    const promptMsg = mode === "files-and-chat"
+      ? "Khôi phục toàn bộ tệp về checkpoint này VÀ cắt các tin nhắn chat phát sinh sau thời điểm đó?"
+      : "Khôi phục toàn bộ tệp dự án về đúng trạng thái ở checkpoint này?";
+    if (!confirm(promptMsg)) return true;
+    const res = await api(`/api/tasks/${encodeURIComponent(id)}/rewind`, {
+      method: "POST",
+      body: JSON.stringify({ checkpointId: cpId, mode }),
+    });
+    closeOverlay();
+    await refresh();
+    showToast(`Đã khôi phục ${res.restoredFiles?.length || 0} tệp (${res.removedFiles?.length || 0} tệp tạo sau đã xóa).`);
+    return true;
+  }
+  if (action === "apply-skill-proposal") {
+    const index = Number(button.dataset.index || 0);
+    const scope = button.dataset.scope === "workspace" ? "workspace" : "universal";
+    await api(`/api/tasks/${encodeURIComponent(id)}/apply-skill-proposal`, {
+      method: "POST",
+      body: JSON.stringify({ index, scope }),
+    });
+    view.skillsLoaded = false;
+    await refresh();
+    showToast("Đã cài đặt kỹ năng mới từ đề xuất của AI!");
+    return true;
+  }
+  if (action === "resolve-merge-conflict") {
+    const task = view.state.tasks.find((item) => item.id === id);
+    if (!task) return true;
+    const strategy = button.dataset.strategy || "";
+    if (strategy === "ai-resolve") {
+      const filesList = (task.mergeConflict?.files || []).slice(0, 12).map((f) => `- ${f}`).join("\n");
+      const msg = `Phát hiện xung đột Git khi gộp worktree (${task.worktreeBranch || task.id}).\nLỗi: ${task.mergeConflict?.message || "Git conflict"}${filesList ? `\nTệp xung đột:\n${filesList}` : ""}\nHãy kiểm tra các vùng xung đột \`<<<<<<<\` / \`=======\` / \`>>>>>>>\` hoặc khác biệt với nhánh chính và đề xuất / hoàn thiện bản gộp sạch sẽ.`;
+      await api(`/api/tasks/${encodeURIComponent(task.id)}/chat`, {
+        method: "POST",
+        body: JSON.stringify({
+          message: msg,
+          provider: view.chatProvider || roleConfig(task.config, "build")?.provider || "codex",
+          model: view.chatModel || roleConfig(task.config, "build")?.model || "",
+          effort: view.chatEffort || roleConfig(task.config, "build")?.effort || "medium",
+        }),
+      });
+      await refresh();
+      showToast("Đã giao Agent phân tích và hòa giải xung đột Git.");
+      return true;
+    }
+    if (strategy === "theirs" && !confirm("Ghi đè tệp từ worktree sang nhánh chính cho các tệp xung đột?")) return true;
+    const res = await api(`/api/tasks/${encodeURIComponent(id)}/apply-worktree`, {
+      method: "POST",
+      body: JSON.stringify({ strategy }),
+    });
+    await refresh();
+    showToast(strategy === "ours"
+      ? "Đã giữ phiên bản nhánh chính và xóa đánh dấu xung đột."
+      : `Đã áp dụng thay đổi từ worktree (${(res.appliedFiles || []).length} tệp).`);
     return true;
   }
   if (action === "apply-worktree" || action === "pick-arena-winner") {

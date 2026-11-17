@@ -201,15 +201,18 @@ export async function handleSubmit(event) {
         });
         const permPreset = view.homePermissionPreset || object.permissionPreset || "workspace-write";
         const selectedSkills = Array.isArray(view.homeSelectedSkills) && view.homeSelectedSkills.length ? [...view.homeSelectedSkills] : "auto";
+        const targetWorkspaceId = view.chatSplitReturnWorkspaceId || object.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id;
+        const targetWorkspace = (view.state?.workspaces || []).find((w) => w.id === targetWorkspaceId);
+        const canIsolate = Boolean(targetWorkspace?.isGit && targetWorkspace?.head);
         const payload = {
           ...object,
           chatProvider: object.chatProvider || chatSelection.provider,
           chatModel: (!isSplitForm && view.homeChatModel && (!object.chatProvider || object.chatProvider === view.homeChatProvider)) ? view.homeChatModel : (object.chatModel || chatSelection.model?.id || ""),
           chatEffort: (!isSplitForm && view.homeChatEffort && (!object.chatProvider || object.chatProvider === view.homeChatProvider)) ? view.homeChatEffort : (object.chatEffort || chatSelection.effort || ""),
-          workspaceId: view.chatSplitReturnWorkspaceId || object.workspaceId || view.homeWorkspaceId || view.state.workspaces[0]?.id,
+          workspaceId: targetWorkspaceId,
           prompt: String(object.prompt || "").trim(),
           workflow,
-          isolated: Boolean(view.chatSplitReturnWorkspaceId) || data.has("isolated") || Boolean(view.homeIsolated),
+          isolated: canIsolate && (Boolean(view.chatSplitReturnWorkspaceId) || data.has("isolated") || Boolean(view.homeIsolated)),
           permissionPreset: permPreset,
           codexTransport: resolveCodexTransport(object.codexTransport || view.homeCodexTransport, permPreset),
           skillIds: selectedSkills,
@@ -268,9 +271,12 @@ export async function handleSubmit(event) {
       view.forceChatScroll = true;
       const taskId = form.dataset.id;
       const splitSel = form.closest(".multi-chat-pane") ? view.chatSplitSelections?.[taskId] : null;
-      const provider = splitSel?.provider || object.provider || view.chatProvider;
-      const model = splitSel?.model || object.model || view.chatModel;
-      const effort = splitSel?.effort || object.effort || view.chatEffort;
+      const targetTask = view.state?.tasks?.find((item) => item.id === taskId);
+      const taskCfg = targetTask?.config;
+      const taskPlanRole = taskCfg?.roles?.plan;
+      const provider = splitSel?.provider || object.provider || view.chatProvider || taskCfg?.chatProvider || taskPlanRole?.provider;
+      const model = splitSel?.model || object.model || view.chatModel || taskCfg?.chatModel || taskPlanRole?.model;
+      const effort = splitSel?.effort || object.effort || view.chatEffort || taskCfg?.chatEffort || taskPlanRole?.effort;
       if (!form.closest(".multi-chat-pane")) {
         view.chatProvider = provider;
         view.chatModel = model;
@@ -279,7 +285,6 @@ export async function handleSubmit(event) {
         view.homeChatModel = model;
         view.homeChatEffort = effort;
       }
-      const targetTask = view.state?.tasks?.find((item) => item.id === taskId);
       if (targetTask?.config) {
         targetTask.config.chatProvider = provider;
         targetTask.config.chatModel = model;

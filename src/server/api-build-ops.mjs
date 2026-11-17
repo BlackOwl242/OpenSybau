@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
-import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, extname, isAbsolute, relative, resolve, sep } from "node:path";
+import { promisify } from "node:util";
 import {
   allowedTextFile,
   listRemoteContextFiles,
@@ -8,12 +10,21 @@ import {
   resolveInside,
   safeForRemoteContext,
 } from "./fs-security.mjs";
+import { rustBuildRepoMapAsync } from "./rust-accelerator.mjs";
+
+const execFileAsync = promisify(execFile);
 
 export async function externalWorkspaceContext(task, stage, gitFn) {
   const cwd = task.executionPath || task.workspacePath;
   const files = await listRemoteContextFiles(cwd, 180, gitFn);
   const sections = [`Workspace file list (paths only; up to 180 entries):\n${files.map((path) => `- ${path}`).join("\n") || "No project file list is available."}`];
   const buildSnapshotHashes = new Map();
+  if (stage === "plan" || stage === "build") {
+    const repoMapRes = await rustBuildRepoMapAsync(cwd, task?.artifacts || [], 900).catch(() => null);
+    if (repoMapRes?.repoMap) {
+      sections.push(`<repo_map files="${repoMapRes.fileCount || 0}" symbols="${repoMapRes.symbolCount || 0}">\n${redactRemoteSecrets(String(repoMapRes.repoMap).slice(0, 4200))}\n</repo_map>`);
+    }
+  }
   if (stage === "review") {
     const diff = await gitFn(cwd, ["diff", "--no-ext-diff", "--unified=2", "--", ...files.filter((path) => safeForRemoteContext(path)).slice(0, 80)]);
     const snippets = [];
@@ -251,11 +262,18 @@ export async function executeApiWorkspaceTool(cwdOrTask, toolCallOrCwd, optionsO
   if (name === "recall_sessions") {
     const query = String(args.query || "").trim();
     if (!query) return { ok: false, summary: "recall_sessions() missing query", output: "Error: Provide a search query." };
-    const results = typeof options.searchWorkbenchFn === "function"
-      ? options.searchWorkbenchFn(query, { limit: 8 })
+    const rawRes = typeof options.searchWorkbenchFn === "function"
+      ? await options.searchWorkbenchFn(query, { limit: 8 })
       : [];
-    const formatted = Array.isArray(results) && results.length
-      ? results.map((r, idx) => `${idx + 1}. [${r.scope || "task"}] ${r.title || r.id}: ${String(r.snippet || "").slice(0, 200)}`).join("\n")
+    const results = Array.isArray(rawRes)
+      ? rawRes
+      : Array.isArray(rawRes?.results)
+        ? rawRes.results
+        : Array.isArray(rawRes?.hits)
+          ? rawRes.hits
+          : [];
+    const formatted = results.length
+      ? results.map((r, idx) => `${idx + 1}. [${r.type || r.scope || "task"}] ${r.title || r.id}: ${String(r.snippet || "").slice(0, 200)}`).join("\n")
       : `No historical sessions matched "${query}".`;
     return {
       ok: true,
@@ -397,7 +415,30 @@ export async function apiBuildTarget(rootPath, rawPath, buildSnapshotHashes, opt
   return target;
 }
 
-export async function applyApiBuildResult(cwd, responseText, buildSnapshotHashes) {
+async function validateWrittenFileSyntax(targetPath, content, relativePath) {
+  const ext = extname(targetPath).toLowerCase();
+  if (ext === ".json") {
+    try {
+      JSON.parse(content);
+    } catch (err) {
+      throw new Error(`Invalid JSON syntax in ${relativePath}: ${err?.message || "parse error"}`);
+    }
+    return;
+  }
+  if (ext === ".mjs" || ext === ".cjs") {
+    try {
+      await execFileAsync(process.execPath, ["--check", targetPath], { timeout: 5000, windowsHide: true });
+    } catch (err) {
+      const msg = String(err?.stderr || err?.message || "SyntaxError").trim().split(/\r?\n/).slice(0, 4).join(" | ");
+      throw new Error(`Syntax check failed in ${relativePath}: ${msg}`);
+    }
+  }
+}
+
+export async function applyApiBuildResult(cwd, responseText, buildSnapshotHashes, options = {}) {
+  if (options?.readOnly) {
+    throw new Error("Preset chỉ đọc đang bật; không áp dụng thao tác ghi/xóa tệp của API.");
+  }
   const operations = parseApiBuildOperations(responseText);
   const seen = new Set();
   const writes = [];
@@ -448,19 +489,57 @@ export async function applyApiBuildResult(cwd, responseText, buildSnapshotHashes
     seen.add(key);
     deletes.push({ path: item, target: await apiBuildTarget(cwd, item, buildSnapshotHashes, true) });
   }
+
+  // Backup existing targets before mutating so syntax-check failures roll back atomically
+  const backups = [];
+  for (const item of [...writes, ...patches, ...deletes]) {
+    try {
+      const prevBuf = await fs.readFile(item.target);
+      backups.push({ target: item.target, existed: true, prevBuf });
+    } catch {
+      backups.push({ target: item.target, existed: false, prevBuf: null });
+    }
+  }
+
   const changed = [];
-  for (const item of deletes) {
-    try { await fs.rm(item.target); changed.push(`Deleted ${item.path}`); }
-    catch (error) { if (error.code !== "ENOENT") throw error; }
-  }
-  for (const item of writes) {
-    await fs.mkdir(dirname(item.target), { recursive: true });
-    await fs.writeFile(item.target, item.content, "utf8");
-    changed.push(`Updated ${item.path}`);
-  }
-  for (const item of patches) {
-    await fs.writeFile(item.target, item.content, "utf8");
-    changed.push(`Patched ${item.path}`);
+  try {
+    for (const item of deletes) {
+      try { await fs.rm(item.target); changed.push(`Deleted ${item.path}`); }
+      catch (error) { if (error.code !== "ENOENT") throw error; }
+    }
+    for (const item of writes) {
+      await fs.mkdir(dirname(item.target), { recursive: true });
+      await fs.writeFile(item.target, item.content, "utf8");
+      await validateWrittenFileSyntax(item.target, item.content, item.path);
+      changed.push(`Updated ${item.path}`);
+    }
+    for (const item of patches) {
+      await fs.writeFile(item.target, item.content, "utf8");
+      await validateWrittenFileSyntax(item.target, item.content, item.path);
+      changed.push(`Patched ${item.path}`);
+    }
+  } catch (err) {
+    for (const b of backups) {
+      try {
+        if (b.existed) await fs.writeFile(b.target, b.prevBuf);
+        else await fs.rm(b.target, { force: true });
+      } catch {}
+    }
+    throw err;
   }
   return `${operations.summary}${changed.length ? `\n\n${changed.join("\n")}` : "\n\nNo workspace files were changed."}`;
+}
+
+export async function tryApplyApiChatBuildResult(cwd, responseText, buildSnapshotHashes, options = {}) {
+  if (options?.readOnly) return null;
+  const raw = String(responseText || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  if (!raw.startsWith("{") || (!raw.includes('"files"') && !raw.includes('"patches"'))) {
+    return null;
+  }
+  try {
+    parseApiBuildOperations(responseText);
+  } catch {
+    return null;
+  }
+  return applyApiBuildResult(cwd, responseText, buildSnapshotHashes, options);
 }

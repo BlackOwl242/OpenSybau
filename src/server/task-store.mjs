@@ -129,6 +129,9 @@ export function createTaskStoreService({ taskDir }) {
           cycles: task.cycles || [],
           artifacts: task.artifacts || [],
           stageMetrics: task.stageMetrics || [],
+          roundHistory: task.roundHistory || [],
+          checkpoints: task.checkpoints || [],
+          telemetrySpans: task.telemetrySpans || [],
           updatedAt: task.updatedAt || new Date().toISOString(),
         };
         writeAtomicJson(resolve(dir, "detail.json"), detailPayload);
@@ -149,14 +152,28 @@ export function createTaskStoreService({ taskDir }) {
         const detail = JSON.parse(readFileSync(detailFile, "utf8"));
         if (!detail || typeof detail !== "object") continue;
         if (!task.plan && detail.plan) task.plan = detail.plan;
+        else if (typeof detail.plan === "string" && detail.plan.length > (task.plan || "").length) task.plan = detail.plan;
         if (!task.implementation && detail.implementation) task.implementation = detail.implementation;
+        else if (typeof detail.implementation === "string" && detail.implementation.length > (task.implementation || "").length) task.implementation = detail.implementation;
         if (!task.review && detail.review) task.review = detail.review;
-        if ((!task.chatMessages || !task.chatMessages.length) && Array.isArray(detail.chatMessages) && detail.chatMessages.length) {
+        else if (typeof detail.review === "string" && detail.review.length > (task.review || "").length) task.review = detail.review;
+        if (Array.isArray(detail.chatMessages) && detail.chatMessages.length >= (task.chatMessages?.length || 0)) {
           task.chatMessages = detail.chatMessages;
         }
-        if ((!task.events || !task.events.length) && Array.isArray(detail.events) && detail.events.length) {
+        if (Array.isArray(detail.events) && detail.events.length >= (task.events?.length || 0)) {
           task.events = detail.events;
         }
+        if (!task.cycles?.length && Array.isArray(detail.cycles) && detail.cycles.length) task.cycles = detail.cycles;
+        if (!task.artifacts?.length && Array.isArray(detail.artifacts) && detail.artifacts.length) task.artifacts = detail.artifacts;
+        if (!task.terminalHistory?.length && Array.isArray(detail.terminalHistory) && detail.terminalHistory.length) task.terminalHistory = detail.terminalHistory;
+        if (!task.stageMetrics?.length && Array.isArray(detail.stageMetrics) && detail.stageMetrics.length) task.stageMetrics = detail.stageMetrics;
+        if (!task.qaResult && detail.qaResult) task.qaResult = detail.qaResult;
+        if (!task.roundHistory?.length && Array.isArray(detail.roundHistory) && detail.roundHistory.length) task.roundHistory = detail.roundHistory;
+        if (!task.checkpoints?.length && Array.isArray(detail.checkpoints) && detail.checkpoints.length) task.checkpoints = detail.checkpoints;
+        if (!task.telemetrySpans?.length && Array.isArray(detail.telemetrySpans) && detail.telemetrySpans.length) task.telemetrySpans = detail.telemetrySpans;
+        if (!task.cliSessions && detail.cliSessions) task.cliSessions = detail.cliSessions;
+        if (!task.cliStreamSources && detail.cliStreamSources) task.cliStreamSources = detail.cliStreamSources;
+        if (!task.compactionLineage?.length && Array.isArray(detail.compactionLineage) && detail.compactionLineage.length) task.compactionLineage = detail.compactionLineage;
         if (!task.chatCompactedSummary && detail.chatCompactedSummary) {
           task.chatCompactedSummary = detail.chatCompactedSummary;
           task.chatCompactedCount = detail.chatCompactedCount || 0;
@@ -313,19 +330,16 @@ export function createTaskStoreService({ taskDir }) {
       const stamp = String(m?.updatedAt || m?.createdAt || "");
       if (stamp > maxMemoryUpdatedAt) maxMemoryUpdatedAt = stamp;
     }
-    const corpusStamp = `${workspaceId || ""}::${scope || "all"}::${tasks.length}::${maxTaskUpdatedAt}::${memories.length}::${maxMemoryUpdatedAt}::${skills.length}`;
+    const corpusStamp = `${tasks.length}::${maxTaskUpdatedAt}::${memories.length}::${maxMemoryUpdatedAt}::${skills.length}`;
 
     let docs = null;
-    const ensureDocs = () => {
-      if (!docs) docs = buildSearchCorpus({ tasks, memories, skills, workspaceId, scope });
-      return docs;
-    };
+    const ensureDocs = (filterWs = workspaceId, filterScope = scope) => buildSearchCorpus({ tasks, memories, skills, workspaceId: filterWs, scope: filterScope });
 
     const hasSqlite = await initFtsEngine();
     if (hasSqlite && ftsDb) {
       try {
         if (corpusStamp !== lastFtsCorpusStamp) {
-          const currentDocs = ensureDocs();
+          const currentDocs = ensureDocs("", "all");
           const nextDocMap = new Map();
           const nextDocStamps = new Map();
           ftsDb.exec("BEGIN IMMEDIATE;");
@@ -364,14 +378,19 @@ export function createTaskStoreService({ taskDir }) {
           .filter((t) => t !== '""*')
           .join(" OR ");
         if (!ftsMatchExpr) return { query: rawQuery, engine: "none", total: 0, results: [] };
+        const maxRows = Math.max(1, Math.min(100, Number(limit) || 25));
+        const sqlLimit = (workspaceId || (scope && scope !== "all")) ? Math.max(200, maxRows * 6) : maxRows;
         const stmt = ftsDb.prepare(
           "SELECT doc_id, bm25(workbench_fts, 0.0, 0.0, 0.0, 0.0, 5.0, 1.0) AS rank_score FROM workbench_fts WHERE workbench_fts MATCH ? ORDER BY rank_score LIMIT ?;"
         );
-        const rows = stmt.all(ftsMatchExpr, Math.max(1, Math.min(100, Number(limit) || 25)));
+        const rows = stmt.all(ftsMatchExpr, sqlLimit);
+        const allowScope = (type) => scope === "all" || scope === type || scope === `${type}s`;
         const results = rows
           .map((row) => {
             const doc = lastFtsDocMap.get(row.doc_id);
             if (!doc) return null;
+            if (!allowScope(doc.type)) return null;
+            if (workspaceId && doc.type !== "skill" && doc.workspaceId && doc.workspaceId !== "all" && doc.workspaceId !== workspaceId) return null;
             return {
               type: doc.type,
               id: doc.id,
@@ -383,12 +402,13 @@ export function createTaskStoreService({ taskDir }) {
               updatedAt: doc.updatedAt,
             };
           })
-          .filter(Boolean);
+          .filter(Boolean)
+          .slice(0, maxRows);
         return { query: rawQuery, engine: "sqlite-fts5", total: results.length, results };
       } catch {}
     }
 
-    const fallbackDocs = ensureDocs();
+    const fallbackDocs = ensureDocs(workspaceId, scope);
     if (!fallbackDocs.length) return { query: rawQuery, engine: "bm25", total: 0, results: [] };
 
     // Fallback BM25 search

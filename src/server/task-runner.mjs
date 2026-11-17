@@ -4,9 +4,10 @@ import { tmpdir } from "node:os";
 import { basename, relative, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { estimateTaskCostUsd, parseReviewFindings } from "../domain/task-flow.js";
-import { allowedTextFile, resolveInside, safeRelativePath, usesSharedCheckout, within, workspaceLockKey } from "./fs-security.mjs";
+import { allowedTextFile, resolveInside, resolveWorkspaceRelativePath, safeRelativePath, usesSharedCheckout, within, workspaceLockKey } from "./fs-security.mjs";
 import { parseSkillSelection } from "./skill-catalog.mjs";
 import { parseUnifiedDiffFiles } from "./diff-parser.mjs";
+import { createShadowCheckpoint } from "./shadow-checkpoints.mjs";
 import { publicProviderName, stageSelection } from "./task-prompts.mjs";
 import { changedFilesSince, failQueuedChatTurns, finishStageRerun, hasFailedTaskDependency, mergeTaskArtifacts, recordTaskCycle } from "./task-stage-runner.mjs";
 
@@ -30,6 +31,7 @@ export function createTaskRunnerService({
   skillCatalogService,
   promptService,
   stageRunner,
+  worktreePool = null,
 }) {
   let schedulerActive = false;
   const {
@@ -65,7 +67,12 @@ export function createTaskRunnerService({
     } catch { }
     if (!candidateDirs.size && !repoRoot) return;
     await withGitRepoLock(repoRoot || worktreeDir, async () => {
+      if (task.worktreePort) worktreePool?.releaseWorktreePort?.(task.worktreePort);
       for (const wtPath of candidateDirs) {
+        if (worktreePool?.runWorktreeHook && existsSync(wtPath)) {
+          const ws = getState().workspaces.find((w) => w.id === task.workspaceId);
+          await worktreePool.runWorktreeHook(task, wtPath, "archive", { trusted: Boolean(ws?.trustedSkills) }).catch(() => {});
+        }
         if (repoRoot) await git(repoRoot, ["worktree", "remove", "--force", wtPath]).catch(() => {});
         await fs.rm(wtPath, { recursive: true, force: true }).catch(() => {});
       }
@@ -116,35 +123,48 @@ export function createTaskRunnerService({
         task.worktreeBranch = branchName;
         task.worktreeBaseHead = baseHead.code === 0 ? (baseHead.stdout || "").trim() : null;
         task.worktreeCleaned = false;
+        if (worktreePool?.allocateWorktreePort && !task.worktreePort) {
+          task.worktreePort = await worktreePool.allocateWorktreePort().catch(() => 0);
+        }
         try {
           const wtConfigPath = resolve(repoRoot, ".opensybau", "worktree.json");
           if (existsSync(wtConfigPath)) {
+            const realRepoRoot = await fs.realpath(repoRoot);
             const wtCfg = JSON.parse(await fs.readFile(wtConfigPath, "utf8"));
             const copyFiles = Array.isArray(wtCfg?.copyFiles) ? wtCfg.copyFiles.slice(0, 24) : [];
             for (const relItem of copyFiles) {
               const safeRel = safeRelativePath(String(relItem || ""));
-              if (!safeRel) continue;
+              if (!safeRel || isSensitiveWorkspaceSubpath(safeRel)) continue;
               const srcFile = resolve(repoRoot, safeRel);
               const dstFile = resolve(worktreeRoot, safeRel);
               if (within(repoRoot, srcFile) && within(worktreeRoot, dstFile) && existsSync(srcFile)) {
                 const st = await fs.lstat(srcFile).catch(() => null);
-                if (st?.isFile() && st.size <= 2 * 1024 * 1024) {
-                  await fs.mkdir(resolve(dstFile, ".."), { recursive: true });
-                  await fs.copyFile(srcFile, dstFile);
-                }
+                if (!st?.isFile() || st.isSymbolicLink() || st.size > 2 * 1024 * 1024) continue;
+                const realSrc = await fs.realpath(srcFile).catch(() => "");
+                if (!realSrc || !within(realRepoRoot, realSrc)) continue;
+                await fs.mkdir(resolve(dstFile, ".."), { recursive: true });
+                await fs.copyFile(realSrc, dstFile);
               }
             }
             if (wtCfg?.linkNodeModules === true) {
               const srcNm = resolve(repoRoot, "node_modules");
               const dstNm = resolve(worktreeRoot, "node_modules");
-              if (existsSync(srcNm) && !existsSync(dstNm)) {
-                await fs.symlink(srcNm, dstNm, process.platform === "win32" ? "junction" : "dir").catch(() => {});
+              const nmLstat = existsSync(srcNm) ? await fs.lstat(srcNm).catch(() => null) : null;
+              const realNm = nmLstat && !nmLstat.isSymbolicLink() ? await fs.realpath(srcNm).catch(() => "") : "";
+              if (realNm && within(realRepoRoot, realNm) && !existsSync(dstNm)) {
+                await fs.symlink(realNm, dstNm, process.platform === "win32" ? "junction" : "dir").catch(() => {});
               }
             }
           }
         } catch {}
         const selectedSubdirectory = relative(repoRoot, info.path);
         cwd = selectedSubdirectory ? resolve(worktreeRoot, selectedSubdirectory) : worktreeRoot;
+        if (worktreePool?.runWorktreeHook) {
+          const hookRes = await worktreePool.runWorktreeHook(task, cwd, "setup", { trusted: Boolean(workspace.trustedSkills) }).catch(() => null);
+          if (hookRes?.ran) {
+            record(task, `Đã chạy hook Worktree setup (port ${hookRes.port || task.worktreePort || "—"}, exit=${hookRes.code}).`, hookRes.code === 0 ? "info" : "warning");
+          }
+        }
         assertTaskActive(task);
       }
     } else {
@@ -290,6 +310,9 @@ export function createTaskRunnerService({
         );
         task.phase = "build"; persist(); publish("task");
         const buildStartedAt = Date.now();
+        if (task.permissionPreset !== "read-only") {
+          await createShadowCheckpoint(task, cwd, { label: `Trước stage Build (Vòng ${round})`, stage: "build" }, { git }).catch(() => null);
+        }
         const toolCountBefore = (task.events || []).filter((e) => e.kind === "tool").length;
         const implementation = await spawnStage(
           task,
@@ -300,6 +323,9 @@ export function createTaskRunnerService({
           buildSelection
         );
         assertTaskActive(task);
+        if (task.permissionPreset !== "read-only") {
+          await createShadowCheckpoint(task, cwd, { label: `Sau stage Build (Vòng ${round})`, stage: "build" }, { git }).catch(() => null);
+        }
         task.implementation = implementation || `${publicProviderName(buildSelection.provider)} hoàn tất nhưng không gửi văn bản cuối. Kiểm tra danh sách tệp/diff bên dưới.`;
         await fs.writeFile(resolve(task.storagePath, "implementation.md"), task.implementation, "utf8");
         task.artifacts = mergeTaskArtifacts(task.artifacts, await changedFilesSince(cwd, Math.min(Date.parse(task.startedAt) || buildStartedAt, buildStartedAt)));
@@ -462,6 +488,9 @@ export function createTaskRunnerService({
         try {
           const turnStartedAt = Date.now();
           const cwd = sharedCheckout ? workspace.path : (task.executionPath || task.worktreePath || workspace.path);
+          if (task.permissionPreset !== "read-only") {
+            await createShadowCheckpoint(task, cwd, { label: `Trước lượt chat: ${String(turn.content || "").slice(0, 60)}`, stage: "chat", turnId: turn.id, messageId: userMessage?.id }, { git }).catch(() => null);
+          }
           if (turn.provider === "antigravity" && ((task.skills || []).length > 0 || (task.skillIds || []).length > 0) && !(task.antigravitySkillDirs || []).length) {
             task.antigravitySkillDirs = await stageAntigravitySkills(task);
           }
@@ -475,6 +504,9 @@ export function createTaskRunnerService({
             if (!task.worktreeCleaned && task.worktreePath) {
               task.worktreeApplied = false;
               task.worktreeAppliedAt = null;
+            }
+            if (task.permissionPreset !== "read-only") {
+              await createShadowCheckpoint(task, cwd, { label: `Sau lượt chat (${turnChanges.length} tệp)`, stage: "chat", turnId: turn.id, messageId: userMessage?.id }, { git }).catch(() => null);
             }
           }
           if (userMessage) userMessage.status = "done";
@@ -632,7 +664,7 @@ export function createTaskRunnerService({
     return diff.slice(0, 1_000_000);
   }
 
-  async function applyTaskWorktree(task, { cleanup = false } = {}) {
+  async function applyTaskWorktree(task, { cleanup = false, strategy = "" } = {}) {
     if (!task.isolated || !task.worktreePath || task.worktreeCleaned || !existsSync(task.worktreePath)) {
       throw new Error("Task này không có Git worktree cô lập đang hoạt động để áp dụng.");
     }
@@ -650,22 +682,27 @@ export function createTaskRunnerService({
     const repoRoot = info.gitRoot || info.path;
     const wtRoot = resolve(task.worktreePath);
     let appliedFiles = [];
+    const normalizedStrategy = ["theirs", "ours"].includes(String(strategy || "").toLowerCase())
+      ? String(strategy).toLowerCase()
+      : "";
     try {
       await withGitRepoLock(repoRoot, async () => {
+        if (normalizedStrategy === "ours") {
+          await git(repoRoot, ["reset", "--merge"]).catch(() => {});
+          await git(repoRoot, ["checkout", "--ours", "--", "."]).catch(() => {});
+          appliedFiles = [];
+          return;
+        }
         const tempIndexFile = resolve(tmpdir(), `opensybau-wt-index-${task.id}-${randomUUID()}.idx`);
-        const prevGitIndexFile = process.env.GIT_INDEX_FILE;
         const baseRef = task.worktreeBaseHead || "HEAD";
         let patchRes;
         let namesRes;
         try {
-          process.env.GIT_INDEX_FILE = tempIndexFile;
           const indexEnv = { ...process.env, GIT_INDEX_FILE: tempIndexFile };
-          await git(wtRoot, ["add", "-A"], { env: indexEnv });
-          patchRes = await git(wtRoot, ["diff", "--cached", "--binary", "--full-index", baseRef], { env: indexEnv });
-          namesRes = await git(wtRoot, ["diff", "--cached", "--name-only", baseRef], { env: indexEnv });
+          await git(wtRoot, ["add", "-A"], { env: indexEnv, timeoutMs: 30_000 });
+          patchRes = await git(wtRoot, ["diff", "--cached", "--binary", "--full-index", baseRef], { env: indexEnv, timeoutMs: 30_000, maxBuffer: 10_000_000 });
+          namesRes = await git(wtRoot, ["diff", "--cached", "--name-only", baseRef], { env: indexEnv, timeoutMs: 30_000 });
         } finally {
-          if (prevGitIndexFile === undefined) delete process.env.GIT_INDEX_FILE;
-          else process.env.GIT_INDEX_FILE = prevGitIndexFile;
           await fs.rm(tempIndexFile, { force: true }).catch(() => {});
         }
         const patchContent = patchRes.stdout || "";
@@ -674,14 +711,42 @@ export function createTaskRunnerService({
         if (!appliedFiles.length) {
           appliedFiles = parseUnifiedDiffFiles(patchContent).map((f) => f.path).filter(Boolean);
         }
+        if (normalizedStrategy === "theirs") {
+          await git(repoRoot, ["reset", "--merge"]).catch(() => {});
+          for (const rel of appliedFiles) {
+            const safeRel = resolveWorkspaceRelativePath(repoRoot, rel);
+            if (!safeRel) continue;
+            const srcFile = resolve(wtRoot, safeRel);
+            const destFile = resolve(repoRoot, safeRel);
+            if (!within(repoRoot, destFile) || !within(wtRoot, srcFile)) continue;
+            if (existsSync(srcFile)) {
+              await fs.mkdir(resolve(destFile, ".."), { recursive: true });
+              await fs.copyFile(srcFile, destFile);
+            } else if (existsSync(destFile)) {
+              await fs.rm(destFile, { force: true });
+            }
+          }
+          return;
+        }
+        task.storagePath ||= resolve(taskDir, task.id);
         await fs.mkdir(task.storagePath, { recursive: true });
         const patchPath = resolve(task.storagePath, "apply-worktree.patch");
         const normalizedPatch = patchContent.endsWith("\n") ? patchContent : `${patchContent}\n`;
         await fs.writeFile(patchPath, normalizedPatch, "utf8");
         const applyRes = await git(repoRoot, ["apply", "--3way", "--whitespace=nowarn", patchPath]);
         if (applyRes.code !== 0) {
+          const stRes = await git(repoRoot, ["status", "--porcelain=v1"]).catch(() => ({ stdout: "" }));
+          const conflictFiles = String(stRes.stdout || "")
+            .split(/\r?\n/)
+            .filter((line) => /^(UU|AA|DD|AU|UA|DU|UD)\s+/.test(line))
+            .map((line) => line.slice(3).trim())
+            .filter(Boolean);
           const err = new Error(`Không thể tự động áp dụng worktree (có xung đột Git): ${(applyRes.stderr || applyRes.stdout || "git apply failed").trim().slice(0, 400)}`);
-          task.mergeConflict = { at: new Date().toISOString(), message: err.message || String(err) };
+          task.mergeConflict = {
+            at: new Date().toISOString(),
+            message: err.message || String(err),
+            files: conflictFiles.length ? conflictFiles : appliedFiles.slice(0, 20),
+          };
           try { persist(); } catch {}
           publish("tasks");
           throw err;

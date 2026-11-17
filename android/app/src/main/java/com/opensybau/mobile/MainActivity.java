@@ -57,7 +57,26 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private OpenSybauNativeBridge nativeBridge;
     private String pendingPairingUri = null;
-    private boolean pageReady = false;
+    private volatile boolean pageReady = false;
+    private volatile String currentTopUrl = "";
+
+    private boolean isTrustedAppPageLoaded() {
+        String top = currentTopUrl;
+        return pageReady && top != null && top.startsWith("https://appassets.androidplatform.net/");
+    }
+
+    private static boolean isAllowedRemoteOrLanUrl(URL url) {
+        if (url == null) return false;
+        String host = url.getHost();
+        if (host == null || host.isEmpty()) return false;
+        String lower = host.toLowerCase();
+        if ("169.254.169.254".equals(lower) || "metadata.google.internal".equals(lower)) return false;
+        if ("localhost".equals(lower) || "127.0.0.1".equals(lower) || lower.endsWith(".local")) return true;
+        if (lower.startsWith("192.168.") || lower.startsWith("10.")) return true;
+        if (lower.matches("^172\\.(1[6-9]|2\\d|3[0-1])\\..*")) return true;
+        if (lower.matches("^100\\.(6[4-9]|[7-9]\\d|1[01]\\d|12[0-7])\\..*")) return true;
+        return "https".equalsIgnoreCase(url.getProtocol());
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -117,7 +136,7 @@ public class MainActivity extends AppCompatActivity {
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.3.10");
+        settings.setUserAgentString(settings.getUserAgentString() + " OpenSybauAndroid/0.3.11");
 
         webView.clearCache(true);
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
@@ -180,11 +199,20 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                currentTopUrl = url != null ? url : "";
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                currentTopUrl = url != null ? url : "";
                 pageReady = true;
-                view.evaluateJavascript("document.documentElement.dataset.androidInsets='native';", null);
-                dispatchPendingPairingUri();
+                if (isTrustedAppPageLoaded()) {
+                    view.evaluateJavascript("document.documentElement.dataset.androidInsets='native';", null);
+                    dispatchPendingPairingUri();
+                }
             }
         });
 
@@ -258,7 +286,7 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public String getAppVersion() {
-            return "0.3.10";
+            return "0.3.11";
         }
 
         @JavascriptInterface
@@ -348,6 +376,7 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public String scanLanHosts(int targetPort) {
+            if (!isTrustedAppPageLoaded()) return "[]";
             final int portToScan = targetPort > 0 && targetPort <= 65535 ? targetPort : 4173;
             try {
                 Set<String> subnets = new LinkedHashSet<>();
@@ -442,6 +471,7 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public void httpRequestAsync(final String reqId, final String method, final String urlStr, final String headersJson, final String body) {
+            if (!isTrustedAppPageLoaded()) return;
             httpPool.execute(() -> {
                 final String res = httpRequest(method, urlStr, headersJson, body);
                 if (webView != null) {
@@ -455,12 +485,18 @@ public class MainActivity extends AppCompatActivity {
 
         @JavascriptInterface
         public String httpRequest(String method, String urlString, String headersJson, String body) {
+            if (!isTrustedAppPageLoaded()) {
+                return "{\"ok\":false,\"status\":0,\"error\":\"Untrusted bridge caller origin\"}";
+            }
             HttpURLConnection conn = null;
             try {
                 URL url = new URL(urlString);
                 String protocol = url.getProtocol();
                 if (!"http".equalsIgnoreCase(protocol) && !"https".equalsIgnoreCase(protocol)) {
                     return "{\"ok\":false,\"status\":0,\"error\":\"Unsupported URL protocol\"}";
+                }
+                if (!isAllowedRemoteOrLanUrl(url)) {
+                    return "{\"ok\":false,\"status\":0,\"error\":\"Target host not permitted by local bridge policy\"}";
                 }
                 conn = (HttpURLConnection) url.openConnection();
                 String cleanMethod = (method == null || method.isEmpty()) ? "GET" : method.toUpperCase();
@@ -507,6 +543,7 @@ public class MainActivity extends AppCompatActivity {
                 res.put("ok", status >= 200 && status < 300);
                 res.put("status", status);
                 res.put("etag", conn.getHeaderField("ETag") != null ? conn.getHeaderField("ETag") : "");
+                res.put("streamToken", conn.getHeaderField("X-OpenSybau-Stream-Token") != null ? conn.getHeaderField("X-OpenSybau-Stream-Token") : "");
                 res.put("contentType", conn.getHeaderField("Content-Type") != null ? conn.getHeaderField("Content-Type") : "application/json");
                 res.put("body", responseBody);
                 return res.toString();

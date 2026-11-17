@@ -339,13 +339,20 @@ export async function openSubagentDetailModal(taskId, subId = "") {
   const selectorPills = subagents.length > 1
     ? `<div class="filter-pills" style="margin-bottom:10px;flex-wrap:wrap">${subagents.map((s) => `<button type="button" class="filter ${s.id === selectedSub.id ? "active" : ""}" data-action="inspect-subagent" data-id="${esc(taskId)}" data-sub-id="${esc(s.id)}">${icon("git-fork", 12)} <span data-localize-skip="true">${esc(s.role || s.agentType || s.id.slice(0, 8))}</span></button>`).join("")}</div>`
     : "";
-  const filesList = Array.isArray(selectedSub.touchedFiles) && selectedSub.touchedFiles.length
-    ? `<div class="form-note" style="margin-top:10px"><strong>Tệp đã chạm (${selectedSub.touchedFiles.length})</strong><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${selectedSub.touchedFiles.map((f) => `<code>${esc(f)}</code>`).join("")}</div></div>`
+  const subFiles = Array.isArray(selectedSub.filesTouched)
+    ? selectedSub.filesTouched
+    : (Array.isArray(selectedSub.touchedFiles) ? selectedSub.touchedFiles : []);
+  const filesList = subFiles.length
+    ? `<div class="form-note" style="margin-top:10px"><strong>Tệp đã chạm (${subFiles.length})</strong><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${subFiles.map((f) => `<code>${esc(f)}</code>`).join("")}</div></div>`
     : "";
-  const toolsList = Array.isArray(selectedSub.recentTools) && selectedSub.recentTools.length
-    ? `<details class="orchestration-node-details" style="margin-top:10px"><summary>Nhật ký công cụ (${selectedSub.toolCallsCount || selectedSub.recentTools.length})</summary><div style="max-height:180px;overflow-y:auto">${selectedSub.recentTools.map((ev) => `<p><time>${fmtDate(ev.at)}</time> <code>${esc(ev.tool || ev.name || "tool")}</code> ${esc(ev.summary || ev.inputPreview || "")}</p>`).join("")}</div></details>`
+  const subEvents = Array.isArray(selectedSub.events)
+    ? selectedSub.events
+    : (Array.isArray(selectedSub.recentTools) ? selectedSub.recentTools : []);
+  const toolsTotal = selectedSub.toolCount || selectedSub.toolCallsCount || subEvents.length;
+  const toolsList = subEvents.length
+    ? `<details class="orchestration-node-details" style="margin-top:10px"><summary>Nhật ký công cụ (${toolsTotal})</summary><div style="max-height:180px;overflow-y:auto">${subEvents.map((ev) => `<p><time>${fmtDate(ev.at)}</time> <code>${esc(ev.toolName || ev.tool || ev.name || ev.kind || "step")}</code> ${esc(ev.text || ev.summary || ev.inputPreview || "")}</p>`).join("")}</div></details>`
     : "";
-  const outputMd = selectedSub.result || selectedSub.summary || selectedSub.resultPreview || "";
+  const outputMd = selectedSub.result || selectedSub.resultPreview || selectedSub.summary || "";
 
   const body = `<div class="subagent-inspector-modal">
     ${selectorPills}

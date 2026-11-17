@@ -63,12 +63,13 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.settings-workbench-layout > .settings-form {
+.settings-workbench-layout > .settings-form,
+.settings-workbench-layout > .settings-main-column {
   min-width: 0;
   margin-top: 0;
 }
 .device-connect-card {
-  margin-top: 14px;
+  margin-top: 0;
 }
 .device-card-head-right {
   display: flex;
@@ -885,13 +886,15 @@ body .wb-page-content .workspace-list:has(> .empty-state) {
 }
 
 /* Uniform Settings Page Layout & Cards */
-body .wb-page-content .settings-form {
+body .wb-page-content .settings-form,
+body .wb-page-content .settings-main-column {
   display: flex;
   flex-direction: column;
   gap: 16px;
   margin: 0;
 }
-body .wb-page-content .settings-form > .settings-card {
+body .wb-page-content .settings-form > .settings-card,
+body .wb-page-content .settings-main-column > .settings-card {
   margin: 0;
   padding: 20px 22px;
   border-radius: 12px;
@@ -900,7 +903,9 @@ body .wb-page-content .settings-form > .settings-card {
   box-shadow: none;
 }
 .wb-page-content .settings-form > .settings-card[hidden],
+.wb-page-content .settings-main-column > .settings-card[hidden],
 .wb-page-content .settings-form > .settings-search-empty[hidden],
+.wb-page-content .settings-main-column > .settings-search-empty[hidden],
 .wb-page-content .page-head-actions[hidden],
 .empty-state[hidden] {
   display: none !important;
@@ -2087,7 +2092,8 @@ h4,
 }
 
 .wb-page-content .schedule-item-row.is-paused {
-  opacity: 0.68;
+  background: var(--wb-surface-soft);
+  border-style: dashed;
 }
 
 .wb-page-content .schedule-item-main {

@@ -345,7 +345,10 @@ export function createStageSubagentTracker({
     }
 
     if (patch.status) {
-      sub.status = patch.status;
+      const terminalStatuses = new Set(["completed", "done", "failed", "cancelled"]);
+      if (!terminalStatuses.has(sub.status) || terminalStatuses.has(patch.status)) {
+        sub.status = patch.status;
+      }
     }
     sub.updatedAt = nowIso;
     const startedMs = Date.parse(sub.startedAt) || Date.now();
@@ -521,12 +524,13 @@ export function parseClaudeStreamLine(line, ctx) {
   if (type === "assistant") {
     const msgUsage = event.message?.usage || event.usage || null;
     if (msgUsage) {
-      ctx.turnUsageFallback = mergeUsageMetrics(ctx.turnUsageFallback, msgUsage);
       if (parentToolUseId) {
         tracker.upsertSubagent({
           externalId: parentToolUseId,
           usage: msgUsage,
         });
+      } else {
+        ctx.turnUsageFallback = mergeUsageMetrics(ctx.turnUsageFallback, msgUsage);
       }
     }
 
@@ -640,12 +644,16 @@ export function parseClaudeStreamLine(line, ctx) {
           tracker.upsertSubagent({ id: sub.id, lastActivity: "Đã khởi chạy nền; đang chờ kết quả", eventEntry: { kind: "tool", text: "CLI xác nhận khởi chạy nền", status: "running" } });
           continue;
         }
-        const metaUsage = resultMeta?.usage || (Number(resultMeta?.totalTokens) > 0 ? { total_tokens: Number(resultMeta.totalTokens) } : null);
+        const hasAuthoritativeUsage = Boolean(resultMeta?.usage && typeof resultMeta.usage === "object");
+        const metaUsage = hasAuthoritativeUsage
+          ? resultMeta.usage
+          : (!sub.usage?.total_tokens && Number(resultMeta?.totalTokens) > 0 ? { total_tokens: Number(resultMeta.totalTokens) } : null);
         tracker.upsertSubagent({
           id: sub.id,
           status: isErr ? "failed" : "completed",
           result: resultText || String(resultMeta?.content || ""),
           usage: metaUsage,
+          replaceUsage: hasAuthoritativeUsage,
           durationMs: Number(resultMeta?.totalDurationMs) || undefined,
           toolCountFloor: Number(resultMeta?.totalToolUseCount) || undefined,
           incrementErrors: isErr ? 1 : 0,
@@ -1003,8 +1011,9 @@ export async function enrichCodexSubagentsFromRollouts({
     const candidateFiles = [];
     const cutoff = (stageStartedAt || Date.now()) - 120_000;
 
+    const ROLLOUT_CANDIDATE_LIMIT = 120;
     async function collectRecentRollouts(dir, depth = 0) {
-      if (depth > 4 || candidateFiles.length >= 24) return;
+      if (depth > 4 || candidateFiles.length >= ROLLOUT_CANDIDATE_LIMIT) return;
       let entries;
       try {
         entries = await fs.readdir(dir, { withFileTypes: true });
@@ -1013,7 +1022,7 @@ export async function enrichCodexSubagentsFromRollouts({
       }
       entries.sort((a, b) => b.name.localeCompare(a.name));
       for (const entry of entries) {
-        if (candidateFiles.length >= 24) break;
+        if (candidateFiles.length >= ROLLOUT_CANDIDATE_LIMIT) break;
         const full = resolve(dir, entry.name);
         if (entry.isDirectory()) {
           await collectRecentRollouts(full, depth + 1);

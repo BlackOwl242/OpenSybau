@@ -330,7 +330,7 @@ export function workflowSummary(task) {
 }
 
 export function syncWorkflow() {
-  const select = $(".modal select[name=workflow], .home-composer select[name=workflow]");
+  const select = $("#overlay .modal select[name=workflow]") || $(".home-composer select[name=workflow]");
   if (!select) return;
   const form = select.closest("form");
   const roles = form?.querySelector(".agent-role-grid");

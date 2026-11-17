@@ -47,18 +47,22 @@ export function relevantMemory(task, workspace, memories) {
   const queryText = `${task.title || ""} ${task.prompt || ""} ${task.goal || ""}`;
   const queryTerms = tokenize(queryText);
   if (!queryTerms.length || !memories?.length) return [];
-  if (memories.length >= 24) {
+  const visibleMemories = memories.filter(
+    (item) => item && item.kind !== "user-profile" && item.category !== "user" && item.category !== "user-profile"
+  );
+  if (!visibleMemories.length) return [];
+  if (visibleMemories.length >= 500) {
     const rustRanked = rustRankBm25Sync({
       query: queryText,
       workspaceId: workspace?.id || "",
-      memories,
+      memories: visibleMemories,
       limit: 4,
     });
     if (Array.isArray(rustRanked?.indices)) {
-      return rustRanked.indices.map((idx) => memories[idx]).filter(Boolean);
+      return rustRanked.indices.map((idx) => visibleMemories[idx]).filter(Boolean);
     }
   }
-  const scopedDocs = memories
+  const scopedDocs = visibleMemories
     .filter((item) => item && (item.workspaceId === "all" || item.workspaceId === workspace?.id))
     .map((item) => {
       const terms = tokenizeTerms(`${item.title || ""} ${item.title || ""} ${item.content || ""} ${(item.tags || []).join(" ")}`);
@@ -89,7 +93,7 @@ export function relevantMemory(task, workspace, memories) {
         bm25 += idf * ((f * (k1 + 1)) / norm);
       }
       const workspaceBoost = doc.item.workspaceId === workspace?.id && bm25 > 0 ? 1.25 : 0;
-      const pitfallBoost = bm25 > 0 && (doc.item.kind === "pitfall" || /\[BLOCKING\]|Pitfall|QA/i.test(doc.item.content || "")) ? 0.65 : 0;
+      const pitfallBoost = bm25 > 0 && (doc.item.kind === "pitfall" || /\[BLOCKING\]|\bPitfall\b|\bQA\b/i.test(doc.item.content || "")) ? 0.65 : 0;
       return { item: doc.item, score: bm25 + workspaceBoost + pitfallBoost };
     })
     .filter((row) => row.score > 0)
@@ -299,6 +303,96 @@ export function autoDistillTaskMemory(task, workspace, memories, persistMemoryFn
   } catch {
     return null;
   }
+}
+
+export function flushTaskProposedMemories(task, memories, persistMemoryFn) {
+  const proposed = Array.isArray(task?.proposedMemories) ? task.proposedMemories : [];
+  if (!proposed.length || !Array.isArray(memories)) return 0;
+  let saved = 0;
+  const now = new Date().toISOString();
+  for (const item of proposed) {
+    if (!item || item.flushed || !item.content) continue;
+    const normTitle = String(item.title || "API Agent Lesson").trim().slice(0, 120);
+    const normContent = String(item.content || "").trim().slice(0, 1200);
+    const duplicate = memories.find((m) => m.workspaceId === (task.workspaceId || "all") && m.title === normTitle && m.content === normContent);
+    if (!duplicate) {
+      memories.unshift({
+        id: `mem-${randomUUID().slice(0, 8)}`,
+        workspaceId: task.workspaceId || "all",
+        sourceTaskId: task.id,
+        kind: item.kind || "lesson",
+        title: normTitle,
+        content: normContent,
+        createdAt: item.createdAt || now,
+      });
+      saved += 1;
+    }
+    item.flushed = true;
+  }
+  while (memories.length > 200) {
+    const idx = memories.findLastIndex(
+      (m) => !m?.pinned && m?.category !== "user-profile" && m?.category !== "user" && m?.kind !== "user-profile",
+    );
+    if (idx < 0) break;
+    memories.splice(idx, 1);
+  }
+  if (saved > 0 && typeof persistMemoryFn === "function") {
+    persistMemoryFn();
+  }
+  return saved;
+}
+
+export function consolidateMemoriesDream(memories, { persistMemoryFn = null, workspaceId = "" } = {}) {
+  if (!Array.isArray(memories)) return { merged: 0, pruned: 0, total: 0 };
+  const isProtected = (m) => Boolean(m?.pinned || m?.category === "user-profile" || m?.category === "user" || m?.kind === "user-profile");
+  const seen = new Map();
+  const keepers = [];
+  const toRemove = new Set();
+  let merged = 0;
+  for (let i = 0; i < memories.length; i += 1) {
+    const m = memories[i];
+    if (!m || isProtected(m)) continue;
+    if (workspaceId && m.workspaceId !== workspaceId && m.workspaceId !== "all") continue;
+    const normTitle = String(m.title || "").replace(/[-_]+/g, " ");
+    const normKey = `${m.workspaceId || "all"}::${tokenize(normTitle).slice(0, 6).join(" ")}`;
+    const curToks = tokenize(`${normTitle} ${m.content || ""}`);
+    let keeper = !normKey.endsWith("::") ? seen.get(normKey) : null;
+    if (!keeper && curToks.length >= 4) {
+      const curSet = new Set(curToks);
+      for (const candidate of keepers) {
+        if ((candidate.workspaceId || "all") !== (m.workspaceId || "all")) continue;
+        const candToks = tokenize(`${String(candidate.title || "").replace(/[-_]+/g, " ")} ${candidate.content || ""}`);
+        const shared = candToks.filter((t) => curSet.has(t)).length;
+        if (shared >= 4 && shared >= Math.ceil(curToks.length * 0.6) && shared >= Math.ceil(candToks.length * 0.55)) {
+          keeper = candidate;
+          break;
+        }
+      }
+    }
+    if (keeper) {
+      const keeperToks = new Set(tokenize(`${String(keeper.title || "").replace(/[-_]+/g, " ")} ${keeper.content || ""}`));
+      const overlap = curToks.filter((t) => keeperToks.has(t)).length;
+      if (overlap >= Math.max(2, Math.floor(curToks.length * 0.55))) {
+        if (m.content && !keeper.content.includes(m.content) && keeper.content.length + m.content.length < 1800) {
+          keeper.content = `${keeper.content}\n- ${m.content}`;
+          keeper.updatedAt = new Date().toISOString();
+        }
+        toRemove.add(i);
+        merged += 1;
+        continue;
+      }
+    }
+    if (!seen.has(normKey)) seen.set(normKey, m);
+    keepers.push(m);
+  }
+  if (toRemove.size > 0) {
+    const next = memories.filter((_, idx) => !toRemove.has(idx));
+    memories.splice(0, memories.length, ...next);
+  }
+  if ((merged > 0 || toRemove.size > 0) && typeof persistMemoryFn === "function") {
+    persistMemoryFn();
+  }
+  return { merged, pruned: toRemove.size, total: memories.length };
 }
 
 export function countUsageTokens(usage) {

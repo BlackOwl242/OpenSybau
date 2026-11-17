@@ -6,9 +6,11 @@ const path = require("node:path");
 const { findDesktopAntigravityPath } = require("./antigravity-path.cjs");
 const { installerEnvironment } = require("./installer-env.cjs");
 
+const net = require("node:net");
+
 nativeTheme.themeSource = "dark";
 
-const externalHosts = new Set(["developers.openai.com", "platform.openai.com", "code.claude.com", "console.anthropic.com", "antigravity.google", "aistudio.google.com"]);
+const externalHosts = new Set(["developers.openai.com", "platform.openai.com", "code.claude.com", "console.anthropic.com", "antigravity.google", "aistudio.google.com", "github.com"]);
 let mainWindow;
 let stopWorkbench;
 let stopping = false;
@@ -53,6 +55,7 @@ const allowedDesktopEnvKeys = new Set([
   "CLAUDE_CODE_OAUTH_TOKEN",
   "WORKBENCH_API_PROVIDERS", "WORKBENCH_CLAUDE_MODEL", "WORKBENCH_CLAUDE_MODELS",
   "WORKBENCH_CLAUDE_BASE_URL", "WORKBENCH_STAGE_TIMEOUT_MS",
+  "WORKBENCH_MAX_CONCURRENT", "WORKBENCH_VAULT_PATH", "WORKBENCH_THEME", "WORKBENCH_LANGUAGE",
 ]);
 const blockedDesktopEnvKeyPattern = /^(?:NODE_OPTIONS|PATH|CODEX_CLI_PATH|CLAUDE_CLI_PATH|ANTIGRAVITY_CLI_PATH|ELECTRON_.*|LD_.*|DYLD_.*)$/i;
 function isSafeDesktopEnvKey(key) {
@@ -119,6 +122,24 @@ function registerIpcHandlers() {
   if (ipcRegistered) return;
   ipcRegistered = true;
   ipcMain.handle("opensybau:open-config-folder", async () => shell.openPath(userData));
+  ipcMain.handle("opensybau:capture-region", async (_event, rect) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return null;
+    try {
+      const clean = rect && Number.isFinite(Number(rect.width)) && Number(rect.width) > 4 && Number(rect.height) > 4
+        ? {
+            x: Math.max(0, Math.round(Number(rect.x) || 0)),
+            y: Math.max(0, Math.round(Number(rect.y) || 0)),
+            width: Math.min(2000, Math.round(Number(rect.width))),
+            height: Math.min(2000, Math.round(Number(rect.height))),
+          }
+        : undefined;
+      const img = await mainWindow.webContents.capturePage(clean);
+      const dataUrl = img.toDataURL();
+      return { ok: true, dataUrl: dataUrl.slice(0, 650_000), size: img.getSize() };
+    } catch (err) {
+      return { ok: false, error: err?.message || "capture failed" };
+    }
+  });
   ipcMain.handle("opensybau:cli:install", async (_event, providerId, language) => installCli(providerId, language));
   ipcMain.handle("opensybau:update:get-state", () => updateState);
   ipcMain.handle("opensybau:update:check", () => checkForAppUpdate());
@@ -257,8 +278,27 @@ async function installCli(providerId, language) {
   }
 }
 
+function findPreferredDesktopPort(candidates = [41730, 41731, 41732, 41733, 41734]) {
+  return new Promise((resolvePort) => {
+    let idx = 0;
+    const tryNext = () => {
+      if (idx >= candidates.length) { resolvePort("0"); return; }
+      const candidate = candidates[idx++];
+      const probe = net.createServer();
+      probe.once("error", tryNext);
+      probe.listen(candidate, "127.0.0.1", () => {
+        probe.close(() => resolvePort(String(candidate)));
+      });
+    };
+    tryNext();
+  });
+}
+
 async function createMainWindow() {
   initializeUserConfig();
+  if (!process.env.WORKBENCH_PORT || process.env.WORKBENCH_PORT === "0") {
+    process.env.WORKBENCH_PORT = await findPreferredDesktopPort();
+  }
   registerIpcHandlers();
 
   const iconFile = process.platform === "win32" ? "icon.ico" : "icon.png";
@@ -423,19 +463,32 @@ app.whenReady().then(() => singletonLock ? createMainWindow() : undefined).catch
   app.quit();
 });
 
+let workbenchStopped = false;
+
 app.on("before-quit", (event) => {
-  if (stopping) return;
+  if (workbenchStopped) return;
+  if (stopping) {
+    event.preventDefault();
+    return;
+  }
   stopping = true;
   try { app.releaseSingleInstanceLock(); } catch {}
-  if (!stopWorkbench) return;
+  if (!stopWorkbench) {
+    workbenchStopped = true;
+    return;
+  }
   event.preventDefault();
-  const forceExitTimer = setTimeout(() => app.exit(0), 1500);
+  const forceExitTimer = setTimeout(() => {
+    workbenchStopped = true;
+    app.quit();
+  }, 1500);
   forceExitTimer.unref?.();
   void Promise.resolve(stopWorkbench())
     .catch(() => {})
     .finally(() => {
       clearTimeout(forceExitTimer);
-      app.exit(0);
+      workbenchStopped = true;
+      app.quit();
     });
 });
 

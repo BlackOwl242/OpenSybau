@@ -87,12 +87,24 @@ export async function handleChatAndTaskAction(action, id, button) {
   }
   if (action === "toggle-picker-skill") {
     const skillId = String(button.dataset.skillId || "").trim();
+    const pickerTaskId = String(button.dataset.taskId || button.closest("[data-skill-picker-root]")?.dataset?.taskId || "").trim();
     if (skillId) {
-      const current = Array.isArray(view.homeSelectedSkills) ? [...view.homeSelectedSkills] : [];
+      const targetTask = pickerTaskId ? view.state?.tasks?.find((item) => item.id === pickerTaskId) : null;
+      const current = targetTask
+        ? (Array.isArray(targetTask.skillIds) ? [...targetTask.skillIds] : [])
+        : (Array.isArray(view.homeSelectedSkills) ? [...view.homeSelectedSkills] : []);
       const next = button.checked
         ? [...new Set([...current, skillId])]
         : current.filter((s) => s !== skillId);
-      view.homeSelectedSkills = next;
+      if (targetTask) {
+        await api(`/api/tasks/${encodeURIComponent(pickerTaskId)}`, {
+          method: "PATCH",
+          body: JSON.stringify({ skillIds: next }),
+        });
+        targetTask.skillIds = next;
+      } else {
+        view.homeSelectedSkills = next;
+      }
       const badge = document.querySelector("[data-skill-picker-count]");
       if (badge) {
         badge.textContent = next.length > 0 ? `Đã chọn ${next.length} kỹ năng` : "Tự động chọn theo ngữ cảnh";
@@ -102,7 +114,18 @@ export async function handleChatAndTaskAction(action, id, button) {
     return true;
   }
   if (action === "clear-picker-skills") {
-    view.homeSelectedSkills = [];
+    const rootEl = document.querySelector("[data-skill-picker-root]");
+    const pickerTaskId = String(button.dataset.taskId || rootEl?.dataset?.taskId || "").trim();
+    if (pickerTaskId) {
+      const targetTask = view.state?.tasks?.find((item) => item.id === pickerTaskId);
+      await api(`/api/tasks/${encodeURIComponent(pickerTaskId)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ skillIds: [] }),
+      });
+      if (targetTask) targetTask.skillIds = [];
+    } else {
+      view.homeSelectedSkills = [];
+    }
     document.querySelectorAll("[data-skill-picker-root] input[type='checkbox'][data-action='toggle-picker-skill']").forEach((cb) => {
       cb.checked = false;
     });
@@ -208,6 +231,9 @@ export async function handleChatAndTaskAction(action, id, button) {
   }
   if (action === "mp-open-worktrees") {
     closeOverlay();
+    syncTaskChatDraft(null);
+    view.selected = null;
+    view.selectedTaskId = null;
     view.mobileScreen = "worktrees";
     view.page = "chat";
     view.chatDrawerOpen = false;

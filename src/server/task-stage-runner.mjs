@@ -3,10 +3,10 @@ import { existsSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import { completeWithApi } from "./provider-registry.mjs";
+import { API_TOOL_DEFINITIONS, completeWithApi } from "./provider-registry.mjs";
 import { workflowRoles } from "../domain/agent-roles.js";
 import { estimateTaskCostUsd } from "../domain/task-flow.js";
-import { applyApiBuildResult, executeApiWorkspaceTool, parseApiToolCall } from "./api-build-ops.mjs";
+import { applyApiBuildResult, executeApiWorkspaceTool, parseApiToolCall, tryApplyApiChatBuildResult } from "./api-build-ops.mjs";
 import { usesSharedCheckout } from "./fs-security.mjs";
 import {
   createAgyStreamContext,
@@ -210,6 +210,10 @@ export function createTaskStageRunner({
   additionalWritableProjectDirs,
   externalWorkspaceContext,
   subagentCatalogService = null,
+  searchWorkbenchFn = null,
+  flushProposedMemoriesFn = null,
+  mcpClientService = null,
+  otelCollector = null,
 }) {
   const managedCommands = new Map();
   function cancelManagedCommand(taskId, commandId) {
@@ -259,8 +263,9 @@ export function createTaskStageRunner({
       } catch { }
     }
     if (!commandToRun) commandToRun = "git status";
-    if (task.permissionPreset === "read-only" && /^npm\s+(?:test|t|run\b)/i.test(commandToRun)) {
-      const blockedMsg = `Đã bỏ qua "${commandToRun}": package.json scripts bị chặn trong chế độ read-only (chỉ cho phép kiểm tra cú pháp node --check hoặc lệnh đọc an toàn).`;
+    const isAllowedReadOnlyQa = /^(?:git\s+(?:status|log|diff)(?:\s|$)|node\s+--check(?:\s|$))/i.test(commandToRun);
+    if (task.permissionPreset === "read-only" && !isAllowedReadOnlyQa) {
+      const blockedMsg = `Đã bỏ qua "${commandToRun}": thực thi script hoặc test runner bị chặn trong chế độ read-only (chỉ cho phép kiểm tra cú pháp node --check hoặc lệnh git status/log/diff).`;
       const qaResult = {
         command: commandToRun,
         status: "skipped",
@@ -375,56 +380,284 @@ export function createTaskStageRunner({
       const runInfo = running.get(task.id);
       if (runInfo) runInfo.abortController = userController;
       const turnTimeoutMs = 120_000;
+      const apiTracker = createStageSubagentTracker({
+        task,
+        harness: provider,
+        stage,
+        round: task.currentRound || 1,
+        record,
+        addTaskUsage,
+        schedulePersist,
+        schedulePublish,
+      });
+
+      const maskOlderToolObservations = (msgs, keepRecentMessages = 6) => {
+        if (!Array.isArray(msgs) || msgs.length <= keepRecentMessages) return false;
+        const cutoff = msgs.length - keepRecentMessages;
+        const minLen = keepRecentMessages <= 4 ? 120 : 350;
+        let changed = false;
+        for (let i = 0; i < cutoff; i += 1) {
+          const m = msgs[i];
+          if (m?.role === "tool" && !m._masked && String(m.output || m.content || "").length > minLen) {
+            const summaryLine = String(m.summary || m.name || "tool").slice(0, 120);
+            m.output = `[Masked tool observation from earlier turn (${summaryLine}); omit duplicate body to stay within context budget]`;
+            m.content = m.output;
+            m._masked = true;
+            changed = true;
+          }
+        }
+        return changed;
+      };
+
+      const isContextOverflowError = (err) => {
+        const msg = String(err?.message || "").toLowerCase();
+        const code = String(err?.errorCode || "").toLowerCase();
+        return err?.statusCode === 400 && (
+          /context_length|maximum context|too many tokens|prompt is too long|token limit|exceeds.*context/i.test(msg)
+          || /context_length|token_limit/.test(code)
+        );
+      };
+
       try {
         const isChatStage = stage === "chat-initial" || String(stage).startsWith("chat-");
-        const remoteContext = ["plan", "build", "review"].includes(stage) || isChatStage ? await externalWorkspaceContext(task, isChatStage ? "plan" : stage) : null;
+        const readOnlyMode = task.permissionPreset === "read-only" || stage === "plan" || stage === "review";
+        const remoteContext = ["plan", "build", "review"].includes(stage) || isChatStage
+          ? await externalWorkspaceContext(task, isChatStage ? "plan" : stage)
+          : null;
         assertTaskActive(task);
         const buildSnapshotHashes = remoteContext?.buildSnapshotHashes || new Map();
         const gitFn = (targetCwd, args) => run(process.platform === "win32" ? "git.exe" : "git", ["-c", "core.quotepath=false", ...args], { cwd: targetCwd, timeout: 10000, maxBuffer: 500000 });
-        let activePrompt = remoteContext ? `${prompt}${remoteContext.text}` : prompt;
+
+        // Decompose Tier-1 stable prefix (Workspace, USER.md, Skills, MEMORY.md, Goal) for prompt caching
+        const splitIdx = String(prompt || "").indexOf("\n\nStage instructions (");
+        const stablePrefix = splitIdx > 0 ? String(prompt).slice(0, splitIdx) : "";
+        const initialUserPrompt = splitIdx > 0 ? String(prompt).slice(splitIdx + 2) : String(prompt || "");
+        const dynamicSystem = remoteContext?.text ? remoteContext.text.trim() : "";
+
+        const mcpTools = mcpClientService ? await mcpClientService.listToolsForWorkspace(cwd).catch(() => []) : [];
+        const activeToolDefs = [...API_TOOL_DEFINITIONS, ...mcpTools];
+
+        const messages = [{ role: "user", content: initialUserPrompt }];
         let finalContent = "";
-        const maxToolTurns = 4;
+        const maxToolTurns = 20;
+        let syntaxHealUsed = false;
+
         for (let toolTurn = 0; toolTurn <= maxToolTurns; toolTurn += 1) {
-          const turnController = new AbortController();
-          const onUserAbort = () => turnController.abort(userController.signal.reason || new Error("Stopped by user"));
-          if (userController.signal.aborted) onUserAbort();
-          else userController.signal.addEventListener("abort", onUserAbort, { once: true });
-          const turnTimeout = setTimeout(() => turnController.abort(new Error("API provider timeout after 120 seconds.")), turnTimeoutMs);
-          turnTimeout.unref?.();
+          const totalMsgChars = messages.reduce((sum, m) => sum + String(m.content || m.output || "").length, 0);
+          if (totalMsgChars > 56_000) {
+            maskOlderToolObservations(messages, 6);
+            if (typeof flushProposedMemoriesFn === "function" && task.proposedMemories?.length) {
+              flushProposedMemoriesFn(task);
+            }
+          }
+
+          let deltaBuffer = "";
+          let lastDeltaEmit = 0;
+          const flushDelta = (forceFlush = false) => {
+            if (!deltaBuffer) return;
+            const now = Date.now();
+            if (forceFlush || deltaBuffer.length >= 64 || now - lastDeltaEmit >= 160) {
+              record(task, deltaBuffer, "output");
+              deltaBuffer = "";
+              lastDeltaEmit = now;
+            }
+          };
+
+          const callApiOnce = async () => {
+            const turnController = new AbortController();
+            const onUserAbort = () => turnController.abort(userController.signal.reason || new Error("Stopped by user"));
+            if (userController.signal.aborted) onUserAbort();
+            else userController.signal.addEventListener("abort", onUserAbort, { once: true });
+            const turnTimeout = setTimeout(() => turnController.abort(new Error("API provider timeout after 120 seconds.")), turnTimeoutMs);
+            turnTimeout.unref?.();
+            try {
+              return await completeWithApi(providerRuntime, selection.model, {
+                stablePrefix,
+                dynamicSystem,
+                messages,
+                tools: toolTurn < maxToolTurns ? activeToolDefs : undefined,
+                stream: true,
+                onDelta: (chunk) => {
+                  deltaBuffer += String(chunk || "");
+                  flushDelta(false);
+                },
+              }, turnController.signal);
+            } finally {
+              flushDelta(true);
+              clearTimeout(turnTimeout);
+              userController.signal.removeEventListener("abort", onUserAbort);
+            }
+          };
+
           let result;
           try {
-            result = await completeWithApi(providerRuntime, selection.model, activePrompt, turnController.signal);
-          } finally {
-            clearTimeout(turnTimeout);
-            userController.signal.removeEventListener("abort", onUserAbort);
+            result = await callApiOnce();
+          } catch (apiErr) {
+            if (isContextOverflowError(apiErr) && maskOlderToolObservations(messages, 4)) {
+              if (typeof flushProposedMemoriesFn === "function" && task.proposedMemories?.length) {
+                flushProposedMemoriesFn(task);
+              }
+              record(task, `${publicProviderName(provider)} tự động nén lịch sử công cụ để xử lý context overflow.`, "warning");
+              result = await callApiOnce();
+            } else {
+              throw apiErr;
+            }
           }
+
           if (result.usage) addTaskUsage(task, provider, result.usage);
           task._currentStageUsage = result.usage || task._currentStageUsage || null;
           finalContent = String(result.content || "").trim();
-          const toolCall = toolTurn < maxToolTurns ? parseApiToolCall(finalContent) : null;
-          if (!toolCall) break;
-          assertTaskActive(task);
-          record(task, `${publicProviderName(provider)} gọi công cụ nội bộ · Tool call (${toolCall.name})`, "tool", {
-            toolName: toolCall.name,
-            filePath: toolCall.args?.path || toolCall.args?.directory || undefined,
-            status: "running",
-          });
-          const toolRes = await executeApiWorkspaceTool(task, cwd, toolCall, { gitFn, buildSnapshotHashes });
-          record(task, `${publicProviderName(provider)} hoàn tất công cụ · ${toolRes.summary}`, "tool", {
-            toolName: toolCall.name,
-            filePath: toolCall.args?.path || toolCall.args?.directory || undefined,
-            detail: toolRes.output.slice(0, 500),
-            status: "done",
-          });
-          activePrompt = `${activePrompt}\n\n<tool_response name="${toolCall.name}" summary="${toolRes.summary}">\n${toolRes.output}\n</tool_response>\n\nContinue with the requested stage output.`;
+
+          let toolCalls = Array.isArray(result.toolCalls) && result.toolCalls.length ? result.toolCalls : [];
+          if (!toolCalls.length && toolTurn < maxToolTurns) {
+            const legacyCall = parseApiToolCall(finalContent);
+            if (legacyCall) toolCalls = [{ id: `legacy_${toolTurn + 1}`, name: legacyCall.name, args: legacyCall.args }];
+          }
+
+          if (toolCalls.length && toolTurn < maxToolTurns) {
+            messages.push({ role: "assistant", content: finalContent, toolCalls });
+            for (const call of toolCalls) {
+              assertTaskActive(task);
+              record(task, `${publicProviderName(provider)} gọi công cụ nội bộ · Tool call (${call.name})`, "tool", {
+                toolName: call.name,
+                filePath: call.args?.path || call.args?.directory || undefined,
+                status: "running",
+              });
+
+              let toolRes;
+              if (call.name === "delegate_subagent") {
+                const subRole = String(call.args?.role || "Subagent").trim().slice(0, 80);
+                const subPrompt = String(call.args?.prompt || "").trim().slice(0, 3000);
+                const subId = `api-sub-${randomUUID().slice(0, 8)}`;
+                apiTracker.upsertSubagent?.({
+                  externalId: subId,
+                  name: subRole,
+                  role: subRole,
+                  agentType: subRole,
+                  model: selection.model,
+                  status: "running",
+                  prompt: subPrompt,
+                  lastActivity: `Subagent (${subRole}) started`,
+                });
+                try {
+                  const subRes = await completeWithApi(providerRuntime, selection.model, {
+                    stablePrefix,
+                    dynamicSystem: `${dynamicSystem}\n\nYou are a focused read-only subagent (${subRole}). Reply concisely with verified findings only.`,
+                    messages: [{ role: "user", content: subPrompt }],
+                    tools: API_TOOL_DEFINITIONS.filter((t) => ["list_files", "read_file", "search_files", "recall_sessions"].includes(t.name)),
+                    stream: false,
+                  }, userController.signal);
+                  const subText = String(subRes.content || "").slice(0, 8000);
+                  apiTracker.upsertSubagent?.({
+                    externalId: subId,
+                    status: "completed",
+                    usage: subRes.usage || undefined,
+                    result: subText,
+                    lastActivity: subText.slice(0, 200) || "Subagent completed",
+                  });
+                  toolRes = { ok: true, summary: `delegate_subagent("${subRole}") completed`, output: subText || "Subagent returned empty output." };
+                } catch (subErr) {
+                  apiTracker.upsertSubagent?.({
+                    externalId: subId,
+                    status: "failed",
+                    lastActivity: String(subErr?.message || subErr).slice(0, 200),
+                  });
+                  toolRes = { ok: false, summary: `delegate_subagent("${subRole}") failed`, output: `Subagent error: ${subErr?.message || subErr}` };
+                }
+              } else if (call.name.startsWith("mcp:") && mcpClientService) {
+                toolRes = await mcpClientService.callTool(cwd, call.name, call.args || {});
+              } else {
+                toolRes = await executeApiWorkspaceTool(task, cwd, { name: call.name, args: call.args || {} }, {
+                  gitFn,
+                  buildSnapshotHashes,
+                  searchWorkbenchFn: (q, opts) => (typeof searchWorkbenchFn === "function" ? searchWorkbenchFn(q, opts) : []),
+                });
+              }
+
+              record(task, `${publicProviderName(provider)} hoàn tất công cụ · ${toolRes.summary}`, "tool", {
+                toolName: call.name,
+                filePath: call.args?.path || call.args?.directory || undefined,
+                detail: String(toolRes.output || "").slice(0, 500),
+                status: toolRes.ok ? "done" : "error",
+              });
+              messages.push({
+                role: "tool",
+                toolCallId: call.id,
+                name: call.name,
+                summary: toolRes.summary,
+                output: String(toolRes.output || "").slice(0, 14_000),
+              });
+            }
+            continue;
+          }
+
+          if (stage === "build" && !syntaxHealUsed && toolTurn < maxToolTurns) {
+            try {
+              const appliedOutput = await applyApiBuildResult(cwd, finalContent, buildSnapshotHashes, { readOnly: readOnlyMode });
+              finalContent = appliedOutput;
+              break;
+            } catch (applyErr) {
+              const errMsg = String(applyErr?.message || applyErr);
+              if (/Syntax check failed|Invalid JSON syntax|search block did not match|ambiguous/i.test(errMsg)) {
+                syntaxHealUsed = true;
+                messages.push({ role: "assistant", content: finalContent });
+                messages.push({
+                  role: "user",
+                  content: `Applying your changes failed with error:\n${errMsg}\n\nFix the JSON operation or syntax and return the corrected raw JSON response.`,
+                });
+                record(task, `${publicProviderName(provider)} tự động sửa lỗi áp dụng/cú pháp: ${errMsg.slice(0, 140)}`, "warning");
+                continue;
+              }
+              throw applyErr;
+            }
+          }
+          break;
         }
-        const output = stage === "build" ? await applyApiBuildResult(cwd, finalContent, buildSnapshotHashes) : finalContent;
+
+        let output = finalContent;
+        if (stage === "build" && !syntaxHealUsed) {
+          // If loop hit maxToolTurns directly without entering apply branch above
+          output = await applyApiBuildResult(cwd, finalContent, buildSnapshotHashes, { readOnly: readOnlyMode });
+        } else if (stage === "build" && syntaxHealUsed) {
+          // If second attempt broke out via top apply branch, finalContent is already applied summary; if loop exhausted on heal turn, apply finalContent now
+          if (finalContent.trim().startsWith("{")) {
+            output = await applyApiBuildResult(cwd, finalContent, buildSnapshotHashes, { readOnly: readOnlyMode });
+          }
+        } else if (isChatStage && !readOnlyMode) {
+          const maybeChatApplied = await tryApplyApiChatBuildResult(cwd, finalContent, buildSnapshotHashes, { readOnly: false });
+          if (maybeChatApplied) output = maybeChatApplied;
+        }
+
+        if (typeof flushProposedMemoriesFn === "function" && task.proposedMemories?.length) {
+          flushProposedMemoriesFn(task);
+        }
+        apiTracker.finalizeStageSubagents("completed");
         await fs.writeFile(resolve(task.storagePath, `${stage}.md`), output, "utf8");
-        record(task, output.slice(-1500), "output");
+        record(task, output.slice(-24_000), "output");
         task.stageMetrics ||= [];
-        task.stageMetrics.push({ provider, stage, durationMs: Date.now() - stageStartedAt, usage: task._currentStageUsage, completedAt: new Date().toISOString() });
+        const stageDurationMs = Date.now() - stageStartedAt;
+        task.stageMetrics.push({
+          provider,
+          stage,
+          durationMs: stageDurationMs,
+          usage: task._currentStageUsage,
+          subagentCount: (task.subagents || []).filter((s) => s.stage === stage).length,
+          completedAt: new Date().toISOString(),
+        });
         task.stageMetrics = task.stageMetrics.slice(-500);
+        otelCollector?.recordGenAiSpan?.(task, {
+          stage,
+          provider,
+          model: selection.model,
+          usage: task._currentStageUsage,
+          startMs: stageStartedAt,
+          durationMs: stageDurationMs,
+          status: "OK",
+        });
         return output;
+      } catch (err) {
+        apiTracker.finalizeStageSubagents("failed", String(err?.message || err).slice(0, 240));
+        throw err;
       } finally {
         if (runInfo?.abortController === userController) runInfo.abortController = null;
       }
@@ -590,8 +823,17 @@ export function createTaskStageRunner({
       }
     }
 
+    const preReadOnlyModified = ["plan", "review"].includes(stage)
+      ? await changedFilesSince(cwd, Date.now() - 86_400_000).catch(() => [])
+      : null;
+
     return new Promise((resolvePromise, rejectPromise) => {
-      const childEnv = { ...process.env, NO_COLOR: "1", ...(exe === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {}) };
+      const childEnv = {
+        ...process.env,
+        NO_COLOR: "1",
+        ...(task.worktreePort ? { OPENSYBAU_PORT: String(task.worktreePort) } : {}),
+        ...(exe === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
+      };
       if (exe !== process.execPath) delete childEnv.ELECTRON_RUN_AS_NODE;
       const child = spawn(exe, args, { cwd, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: childEnv });
       const runInfo = running.get(task.id);
@@ -686,16 +928,36 @@ export function createTaskStageRunner({
         tracker.finalizeStageSubagents("completed");
         if (!output) { try { output = (await fs.readFile(outputPath, "utf8")).trim(); } catch { } }
         if (!output) output = outputParts.join("").trim();
+        if (["plan", "review"].includes(stage) && preReadOnlyModified !== null) {
+          const postChanged = await changedFilesSince(cwd, stageStartedAt).catch(() => []);
+          const unexpected = postChanged.filter((rel) => !preReadOnlyModified.includes(rel));
+          if (unexpected.length) {
+            for (const rel of unexpected.slice(0, 20)) {
+              await run(process.platform === "win32" ? "git.exe" : "git", ["checkout", "--", rel], { cwd, timeout: 5000 }).catch(() => {});
+            }
+            record(task, `Cảnh báo bảo vệ chỉ đọc (${stage}): ${unexpected.length} tệp bị sửa ngoài dự kiến (${unexpected.slice(0, 3).join(", ")}) đã được khôi phục.`, "warning");
+          }
+        }
         task.stageMetrics ||= [];
+        const cliDurationMs = Date.now() - stageStartedAt;
         task.stageMetrics.push({
           provider,
           stage,
-          durationMs: Date.now() - stageStartedAt,
+          durationMs: cliDurationMs,
           usage: task._currentStageUsage || null,
           subagentCount: (task.subagents || []).filter((s) => s.stage === stage).length,
           completedAt: new Date().toISOString(),
         });
         task.stageMetrics = task.stageMetrics.slice(-500);
+        otelCollector?.recordGenAiSpan?.(task, {
+          stage,
+          provider,
+          model: selection.model,
+          usage: task._currentStageUsage,
+          startMs: stageStartedAt,
+          durationMs: cliDurationMs,
+          status: "OK",
+        });
         resolvePromise(output);
       });
       child.stdin.on("error", () => {});

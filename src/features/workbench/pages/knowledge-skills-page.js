@@ -91,7 +91,7 @@ export function knowledgePage() {
   let centerBodyHtml = "";
   if (mode === "graph") {
     centerBodyHtml = `<div class="neural-canvas-wrap kb-graph-stage">
-      <canvas id="vault-neural-canvas" class="neural-graph-canvas"></canvas>
+      <canvas id="vault-neural-canvas" class="neural-graph-canvas" tabindex="0" aria-label="Đồ thị liên kết tri thức (Tab/Mũi tên chọn nút, Enter mở, +/- thu phóng, 0 căn giữa)"></canvas>
       <div class="kb-graph-hud">
         <div class="kb-graph-legend">
           <span><i class="kb-dot is-selected"></i>Đang chọn</span>

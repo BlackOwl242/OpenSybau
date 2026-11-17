@@ -15,6 +15,7 @@ import {
   validateAgentSelection,
 } from "../task-prompts.mjs";
 import { failQueuedChatTurns, finishStageRerun, recordTaskCycle } from "../task-stage-runner.mjs";
+import { getShadowCheckpointDiff, rewindToShadowCheckpoint } from "../shadow-checkpoints.mjs";
 import { getTaskSubagentsWithDetails, normalizeSubagentPolicy } from "../subagent-tracker.mjs";
 
 function parseSafeAttachments(attachments) {
@@ -101,6 +102,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
   } = ctx;
 
   const { inspectWorkspace, loadModels } = cliDiscovery;
+  const { resolveSelectedSkills } = skillCatalogService;
   const { requestedRole } = promptService;
   const { runTaskQaCheck } = stageRunner;
   const {
@@ -187,13 +189,26 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     const maxRounds = Math.max(1, Math.min(3, Number(body.maxRounds) || (workflow === "codex-antigravity" ? 2 : 1)));
     const qaCommand = String(body.qaCommand || "").trim().slice(0, 80);
     const waveIndex = Number(body.waveIndex) > 0 ? Number(body.waveIndex) : undefined;
+    const hasManualSkills = Array.isArray(body.skillIds) && (body.skillIds.length > 0 || body.skillSelectionMode === "manual");
+    let initialSkillIds = [];
+    let initialSkills = [];
+    if (hasManualSkills) {
+      try {
+        const resolved = await resolveSelectedSkills(body.skillIds, workspace.id);
+        initialSkillIds = resolved.map((s) => s.id);
+        initialSkills = resolved.map((s) => ({ id: s.id, name: s.name, description: s.description }));
+      } catch (error) {
+        json(response, 400, { error: safeError(error) });
+        return true;
+      }
+    }
     const task = {
       id, code, riskLevel, milestone, dependsOn, planGate, planGateApprovedAt: null, planGateFeedback: "",
       maxRounds, currentRound: 1, qaCommand, waveIndex, cycles: [],
       title: String(body.title || prompt.split(/\r?\n/)[0]).trim().slice(0, 120) || safeAttachments[0]?.name || "Task mới",
       prompt, attachments: safeAttachments, workspaceId: workspace.id, workspacePath: info.path, status: "queued", phase: "queued",
       isolated, config, permissionPreset, presetRef, goal: String(body.goal || "").trim().slice(0, 2000), goalChecklist: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), events: [],
-      skillSelectionMode: "auto", skillSelectionCompleted: false, skillIds: [], skills: [],
+      skillSelectionMode: hasManualSkills ? "manual" : "auto", skillSelectionCompleted: hasManualSkills, skillIds: initialSkillIds, skills: initialSkills,
       subagentPolicy: normalizeSubagentPolicy(body.subagentPolicy), subagents: [],
       memoryUsed: [], storagePath: resolve(taskDir, id),
     };
@@ -545,7 +560,7 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     return true;
   }
 
-  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|rerun|stop|diff|open|chat|pin|archive|fork|goal|checklist|plan-gate|qa|exec|git-commit|github-pr|distill-skill|distill-memory|compact|subagents|apply-worktree|discard-worktree|worktree\/apply|worktree\/discard))?$/);
+  const match = pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|rerun|stop|diff|open|chat|pin|archive|fork|goal|checklist|plan-gate|qa|exec|git-commit|github-pr|distill-skill|distill-memory|compact|subagents|apply-worktree|discard-worktree|worktree\/apply|worktree\/discard|checkpoints|checkpoints\/diff|rewind|apply-skill-proposal|telemetry))?$/);
   if (!match) return false;
 
   const id = decodeURIComponent(match[1]);
@@ -619,6 +634,29 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     }
     if (body.subagentPolicy !== undefined) {
       task.subagentPolicy = normalizeSubagentPolicy(body.subagentPolicy);
+    }
+    if (body.skillIds !== undefined) {
+      if (!Array.isArray(body.skillIds)) {
+        json(response, 400, { error: "Danh sách skill được chọn không hợp lệ." });
+        return true;
+      }
+      if (body.skillIds.length) {
+        try {
+          const resolved = await resolveSelectedSkills(body.skillIds, task.workspaceId);
+          task.skillIds = resolved.map((s) => s.id);
+          task.skills = resolved.map((s) => ({ id: s.id, name: s.name, description: s.description }));
+          task.skillSelectionMode = "manual";
+          task.skillSelectionCompleted = true;
+        } catch (error) {
+          json(response, 400, { error: safeError(error) });
+          return true;
+        }
+      } else {
+        task.skillIds = [];
+        task.skills = [];
+        task.skillSelectionMode = "auto";
+        task.skillSelectionCompleted = false;
+      }
     }
     if (body.codexTransport !== undefined) { task.config ||= {}; task.config.codexTransport = body.codexTransport; }
     task.updatedAt = new Date().toISOString();
@@ -1114,10 +1152,10 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
   if (request.method === "POST" && (action === "apply-worktree" || action === "worktree/apply")) {
     const body = await readBody(request);
     try {
-      const updated = await applyTaskWorktree(task, { cleanup: Boolean(body.cleanup) });
+      const updated = await applyTaskWorktree(task, { cleanup: Boolean(body.cleanup), strategy: String(body.strategy || "") });
       json(response, 200, { ok: true, task: updated, appliedFiles: updated.appliedFiles || [] });
     } catch (error) {
-      json(response, 409, { error: safeError(error) });
+      json(response, 409, { error: safeError(error), mergeConflict: task.mergeConflict || null });
     }
     return true;
   }
@@ -1155,6 +1193,79 @@ export async function handleTaskRoutes(request, response, pathname, ctx) {
     if (!path || !existsSync(path)) { json(response, 404, { error: "Không tìm thấy thư mục workspace để mở." }); return true; }
     await openFolder(path);
     json(response, 200, { ok: true });
+    return true;
+  }
+
+  if (request.method === "GET" && action === "checkpoints") {
+    json(response, 200, { checkpoints: Array.isArray(task.checkpoints) ? task.checkpoints : [] });
+    return true;
+  }
+
+  if (request.method === "GET" && action === "checkpoints/diff") {
+    const reqUrl = new URL(request.url || "/", `http://${host}:${port}`);
+    const checkpointId = reqUrl.searchParams.get("checkpointId") || "";
+    const vsWorkingTree = reqUrl.searchParams.get("live") === "1";
+    const targetCwd = task.executionPath || task.worktreePath || task.workspacePath;
+    try {
+      const result = await getShadowCheckpointDiff(task, targetCwd, checkpointId, { vsWorkingTree, git: ctx.git });
+      json(response, 200, result);
+    } catch (error) {
+      json(response, 400, { error: safeError(error) });
+    }
+    return true;
+  }
+
+  if (request.method === "POST" && action === "rewind") {
+    if (running.has(task.id) || ["queued", "running"].includes(task.status)) {
+      json(response, 409, { error: "Hãy dừng task trước khi khôi phục checkpoint." });
+      return true;
+    }
+    const body = await readBody(request);
+    const checkpointId = String(body.checkpointId || "");
+    const mode = body.mode === "files-and-chat" ? "files-and-chat" : "files-only";
+    const targetCwd = task.executionPath || task.worktreePath || task.workspacePath;
+    try {
+      const result = await rewindToShadowCheckpoint(task, targetCwd, checkpointId, { mode, git: ctx.git });
+      record(task, `Đã khôi phục dự án về checkpoint "${result.checkpoint.label}" (${result.restoredFiles.length} tệp khôi phục, ${result.removedFiles.length} tệp tạo sau đã xóa).`, "info");
+      persist();
+      publish("tasks");
+      json(response, 200, { ok: true, task, ...result });
+    } catch (error) {
+      json(response, 400, { error: safeError(error) });
+    }
+    return true;
+  }
+
+  if (request.method === "POST" && action === "apply-skill-proposal") {
+    const body = await readBody(request);
+    const idx = Number.isInteger(Number(body.index)) ? Number(body.index) : 0;
+    const proposed = Array.isArray(task.proposedSkills) ? task.proposedSkills[idx] : null;
+    if (!proposed) { json(response, 404, { error: "Không tìm thấy đề xuất skill." }); return true; }
+    try {
+      const created = await ctx.skillCatalogService.saveSkill({
+        name: proposed.name,
+        description: proposed.description || `Kỹ năng được API AI đề xuất từ tác vụ ${task.title || task.id}`,
+        instructions: proposed.instructions,
+        scope: body.scope === "workspace" ? "workspace" : "universal",
+        workspaceId: task.workspaceId,
+      });
+      proposed.appliedAt = new Date().toISOString();
+      persist();
+      publish("skills");
+      publish("task");
+      json(response, 201, { ok: true, skill: created, task });
+    } catch (error) {
+      json(response, 400, { error: safeError(error) });
+    }
+    return true;
+  }
+
+  if (request.method === "GET" && action === "telemetry") {
+    json(response, 200, {
+      spans: Array.isArray(task.telemetrySpans) ? task.telemetrySpans : [],
+      usage: task.usage || {},
+      worktreePort: task.worktreePort || null,
+    });
     return true;
   }
 

@@ -40,12 +40,18 @@ export function findAntigravityCli({ env = process.env, home = homedir(), platfo
 }
 
 export function parseAntigravityModels(output) {
-  return String(output || "").replace(/\x1b\[[0-9;]*m/g, "").split(/\r?\n/)
-    .filter((line) => !/^fetching\b/i.test(line.trim()))
+  return String(output || "")
+    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
+    .replace(/\r/g, "")
+    .split(/\n/)
+    .filter((line) => !/^(?:fetching|warning|error|loading)\b/i.test(line.trim()))
     .map((line) => {
-      const [id, ...label] = line.trim().split(/\s+/);
-      const effort = id?.match(/-(low|medium|high|xhigh|max)$/)?.[1];
-      return id && label.length ? { id, name: label.join(" "), efforts: effort ? [effort] : ["low", "medium", "high", "xhigh", "max"] } : null;
+      const cleanLine = line.trim();
+      if (!cleanLine || cleanLine.startsWith("---") || cleanLine.startsWith("===")) return null;
+      const [id, ...label] = cleanLine.split(/\s+/);
+      if (!id || !/^[a-z0-9][a-z0-9._:/-]*$/i.test(id)) return null;
+      const effort = id.match(/-(low|medium|high|xhigh|max)$/)?.[1];
+      return label.length ? { id, name: label.join(" "), efforts: effort ? [effort] : ["low", "medium", "high", "xhigh", "max"] } : null;
     }).filter(Boolean);
 }
 
@@ -72,7 +78,7 @@ export async function probeAntigravityCli({ resolveExecutable, run, fileExists =
       error: available ? null : !installed ? "Không tìm thấy agy CLI trên máy." : needsLogin ? detail
         : `Đã tìm thấy Antigravity CLI nhưng chưa đọc được model${catalog.timedOut ? " (hết thời gian chờ)" : ""}: ${detail}`,
     };
-    if (available || needsLogin) break;
+    if (available || needsLogin || !installed) break;
     if (attempt < 2) await pause(attempt === 0 ? 500 : 1500);
   }
   return probe;

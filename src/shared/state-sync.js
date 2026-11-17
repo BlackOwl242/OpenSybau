@@ -17,8 +17,19 @@ export function createStateLoader(fetchState = remoteFetch) {
       signal: AbortSignal.timeout(15_000),
     });
     if (response.status === 304 && snapshot) return { state: snapshot, changed: false };
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
+    const raw = await response.text();
+    let data = {};
+    if (raw) {
+      try { data = JSON.parse(raw); }
+      catch {
+        if (response.ok) throw new Error("Invalid JSON returned by /api/state");
+      }
+    }
+    if (!response.ok) {
+      const error = new Error(data?.error || raw.slice(0, 180) || `Request failed (${response.status})`);
+      error.status = response.status;
+      throw error;
+    }
     snapshot = data;
     etag = response.headers.get("etag") || "";
     return { state: snapshot, changed: true };

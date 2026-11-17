@@ -72,10 +72,15 @@ pub fn parse_json(input: &str) -> Result<JsonValue, String> {
     let bytes = input.as_bytes();
     let mut pos = 0;
     skip_ws(bytes, &mut pos);
-    let val = parse_value(bytes, &mut pos)?;
+    let val = parse_value(bytes, &mut pos, 0)?;
     skip_ws(bytes, &mut pos);
+    if pos < bytes.len() {
+        return Err("Trailing characters after JSON".to_string());
+    }
     Ok(val)
 }
+
+const MAX_JSON_DEPTH: usize = 128;
 
 fn skip_ws(bytes: &[u8], pos: &mut usize) {
     while *pos < bytes.len() {
@@ -86,15 +91,18 @@ fn skip_ws(bytes: &[u8], pos: &mut usize) {
     }
 }
 
-fn parse_value(bytes: &[u8], pos: &mut usize) -> Result<JsonValue, String> {
+fn parse_value(bytes: &[u8], pos: &mut usize, depth: usize) -> Result<JsonValue, String> {
+    if depth > MAX_JSON_DEPTH {
+        return Err("JSON nesting depth exceeded".to_string());
+    }
     skip_ws(bytes, pos);
     if *pos >= bytes.len() {
         return Err("Unexpected EOF".to_string());
     }
     match bytes[*pos] {
         b'"' => parse_string(bytes, pos).map(JsonValue::Str),
-        b'{' => parse_object(bytes, pos),
-        b'[' => parse_array(bytes, pos),
+        b'{' => parse_object(bytes, pos, depth + 1),
+        b'[' => parse_array(bytes, pos, depth + 1),
         b't' => {
             if bytes.get(*pos..*pos + 4) == Some(b"true") {
                 *pos += 4;
@@ -178,6 +186,7 @@ fn parse_string(bytes: &[u8], pos: &mut usize) -> Result<String, String> {
                     *pos += 1;
                     let code = parse_hex4(bytes, pos)?;
                     if (0xD800..=0xDBFF).contains(&code) {
+                        let saved_pos = *pos;
                         if bytes.get(*pos..*pos + 2) == Some(b"\\u") {
                             *pos += 2;
                             let low = parse_hex4(bytes, pos)?;
@@ -187,6 +196,8 @@ fn parse_string(bytes: &[u8], pos: &mut usize) -> Result<String, String> {
                                     out.push(ch);
                                     continue;
                                 }
+                            } else {
+                                *pos = saved_pos;
                             }
                         }
                         out.push('\u{FFFD}');
@@ -250,7 +261,7 @@ fn parse_number(bytes: &[u8], pos: &mut usize) -> Result<JsonValue, String> {
     Ok(JsonValue::Number(num))
 }
 
-fn parse_array(bytes: &[u8], pos: &mut usize) -> Result<JsonValue, String> {
+fn parse_array(bytes: &[u8], pos: &mut usize, depth: usize) -> Result<JsonValue, String> {
     *pos += 1; // skip '['
     let mut items = Vec::new();
     skip_ws(bytes, pos);
@@ -259,7 +270,7 @@ fn parse_array(bytes: &[u8], pos: &mut usize) -> Result<JsonValue, String> {
         return Ok(JsonValue::Array(items));
     }
     loop {
-        let val = parse_value(bytes, pos)?;
+        let val = parse_value(bytes, pos, depth)?;
         items.push(val);
         skip_ws(bytes, pos);
         match bytes.get(*pos) {
@@ -275,7 +286,7 @@ fn parse_array(bytes: &[u8], pos: &mut usize) -> Result<JsonValue, String> {
     }
 }
 
-fn parse_object(bytes: &[u8], pos: &mut usize) -> Result<JsonValue, String> {
+fn parse_object(bytes: &[u8], pos: &mut usize, depth: usize) -> Result<JsonValue, String> {
     *pos += 1; // skip '{'
     let mut map = BTreeMap::new();
     skip_ws(bytes, pos);
@@ -291,7 +302,7 @@ fn parse_object(bytes: &[u8], pos: &mut usize) -> Result<JsonValue, String> {
             return Err("Expected ':' after object key".to_string());
         }
         *pos += 1;
-        let val = parse_value(bytes, pos)?;
+        let val = parse_value(bytes, pos, depth)?;
         map.insert(key, val);
         skip_ws(bytes, pos);
         match bytes.get(*pos) {

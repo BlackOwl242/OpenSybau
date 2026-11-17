@@ -1130,6 +1130,36 @@ html.mobile-companion .wb-home-dock-trigger {
   display: none;
 }
 
+html.mobile-companion .settings-mobile-nav {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  overflow-x: visible;
+  padding: 2px 0 4px;
+  gap: 6px;
+  margin-bottom: 14px;
+  background: transparent;
+  border: 0;
+}
+html.mobile-companion .settings-mobile-nav > .settings-nav-item {
+  flex: 0 0 auto;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--wb-line);
+  background: var(--wb-panel);
+  color: var(--wb-ink);
+  font-size: 12px;
+  white-space: nowrap;
+}
+html.mobile-companion .settings-mobile-nav > .settings-nav-item.is-active {
+  background: var(--wb-ink-strong);
+  color: var(--wb-bg);
+  border-color: var(--wb-ink-strong);
+  font-weight: 600;
+}
+
 html.mobile-companion .wb-app-shell,
 html.mobile-companion .wb-app-shell.has-context-sidebar,
 html.mobile-companion .wb-app-shell.has-page-sidebar,
@@ -1137,7 +1167,11 @@ html.mobile-companion .wb-app-shell.has-both-sidebars,
 html.mobile-companion .wb-app-shell.is-sidebar-collapsed.has-context-sidebar,
 html.mobile-companion .wb-app-shell.is-sidebar-collapsed.has-both-sidebars {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: calc(48px + var(--wb-safe-top, 0px)) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+html.mobile-companion .wb-app-shell .wb-main {
+  grid-column: 1;
+  grid-row: 1;
 }
 
 html.mobile-companion .wb-window-chrome {
@@ -2182,7 +2216,7 @@ html.mobile-companion .mp-repo-dot.is-orange {
   background: #f59e0b;
 }
 html.mobile-companion .mp-repo-dot.is-violet {
-  background: #a855f7;
+  background: #e11d48;
 }
 
 html.mobile-companion .mp-chevron-right {
@@ -2760,5 +2794,32 @@ html[data-android-insets="native"] {
     background: linear-gradient(var(--wb-sidebar), var(--wb-sidebar)), var(--wb-bg);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+}
+
+/* Mobile Touch Targets, Form Input 16px Zoom Prevention & Landscape Safe Insets */
+@media (max-width: 760px) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .wb-shell .icon-button,
+  .wb-shell .button.small,
+  .wb-shell .button.quiet.small,
+  .wb-shell .nav-tab,
+  .wb-shell .vault-mode-tab,
+  .wb-shell .modal-close {
+    min-height: 40px;
+    min-width: 40px;
+  }
+
+  .wb-shell .topbar,
+  .wb-shell .mobile-bottom-nav,
+  .wb-shell .wb-page-content,
+  html.mobile-companion .mp-screen {
+    padding-left: max(var(--wb-safe-left, 0px), 10px);
+    padding-right: max(var(--wb-safe-right, 0px), 10px);
   }
 }

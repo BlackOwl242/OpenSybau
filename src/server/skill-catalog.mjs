@@ -377,7 +377,6 @@ export function createSkillCatalogService({
       if (!file) continue;
       const target = resolve(base, skill.id);
       await copyDirectory(file.directory, target, file.root);
-      skill.runtimeDirectory = target;
       copied.push(target);
     }
     return copied;

@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync 
 import { promises as fs } from "node:fs";
 import { extname, resolve, sep } from "node:path";
 import { homedir, hostname as osHostname } from "node:os";
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { workflowRoles } from "./src/domain/agent-roles.js";
 import { createStateSnapshot } from "./src/server/state-snapshot.mjs";
@@ -13,10 +13,17 @@ import { isForbiddenSystemPath as checkForbiddenSystemPath } from "./src/server/
 import {
   autoDistillTaskMemory as distillTaskMemory,
   buildTelemetrySummary as computeTelemetrySummary,
+  consolidateMemoriesDream,
+  flushTaskProposedMemories,
   readMarkdownMemories,
   relevantMemory as queryRelevantMemory,
   syncMarkdownMemories,
 } from "./src/server/memory-bm25.mjs";
+import { createOpenSybauMcpServer } from "./src/server/mcp-server.mjs";
+import { createLocalMcpClient } from "./src/server/mcp-client.mjs";
+import { createOtelTelemetryCollector } from "./src/server/otel-receiver.mjs";
+import { createWorktreePoolManager } from "./src/server/worktree-pool.mjs";
+import { injectOrcaInspectorHtml } from "./src/server/html-inspector-script.mjs";
 import { createSkillCatalogService } from "./src/server/skill-catalog.mjs";
 import { createSubagentCatalogService } from "./src/server/subagent-catalog.mjs";
 import { createTaskStoreService, spawnScheduledTask } from "./src/server/task-store.mjs";
@@ -64,7 +71,34 @@ let pumpTimer;
 let scheduleTimer = null;
 let persistTimer = null;
 let publishTimer = null;
-let pendingPublishType = null;
+const pendingPublishTypes = new Set();
+const pendingTaskDeltas = new Map();
+const streamTokenSecret = randomBytes(32);
+
+function issueScopedStreamToken(scope = "all", ttlMs = 15 * 60_000) {
+  const cleanScope = /^[a-z0-9:_-]{1,64}$/i.test(String(scope || "")) ? String(scope) : "all";
+  const exp = Date.now() + Math.max(30_000, Math.min(3600_000, Number(ttlMs) || 15 * 60_000));
+  const payload = `${exp}.${cleanScope}`;
+  const sig = createHmac("sha256", streamTokenSecret).update(payload).digest("base64url");
+  return `${payload}.${sig}`;
+}
+
+function verifyScopedStreamToken(token, pathname = "") {
+  const parts = String(token || "").split(".");
+  if (parts.length !== 3) return false;
+  const [expRaw, scope, sig] = parts;
+  const exp = Number(expRaw);
+  if (!Number.isFinite(exp) || exp <= Date.now()) return false;
+  const expectedSig = createHmac("sha256", streamTokenSecret).update(`${expRaw}.${scope}`).digest("base64url");
+  if (!safeEqualText(sig, expectedSig)) return false;
+  if (scope === "all") return true;
+  if (scope === "events") return pathname === "/__events" || pathname === "/api/events";
+  const rawMatch = pathname.match(/^\/api\/workspaces\/([^/]+)\/raw(?:\/|$)/);
+  if (rawMatch) {
+    return scope === "raw" || scope === `raw:${decodeURIComponent(rawMatch[1])}`;
+  }
+  return false;
+}
 const gitRepoLocks = new Map();
 const stateSnapshot = createStateSnapshot(publicState);
 const taskStore = createTaskStoreService({ taskDir });
@@ -208,14 +242,36 @@ for (const task of state.tasks) {
 let memories = loadJson(memoryFile, []);
 syncMarkdownMemories(runtime, memories, state.workspaces);
 
+function dehydrateTasksForStateFile(tasks = []) {
+  return (Array.isArray(tasks) ? tasks : []).map((task) => {
+    if (!task || typeof task !== "object") return task;
+    const {
+      _currentStageUsage,
+      _subagentDetails,
+      plan,
+      implementation,
+      review,
+      ...summary
+    } = task;
+    return {
+      ...summary,
+      plan: typeof plan === "string" && plan.length > 400 ? `${plan.slice(0, 400)}…` : (plan || ""),
+      implementation: typeof implementation === "string" && implementation.length > 400 ? `${implementation.slice(0, 400)}…` : (implementation || ""),
+      review: typeof review === "string" && review.length > 400 ? `${review.slice(0, 400)}…` : (review || ""),
+      chatMessages: Array.isArray(task.chatMessages) ? task.chatMessages.slice(-8) : task.chatMessages,
+      events: Array.isArray(task.events) ? task.events.slice(-25) : task.events,
+    };
+  });
+}
+
 function persist() {
   stateSnapshot.invalidate();
   if (persistTimer) {
     clearTimeout(persistTimer);
     persistTimer = null;
   }
-  persistJsonFile(stateFile, state);
   taskStore.syncTaskDetailFiles(state.tasks);
+  persistJsonFile(stateFile, { ...state, tasks: dehydrateTasksForStateFile(state.tasks) });
 }
 
 function schedulePersist(delayMs = 750) {
@@ -239,14 +295,19 @@ function isLoopbackClient(request) {
   return address === "::1" || address === "127.0.0.1" || address.startsWith("127.");
 }
 
-function publish(type = "state") {
+function publish(type = "state", extra = null) {
   stateSnapshot.invalidate();
   if (publishTimer) {
     clearTimeout(publishTimer);
     publishTimer = null;
-    pendingPublishType = null;
+    pendingPublishTypes.clear();
   }
-  const payload = JSON.stringify({ type });
+  const types = Array.isArray(extra?.types) && extra.types.length ? extra.types : [type];
+  const delta = extra?.delta || (pendingTaskDeltas.size && types.every((item) => item === "task")
+    ? { patchOnly: [...pendingTaskDeltas.values()].every((item) => item.patchOnly), tasks: [...pendingTaskDeltas.values()] }
+    : null);
+  pendingTaskDeltas.clear();
+  const payload = JSON.stringify(delta ? { type, types, delta } : { type, types });
   for (const client of clients) {
     if (client.destroyed || client.writableEnded) { clients.delete(client); continue; }
     if (client.writableNeedDrain) {
@@ -263,15 +324,26 @@ function publish(type = "state") {
   }
 }
 
+function queueTaskDelta(taskDelta) {
+  if (!taskDelta?.id) return;
+  const prev = pendingTaskDeltas.get(taskDelta.id);
+  const mergedPatchOnly = prev ? Boolean(prev.patchOnly && taskDelta.patchOnly) : Boolean(taskDelta.patchOnly);
+  pendingTaskDeltas.set(taskDelta.id, { ...prev, ...taskDelta, patchOnly: mergedPatchOnly });
+}
+
 function schedulePublish(type = "task", delayMs = 250) {
   stateSnapshot.invalidate();
-  pendingPublishType = type;
+  pendingPublishTypes.add(type);
   if (publishTimer) return;
   publishTimer = setTimeout(() => {
-    const nextType = pendingPublishType || type;
+    const types = pendingPublishTypes.size ? [...pendingPublishTypes] : [type];
+    const delta = pendingTaskDeltas.size && types.every((item) => item === "task")
+      ? { patchOnly: [...pendingTaskDeltas.values()].every((item) => item.patchOnly), tasks: [...pendingTaskDeltas.values()] }
+      : null;
     publishTimer = null;
-    pendingPublishType = null;
-    publish(nextType);
+    pendingPublishTypes.clear();
+    pendingTaskDeltas.clear();
+    publish(types.length === 1 ? types[0] : "batch", delta ? { types, delta } : { types });
   }, delayMs);
   publishTimer.unref?.();
 }
@@ -282,21 +354,41 @@ function record(task, text, kind = "info", meta = null) {
   const last = task.events.at(-1);
   if (kind === "output" && last?.kind === "output" && !meta) {
     last.at = at;
-    last.text = `${last.text || ""}${String(text)}`.slice(-1500);
+    last.text = `${last.text || ""}${String(text)}`.slice(-24_000);
     task.updatedAt = at;
     schedulePersist();
+    queueTaskDelta({
+      id: task.id,
+      updatedAt: at,
+      status: task.status,
+      phase: task.phase,
+      activeStage: task.activeStage,
+      patchOnly: true,
+      outputAppend: String(text),
+      outputAt: at,
+    });
     schedulePublish("task");
     return;
   }
   const line = { at, text: String(text).slice(0, 8000), kind, ...(meta && typeof meta === "object" ? meta : {}) };
   task.events = [...task.events, line].slice(-250);
   task.updatedAt = line.at;
+  const delta = {
+    id: task.id,
+    updatedAt: line.at,
+    status: task.status,
+    phase: task.phase,
+    activeStage: task.activeStage,
+    patchOnly: kind === "output" || kind === "tool",
+    event: line,
+  };
   if (kind === "output" || kind === "tool") {
     schedulePersist();
+    queueTaskDelta(delta);
     schedulePublish("task");
   } else {
     schedulePersist(60);
-    publish("task");
+    publish("task", { delta: { patchOnly: false, tasks: [delta] } });
   }
 }
 
@@ -330,16 +422,20 @@ function killTree(child) {
 }
 
 async function readBody(request) {
-  let body = "";
+  const chunks = [];
+  let totalBytes = 0;
   for await (const chunk of request) {
-    body += chunk;
-    if (body.length > 1_000_000) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buf.byteLength;
+    if (totalBytes > 2_500_000) {
       const err = new Error("Request body too large");
       err.statusCode = 413;
       throw err;
     }
+    chunks.push(buf);
   }
-  if (!body) return {};
+  if (!totalBytes) return {};
+  const body = Buffer.concat(chunks, totalBytes).toString("utf8");
   const contentType = String(request.headers?.["content-type"] || "").toLowerCase();
   if (contentType && !contentType.includes("application/json")) {
     const err = new Error("Content-Type must be application/json");
@@ -357,8 +453,14 @@ async function readBody(request) {
 
 function run(exe, args, options = {}) {
   return new Promise((resolvePromise) => {
-    const childEnv = { ...process.env, NO_COLOR: "1", ...(exe === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {}) };
-    if (exe !== process.execPath) delete childEnv.ELECTRON_RUN_AS_NODE;
+    const extraEnv = options.env && typeof options.env === "object" ? options.env : null;
+    const childEnv = {
+      ...process.env,
+      ...(extraEnv || {}),
+      NO_COLOR: "1",
+      ...(exe === process.execPath ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
+    };
+    if (exe !== process.execPath && !extraEnv?.ELECTRON_RUN_AS_NODE) delete childEnv.ELECTRON_RUN_AS_NODE;
     const child = spawn(exe, args, { cwd: options.cwd || homedir(), windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: childEnv });
     options.onSpawn?.(child);
     let stdout = "";
@@ -382,11 +484,20 @@ function run(exe, args, options = {}) {
   });
 }
 
-async function git(cwd, args, timeoutMs = 10000) {
+export async function git(cwd, args, timeoutOrOptions = 10000) {
+  const opts = typeof timeoutOrOptions === "object" && timeoutOrOptions !== null
+    ? timeoutOrOptions
+    : { timeout: timeoutOrOptions };
+  const timeout = Number.isFinite(Number(opts.timeoutMs))
+    ? Number(opts.timeoutMs)
+    : Number.isFinite(Number(opts.timeout))
+      ? Number(opts.timeout)
+      : 10000;
+  const maxBuffer = Number.isFinite(Number(opts.maxBuffer)) ? Number(opts.maxBuffer) : 500000;
   return run(
     process.platform === "win32" ? "git.exe" : "git",
     ["-c", "core.hooksPath=__opensybau_disabled_hooks__", "-c", "core.quotepath=false", ...args],
-    { cwd, timeout: timeoutMs, maxBuffer: 500000 },
+    { cwd, timeout, maxBuffer, ...(opts.env ? { env: opts.env } : {}) },
   );
 }
 
@@ -451,9 +562,10 @@ function hasValidAccess(request) {
           parsedUrl.pathname === "/__events"
           || parsedUrl.pathname === "/api/events"
           || /^\/api\/workspaces\/[^/]+\/raw(?:\/|$)/.test(parsedUrl.pathname)
+          || /^\/api\/design-proxy\/\d+(?:\/|$)/.test(parsedUrl.pathname)
         )
       ) {
-        if (safeEqualText(urlToken, effectivePassword)) {
+        if (verifyScopedStreamToken(urlToken, parsedUrl.pathname)) {
           authFailuresByIp.delete(clientIp);
           return true;
         }
@@ -567,6 +679,16 @@ const promptService = createTaskPromptService({
   skillInstructions: skillCatalogService.skillInstructions,
 });
 
+const otelCollector = createOtelTelemetryCollector();
+const mcpClientService = createLocalMcpClient({
+  isWorkspaceTrusted: (cwd) => Boolean(state.workspaces.find((w) => w.path === cwd || cwd.startsWith(w.path))?.trustedSkills),
+});
+const worktreePoolManager = createWorktreePoolManager({
+  worktreeDir,
+  git,
+  run,
+});
+
 const stageRunner = createTaskStageRunner({
   getState: () => state,
   running,
@@ -582,6 +704,23 @@ const stageRunner = createTaskStageRunner({
   additionalWritableProjectDirs: (task, cwd) => promptService.additionalWritableProjectDirs(task, cwd),
   externalWorkspaceContext: (task, stage) => promptService.externalWorkspaceContext(task, stage),
   subagentCatalogService,
+  searchWorkbenchFn: async (query, opts = {}) => taskStore.searchWorkbench({
+    query,
+    tasks: state.tasks,
+    memories,
+    skills: [],
+    workspaceId: opts.workspaceId || "",
+    scope: opts.scope || "all",
+    limit: opts.limit || 8,
+  }),
+  flushProposedMemoriesFn: (task) => {
+    if (typeof flushTaskProposedMemories === "function") {
+      return flushTaskProposedMemories(task, memories, persistMemory);
+    }
+    return 0;
+  },
+  mcpClientService,
+  otelCollector,
 });
 
 const taskRunner = createTaskRunnerService({
@@ -604,6 +743,15 @@ const taskRunner = createTaskRunnerService({
   skillCatalogService,
   promptService,
   stageRunner,
+  worktreePool: worktreePoolManager,
+});
+
+const mcpServerService = createOpenSybauMcpServer({
+  getState: () => state,
+  getMemories: () => memories,
+  getQuotas: () => providerQuotaService.getQuotasSnapshot({ force: false }).catch(() => ({})),
+  getTaskDiff: (task) => taskRunner.checkDiff(task),
+  searchWorkbench: (params) => taskStore.searchWorkbench(params),
 });
 
 let vite;
@@ -694,7 +842,9 @@ async function checkDueSchedules() {
       const task = await spawnScheduledTask(sched, {
         state,
         taskDir,
+        runtimeDir: runtime,
         inspectWorkspace: (p) => cliDiscovery.inspectWorkspace(p),
+        cleanupTaskWorktrees: (oldTask) => taskRunner.cleanupTaskWorktrees(oldTask),
         requestedRole: (b, roleId, conn) => promptService.requestedRole(b, roleId, conn),
         connectors,
       });
@@ -734,6 +884,7 @@ const routeContext = {
   },
   getEffectiveAccessUsername,
   getEffectiveAccessPassword,
+  issueScopedStreamToken,
   isLoopbackClient,
   getBoundPort: () => activeLanPort || (process.env.OPENSYBAU_DESKTOP === "1" ? 4173 : server?.address?.()?.port || port),
   isLanActive: () => lanCompanionServers.length > 0,
@@ -768,9 +919,94 @@ const routeContext = {
   promptService,
   stageRunner,
   taskRunner,
+  otelCollector,
+  mcpServerService,
+  mcpClientService,
+  worktreePoolManager,
+  consolidateMemoriesDream,
 };
 
 async function api(request, response, pathname) {
+  if (request.method === "GET" && pathname === "/api/auth/media-token") {
+    const reqUrl = new URL(request.url || "/", "http://localhost");
+    const wsId = reqUrl.searchParams.get("workspaceId") || "";
+    const scope = wsId ? `raw:${wsId}` : "all";
+    json(response, 200, {
+      accessToken: issueScopedStreamToken(scope, 15 * 60_000),
+      streamToken: issueScopedStreamToken("all", 15 * 60_000),
+      expiresInSec: 900,
+    });
+    return;
+  }
+  const designProxyMatch = (request.method === "GET" || request.method === "HEAD")
+    ? pathname.match(/^\/api\/design-proxy\/(\d{4,5})(\/.*)?$/)
+    : null;
+  if (designProxyMatch) {
+    const targetPort = Number(designProxyMatch[1]);
+    if (!Number.isInteger(targetPort) || targetPort < 1024 || targetPort > 65535) {
+      return json(response, 400, { error: "Cổng Design Proxy không hợp lệ (1024–65535)." });
+    }
+    const reqUrl = new URL(request.url || "/", "http://localhost");
+    const targetPath = `${designProxyMatch[2] || "/"}${reqUrl.search || ""}`;
+    try {
+      const upstream = await fetch(`http://127.0.0.1:${targetPort}${targetPath}`, {
+        method: request.method,
+        headers: {
+          Accept: request.headers.accept || "*/*",
+          "Accept-Encoding": "identity",
+        },
+        redirect: "manual",
+        signal: AbortSignal.timeout(10_000),
+      });
+      const contentType = String(upstream.headers.get("content-type") || "application/octet-stream");
+      const rawBuf = request.method === "HEAD" ? Buffer.alloc(0) : Buffer.from(await upstream.arrayBuffer());
+      if (rawBuf.byteLength > 20_000_000) return json(response, 413, { error: "Response exceeds 20MB proxy limit." });
+      const resHeaders = {
+        "Content-Type": contentType,
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
+        "Content-Security-Policy": `default-src 'self' http://127.0.0.1:${targetPort} data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://127.0.0.1:${targetPort}; style-src 'self' 'unsafe-inline' http://127.0.0.1:${targetPort}; img-src 'self' data: blob: http://127.0.0.1:${targetPort}; connect-src 'self' http://127.0.0.1:${targetPort} ws://127.0.0.1:${targetPort}; frame-ancestors 'self'`,
+      };
+      if (request.method === "GET" && contentType.toLowerCase().includes("text/html")) {
+        let htmlStr = rawBuf.toString("utf8");
+        const baseTag = `<base href="/api/design-proxy/${targetPort}/">`;
+        if (!/<base\b/i.test(htmlStr)) {
+          htmlStr = /<head[^>]*>/i.test(htmlStr)
+            ? htmlStr.replace(/(<head[^>]*>)/i, `$1${baseTag}`)
+            : `${baseTag}${htmlStr}`;
+        }
+        const inspectedBuf = injectOrcaInspectorHtml(Buffer.from(htmlStr, "utf8"));
+        response.writeHead(upstream.status, resHeaders);
+        response.end(inspectedBuf);
+        return;
+      }
+      response.writeHead(upstream.status, resHeaders);
+      response.end(request.method === "HEAD" ? undefined : rawBuf);
+    } catch (err) {
+      json(response, 502, { error: `Không kết nối được dev server localhost:${targetPort}: ${safeError(err)}` });
+    }
+    return;
+  }
+  if (request.method === "POST" && pathname === "/api/mcp") {
+    const enabled = process.env.WORKBENCH_MCP_ENABLED === "true" || Boolean(state.settings?.mcpServerEnabled);
+    if (!enabled) {
+      return json(response, 403, { error: "Local MCP Server chưa được bật (đặt WORKBENCH_MCP_ENABLED=true hoặc bật trong Cài đặt)." });
+    }
+    const body = await readBody(request);
+    const reply = await mcpServerService.handleJsonRpcMessage(body);
+    if (!reply) { response.writeHead(204).end(); return; }
+    return json(response, 200, reply);
+  }
+  if (request.method === "POST" && pathname === "/api/otel/v1/traces") {
+    const enabled = process.env.WORKBENCH_OTEL_ENABLED === "true" || Boolean(state.settings?.otelEnabled) || isLoopbackClient(request);
+    if (!enabled) return json(response, 403, { error: "OTel receiver chưa được bật." });
+    const body = await readBody(request);
+    const tasksById = new Map((state.tasks || []).map((t) => [t.id, t]));
+    const result = otelCollector.ingestOtlpPayload(body, tasksById);
+    if (result.accepted > 0) schedulePersist();
+    return json(response, 200, { partialSuccess: {}, accepted: result.accepted });
+  }
   if (await handleProviderSkillRoutes(request, response, pathname, routeContext)) return;
   if (await handleWorkspaceVaultRoutes(request, response, pathname, routeContext)) return;
   if (await handleTaskRoutes(request, response, pathname, routeContext)) return;
@@ -834,7 +1070,7 @@ function createWorkbenchServer() {
     if (isAndroidApkClient) {
       response.setHeader("Access-Control-Allow-Origin", origin);
       response.setHeader("Access-Control-Allow-Private-Network", "true");
-      response.setHeader("Access-Control-Expose-Headers", "ETag");
+      response.setHeader("Access-Control-Expose-Headers", "ETag, X-OpenSybau-Stream-Token");
       response.setHeader("Vary", "Origin");
     }
     let pathname;
@@ -1006,7 +1242,7 @@ export async function stopWorkbench() {
   }
   if (interrupted) { persist(); publish("tasks"); }
   else if (persistTimer) { persist(); }
-  if (publishTimer) { clearTimeout(publishTimer); publishTimer = null; pendingPublishType = null; }
+  if (publishTimer) { clearTimeout(publishTimer); publishTimer = null; pendingPublishTypes.clear(); pendingTaskDeltas.clear(); }
   for (const client of clients) client.end();
   clients.clear();
   await closeLanCompanionServers();
@@ -1022,12 +1258,17 @@ export async function stopWorkbench() {
   }
   server = undefined;
   taskStore?.close?.();
+  await worktreePoolManager?.cleanupWarmPool?.().catch(() => {});
   shutdownRustAccelerator();
 }
 
 const isDirectRun = Boolean(process.argv[1]) && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isDirectRun) {
-  process.once("SIGINT", () => { stopWorkbench().finally(() => process.exit(0)); });
-  process.once("SIGTERM", () => { stopWorkbench().finally(() => process.exit(0)); });
-  await startWorkbench();
+  if (process.argv.includes("--mcp-stdio")) {
+    mcpServerService.serveStdio();
+  } else {
+    process.once("SIGINT", () => { stopWorkbench().finally(() => process.exit(0)); });
+    process.once("SIGTERM", () => { stopWorkbench().finally(() => process.exit(0)); });
+    await startWorkbench();
+  }
 }

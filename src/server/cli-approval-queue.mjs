@@ -14,7 +14,13 @@ export class CliApprovalQueue {
     this.record(this.task, `Codex đang chờ duyệt · ${String(params.command || params.reason || method).slice(0, 240)}`, "approval", { source: "codex-app-server", approvalId: id, threadId: params.threadId, turnId: params.turnId });
     const timer = setTimeout(() => {
       const approval = this.task.pendingApprovals.find((item) => String(item.id) === String(id));
-      if (approval && this.active(approval.threadId, approval.turnId)) this.client.respond(id, { decision: "decline" });
+      if (approval && this.active(approval.threadId, approval.turnId)) {
+        try {
+          this.client.respond(id, { decision: "decline" });
+        } catch {
+          // client may already be closed during race with process exit
+        }
+      }
       this.remove(id);
       this.record(this.task, "Codex: yêu cầu duyệt đã hết hạn hoặc lượt chạy đã kết thúc.", "warning", { source: "codex-app-server", approvalId: id });
     }, this.timeoutMs);
@@ -28,7 +34,7 @@ export class CliApprovalQueue {
   active(threadId, turnId) { return !this.client.stageEnded && (this.client.isActiveTurn ? this.client.isActiveTurn(threadId, turnId) : !this.client.failure && this.client.threadId === threadId && this.client.turnId === turnId); }
   resolve(id, turnId, decision) {
     const item = (this.task.pendingApprovals || []).find((entry) => String(entry.id) === String(id) && entry.turnId === turnId);
-    if (!item || !this.active(item.threadId, turnId) || Date.parse(item.expiresAt) <= Date.now() || !["accept", "decline"].includes(decision)) return false;
+    if (!item || !this.active(item.threadId, turnId) || Date.parse(item.expiresAt) <= Date.now() || !["accept", "acceptForSession", "decline"].includes(decision)) return false;
     this.client.respond(item.id, { decision }); this.remove(id); return true;
   }
   close() {

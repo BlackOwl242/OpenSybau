@@ -29,21 +29,45 @@ export function parseReviewFindings(reviewText = "") {
   }
   const items = [];
   const lines = raw.split(/\r?\n/);
+  let activeSection = "";
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    if (/^(?:[-*•]|\d+\.)\s*(?:\[(?:BLOCKING|CRITICAL|HIGH|BUG|ERROR|LỖI NGHIÊM TRỌNG|CẦN SỬA)\]|❌|🔴)/i.test(trimmed) ||
+
+    // Track explicit Markdown heading / bold section context (e.g. "### Blocking Issues", "**Blocking**:")
+    const sectionLabels = "Blocking(?:\\s+Issues|\\s+Findings)?|Critical(?:\\s+Issues)?|Lỗi\\s+nghiêm\\s+trọng|Cần\\s+sửa(?:\\s+ngay)?|Advisory(?:\\s+Issues|\\s+Findings)?|Minor|Nit|Gợi\\s+ý|Lưu\\s+ý";
+    const sectionTags = "BLOCKING|CRITICAL|HIGH|ADVISORY|WARN(?:ING)?|MINOR|NIT";
+    const mdHeadingMatch = /^#{1,6}\s+/.test(trimmed)
+      ? trimmed.match(new RegExp(`^#{1,6}\\s*(?:\\*\\*\\s*|__\\s*)?(?:\\[(${sectionTags})\\]\\s*:?|(${sectionLabels})(?:\\s*\\*\\*|__)?\\s*:?)(?:\\s+(.*))?$`, "i"))
+      : null;
+    const colonHeadingMatch = !mdHeadingMatch && !/^[-*•]\s|^\d+\.\s/.test(trimmed)
+      ? trimmed.match(new RegExp(`^(?:\\*\\*\\s*)?(?:\\[(${sectionTags})\\]\\s*:?|(${sectionLabels})(?:\\s*\\*\\*|__)?\\s*:)\\s*(.*)$`, "i"))
+      : null;
+    const headingMatch = mdHeadingMatch || colonHeadingMatch;
+    if (headingMatch) {
+      const tag = String(headingMatch[1] || headingMatch[2] || "").toLowerCase();
+      const remainder = String(headingMatch[3] || "").replace(/^\*\*|\*\*$/g, "").trim();
+      const isBlockingSection = /(blocking|critical|high|nghiêm trọng|cần sửa)/.test(tag);
+      activeSection = isBlockingSection ? "blocking" : "advisory";
+      if (remainder && !/^(?:none|no\s+issues|0|n\/a|không có|-\s*none)\.?$/i.test(remainder)) {
+        items.push({ severity: activeSection, text: remainder });
+      }
+      continue;
+    }
+    if (/^#{1,6}\s+/.test(trimmed)) {
+      activeSection = "";
+    }
+
+    const strippedList = trimmed.replace(/^(?:[-*•]|\d+\.)\s*/, "").trim();
+    const isListLine = strippedList.length !== trimmed.length;
+    if (/^(?:[-*•]|\d+\.)\s*(?:\*\*|__)?(?:\[(?:BLOCKING|CRITICAL|HIGH|BUG|ERROR|LỖI NGHIÊM TRỌNG|CẦN SỬA)\]|❌|🔴)/i.test(trimmed) ||
         /^(?:\*\*|__)?(?:Blocking|Critical|Lỗi nghiêm trọng|Cần sửa ngay)(?:\*\*|__)?\s*:/i.test(trimmed)) {
-      items.push({
-        severity: "blocking",
-        text: trimmed.replace(/^(?:[-*•]|\d+\.)\s*/, "").trim()
-      });
-    } else if (/^(?:[-*•]|\d+\.)\s*(?:\[(?:ADVISORY|WARN|WARNING|MINOR|NIT|GỢI Ý|LƯU Ý)\]|⚠️|🟡)/i.test(trimmed) ||
+      items.push({ severity: "blocking", text: strippedList });
+    } else if (/^(?:[-*•]|\d+\.)\s*(?:\*\*|__)?(?:\[(?:ADVISORY|WARN|WARNING|MINOR|NIT|GỢI Ý|LƯU Ý)\]|⚠️|🟡)/i.test(trimmed) ||
                /^(?:\*\*|__)?(?:Advisory|Minor|Nit|Gợi ý|Lưu ý)(?:\*\*|__)?\s*:/i.test(trimmed)) {
-      items.push({
-        severity: "advisory",
-        text: trimmed.replace(/^(?:[-*•]|\d+\.)\s*/, "").trim()
-      });
+      items.push({ severity: "advisory", text: strippedList });
+    } else if (activeSection && isListLine && !/^(?:none|no\s+issues|n\/a|không có)\.?$/i.test(strippedList)) {
+      items.push({ severity: activeSection, text: strippedList });
     }
   }
   const explicitBlockingMatch = raw.match(/(?:blocking(?:\s+issues|\s+findings)?|lỗi\s+chặn|lỗi\s+nghiêm\s+trọng)\s*[:=]\s*(\d+)/i);

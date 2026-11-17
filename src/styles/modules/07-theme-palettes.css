@@ -238,7 +238,7 @@ html.desktop-glass[data-wb-theme="obsidian"] .wb-app-shell {
   width: 9px;
   height: 9px;
   border-radius: 999px;
-  background: var(--tp-accent, #6366f1);
+  background: var(--tp-accent, #2563eb);
   display: block;
 }
 
@@ -297,7 +297,7 @@ html.desktop-glass[data-wb-theme="obsidian"] .wb-app-shell {
   width: 9px;
   height: 9px;
   border-radius: 999px;
-  background: var(--tp-accent, #6366f1);
+  background: var(--tp-accent, #2563eb);
 }
 
 .theme-gallery-meta {

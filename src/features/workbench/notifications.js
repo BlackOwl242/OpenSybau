@@ -98,26 +98,26 @@ export async function openGithubCreatePrModal(taskOrId, { showModal } = {}) {
 export async function openGithubIssuesModal(workspaceId, { api, showModal } = {}) {
   if (!workspaceId || typeof api !== "function" || typeof showModal !== "function") return;
   showModal("GitHub Issues & Pull Requests", `<p class="form-note">Đang kiểm tra <code>gh</code> CLI và tải danh sách Issues / PRs…</p>`, "Đóng", "dismiss");
-  const data = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/github`).catch((err) => ({ available: false, reason: err.message, issues: [], pulls: [] }));
-  if (!data.available) {
+  const data = await api(`/api/workspaces/${encodeURIComponent(workspaceId)}/github`).catch((err) => ({ available: false, authenticated: false, message: err.message, issues: [], prs: [] }));
+  if (!data.available || !data.authenticated) {
     const body = `<div class="empty-state">
-      <strong>Chưa kết nối GitHub CLI (gh)</strong>
-      <p>${esc(data.reason || "Hãy cài đặt GitHub CLI (gh) và chạy gh auth login trong thư mục repository.")}</p>
+      <strong>${data.available ? "GitHub CLI (gh) chưa đăng nhập" : "Chưa kết nối GitHub CLI (gh)"}</strong>
+      <p>${esc(data.message || data.reason || "Hãy cài đặt GitHub CLI (gh) và chạy gh auth login trong thư mục repository.")}</p>
     </div>`;
     showModal("GitHub Issues & Pull Requests", body, "Đóng", "dismiss");
     return;
   }
   const issues = data.issues || [];
-  const pulls = data.pulls || [];
+  const pulls = data.prs || data.pulls || [];
   const issuesHtml = issues.length
     ? `<ul class="orca-tree-list">${issues.map((iss) => `<li class="orca-tree-item is-file" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px">
         <div style="min-width:0;flex:1">
           <strong>#${esc(String(iss.number))} · ${esc(iss.title)}</strong>
-          ${(iss.labels || []).length ? `<small style="display:block;opacity:.75">${iss.labels.map((l) => esc(l.name || "")).filter(Boolean).join(", ")}</small>` : ""}
+          ${(iss.labels || []).length ? `<small style="display:block;opacity:.75">${iss.labels.map((l) => esc(typeof l === "string" ? l : (l?.name || ""))).filter(Boolean).join(", ")}</small>` : ""}
         </div>
-        <button type="button" class="button primary small" data-action="import-github-issue" data-workspace-id="${esc(workspaceId)}" data-issue-number="${esc(String(iss.number))}" data-issue-title="${esc(iss.title)}" data-issue-url="${esc(iss.url || "")}">${icon("plus", 12)}<span>Giao Agent</span></button>
+        <button type="button" class="button primary small" data-action="import-github-issue" data-workspace-id="${esc(workspaceId)}" data-issue-number="${esc(String(iss.number))}" data-issue-title="${esc(iss.title)}" data-issue-body="${esc(String(iss.body || "").slice(0, 4000))}" data-issue-url="${esc(iss.url || "")}">${icon("plus", 12)}<span>Giao Agent</span></button>
       </li>`).join("")}</ul>`
-    : `<p class="orca-muted-note">Không có Issue nào đang mở.</p>`;
+    : `<p class="orca-muted-note">${esc(data.message || "Không có Issue nào đang mở.")}</p>`;
 
   const pullsHtml = pulls.length
     ? `<ul class="orca-tree-list">${pulls.map((pr) => `<li class="orca-tree-item is-file" style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px">

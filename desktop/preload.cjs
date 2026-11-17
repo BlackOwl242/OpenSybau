@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld("opensybauDesktop", Object.freeze({
   supportsCliInstall: process.platform === "win32" || process.platform === "linux",
   installCli: (providerId, language) => ipcRenderer.invoke("opensybau:cli:install", providerId, language),
   openConfigFolder: () => ipcRenderer.invoke("opensybau:open-config-folder"),
+  captureRegion: (rect) => ipcRenderer.invoke("opensybau:capture-region", rect),
   getUpdateState: () => ipcRenderer.invoke("opensybau:update:get-state"),
   checkForUpdates: () => ipcRenderer.invoke("opensybau:update:check"),
   restartToUpdate: () => ipcRenderer.invoke("opensybau:update:restart"),

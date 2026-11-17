@@ -1,6 +1,7 @@
 mod bm25;
 mod diff;
 mod json;
+mod repomap;
 mod scanner;
 mod vault;
 
@@ -10,6 +11,7 @@ use std::io::{self, BufRead, Read, Write};
 use bm25::{rank_bm25_from_json, serialize_bm25_hits_json};
 use diff::{parse_unified_diff_files, serialize_diff_files_json};
 use json::{parse_json, write_escaped_str};
+use repomap::{build_repo_map, repo_map_from_json, serialize_repo_map_json};
 use scanner::{scan_workspace_files, serialize_scanned_files_json};
 use vault::{build_vault_knowledge_graph, serialize_vault_graph_json};
 
@@ -81,6 +83,15 @@ fn handle_worker_request(line: &str) -> String {
                 }
             }
         }
+        "repo-map" => match repo_map_from_json(&req) {
+            Ok(res_json) => format!("{{\"id\":{},\"ok\":true,\"result\":{}}}", id, res_json),
+            Err(err) => {
+                let mut out = format!("{{\"id\":{},\"ok\":false,\"error\":", id);
+                write_escaped_str(&mut out, &err);
+                out.push('}');
+                out
+            }
+        },
         other => {
             let mut out = format!("{{\"id\":{},\"ok\":false,\"error\":", id);
             write_escaped_str(&mut out, &format!("Unknown operation: {}", other));
@@ -182,8 +193,24 @@ fn main() {
                 }
             }
         }
+        "repo-map" => {
+            let root_path = args.get(2).map(|s| s.as_str()).unwrap_or(".");
+            let max_tokens = args
+                .get(3)
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(1000);
+            match build_repo_map(root_path, &[], max_tokens) {
+                Ok((map, files, syms, truncated)) => {
+                    println!("{}", serialize_repo_map_json(&map, files, syms, truncated));
+                }
+                Err(e) => {
+                    eprintln!("{}", e);
+                    std::process::exit(1);
+                }
+            }
+        }
         _ => {
-            eprintln!("Usage: opensybau-core [--worker | health | parse-diff | vault-graph <dir> | rank-bm25 | scan-files <dir> [max]]");
+            eprintln!("Usage: opensybau-core [--worker | health | parse-diff | vault-graph <dir> | rank-bm25 | scan-files <dir> [max] | repo-map <dir> [maxTokens]]");
             std::process::exit(1);
         }
     }

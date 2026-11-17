@@ -80,14 +80,36 @@ export function activityChart() {
 
 export function taskPage() {
   const all = view.state.tasks.filter((task) => !task.archived);
+  const isCronTask = (t) => Boolean(t && (t.origin === "schedule" || Boolean(t.scheduleId) || String(t.code || "").startsWith("CRON-")));
   const hasRecordedError = (task) => task.status === "failed" || (task.events || []).some((event) => event.kind === "error") || (task.chatMessages || []).some((message) => message.status === "failed");
-  const visible = all.filter((task) => view.filter === "all" || (view.filter === "failed" ? hasRecordedError(task) : task.status === view.filter));
+  const visible = all.filter((task) => {
+    if (view.filter === "all") return true;
+    if (view.filter === "cron") return isCronTask(task);
+    return view.filter === "failed" ? hasRecordedError(task) : task.status === view.filter;
+  });
   const running = all.filter((task) => task.status === "running").length;
   const queued = all.filter((task) => task.status === "queued").length;
   const completed = all.filter((task) => task.status === "done").length;
   const schedulesCount = Array.isArray(view.schedules) ? view.schedules.length : 0;
+  const isKanban = view.tasksDisplayMode === "kanban";
   const backBtnMarkup = backContextButtonMarkup();
-  return `<div class="page-head"><div>${backBtnMarkup}<h1>Công việc</h1><p>Tạo việc thật trong repository bạn chọn, xem tiến độ và đầu ra trực tiếp.</p></div><div class="page-head-actions"><button type="button" class="button quiet" data-action="open-schedules-modal">${icon("calendar", 15)} <span>Lịch tự động${schedulesCount ? ` (${schedulesCount})` : ""}</span></button>${all.length ? `<button class="button primary" data-action="${view.state.workspaces.length ? "new-task" : "add-workspace"}">${icon("plus", 15)} <span>${view.state.workspaces.length ? "Tạo task" : "Thêm dự án"}</span></button>` : ""}</div></div>
+  const kanbanHtml = isKanban
+    ? `<section class="task-kanban-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">
+        ${[
+          { id: "queued", title: "Hàng đợi · Chờ", items: visible.filter((t) => t.status === "queued") },
+          { id: "running", title: "Đang chạy", items: visible.filter((t) => t.status === "running") },
+          { id: "review", title: "Chờ duyệt · Cần xem", items: visible.filter((t) => t.status === "awaiting_approval" || Boolean(t.mergeConflict)) },
+          { id: "done", title: "Hoàn tất · Lỗi", items: visible.filter((t) => ["done", "failed", "cancelled"].includes(t.status) && !t.mergeConflict) },
+        ].map((col) => `<div class="settings-card" style="padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0;">
+          <header style="display:flex;justify-content:space-between;align-items:center;margin:0 0 4px;">
+            <strong style="font-size:12.5px;">${col.title}</strong>
+            <span class="pill">${col.items.length}</span>
+          </header>
+          ${col.items.length ? col.items.map(taskRow).join("") : `<p class="muted" style="margin:6px 0;">Trống</p>`}
+        </div>`).join("")}
+      </section>`
+    : "";
+  return `<div class="page-head"><div>${backBtnMarkup}<h1>Công việc</h1><p>Tạo việc thật trong repository bạn chọn, xem tiến độ và đầu ra trực tiếp.</p></div><div class="page-head-actions"><button type="button" class="button quiet" data-action="toggle-tasks-kanban" aria-pressed="${isKanban}">${icon(isKanban ? "list" : "columns-2", 15)} <span>${isKanban ? "Danh sách" : "Kanban"}</span></button><button type="button" class="button quiet" data-action="open-schedules-modal">${icon("calendar", 15)} <span>Lịch tự động${schedulesCount ? ` (${schedulesCount})` : ""}</span></button>${all.length ? `<button class="button primary" data-action="${view.state.workspaces.length ? "new-task" : "add-workspace"}">${icon("plus", 15)} <span>${view.state.workspaces.length ? "Tạo task" : "Thêm dự án"}</span></button>` : ""}</div></div>
   <div class="quick-stats is-four-cols task-overview-stats">
     <div><small>Tổng số</small><strong>${all.length}</strong></div>
     <div><small>Đang chạy</small><strong>${running}</strong></div>
@@ -95,8 +117,8 @@ export function taskPage() {
     <div><small>Hoàn tất</small><strong>${completed}</strong></div>
   </div>
   ${activityChart()}
-  <div class="list-toolbar task-filter-toolbar"><div class="filters">${[["all", "Tất cả"], ["running", "Đang chạy"], ["queued", "Chờ"], ["done", "Xong"], ["failed", "Lỗi"], ["cancelled", "Đã dừng"]].map(([key, label]) => `<button class="filter ${view.filter === key ? "active" : ""}" data-filter="${key}" aria-pressed="${view.filter === key}">${label}</button>`).join("")}</div><span>${all.length} task đã ghi trên máy này</span></div>
-  <section class="task-list">${visible.length ? visible.map(taskRow).join("") : `<div class="empty-state"><div class="empty-symbol">${icon("folder-code", 20)}</div><strong>${all.length ? "Không có task trong bộ lọc này" : view.state.workspaces.length ? "Chưa có task nào được chạy" : "Thêm repository của bạn để bắt đầu"}</strong><p>${all.length ? "Chọn bộ lọc khác để xem task." : view.state.workspaces.length ? "Task tiếp theo sẽ chạy trong đúng workspace đã đăng ký và lịch sử sẽ được lưu cục bộ." : "OpenSybau chỉ chạy trong thư mục bạn chỉ định. Hãy thêm đường dẫn repository hoặc thư mục ứng dụng trước; thư mục cài đặt ứng dụng không được tự coi là dự án của bạn."}</p>${all.length ? "" : view.state.workspaces.length ? `<button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button>` : `<button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm đường dẫn dự án</button>`}</div>`}</section>
+  <div class="list-toolbar task-filter-toolbar"><div class="filters">${[["all", "Tất cả"], ["running", "Đang chạy"], ["queued", "Chờ"], ["done", "Xong"], ["failed", "Lỗi"], ["cancelled", "Đã dừng"], ["cron", "CRON"]].map(([key, label]) => `<button class="filter ${view.filter === key ? "active" : ""}" data-filter="${key}" aria-pressed="${view.filter === key}">${label}</button>`).join("")}</div><span>${all.length} task đã ghi trên máy này</span></div>
+  ${isKanban ? kanbanHtml : `<section class="task-list">${visible.length ? visible.map(taskRow).join("") : `<div class="empty-state"><div class="empty-symbol">${icon("folder-code", 20)}</div><strong>${all.length ? "Không có task trong bộ lọc này" : view.state.workspaces.length ? "Chưa có task nào được chạy" : "Thêm repository của bạn để bắt đầu"}</strong><p>${all.length ? "Chọn bộ lọc khác để xem task." : view.state.workspaces.length ? "Task tiếp theo sẽ chạy trong đúng workspace đã đăng ký và lịch sử sẽ được lưu cục bộ." : "OpenSybau chỉ chạy trong thư mục bạn chỉ định. Hãy thêm đường dẫn repository hoặc thư mục ứng dụng trước; thư mục cài đặt ứng dụng không được tự coi là dự án của bạn."}</p>${all.length ? "" : view.state.workspaces.length ? `<button class="button primary" data-action="new-task">${icon("plus", 15)} Tạo task đầu tiên</button>` : `<button class="button primary" data-action="add-workspace">${icon("plus", 15)} Thêm đường dẫn dự án</button>`}</div>`}</section>`}
   ${renderSchedulesSectionMarkup()}`;
 }
 

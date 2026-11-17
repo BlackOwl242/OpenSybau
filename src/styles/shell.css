@@ -588,7 +588,18 @@ h4, .wb-page-content h4, .sub-section-title { font-size: var(--wb-font-h4); font
   .wb-project-actions, .wb-task-actions { opacity: 1; pointer-events: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+  html { scroll-behavior: auto !important; }
+  .wb-boot-splash,
+  .wb-context-sidebar,
+  .orca-right-dock,
+  .home-composer-dock,
+  .modal,
+  .toast,
+  .diff-add-comment-icon,
+  .wb-task-dot {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 .desktop-setup-backdrop { position: fixed; inset: 0; z-index: var(--wb-z-modal); display: grid; place-items: center; overflow: auto; padding: 24px; background: color-mix(in srgb, var(--wb-bg) 82%, transparent); }

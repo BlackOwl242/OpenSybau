@@ -10,8 +10,20 @@ android {
         applicationId "com.opensybau.mobile"
         minSdk 26
         targetSdk 35
-        versionCode 18
-        versionName "0.3.10"
+        versionCode 19
+        versionName "0.3.11"
+    }
+
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv("OPENSYBAU_ANDROID_KEYSTORE") ?: ""
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("OPENSYBAU_ANDROID_KEYSTORE_PASSWORD") ?: ""
+                keyAlias System.getenv("OPENSYBAU_ANDROID_KEY_ALIAS") ?: ""
+                keyPassword System.getenv("OPENSYBAU_ANDROID_KEY_PASSWORD") ?: ""
+            }
+        }
     }
 
     buildTypes {
@@ -20,7 +32,12 @@ android {
             minifyEnabled false
         }
         release {
-            minifyEnabled false
+            debuggable false
+            minifyEnabled true
+            shrinkResources true
+            if (System.getenv("OPENSYBAU_ANDROID_KEYSTORE")) {
+                signingConfig signingConfigs.release
+            }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

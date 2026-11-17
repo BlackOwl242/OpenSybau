@@ -9,7 +9,7 @@
   },
   "private": true,
   "license": "MIT",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "type": "module",
   "main": "desktop/main.cjs",
   "engines": {
@@ -27,8 +27,11 @@
     "test:ui": "npm run build && node scripts/test-observability-ui.mjs",
     "test:drawers": "node scripts/test-narrow-drawers.mjs",
     "test:mobile": "node scripts/test-mobile-pages.mjs",
+    "test:p0": "node scripts/test-p0-regressions.mjs",
+    "test:phase2": "node scripts/test-phase2-api-harness.mjs && node scripts/test-phase2-checkpoints-phase3.mjs && node scripts/test-security-http.mjs",
+    "test:browser-qa": "npm run build && node scripts/test-browser-security-a11y.mjs",
     "test:e2e": "node scripts/test-workbench-e2e.mjs",
-    "test": "node scripts/test-200-subagents.mjs && node scripts/test-quota-windows.mjs && node scripts/test-installer-env.cjs && node scripts/test-switch-account.mjs && node scripts/test-subagent-observability.mjs && node scripts/test-chat-queue.mjs && node scripts/test-managed-terminal.mjs && node scripts/test-codex-app-server.mjs && node scripts/test-customization-inventory.mjs && node scripts/test-agent-control.mjs && node scripts/test-workspace-scheduler.mjs",
+    "test": "node scripts/test-200-subagents.mjs && node scripts/test-quota-windows.mjs && node scripts/test-installer-env.cjs && node scripts/test-switch-account.mjs && node scripts/test-subagent-observability.mjs && node scripts/test-chat-queue.mjs && node scripts/test-managed-terminal.mjs && node scripts/test-codex-app-server.mjs && node scripts/test-customization-inventory.mjs && node scripts/test-agent-control.mjs && node scripts/test-workspace-scheduler.mjs && node scripts/test-p0-regressions.mjs && node scripts/test-phase2-api-harness.mjs && node scripts/test-phase2-checkpoints-phase3.mjs && node scripts/test-security-http.mjs",
     "start": "node scripts/run.mjs production",
     "desktop:dev": "npm run build && electron .",
     "desktop:dist": "npm run build && electron-builder --win nsis --publish never",
@@ -81,6 +84,12 @@
     },
     "win": {
       "icon": "desktop/icon.ico",
+      "extraResources": [
+        {
+          "from": "native/opensybau-core/target/release/opensybau-core.exe",
+          "to": "opensybau-core.exe"
+        }
+      ],
       "target": [
         {
           "target": "nsis",
@@ -93,6 +102,12 @@
     },
     "linux": {
       "icon": "desktop/icon.png",
+      "extraResources": [
+        {
+          "from": "native/opensybau-core/target/release/opensybau-core",
+          "to": "opensybau-core"
+        }
+      ],
       "category": "Development",
       "maintainer": "OpenSybau",
       "syncDesktopName": true,

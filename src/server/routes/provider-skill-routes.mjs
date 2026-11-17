@@ -45,6 +45,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     setConnectionConfig,
     getEffectiveAccessUsername,
     getEffectiveAccessPassword,
+    issueScopedStreamToken = null,
     isLoopbackClient,
     getBoundPort,
     isLanActive,
@@ -88,7 +89,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     loadSkillCatalog,
     createSkillFiles,
   } = skillCatalogService;
-  const { pump } = taskRunner;
+  const { pump, cleanupTaskWorktrees } = taskRunner;
   const state = getState();
 
   if (request.method === "GET" && pathname === "/api/ping") {
@@ -100,7 +101,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       platform: process.platform,
       port: getBoundPort(),
       authRequired: Boolean(getEffectiveAccessPassword()),
-      version: "0.3.10",
+      version: "0.3.11",
       mode: (!isLoopbackBind || isLanActive()) ? "network" : "loopback",
       ts: Date.now(),
     });
@@ -125,7 +126,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       includePassword: isLoopbackClient(request),
       hasAccessPassword: Boolean(activePass),
       allowedHosts,
-      version: "0.3.10",
+      version: "0.3.11",
       connectors,
       activeWorktreesCount,
       runningTasksCount,
@@ -178,6 +179,9 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     const activeWorktreesCount = state.tasks.filter((t) => t.isolated && !t.worktreeCleaned && !t.archived).length;
     const runningTasksCount = state.tasks.filter((t) => t.status === "running").length;
     const activePass = getEffectiveAccessPassword();
+    if (typeof issueScopedStreamToken === "function") {
+      response.setHeader("X-OpenSybau-Stream-Token", issueScopedStreamToken("all", 15 * 60_000));
+    }
     json(response, 200, buildConnectionInfoPayload({
       host,
       port: boundPort,
@@ -187,10 +191,10 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       productionMode,
       accessUsername: getEffectiveAccessUsername(),
       accessPassword: activePass,
-      includePassword: true,
+      includePassword: Boolean(isLoopbackClient(request) && isLoopbackBind),
       hasAccessPassword: Boolean(activePass),
       allowedHosts,
-      version: "0.3.10",
+      version: "0.3.11",
       connectors,
       activeWorktreesCount,
       runningTasksCount,
@@ -201,6 +205,9 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
   if (request.method === "GET" && pathname === "/api/state") {
     const snapshot = stateSnapshot.read();
     const unchanged = request.headers["if-none-match"]?.split(",").map((tag) => tag.trim()).includes(snapshot.etag);
+    const streamTokenHeader = typeof issueScopedStreamToken === "function"
+      ? { "X-OpenSybau-Stream-Token": issueScopedStreamToken("all", 15 * 60_000) }
+      : {};
     response.writeHead(unchanged ? 304 : 200, {
       "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "private, no-cache",
@@ -208,6 +215,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       "X-Content-Type-Options": "nosniff",
       "X-Frame-Options": "DENY",
       "Referrer-Policy": "no-referrer",
+      ...streamTokenHeader,
     });
     response.end(unchanged ? undefined : snapshot.body);
     return true;
@@ -217,8 +225,11 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     const body = await readBody(request);
     const requestedPath = String(body.path || "").trim();
     const baseName = basename(requestedPath).toLowerCase();
-    if (!requestedPath || !isAbsolute(requestedPath) || process.platform === "win32" && !/^(?:agy|antigravity)[\w.-]*\.exe$/i.test(baseName)) {
-      json(response, 400, { error: "Chọn đường dẫn tuyệt đối tới file agy.exe." });
+    const validAgyName = process.platform === "win32"
+      ? /^(?:agy|antigravity)[\w.-]*\.exe$/i.test(baseName)
+      : /^(?:agy|antigravity)[\w.-]*$/i.test(baseName);
+    if (!requestedPath || !isAbsolute(requestedPath) || !validAgyName) {
+      json(response, 400, { error: "Chọn đường dẫn tuyệt đối tới tệp thực thi Antigravity (agy)." });
       return true;
     }
     const executable = resolve(requestedPath);
@@ -848,6 +859,17 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
     return true;
   }
 
+  if (request.method === "POST" && pathname === "/api/memory/consolidate") {
+    const body = await readBody(request);
+    const workspaceId = String(body.workspaceId || "").trim();
+    const result = typeof ctx.consolidateMemoriesDream === "function"
+      ? ctx.consolidateMemoriesDream(getMemories(), { persistMemoryFn: persistMemory, workspaceId })
+      : { merged: 0, pruned: 0, total: getMemories().length };
+    publish("memory");
+    json(response, 200, { ok: true, ...result, memories: getMemories() });
+    return true;
+  }
+
   if (request.method === "DELETE" && pathname.startsWith("/api/memory/")) {
     const id = decodeURIComponent(pathname.slice("/api/memory/".length));
     setMemories(getMemories().filter((item) => item.id !== id));
@@ -920,6 +942,23 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
       json(response, 404, { error: "Lịch chạy định kỳ không tồn tại." });
       return true;
     }
+    if (request.method === "PATCH" && !scheduleAction) {
+      const body = await readBody(request);
+      let normalized;
+      try {
+        const connectors = await loadModels().catch(() => ({}));
+        normalized = normalizeScheduleProfile({ ...schedule, ...body, id: schedule.id }, state, connectors);
+      } catch (error) {
+        json(response, 400, { error: safeError(error) });
+        return true;
+      }
+      const idx = state.settings.schedules.findIndex((item) => item.id === scheduleId);
+      state.settings.schedules[idx] = { ...schedule, ...normalized };
+      persist();
+      publish("settings");
+      json(response, 200, { schedule: state.settings.schedules[idx] });
+      return true;
+    }
     if (request.method === "DELETE" && !scheduleAction) {
       state.settings.schedules = state.settings.schedules.filter((item) => item.id !== scheduleId);
       persist();
@@ -934,6 +973,7 @@ export async function handleProviderSkillRoutes(request, response, pathname, ctx
           state,
           taskDir,
           inspectWorkspace: (p) => cliDiscovery.inspectWorkspace(p),
+          cleanupTaskWorktrees,
           requestedRole: (b, roleId, conn) => promptService.requestedRole(b, roleId, conn),
           connectors,
         });

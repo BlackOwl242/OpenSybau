@@ -10,6 +10,8 @@ const EXE_NAME = process.platform === "win32" ? "opensybau-core.exe" : "opensyba
 
 const CANDIDATE_BINARIES = [
   process.env.OPENSYBAU_RUST_CORE_BIN ? resolve(process.env.OPENSYBAU_RUST_CORE_BIN) : "",
+  process.resourcesPath ? resolve(process.resourcesPath, "bin", EXE_NAME) : "",
+  process.resourcesPath ? resolve(process.resourcesPath, EXE_NAME) : "",
   resolve(PROJECT_ROOT, "native/opensybau-core/target/release", EXE_NAME),
   resolve(PROJECT_ROOT, "native/opensybau-core/target/x86_64-pc-windows-gnullvm/release", EXE_NAME),
   resolve(PROJECT_ROOT, "native/opensybau-core/target/x86_64-pc-windows-gnu/release", EXE_NAME),
@@ -22,6 +24,17 @@ let cachedHealth = null;
 let rustWorker = null;
 let rustWorkerSeq = 0;
 const pendingWorkerRequests = new Map();
+
+function syncWorkerEventLoopRef() {
+  if (!rustWorker || rustWorker.killed) return;
+  if (pendingWorkerRequests.size > 0) {
+    rustWorker.ref?.();
+    rustWorker.stdout?.ref?.();
+  } else {
+    rustWorker.unref?.();
+    rustWorker.stdout?.unref?.();
+  }
+}
 
 const telemetry = {
   callsTotal: 0,
@@ -112,6 +125,7 @@ function ensureRustWorker() {
     child.unref();
     child.stdin?.unref?.();
     child.stdout?.unref?.();
+    child.stdin?.on("error", () => {});
 
     const rl = createInterface({ input: child.stdout, crlfDelay: Infinity });
     rl.on("line", (line) => {
@@ -122,6 +136,7 @@ function ensureRustWorker() {
         const pending = pendingWorkerRequests.get(msg.id);
         if (!pending) return;
         pendingWorkerRequests.delete(msg.id);
+        syncWorkerEventLoopRef();
         clearTimeout(pending.timer);
         if (msg.ok) {
           pending.resolve(msg.result);
@@ -165,6 +180,8 @@ export function shutdownRustAccelerator() {
   }
 }
 
+let consecutiveWorkerTimeouts = 0;
+
 export function callRustWorker(op, payload = {}, timeoutMs = 6000) {
   const worker = ensureRustWorker();
   if (!worker) return Promise.reject(new Error("Rust worker unavailable"));
@@ -173,15 +190,30 @@ export function callRustWorker(op, payload = {}, timeoutMs = 6000) {
   return new Promise((resolvePromise, rejectPromise) => {
     const timer = setTimeout(() => {
       pendingWorkerRequests.delete(id);
+      syncWorkerEventLoopRef();
+      consecutiveWorkerTimeouts += 1;
+      if (consecutiveWorkerTimeouts >= 2) {
+        consecutiveWorkerTimeouts = 0;
+        shutdownRustAccelerator();
+      }
       rejectPromise(new Error(`Rust worker timeout (${op})`));
     }, timeoutMs);
     timer.unref?.();
-    pendingWorkerRequests.set(id, { resolve: resolvePromise, reject: rejectPromise, timer });
+    pendingWorkerRequests.set(id, {
+      resolve: (val) => {
+        consecutiveWorkerTimeouts = 0;
+        resolvePromise(val);
+      },
+      reject: rejectPromise,
+      timer,
+    });
+    syncWorkerEventLoopRef();
     try {
       worker.stdin.write(`${JSON.stringify({ id, op, ...payload })}\n`);
     } catch (err) {
       clearTimeout(timer);
       pendingWorkerRequests.delete(id);
+      syncWorkerEventLoopRef();
       rejectPromise(err);
     }
   });
@@ -232,4 +264,16 @@ export async function rustScanWorkspaceFilesAsync(rootPath, maxFiles = 180) {
     maxFiles: Number(maxFiles) || 180,
   });
   return Array.isArray(res?.files) ? res.files : null;
+}
+
+export async function rustBuildRepoMapAsync(rootPath, focusFiles = [], maxTokens = 1000) {
+  try {
+    const res = await callRustWorker("repo-map", {
+      rootPath: String(rootPath || ""),
+      focusFiles: Array.isArray(focusFiles) ? focusFiles.map(String).slice(0, 24) : [],
+      maxTokens: Number(maxTokens) || 1000,
+    }, 8000);
+    if (res && typeof res.repoMap === "string") return res;
+  } catch {}
+  return callRustSync("repo-map", [String(rootPath || ""), String(Number(maxTokens) || 1000)]);
 }

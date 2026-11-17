@@ -595,7 +595,7 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
     return true;
   }
   if (action === "close-modal") { if (event.target === button || button.tagName === "BUTTON") closeOverlay(); return true; }
-  if (action === "close-details") { view.selected = null; view.page = "chat"; render(); return true; }
+  if (action === "close-details") { view.selected = null; view.selectedTaskId = null; view.mobileScreen = "home"; view.page = "chat"; render(); return true; }
   if (action === "parallel-plus" || action === "parallel-minus") {
     const current = view.state.settings.maxConcurrent;
     const maxConcurrent = Math.max(1, Math.min(8, current + (action === "parallel-plus" ? 1 : -1)));
@@ -631,6 +631,16 @@ export async function handleWorkspaceVaultSettingsAction(action, id, button, eve
     return true;
   }
   if (action === "memory-scope-filter") { view.memoryWorkspaceFilter = button.dataset.scope || "all"; render(); return true; }
+  if (action === "toggle-tasks-kanban") { view.tasksDisplayMode = view.tasksDisplayMode === "kanban" ? "list" : "kanban"; render(); return true; }
+  if (action === "consolidate-memory-dream") {
+    const res = await api("/api/memory/consolidate", {
+      method: "POST",
+      body: JSON.stringify({ workspaceId: view.memoryWorkspaceFilter === "global" || view.memoryWorkspaceFilter === "all" ? "" : (view.memoryWorkspaceFilter || "") }),
+    });
+    await refresh();
+    showToast(`Đã hợp nhất Dream (${res.merged || 0} ghi chú gộp, còn ${res.total ?? ""} mục).`);
+    return true;
+  }
   if (action === "settings-scroll-section") {
     const secId = button.dataset.section || "";
     const secEl = secId ? document.getElementById(secId) : null;
